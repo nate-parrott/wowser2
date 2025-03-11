@@ -16,6 +16,12 @@ extension Sequence {
     }
 }
 
+extension Sequence where Element: Hashable {
+    var asSet: Set<Element> {
+        Set(self)
+    }
+}
+
 extension Array {
     func get(_ idx: Int) -> Element? {
         if idx >= 0 && idx < count {

@@ -28,35 +28,49 @@ extension BrowserState {
     @discardableResult
     mutating func openTab(url: URL, activate: Bool = true) -> Tab {
         let win = getOrCreateActiveWindow()
-        let idx = insertionIndex(window: win.id, spawningTabId: win.currentTab)
-        let tab = Tab(id: .assign(), info: .init(url: url), lastAccessed: Date(), aiLabel: nil)
-        tabs[tab.id] = tab
-        windows[win.id]!.tabs.insert(tab.id, at: idx)
+        let insertionLocation = insertionIndex(window: win.id, spawningTabId: win.currentTab)
+//        let tab = Tab(id: .assign(), info: .init(url: url), lastAccessed: Date(), aiLabel: nil)
+        let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: url))])
+        insertTab(tab, location: insertionLocation, inWindow: win.id)
+//        windows[win.id]!.tabs.insert(tab.id, at: idx)
         if activate {
             self.activate(tabId: tab.id, in: win.id)
         }
         return tab
     }
     
+//    mutating func insert(tabId: ID<Tab>, inWindow window: ID<WindowState>, location: SidebarLocation) {
+//    }
+    
     mutating func activate(tabId id: ID<Tab>, in window: ID<WindowState>) {
         if let old = windows[window]?.currentTab {
-            tabs[old]?.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
+            modifyTab(id: old) { tab in
+                tab.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
+            }
         }
         windows[window]?.currentTab = id
-        tabs[id]?.lastAccessed = Date()
+        modifyTab(id: id) { tab in
+            tab.lastAccessed = Date()
+        }
     }
     
-    func insertionIndex(window: ID<WindowState>, spawningTabId: ID<Tab>?) -> Int {
-        guard let win = windows[window] else { return 0 }
+    func insertionIndex(window: ID<WindowState>, spawningTabId: ID<Tab>?) -> SidebarLocation {
+        guard let win = windows[window] else { return .ordinaryTabs(0) }
         if let spawningTabId, let loc = location(ofTabId: spawningTabId, inWindowId: window) {
             switch loc {
             case .favorites:
-                return win.tabs.count
+                return .ordinaryTabs(win.tabs.count)
             case .ordinaryTabs(let idx):
-                return idx + 1 // TODO: insert below siblings from same parent
+                return .ordinaryTabs(idx + 1) // TODO: insert below siblings from same parent
+            case .project(let id, let idx):
+                return .project(id, idx + 1)
             }
         }
-        return win.tabs.count
+        if let proj = win.focusedOnProject {
+            let projTabCounts = projects[proj]?.tabs.count ?? 0
+            return .project(proj, projTabCounts)
+        }
+        return .ordinaryTabs(win.tabs.count)
     }
     
     func location(ofTabId tabId: ID<Tab>, inWindowId windowId: ID<WindowState>) -> SidebarLocation? {
@@ -79,28 +93,60 @@ extension BrowserState {
     }
     
     // Call the method on BrowserStore instead
-    mutating func _close(tabId id: ID<Tab>, removeIfPinned: Bool) {
-        guard let winId = self.windowContaining(tabId: id)?.id else {
+    mutating func _close(webContentId id: ID<WebContent>, removeIfPinned: Bool) {
+        guard let tabId = self.paneToTabMapping[id],
+              let tab = tabs[tabId],
+              let winId = self.windowContaining(tabId: tabId)?.id
+        else { return }
+        
+        let url = tabs[tabId]?.panes[id]?.info.url
+        
+        func reselect() {
+            if let selectNext = tabToSelectAfterClosing(tabId: tabId) {
+                activate(tabId: selectNext, in: winId)
+            }
+        }
+        
+        func resetToBase() {
+            modifyPaneAndTab(forWebContentId: id) { pane, tab in
+                if let base = pane.baseInfo {
+                    pane.info = base
+                }
+            }
+        }
+        
+        func remove() {
+            if let loc = location(ofTabId: tabId, inWindowId: winId) {
+                switch loc {
+                case .favorites:
+                    if removeIfPinned, let profileId = self.windows[winId]?.profile {
+                        profiles[profileId]?.autoFavorites.removeAll(where: { $0 == tabId })
+                        profiles[profileId]?.manualFavorites.removeAll(where: { $0 == tabId })
+                        if let host = url?.hostWithoutWWW {
+                            // Do not let this become an auto fave in the future
+                            profiles[profileId]?.removedFavoriteDomains.insert(host)
+                        }
+                    }
+                case .ordinaryTabs(let idx):
+                    windows[winId]?.tabs.remove(at: idx)
+                case .project(let projId, let idx):
+                    projects[projId]?.tabs.remove(at: idx)
+                }
+            }
+        }
+        
+        if !removeIfPinned {
+            resetToBase()
+            reselect()
             return
         }
-        let url = tabs[id]?.info.url
-        if let selectNext = tabToSelectAfterClosing(tabId: id) {
-            activate(tabId: selectNext, in: winId)
-        }
-        if let loc = location(ofTabId: id, inWindowId: winId) {
-            switch loc {
-            case .favorites:
-                if removeIfPinned, let profileId = self.windows[winId]?.profile {
-                    profiles[profileId]?.autoFavorites.removeAll(where: { $0 == id })
-                    profiles[profileId]?.manualFavorites.removeAll(where: { $0 == id })
-                    if let host = url?.hostWithoutWWW {
-                        // Do not let this become an auto fave in the future
-                        profiles[profileId]?.removedFavoriteDomains.insert(host)
-                    }
-                }
-            case .ordinaryTabs(let idx):
-                windows[winId]?.tabs.remove(at: idx)
-            }
+        
+        if tab.panes.count > 1 {
+            // Don't close tab, just pane
+            _removePane_unsafe(id: id)
+        } else {
+            reselect()
+            remove()
         }
     }
     
@@ -114,6 +160,9 @@ extension BrowserState {
                 return nil
             case .ordinaryTabs(let idx):
                 return idx == 0 ? win.tabs.get(idx + 1) : win.tabs.get(idx - 1)
+            case .project(let projectId, let idx):
+                let projectTabs = projects[projectId]?.tabs ?? []
+                return idx == 0 ? projectTabs.get(idx + 1) : projectTabs.get(idx - 1)
             }
         }
         return win.tabs.filter({ $0 != id }).max { tab1, tab2 in
@@ -143,4 +192,5 @@ extension BrowserState {
 enum SidebarLocation: Equatable {
     case favorites(Int)
     case ordinaryTabs(Int)
+    case project(ID<Project>, Int)
 }

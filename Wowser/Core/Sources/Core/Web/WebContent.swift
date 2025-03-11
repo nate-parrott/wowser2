@@ -29,7 +29,7 @@ public protocol WebContentDelegate: AnyObject {
 public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, ObservableObject {
     weak var delegate: WebContentDelegate?
     
-    let id: ID<Tab>
+    let id: ID<WebContent>
     let webview: WebContentWebView
     private var observers = [NSKeyValueObservation]()
     private var subscriptions = Set<AnyCancellable>()
@@ -102,7 +102,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         webview.loadHTMLString(html, baseURL: baseURL)
     }
 
-    public init(id: ID<Tab>?, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
+    public init(id: ID<WebContent>?, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
         self.id = id ?? .assign()
         let config = config ?? WKWebViewConfiguration()
         #if os(iOS)
