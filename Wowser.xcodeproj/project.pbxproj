@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		357E5C522D7E362E009CD80F /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = 357E5C512D7E362E009CD80F /* Core */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		357E5AFF2D7E3511009CD80F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +33,22 @@
 		357E5B082D7E3511009CD80F /* WowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		357E5AEF2D7E3510009CD80F /* Wowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */,
+			);
 			path = Wowser;
 			sourceTree = "<group>";
 		};
@@ -52,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				357E5C522D7E362E009CD80F /* Core in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +96,7 @@
 				357E5AEF2D7E3510009CD80F /* Wowser */,
 				357E5B012D7E3511009CD80F /* WowserTests */,
 				357E5B0B2D7E3511009CD80F /* WowserUITests */,
+				357E5C502D7E362E009CD80F /* Frameworks */,
 				357E5AEE2D7E3510009CD80F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +109,13 @@
 				357E5B082D7E3511009CD80F /* WowserUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		357E5C502D7E362E009CD80F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -106,12 +132,14 @@
 			buildRules = (
 			);
 			dependencies = (
+				357E5C4F2D7E3629009CD80F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				357E5AEF2D7E3510009CD80F /* Wowser */,
 			);
 			name = Wowser;
 			packageProductDependencies = (
+				357E5C512D7E362E009CD80F /* Core */,
 			);
 			productName = Wowser;
 			productReference = 357E5AED2D7E3510009CD80F /* Wowser.app */;
@@ -266,6 +294,10 @@
 			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
 			targetProxy = 357E5B092D7E3511009CD80F /* PBXContainerItemProxy */;
 		};
+		357E5C4F2D7E3629009CD80F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 357E5C4E2D7E3629009CD80F /* Core */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -399,6 +431,7 @@
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -426,6 +459,7 @@
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -549,6 +583,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		357E5C4E2D7E3629009CD80F /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Core;
+		};
+		357E5C512D7E362E009CD80F /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Core;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 357E5AE52D7E3510009CD80F /* Project object */;
 }

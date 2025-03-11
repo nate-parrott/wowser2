@@ -1,0 +1,146 @@
+import Foundation
+
+extension BrowserState {
+    var activeWindow: WindowState? {
+        windows.values.max(by: { ($0.lastActive ?? .distantPast) < ($1.lastActive ?? .distantPast) })
+    }
+    
+    mutating func getOrCreateActiveWindow() -> WindowState {
+        if let activeWindow {
+            return activeWindow
+        }
+        return newWindow()
+    }
+    
+    var defaultProfileForNewWindows: Profile! {
+        if let pid = activeWindow?.profile, let prof = profiles[pid] {
+            return prof
+        }
+        return profiles.values.first
+    }
+    
+    mutating func newWindow() -> WindowState {
+        let win = WindowState(id: .assign(), profile: defaultProfileForNewWindows.id, lastActive: Date())
+        self.windows[win.id] = win
+        return win
+    }
+    
+    @discardableResult
+    mutating func openTab(url: URL, activate: Bool = true) -> Tab {
+        let win = getOrCreateActiveWindow()
+        let idx = insertionIndex(window: win.id, spawningTabId: win.currentTab)
+        let tab = Tab(id: .assign(), info: .init(url: url), lastAccessed: Date(), aiLabel: nil)
+        tabs[tab.id] = tab
+        windows[win.id]!.tabs.insert(tab.id, at: idx)
+        if activate {
+            self.activate(tabId: tab.id, in: win.id)
+        }
+        return tab
+    }
+    
+    mutating func activate(tabId id: ID<Tab>, in window: ID<WindowState>) {
+        if let old = windows[window]?.currentTab {
+            tabs[old]?.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
+        }
+        windows[window]?.currentTab = id
+        tabs[id]?.lastAccessed = Date()
+    }
+    
+    func insertionIndex(window: ID<WindowState>, spawningTabId: ID<Tab>?) -> Int {
+        guard let win = windows[window] else { return 0 }
+        if let spawningTabId, let loc = location(ofTabId: spawningTabId, inWindowId: window) {
+            switch loc {
+            case .favorites:
+                return win.tabs.count
+            case .ordinaryTabs(let idx):
+                return idx + 1 // TODO: insert below siblings from same parent
+            }
+        }
+        return win.tabs.count
+    }
+    
+    func location(ofTabId tabId: ID<Tab>, inWindowId windowId: ID<WindowState>) -> SidebarLocation? {
+        guard let win = windows[windowId] else { return nil }
+        if let idx = win.tabs.firstIndex(of: tabId) {
+            return .ordinaryTabs(idx)
+        }
+        let faves = favorites(profileId: win.profile)
+        if let idx = faves.firstIndex(of: tabId) {
+            return .favorites(idx)
+        }
+        return nil
+    }
+    
+    func favorites(profileId: ID<Profile>) -> [ID<Tab>] {
+        if let prof = profiles[profileId] {
+            return prof.manualFavorites + prof.autoFavorites
+        }
+        return []
+    }
+    
+    // Call the method on BrowserStore instead
+    mutating func _close(tabId id: ID<Tab>, removeIfPinned: Bool) {
+        guard let winId = self.windowContaining(tabId: id)?.id else {
+            return
+        }
+        let url = tabs[id]?.info.url
+        if let selectNext = tabToSelectAfterClosing(tabId: id) {
+            activate(tabId: selectNext, in: winId)
+        }
+        if let loc = location(ofTabId: id, inWindowId: winId) {
+            switch loc {
+            case .favorites:
+                if removeIfPinned, let profileId = self.windows[winId]?.profile {
+                    profiles[profileId]?.autoFavorites.removeAll(where: { $0 == id })
+                    profiles[profileId]?.manualFavorites.removeAll(where: { $0 == id })
+                    if let host = url?.hostWithoutWWW {
+                        // Do not let this become an auto fave in the future
+                        profiles[profileId]?.removedFavoriteDomains.insert(host)
+                    }
+                }
+            case .ordinaryTabs(let idx):
+                windows[winId]?.tabs.remove(at: idx)
+            }
+        }
+    }
+    
+    func tabToSelectAfterClosing(tabId id: ID<Tab>) -> ID<Tab>? {
+        guard let win = windowContaining(tabId: id) else {
+            return nil
+        }
+        if let loc = location(ofTabId: id, inWindowId: win.id) {
+            switch loc {
+            case .favorites:
+                return nil
+            case .ordinaryTabs(let idx):
+                return idx == 0 ? win.tabs.get(idx + 1) : win.tabs.get(idx - 1)
+            }
+        }
+        return win.tabs.filter({ $0 != id }).max { tab1, tab2 in
+            (self.tabs[tab1]?.lastAccessed ?? Date.distantPast) < (self.tabs[tab2]?.lastAccessed ?? Date.distantPast)
+        }
+    }
+    
+    func windowContaining(tabId id: ID<Tab>) -> WindowState? {
+        for window in windowsMostRecentFirst {
+            if window.tabs.contains(id) {
+                return window
+            }
+            if favorites(profileId: window.profile).contains(id) {
+                return window
+            }
+        }
+        return nil
+    }
+    
+    var windowsMostRecentFirst: [WindowState] {
+        windows.values.sorted { w0, w1 in
+            (w0.lastActive ?? Date.distantPast) > (w1.lastActive ?? Date.distantPast)
+        }
+    }
+}
+
+enum SidebarLocation: Equatable {
+    case favorites(Int)
+    case ordinaryTabs(Int)
+}
