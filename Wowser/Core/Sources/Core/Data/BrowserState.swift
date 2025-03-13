@@ -15,7 +15,7 @@ public struct BrowserState: Equatable, Codable {
             windows: [:],
             tabs: [:],
             profiles: [
-                ID<Profile>(raw: "p0"): Profile(id: .init(raw: "p0"))
+                ID<Profile>(raw: "p0"): Profile(id: .init(raw: "p0"), dataStoreUUID: UUID())
             ])
     }
 }
@@ -56,6 +56,7 @@ public struct WindowState: Equatable, Codable {
 
 public struct Profile: Equatable, Codable {
     public var id: ID<Profile>
+    public var dataStoreUUID: UUID
     public var creationOrder = 0
     public var manualFavorites = [ID<Tab>]()
     public var autoFavorites = [ID<Tab>]()
@@ -76,13 +77,22 @@ class BrowserStore: DataStore<BrowserState> {
     
     private var liveWebContents = [ID<WebContent>: WebContent]()
     
-    func getOrCreateWebContent(forId id: ID<WebContent>) -> WebContent {
-        // TODO: Create webcontent using proper profile
+    func getOrCreateWebContent(forId id: ID<WebContent>) -> WebContent? {
         if let live = liveWebContents[id] {
             return live
         }
-        let wc = WebContent(id: id)
         let model = self.model
+        guard let tabId = model.paneToTabMapping[id],
+                let pane = model.tabs[tabId]?.panes[id],
+              let win = model.windowContaining(tabId: tabId),
+              let profile = model.profiles[win.profile]
+        else {
+            return nil
+        }
+        let wc = WebContent(id: id, profileUUID: profile.dataStoreUUID)
+        if let url = pane.info.url {
+            wc.load(url: url)
+        }
         if let tabId = model.paneToTabMapping[id], let pane = model.tabs[tabId]?.panes[id], let url = pane.info.url {
             wc.populateWithInitialURL(url)
         }
@@ -151,10 +161,24 @@ extension BrowserStore: WebContentDelegate {
         self.close(webContentId: webContent.id, removeIfPinned: false)
     }
     
-    func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info) {
+    func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?) {
         modify { state in
             state.modifyPaneAndTab(forWebContentId: webContent.id) { pane, _ in
                 pane.info = info
+            }
+        }
+        
+        // Visit tracking
+        if let url = info.url, url.historyKey != previous?.url?.historyKey,
+            let profile = self.model.profile(forWebContentId: webContent.id) {
+            Queue.historyQueue.run {
+                profile.id.historyStore.trackVisitDebounced(url: url, title: info.title)
+            }
+        } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
+                    let profile = self.model.profile(forWebContentId: webContent.id) {
+            // Update info
+            Queue.historyQueue.run {
+                profile.id.historyStore.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
             }
         }
     }
@@ -167,6 +191,13 @@ extension BrowserState {
             tab.panes[pane.id] = pane
             tabs[tabId] = tab
         }
+    }
+    
+    func profile(forWebContentId id: ID<WebContent>) -> Profile? {
+        if let tabId = paneToTabMapping[id], let win = windowContaining(tabId: tabId), let profile = profiles[win.profile] {
+            return profile
+        }
+        return nil
     }
     
     // does not close the tab if we reach zero panes

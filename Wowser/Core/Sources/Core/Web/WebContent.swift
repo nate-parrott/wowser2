@@ -23,13 +23,14 @@ public protocol WebContentDelegate: AnyObject {
     func webContent(_ webContent: WebContent, decidePolicyForResponse navigationResponse: WKNavigationResponse) -> WKNavigationResponsePolicy
     func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool)
     func webContentWantsToClose(_ webContent: WebContent)
-    func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info)
+    func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?)
 }
 
 public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, ObservableObject {
     weak var delegate: WebContentDelegate?
     
     let id: ID<WebContent>
+    let profileUUID: UUID
     let webview: WebContentWebView
     private var observers = [NSKeyValueObservation]()
     private var subscriptions = Set<AnyCancellable>()
@@ -86,7 +87,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
     @Published private(set) public var info = Info() {
         didSet {
-            delegate?.webContent(self, infoDidChange: info)
+            delegate?.webContent(self, infoDidChange: info, previous: oldValue)
         }
     }
 
@@ -102,9 +103,15 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         webview.loadHTMLString(html, baseURL: baseURL)
     }
 
-    public init(id: ID<WebContent>?, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
+    public init(id: ID<WebContent>?, profileUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
         self.id = id ?? .assign()
         let config = config ?? WKWebViewConfiguration()
+        if #available(macOS 14.0, *) {
+            config.websiteDataStore = WKWebsiteDataStore(forIdentifier: profileUUID)
+        } else {
+            // Fallback on earlier versions
+            fatalError()
+        }
         #if os(iOS)
         config.allowsInlineMediaPlayback = allowsInlinePlayback
         #endif
@@ -118,6 +125,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         }
         webview.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
         self.transparent = transparent
+        self.profileUUID = profileUUID
         super.init()
         webview.navigationDelegate = self
         webview.uiDelegate = self
@@ -342,8 +350,8 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             default: return nil // Deny for unknown
             }
         }
-
-        let newWebContent = WebContent(id: .assign(), config: self.webview.configuration)
+        
+        let newWebContent = WebContent(id: .assign(), profileUUID: profileUUID, config: self.webview.configuration)
         if let url = navigationAction.request.url {
             newWebContent.populateWithInitialURL(url)
         }
