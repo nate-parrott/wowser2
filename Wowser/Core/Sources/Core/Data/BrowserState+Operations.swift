@@ -42,15 +42,17 @@ extension BrowserState {
 //    mutating func insert(tabId: ID<Tab>, inWindow window: ID<WindowState>, location: SidebarLocation) {
 //    }
     
-    mutating func activate(tabId id: ID<Tab>, in window: ID<WindowState>) {
+    mutating func activate(tabId id: ID<Tab>?, in window: ID<WindowState>) {
         if let old = windows[window]?.currentTab {
             modifyTab(id: old) { tab in
                 tab.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
             }
         }
         windows[window]?.currentTab = id
-        modifyTab(id: id) { tab in
-            tab.lastAccessed = Date()
+        if let id {
+            modifyTab(id: id) { tab in
+                tab.lastAccessed = Date()
+            }
         }
     }
     
@@ -98,13 +100,10 @@ extension BrowserState {
               let tab = tabs[tabId],
               let winId = self.windowContaining(tabId: tabId)?.id
         else { return }
-        
-        let url = tabs[tabId]?.panes[id]?.info.url
-        
+                
         func reselect() {
-            if let selectNext = tabToSelectAfterClosing(tabId: tabId) {
-                activate(tabId: selectNext, in: winId)
-            }
+            let selectNext = tabToSelectAfterClosing(tabId: tabId)
+            activate(tabId: selectNext, in: winId)
         }
         
         func resetToBase() {
@@ -116,26 +115,12 @@ extension BrowserState {
         }
         
         func remove() {
-            if let loc = location(ofTabId: tabId, inWindowId: winId) {
-                switch loc {
-                case .favorites:
-                    if removeIfPinned, let profileId = self.windows[winId]?.profile {
-                        profiles[profileId]?.autoFavorites.removeAll(where: { $0 == tabId })
-                        profiles[profileId]?.manualFavorites.removeAll(where: { $0 == tabId })
-                        if let host = url?.hostWithoutWWW {
-                            // Do not let this become an auto fave in the future
-                            profiles[profileId]?.removedFavoriteDomains.insert(host)
-                        }
-                    }
-                case .ordinaryTabs(let idx):
-                    windows[winId]?.tabs.remove(at: idx)
-                case .project(let projId, let idx):
-                    projects[projId]?.tabs.remove(at: idx)
-                }
-            }
+            _removeTab_unsafe_doesntCloseWebContent(tabId: tabId)
         }
         
-        if !removeIfPinned {
+        let isPinned = self.isPinned(tabId: tabId)
+        
+        if isPinned && !removeIfPinned {
             resetToBase()
             reselect()
             return
@@ -145,8 +130,8 @@ extension BrowserState {
             // Don't close tab, just pane
             _removePane_unsafe(id: id)
         } else {
-            reselect()
             remove()
+            reselect()
         }
     }
     
@@ -193,4 +178,19 @@ enum SidebarLocation: Equatable {
     case favorites(Int)
     case ordinaryTabs(Int)
     case project(ID<Project>, Int)
+}
+
+extension BrowserState {
+    /// Checks if a tab is pinned (favorite) based on its sidebar location
+    /// - Parameters:
+    ///   - tabId: The ID of the tab to check
+    /// - Returns: Boolean indicating if the tab is in the favorites location
+    public func isPinned(tabId: ID<Tab>) -> Bool {
+        if let window = windowContaining(tabId: tabId), 
+           let location = location(ofTabId: tabId, inWindowId: window.id),
+           case .favorites = location {
+            return true
+        }
+        return false
+    }
 }

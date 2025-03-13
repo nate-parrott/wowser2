@@ -177,6 +177,33 @@ extension BrowserState {
         }
     }
     
+    mutating func _removeTab_unsafe_doesntCloseWebContent(tabId: ID<Tab>) {
+        let hosts = tabs[tabId]?.panes.compactMap { $0.info.url?.hostWithoutWWW }.asSet ?? Set()
+        if let win = windowContaining(tabId: tabId) {
+            let winId = win.id
+            let profileId = win.profile
+            if let loc = location(ofTabId: tabId, inWindowId: winId) {
+                switch loc {
+                case .favorites:
+                    profiles[profileId]?.autoFavorites.removeAll(where: { $0 == tabId })
+                    profiles[profileId]?.manualFavorites.removeAll(where: { $0 == tabId })
+                    for host in hosts {
+                        // Do not let this become an auto fave in the future
+                        profiles[profileId]?.removedFavoriteDomains.insert(host)
+                    }
+                case .ordinaryTabs(let idx):
+                    windows[winId]?.tabs.remove(at: idx)
+                case .project(let projId, let idx):
+                    projects[projId]?.tabs.remove(at: idx)
+                }
+            }
+        }
+        for pane in tabs[tabId]?.panes.asArray ?? [Pane]() {
+            paneToTabMapping.removeValue(forKey: pane.id)
+        }
+        tabs.removeValue(forKey: tabId)
+    }
+    
     mutating func modifyTab(id: ID<Tab>, block: (inout Tab) -> Void) {
         if var tab = tabs[id] {
             let oldPaneIds = tab.panes.map(\.id).asSet
