@@ -11,6 +11,13 @@ extension String {
         let startIndex = index(endIndex, offsetBy: -chars)
         return "..." + self[startIndex...]
     }
+    
+    func withoutPrefix(_ prefix: String) -> String {
+        if hasPrefix(prefix) {
+            return String(dropFirst(prefix.count))
+        }
+        return self
+    }
 
     func truncateTailWithEllipsis(chars: Int) -> String {
         // Written by Phil

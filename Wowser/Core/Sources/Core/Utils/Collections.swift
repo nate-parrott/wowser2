@@ -22,6 +22,21 @@ extension Sequence where Element: Hashable {
     }
 }
 
+extension Sequence {
+    func deduplicate<K: Hashable>(_ key: (Element) -> K) -> [Element] {
+        var seen = Set<K>()
+        return compactMap { el in
+            let k = key(el)
+            if seen.contains(k) {
+                return nil
+            }
+            seen.insert(k)
+            return el
+        }
+    }
+}
+
+
 extension Array {
     func get(_ idx: Int) -> Element? {
         if idx >= 0 && idx < count {

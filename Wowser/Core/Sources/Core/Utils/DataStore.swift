@@ -210,6 +210,15 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
             }
         }
     }
+    
+    public func readAsync<T>(_ fn: @escaping (Model) -> T) async -> T {
+        return await withCheckedContinuation { continuation in
+            self.queue.run {
+                let res = fn(self.model)
+                continuation.resume(returning: res)
+            }
+        }
+    }
 
     @discardableResult
     public func modifyAsync<T>(_ block: @escaping (inout Model) -> T) async -> T {
