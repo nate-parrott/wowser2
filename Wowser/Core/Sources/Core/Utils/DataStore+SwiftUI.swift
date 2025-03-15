@@ -12,7 +12,7 @@ struct WithSnapshot<S: Equatable & Codable, V: View, Snapshot: Equatable>: View 
         ZStack {
             main(val)
         }
-        .onReceive(store.publisher.map(snapshot).removeDuplicates(), perform: { self.val = $0 })
+        .onReceive(store.uiPublisher.map(snapshot).removeDuplicates(), perform: { self.val = $0 })
     }
 }
 
@@ -29,6 +29,6 @@ struct WithSnapshotMain<S: Equatable & Codable, V: View, Snapshot: Equatable>: V
         ZStack {
             main(val ?? snapshot(store.model))
         }
-        .onReceive(store.publisher.map(snapshot).removeDuplicates(), perform: { self.val = $0 })
+        .onReceive(store.uiPublisher.map(snapshot).removeDuplicates(), perform: { self.val = $0 })
     }
 }

@@ -52,6 +52,7 @@ public struct WindowState: Equatable, Codable {
     public var currentTab: ID<Tab>?
     public var lastActive: Date?
     public var focusedOnProject: ID<Project>?
+    public var searchOverlayActive = false
 }
 
 public struct Profile: Equatable, Codable {

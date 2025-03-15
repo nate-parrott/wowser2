@@ -46,6 +46,9 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
     }
 
     public var publisher: AnyPublisher<Model, Never> { subject.eraseToAnyPublisher() }
+    
+    // uiPublisher is preferable to publisher for ui stuff b/c it will eventually be throttled to the display refresh.
+    public var uiPublisher: AnyPublisher<Model, Never> { subject.eraseToAnyPublisher() } // TODO: Throttle to UI refresh
 
 //    private let _observableWithMetadata: MutableObservable<(Model, TransactionMetadata)>
 //    public var observableWithMetadata: Observable<(Model, TransactionMetadata)> { return _observableWithMetadata }
