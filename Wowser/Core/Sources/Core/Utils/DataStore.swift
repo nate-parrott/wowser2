@@ -92,7 +92,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
                         return state
                     } catch {
                         let name = self.persistenceKey ?? "<unknown>"
-                        print("Failed to load \(name) datastore: \(error)")
+//                        print("Failed to load \(name) datastore: \(error)")
                     }
                 }
                 return nil
@@ -171,7 +171,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
 
     static func persistentURL(_ key: String) -> URL {
         let appDir = "DataStores"
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent(appDir)
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent(appDir).appendingPathComponent(Bundle.main.bundleIdentifier ?? "Unknown")
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         }

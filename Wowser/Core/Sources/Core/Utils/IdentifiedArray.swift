@@ -114,6 +114,13 @@ public struct IdentifiedArray<T: Identifiable & Equatable & Codable>: Equatable,
         order.remove(at: index)
         return byId.removeValue(forKey: id)
     }
+    
+    public var first: T? {
+        if let id = order.first {
+            return byId[id]!
+        }
+        return nil
+    }
 }
 
 // MARK: - Sequence Conformance

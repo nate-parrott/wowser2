@@ -25,7 +25,7 @@ struct SearchableItem: Equatable {
     }
 }
 
-struct SearchResult: Equatable {
+struct SearchResult: Equatable, Identifiable {
     enum MatchQuality: Int {
         case prefixMatchURL = 3
         case prefixMatchTitle = 2
@@ -34,6 +34,10 @@ struct SearchResult: Equatable {
     }
     var item: SearchableItem
     var matchQuality: MatchQuality
+    
+    var id: String {
+        item.id.raw
+    }
     
     var score: Double {
         var k: Double = 0
@@ -97,7 +101,15 @@ extension CharacterSet {
 @MainActor class Searcher: ObservableObject {
     @Published var results = [SearchResult]()
     var n = 5
-    let historyStore: HistoryStore
+    
+    var profileID: ID<Profile>? {
+        didSet {
+            if profileID != oldValue {
+                setupHistoryObservers()
+            }
+        }
+    }
+    var historyStore: HistoryStore?
     
     @Published var query = "" {
         didSet {
@@ -134,18 +146,29 @@ extension CharacterSet {
     
     var subscriptions = Set<AnyCancellable>()
     
-    init(historyStore: HistoryStore) {
-        self.historyStore = historyStore
-        historyStore.publisher.throttle(for: .seconds(2), scheduler: Queue.historyQueue.queue, latest: true)
-            .removeDuplicates()
-            .map { $0.historyTopHitCandidates }
-            .removeDuplicates()
-            .map { $0.map(\.searchableItem) }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] cands in
-                self?.historyTopHitCandidates = cands
+    func setupHistoryObservers() {
+        subscriptions.removeAll()
+        historyStore = nil
+        
+        guard let profileId = self.profileID else { return }
+        Queue.historyQueue.run {
+            let store = profileId.historyStore_historyQueueOnly
+            DispatchQueue.main.async {
+                self.historyStore = store
+                store.publisher.throttle(for: .seconds(2), scheduler: Queue.historyQueue.queue, latest: true)
+                    .removeDuplicates()
+                    .map { $0.historyTopHitCandidates }
+                    .removeDuplicates()
+                    .map { $0.map(\.searchableItem) }
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] cands in
+                        self?.historyTopHitCandidates = cands
+                    }
+                    .store(in: &self.subscriptions)
             }
-            .store(in: &subscriptions)
+        }
+        
+
     }
     
     // We cache, on the main queue, our top candidates
@@ -194,6 +217,7 @@ extension CharacterSet {
     }
     
     private func historyMatches(query: NormalizedSearchableString, limit: Int) async -> [SearchResult] {
+        guard let historyStore else { return [] }
         return await historyStore.readAsync { state in
             return state.items.values.compactMap({ $0.searchableItem.match(query: query) })
                 .sorted(by: { $0.score > $1.score })

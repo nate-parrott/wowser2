@@ -46,14 +46,22 @@ extension Queue {
 }
 
 extension ID<Profile> {
-    var historyStore: HistoryStore {
-        assertNotOnMainThread()
-        return .init(persistenceKey: "HistoryStore_\(self.raw)", defaultModel: .init(), queue: .historyQueue)
+    var historyStore_historyQueueOnly: HistoryStore {
+        assert(Queue.historyQueue.isCurrent)
+        if let existing = HistoryStore.stores[self] {
+            return existing
+        }
+        let store = HistoryStore(persistenceKey: "HistoryStore_\(self.raw)", defaultModel: .init(), queue: .historyQueue)
+        HistoryStore.stores[self] = store
+        return store
     }
 }
 
 class HistoryStore: DataStore<HistoryState> {
 //    static let shared = HistoryStore(persistenceKey: "HistoryStore", defaultModel: .init(), queue: .historyQueue)
+    
+    // only access on historyqueue
+    fileprivate static var stores = [ID<Profile>: HistoryStore]()
     
     override func processModelAfterLoad(model: inout HistoryState) {
         // TODO: Periodically trim

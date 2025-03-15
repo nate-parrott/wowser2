@@ -8,6 +8,10 @@ private func stringHasURLScheme(_ str: String) -> Bool {
 }
 
 extension URL {
+    var displayString: String {
+        stripped
+    }
+    
     public static func withNaturalString(_ string: String) -> URL? {
         if !(string.contains(":") || string.contains(".")) {
             return nil

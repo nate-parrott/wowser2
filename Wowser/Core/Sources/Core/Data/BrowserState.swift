@@ -39,6 +39,39 @@ public struct Tab: Equatable, Identifiable, Codable {
     }
 }
 
+// MARK: - Tab Creation Helpers
+extension Tab {
+    /// Creates a new tab with a single pane containing the specified URL
+    /// - Parameters:
+    ///   - url: The URL to load in the tab
+    ///   - title: Optional title for the tab
+    /// - Returns: A new Tab instance with a single pane containing the URL
+    public static func newTabWithURL(_ url: URL?, title: String? = nil) -> Tab {
+        let paneID = Core.ID<WebContent>.assign()
+        let info = WebContent.Info(url: url, title: title)
+        let pane = Pane(id: paneID, info: info)
+        
+        return Tab(
+            id: .assign(),
+            panes: [pane],
+            lastAccessed: Date()
+        )
+    }
+    
+    /// Creates a new empty tab
+    /// - Returns: A new Tab instance with a single empty pane
+    public static func newEmptyTab() -> Tab {
+        let paneID = Core.ID<WebContent>.assign()
+        let pane = Pane(id: paneID, info: WebContent.Info())
+        
+        return Tab(
+            id: .assign(),
+            panes: [pane],
+            lastAccessed: Date()
+        )
+    }
+}
+
 public struct Pane: Equatable, Identifiable, Codable {
     public var id: ID<WebContent>
     public var info: WebContent.Info
@@ -73,12 +106,12 @@ public struct Project: Equatable, Codable {
     public var tabs = [ID<Tab>]()
 }
 
-class BrowserStore: DataStore<BrowserState> {
-    static let shared = BrowserStore(persistenceKey: "BrowserStore", defaultModel: .defaultState, queue: .main)
+public class BrowserStore: DataStore<BrowserState> {
+    public static let shared = BrowserStore(persistenceKey: "BrowserStore", defaultModel: .defaultState, queue: .main)
     
     private var liveWebContents = [ID<WebContent>: WebContent]()
     
-    func getOrCreateWebContent(forId id: ID<WebContent>) -> WebContent? {
+    public func getOrCreateWebContent(forId id: ID<WebContent>) -> WebContent? {
         if let live = liveWebContents[id] {
             return live
         }
@@ -101,7 +134,7 @@ class BrowserStore: DataStore<BrowserState> {
         return wc
     }
     
-    func close(webContentId id: ID<WebContent>, removeIfPinned: Bool) {
+    public func close(webContentId id: ID<WebContent>, removeIfPinned: Bool) {
         modify { state in
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
         }
@@ -117,18 +150,91 @@ class BrowserStore: DataStore<BrowserState> {
         // TODO: unload old webcontent
         // TODO: Call this
     }
+    
+    /// Creates and inserts a new tab with the specified URL into a window
+    /// - Parameters:
+    ///   - url: The URL to load in the tab
+    ///   - windowID: The ID of the window to insert the tab into
+    ///   - activate: Whether to activate the tab after insertion
+    /// - Returns: The ID of the created tab
+    @discardableResult
+    public func createTab(withURL url: URL?, in windowID: ID<WindowState>, activate: Bool = true) -> ID<Tab> {
+        var tabID: ID<Tab>?
+        
+        modify { state in
+            // Create a new tab with the URL
+            let tab = Tab.newTabWithURL(url)
+            
+            // Insert the tab into the window
+            let insertLocation = state.insertionIndex(window: windowID, spawningTabId: state.windows[windowID]?.currentTab)
+            state.insertTab(tab, location: insertLocation, inWindow: windowID)
+            
+            // Activate the tab if requested
+            if activate {
+                state.activate(tabId: tab.id, in: windowID)
+            }
+            
+            tabID = tab.id
+        }
+        
+        return tabID!
+    }
+    
+    /// Closes all content in a window, including all tabs and panes.
+    /// Also properly handles favorites that are open in the window.
+    /// - Parameters:
+    ///   - windowID: The ID of the window to close
+    ///   - removeWindow: Whether to remove the window from the store after closing contents
+    public func closeAllContentsInWindow(windowID: ID<WindowState>, removeWindow: Bool = true) {
+        modify { state in
+            guard let window = state.windows[windowID] else { return }
+            
+            // Get the profile for this window
+            let profileID = window.profile
+            
+            // First, collect all tab IDs in this window - both regular tabs and favorites
+            var tabsToClose = Set<ID<Tab>>(window.tabs)
+            
+            // Add favorites that may be open in this window
+            if let profile = state.profiles[profileID] {
+                let favorites = profile.manualFavorites + profile.autoFavorites
+                for favoriteID in favorites {
+                    if state.windowContaining(tabId: favoriteID)?.id == windowID {
+                        tabsToClose.insert(favoriteID)
+                    }
+                }
+            }
+            
+            // Close each tab and its contents
+            for tabID in tabsToClose {
+                // First get all the pane IDs before we modify the tab
+                let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
+                
+                // Close each pane in the tab
+                for paneID in paneIDs {
+                    state._close(webContentId: paneID, removeIfPinned: true)
+                    self.liveWebContents.removeValue(forKey: paneID)
+                }
+            }
+            
+            // Finally, remove the window if requested
+            if removeWindow {
+                state.windows.removeValue(forKey: windowID)
+            }
+        }
+    }
 }
 
 extension BrowserStore: WebContentDelegate {
-    func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy {
+    public func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy {
         return .allow
     }
     
-    func webContent(_ webContent: WebContent, decidePolicyForResponse navigationResponse: WKNavigationResponse) -> WKNavigationResponsePolicy {
+    public func webContent(_ webContent: WebContent, decidePolicyForResponse navigationResponse: WKNavigationResponse) -> WKNavigationResponsePolicy {
         return .allow
     }
     
-    func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool) {
+    public func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool) {
         modify { state in
             #if os(iOS)
             let openInSplit = false
@@ -158,11 +264,11 @@ extension BrowserStore: WebContentDelegate {
         setupBindings(webContent: newWebContent)
     }
     
-    func webContentWantsToClose(_ webContent: WebContent) {
+    public func webContentWantsToClose(_ webContent: WebContent) {
         self.close(webContentId: webContent.id, removeIfPinned: false)
     }
     
-    func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?) {
+    public func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?) {
         modify { state in
             state.modifyPaneAndTab(forWebContentId: webContent.id) { pane, _ in
                 pane.info = info
@@ -173,13 +279,13 @@ extension BrowserStore: WebContentDelegate {
         if let url = info.url, url.historyKey != previous?.url?.historyKey,
             let profile = self.model.profile(forWebContentId: webContent.id) {
             Queue.historyQueue.run {
-                profile.id.historyStore.trackVisitDebounced(url: url, title: info.title)
+                profile.id.historyStore_historyQueueOnly.trackVisitDebounced(url: url, title: info.title)
             }
         } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
                     let profile = self.model.profile(forWebContentId: webContent.id) {
             // Update info
             Queue.historyQueue.run {
-                profile.id.historyStore.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
+                profile.id.historyStore_historyQueueOnly.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
             }
         }
     }

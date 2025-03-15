@@ -19,7 +19,7 @@ extension BrowserState {
         return profiles.values.first
     }
     
-    mutating func newWindow() -> WindowState {
+    public mutating func newWindow() -> WindowState {
         let win = WindowState(id: .assign(), profile: defaultProfileForNewWindows.id, lastActive: Date())
         self.windows[win.id] = win
         return win
