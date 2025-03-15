@@ -75,6 +75,15 @@ extension BrowserState {
         return .ordinaryTabs(win.tabs.count)
     }
     
+    public mutating func closeWindow(id: ID<WindowState>) {
+        if let tabs = windows[id]?.tabs {
+            for tab in tabs {
+                _removeTab_unsafe_doesntCloseWebContent(tabId: tab, removeFromParent: false)
+            }
+        }
+        windows.removeValue(forKey: id)
+    }
+    
     func location(ofTabId tabId: ID<Tab>, inWindowId windowId: ID<WindowState>) -> SidebarLocation? {
         guard let win = windows[windowId] else { return nil }
         if let idx = win.tabs.firstIndex(of: tabId) {
@@ -130,8 +139,8 @@ extension BrowserState {
             // Don't close tab, just pane
             _removePane_unsafe(id: id)
         } else {
-            remove()
             reselect()
+            remove()
         }
     }
     

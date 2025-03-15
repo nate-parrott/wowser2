@@ -162,6 +162,7 @@ private struct TabLayoutSnapshot: Equatable {
 // Single pane view
 private struct SinglePaneView: View {
     let paneID: ID<WebContent>
+    @Environment(\.windowID) private var windowID
     @State private var webContent: WebContent?
     private let browserStore = BrowserStore.shared
     
@@ -183,7 +184,7 @@ private struct SinglePaneView: View {
         }
         .onAppearOrChange(of: paneID) { id in
             // Get the WebContent from BrowserStore
-            webContent = browserStore.getOrCreateWebContent(forId: id)
+            webContent = browserStore.getOrCreateWebContent(forId: id, toBeActiveInWindow: windowID!)
         }
     }
 }
@@ -194,6 +195,7 @@ private struct SplitPanesView: View {
     let focusedPaneIdx: Int
     @State private var webContentMap = [ID<WebContent>: WebContent]()
     private let browserStore = BrowserStore.shared
+    @Environment(\.windowID) private var windowID
     
     var body: some View {
         GeometryReader { geometry in
@@ -253,7 +255,7 @@ private struct SplitPanesView: View {
     // Load all web contents for the panes
     private func loadWebContents() {
         for paneID in paneIDs {
-            if let webContent = browserStore.getOrCreateWebContent(forId: paneID) {
+            if let webContent = browserStore.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID!) {
                 webContentMap[paneID] = webContent
             }
         }

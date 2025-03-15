@@ -308,13 +308,10 @@ private func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
 
 private func closeTab(tabID: ID<Tab>) {
     // First read the state to get the pane ID
-    BrowserStore.shared.modify { state in
-        guard let tab = state.tabs[tabID],
-              let paneID = tab.panes.first?.id else { return }
-        
-        // Then close via BrowserStore's API
-        BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
-    }
+    guard let tab = BrowserStore.shared.model.tabs[tabID],
+          let paneID = tab.panes.first?.id else { return }
+    // Then close via BrowserStore's API
+    BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
 }
 
 private func getFaviconImage(for tab: Tab) -> some View {

@@ -1,3 +1,4 @@
+import Combine
 import WebKit
 import Foundation
 
@@ -28,6 +29,7 @@ public struct Tab: Equatable, Identifiable, Codable {
         }
     }
     public var lastAccessed: Date
+    public var lastActiveInWindow: Core.ID<WindowState>?
     public var aiLabel: String?
     public var focusedPaneIdx = 0
     
@@ -110,19 +112,37 @@ public class BrowserStore: DataStore<BrowserState> {
     public static let shared = BrowserStore(persistenceKey: "BrowserStore", defaultModel: .defaultState, queue: .main)
     
     private var liveWebContents = [ID<WebContent>: WebContent]()
+    var subscriptions = Set<AnyCancellable>()
     
-    public func getOrCreateWebContent(forId id: ID<WebContent>) -> WebContent? {
+    public override func setup() {
+        super.setup()
+        uiPublisher.throttle(for: .seconds(0.5), scheduler: DispatchQueue.main, latest: true)
+            .map(\.validLiveWebContentIds)
+            .removeDuplicates()
+            .sink { [weak self] ids in
+                self?.removeWebContentNotInIds(ids)
+            }.store(in: &subscriptions)
+    }
+    
+    public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         if let live = liveWebContents[id] {
             return live
         }
         let model = self.model
         guard let tabId = model.paneToTabMapping[id],
                 let pane = model.tabs[tabId]?.panes[id],
-              let win = model.windowContaining(tabId: tabId),
+//              let win = model.windowContaining(tabId: tabId),
+              let win = model.windows[windowID],
               let profile = model.profiles[win.profile]
         else {
             return nil
         }
+        
+        modify { state in
+            // Must set this otherwise tab will be unloaded
+            state.tabs[tabId]?.lastActiveInWindow = windowID
+        }
+        
         let wc = WebContent(id: id, profileUUID: profile.dataStoreUUID)
         if let url = pane.info.url {
             wc.load(url: url)
@@ -138,7 +158,29 @@ public class BrowserStore: DataStore<BrowserState> {
         modify { state in
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
         }
-        liveWebContents.removeValue(forKey: id)
+        if let wv = liveWebContents[id]?.webview {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
+                if let wv {
+                    assertionFailure("Expected to deallocate webview: \(wv)")
+                }
+            }
+        }
+//        liveWebContents.removeValue(forKey: id)
+    }
+    
+    private func removeWebContentNotInIds(_ ids: Set<ID<WebContent>>) {
+        let toRemove = liveWebContents.keys.filter { !ids.contains($0) }
+        for id in toRemove {
+            if let wv = liveWebContents[id]?.webview {
+                print("Trying to close web content '\(wv.title ?? "[no title]")'")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
+                    if let wv {
+                        assertionFailure("Expected to deallocate webview: \(wv)")
+                    }
+                }
+            }
+            liveWebContents.removeValue(forKey: id)
+        }
     }
     
     fileprivate func setupBindings(webContent: WebContent) {
@@ -180,49 +222,49 @@ public class BrowserStore: DataStore<BrowserState> {
         return tabID!
     }
     
-    /// Closes all content in a window, including all tabs and panes.
-    /// Also properly handles favorites that are open in the window.
-    /// - Parameters:
-    ///   - windowID: The ID of the window to close
-    ///   - removeWindow: Whether to remove the window from the store after closing contents
-    public func closeAllContentsInWindow(windowID: ID<WindowState>, removeWindow: Bool = true) {
-        modify { state in
-            guard let window = state.windows[windowID] else { return }
-            
-            // Get the profile for this window
-            let profileID = window.profile
-            
-            // First, collect all tab IDs in this window - both regular tabs and favorites
-            var tabsToClose = Set<ID<Tab>>(window.tabs)
-            
-            // Add favorites that may be open in this window
-            if let profile = state.profiles[profileID] {
-                let favorites = profile.manualFavorites + profile.autoFavorites
-                for favoriteID in favorites {
-                    if state.windowContaining(tabId: favoriteID)?.id == windowID {
-                        tabsToClose.insert(favoriteID)
-                    }
-                }
-            }
-            
-            // Close each tab and its contents
-            for tabID in tabsToClose {
-                // First get all the pane IDs before we modify the tab
-                let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
-                
-                // Close each pane in the tab
-                for paneID in paneIDs {
-                    state._close(webContentId: paneID, removeIfPinned: true)
-                    self.liveWebContents.removeValue(forKey: paneID)
-                }
-            }
-            
-            // Finally, remove the window if requested
-            if removeWindow {
-                state.windows.removeValue(forKey: windowID)
-            }
-        }
-    }
+//    /// Closes all content in a window, including all tabs and panes.
+//    /// Also properly handles favorites that are open in the window.
+//    /// - Parameters:
+//    ///   - windowID: The ID of the window to close
+//    ///   - removeWindow: Whether to remove the window from the store after closing contents
+//    public func closeAllContentsInWindow(windowID: ID<WindowState>, removeWindow: Bool = true) {
+//        modify { state in
+//            guard let window = state.windows[windowID] else { return }
+//            
+//            // Get the profile for this window
+//            let profileID = window.profile
+//            
+//            // First, collect all tab IDs in this window - both regular tabs and favorites
+//            var tabsToClose = Set<ID<Tab>>(window.tabs)
+//            
+//            // Add favorites that may be open in this window
+//            if let profile = state.profiles[profileID] {
+//                let favorites = profile.manualFavorites + profile.autoFavorites
+//                for favoriteID in favorites {
+//                    if state.windowContaining(tabId: favoriteID)?.id == windowID {
+//                        tabsToClose.insert(favoriteID)
+//                    }
+//                }
+//            }
+//            
+//            // Close each tab and its contents
+//            for tabID in tabsToClose {
+//                // First get all the pane IDs before we modify the tab
+//                let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
+//                
+//                // Close each pane in the tab
+//                for paneID in paneIDs {
+//                    state._close(webContentId: paneID, removeIfPinned: true)
+//                    self.liveWebContents.removeValue(forKey: paneID)
+//                }
+//            }
+//            
+//            // Finally, remove the window if requested
+//            if removeWindow {
+//                state.windows.removeValue(forKey: windowID)
+//            }
+//        }
+//    }
 }
 
 extension BrowserStore: WebContentDelegate {
@@ -315,12 +357,13 @@ extension BrowserState {
         }
     }
     
-    mutating func _removeTab_unsafe_doesntCloseWebContent(tabId: ID<Tab>) {
+    // Can skip removeFromParent if these tabs are children of a window
+    mutating func _removeTab_unsafe_doesntCloseWebContent(tabId: ID<Tab>, removeFromParent: Bool = true) {
         let hosts = tabs[tabId]?.panes.compactMap { $0.info.url?.hostWithoutWWW }.asSet ?? Set()
         if let win = windowContaining(tabId: tabId) {
             let winId = win.id
             let profileId = win.profile
-            if let loc = location(ofTabId: tabId, inWindowId: winId) {
+            if removeFromParent, let loc = location(ofTabId: tabId, inWindowId: winId) {
                 switch loc {
                 case .favorites:
                     profiles[profileId]?.autoFavorites.removeAll(where: { $0 == tabId })
@@ -374,5 +417,15 @@ extension BrowserState {
         case .project(let id, let idx):
             projects[id]?.tabs.insert(tab.id, at: idx)
         }
+    }
+    
+    var validLiveWebContentIds: Set<ID<WebContent>> {
+        return tabs.values.flatMap { tab -> [ID<WebContent>] in
+            // Was this tab last active in a living window?
+            if let winId = tab.lastActiveInWindow, self.windows[winId] != nil {
+                return tab.panes.map(\.id)
+            }
+            return []
+        }.asSet
     }
 }

@@ -137,10 +137,14 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
         // for subclasses
     }
 
+    private var _withinModifyBlock = false
     public func modify(_ block: @escaping (inout Model) -> ()) {
         queue.run {
             var newModel = self.model
+            assert(!self._withinModifyBlock, "Tried to call modify() within another modify() block")
+            self._withinModifyBlock = true
             block(&newModel)
+            self._withinModifyBlock = false
             self.model = newModel
         }
     }

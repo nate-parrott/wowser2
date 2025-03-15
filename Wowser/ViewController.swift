@@ -78,7 +78,9 @@ class ViewController: NSViewController {
         guard let windowID = self.windowID else { return }
         
         // Use the helper method to close all contents in this window
-        BrowserStore.shared.closeAllContentsInWindow(windowID: windowID, removeWindow: true)
+        BrowserStore.shared.modify { state in
+            state.closeWindow(id: windowID)
+        }
     }
     
     // Handle window close event

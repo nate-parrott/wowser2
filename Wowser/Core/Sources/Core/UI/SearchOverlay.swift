@@ -196,7 +196,7 @@ public struct SearchOverlay: View {
                 
                 // After state update, we need to load the URL in the WebContent
                 DispatchQueue.main.async {
-                    if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneId) {
+                    if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneId, toBeActiveInWindow: windowID) {
                         webContent.load(url: url)
                     }
                 }
