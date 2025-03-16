@@ -351,7 +351,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             }
         }
         
-        let newWebContent = WebContent(id: .assign(), profileUUID: profileUUID, config: self.webview.configuration)
+        let newWebContent = WebContent(id: .assign(), profileUUID: profileUUID, config: configuration)
         if let url = navigationAction.request.url {
             newWebContent.populateWithInitialURL(url)
         }

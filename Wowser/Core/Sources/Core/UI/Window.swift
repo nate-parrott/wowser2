@@ -72,13 +72,13 @@ private struct WindowContentContainer: View {
                 tabs: state.tabs
             )
         } main: { snapshot in
-            ZStack {
-                HStack(spacing: 0) {
-                    // Sidebar
-                    Sidebar()
-                    
-                    // Main content area
-                    if let snapshot = snapshot, 
+            HStack(spacing: 0) {
+                // Sidebar
+                Sidebar()
+                
+                // Main content area
+                ZStack {
+                    if let snapshot = snapshot,
                        let currentTabID = snapshot.currentTabID,
                        snapshot.hasTab {
                         TabContentView(tabID: currentTabID)
@@ -86,16 +86,14 @@ private struct WindowContentContainer: View {
                         // Empty state - no tab selected
                         EmptyTabView(windowID: windowID)
                     }
-                }
-                
-                // Overlay the search if active
-                if searchOverlayActive {
-                    SearchOverlay()
-                        .id(profileID)
-                        .edgesIgnoringSafeArea(.all)
+                    
+                    if searchOverlayActive {
+                        SearchOverlay()
+                            .id(profileID)
+                            .edgesIgnoringSafeArea(.all)
+                    }
                 }
             }
-            .background(Color(.windowBackgroundColor))
         }
     }
 }

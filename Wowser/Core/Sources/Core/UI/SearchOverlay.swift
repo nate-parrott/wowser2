@@ -28,8 +28,9 @@ public struct SearchOverlay: View {
     private var mainOverlayView: some View {
         ZStack {
             // Semi-transparent background overlay
-            Color.black.opacity(0.3)
+            Color.primary.opacity(0.1)
                 .edgesIgnoringSafeArea(.all)
+                .background(.thinMaterial)
                 .onTapGesture {
                     dismissOverlay()
                 }
@@ -50,7 +51,7 @@ public struct SearchOverlay: View {
                 searchResultsList
             }
         }
-        .frame(width: 550)
+        .frame(width: 550, height: 350, alignment: .top)
         .padding(.vertical)
     }
     

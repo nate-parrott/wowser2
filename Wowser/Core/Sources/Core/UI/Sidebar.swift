@@ -155,14 +155,7 @@ private struct NewTabButton: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        Button(action: {
-            BrowserStore.shared.modify { state in
-                let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init())])
-                let location = state.insertionIndex(window: windowID, spawningTabId: nil)
-                state.insertTab(tab, location: location, inWindow: windowID)
-                state.activate(tabId: tab.id, in: windowID)
-            }
-        }) {
+        Button(action: { newTab() }) {
             HStack {
                 Image(systemName: "plus")
                 Text("New Tab")
@@ -170,6 +163,20 @@ private struct NewTabButton: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .buttonStyle(SidebarButtonStyle())
+    }
+    
+    func newTab() {
+        // Create a new tab
+        BrowserStore.shared.createTab(
+            withURL: nil,  // Start with empty tab
+            in: windowID,
+            activate: true
+        )
+        
+        // Show search overlay to enter URL
+        BrowserStore.shared.modify { state in
+            state.windows[windowID]?.searchOverlayActive = true
+        }
     }
 }
 

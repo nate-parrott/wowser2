@@ -158,6 +158,7 @@ public class BrowserStore: DataStore<BrowserState> {
         modify { state in
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
         }
+        liveWebContents.removeValue(forKey: id) // the cleaner (removeWebContentNotInIds) handles this for tabs that were removed, but not ones that were pinned (bc their tabs are still alive)
         if let wv = liveWebContents[id]?.webview {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
                 if let wv {
@@ -165,7 +166,6 @@ public class BrowserStore: DataStore<BrowserState> {
                 }
             }
         }
-//        liveWebContents.removeValue(forKey: id)
     }
     
     private func removeWebContentNotInIds(_ ids: Set<ID<WebContent>>) {
@@ -269,6 +269,43 @@ public class BrowserStore: DataStore<BrowserState> {
 
 extension BrowserStore: WebContentDelegate {
     public func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy {
+        print("DECIDE POLICY FOR NAV IN \(webContent)")
+        #if os(macOS)
+        if NSEvent.modifierFlags.contains(.command), let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
+            // open in new tab
+            // dont activate), but create so it begins to load:
+            let info: WebContent.Info = .init(url: url)
+            let newTab = Tab(id: .assign(), panes: [.init(id: .assign(), info: info)])
+            modify { state in
+                if let oldTabId = state.paneToTabMapping[webContent.id], let win = state.windowContaining(tabId: oldTabId) {
+                    // TODO: Cascade past siblings
+                    let location = state.insertionIndex(window: win.id, spawningTabId: oldTabId)
+                    state.insertTab(newTab, location: location, inWindow: win.id)
+                } else {
+                    fatalError()
+                }
+            }
+            // Ensure tab created:
+            if let curTabId = model.paneToTabMapping[webContent.id], let curTab = model.tabs[curTabId], let win = curTab.lastActiveInWindow {
+                _ = self.getOrCreateWebContent(forId: newTab.panes[0]!.id, toBeActiveInWindow: win)
+            }
+            return .cancel
+        } else if NSEvent.modifierFlags.contains(.option), let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
+            // open in split:
+            modify { state in
+                let info: WebContent.Info = .init(url: url)
+                if let oldTabId = state.paneToTabMapping[webContent.id] {
+                    state.modifyTab(id: oldTabId) { tab in
+                        tab.panes.append(.init(id: .assign(), info: info))
+                        tab.focusedPaneIdx = tab.panes.count - 1
+                    }
+                } else {
+                    fatalError()
+                }
+            }
+            return .cancel
+        }
+        #endif
         return .allow
     }
     
@@ -278,29 +315,18 @@ extension BrowserStore: WebContentDelegate {
     
     public func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool) {
         modify { state in
-            #if os(iOS)
-            let openInSplit = false
-            #else
-            let openInSplit = NSEvent.modifierFlags.contains(.option)
-            #endif
             // TODO: Store tab parent?
             let newTab = Tab(id: .assign(), panes: [.init(id: newWebContent.id, info: newWebContent.info)])
             if let oldTabId = state.paneToTabMapping[webContent.id], let win = state.windowContaining(tabId: oldTabId) {
-                if openInSplit {
-                    // Here, we actually forget about `newTab` and make a pane instead
-                    state.modifyTab(id: oldTabId) { tab in
-                        tab.panes.append(.init(id: newWebContent.id, info: newWebContent.info))
-                        tab.focusedPaneIdx = tab.panes.count - 1
-                    }
-                } else {
-                    let location = state.insertionIndex(window: win.id, spawningTabId: oldTabId)
-                    state.insertTab(newTab, location: location, inWindow: win.id)
-                }
-//                state.windows[win.id]!.tabs.insert(newTab.id, at: idx)
+                let location = state.insertionIndex(window: win.id, spawningTabId: oldTabId)
+                state.insertTab(newTab, location: location, inWindow: win.id)
             } else {
                 // Kinda unexpected...
                 let win = state.getOrCreateActiveWindow()
                 state.insertTab(newTab, location: .ordinaryTabs(0), inWindow: win.id)
+            }
+            if shouldActivate, let win = state.windowContaining(tabId: newTab.id) {
+                state.activate(tabId: newTab.id, in: win.id)
             }
         }
         setupBindings(webContent: newWebContent)
