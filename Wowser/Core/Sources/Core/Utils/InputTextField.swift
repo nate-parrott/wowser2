@@ -7,6 +7,7 @@ public enum TextFieldEvent {
         case enter
         case upArrow
         case downArrow
+        case escape
     }
 
     case key(Key)
@@ -255,6 +256,9 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                 return true
             }
             return false
+        case #selector(NSResponder.cancelOperation(_:)):
+            onEvent?(.key(.escape))
+            return true
         case #selector(NSResponder.deleteBackward(_:)):
             if textView.selectedRange.length == 0,
                 textView.string.isEmpty || textView.selectedRange.location == 0 {

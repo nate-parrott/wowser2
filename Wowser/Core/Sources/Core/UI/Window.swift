@@ -168,7 +168,7 @@ private struct SinglePaneView: View {
         ZStack {
             // Web content
             if let webContent = webContent {
-                WebView(webContent: webContent)
+                WrappedWebView(webContent: webContent, isFocused: true)
                     .id(webContent)
             } else {
                 // Loading or error state
@@ -225,7 +225,7 @@ private struct SplitPanesView: View {
     private func paneView(paneID: ID<WebContent>, index: Int, width: CGFloat) -> some View {
         ZStack {
             if let webContent = webContentMap[paneID] {
-                WebView(webContent: webContent)
+                WrappedWebView(webContent: webContent, isFocused: index == focusedPaneIdx)
             } else {
                 paneLoadingView
             }

@@ -9,7 +9,7 @@ public struct Sidebar: View {
     
     public var body: some View {
         // Use the snapshot pattern to observe only necessary data
-        WithSnapshot(store: browserStore) { state in
+        WithSnapshotMain(store: browserStore) { state in
             // Create a minimal snapshot for sidebar data
             SidebarSnapshot(
                 windowID: windowID ?? ID<WindowState>(raw: ""),
@@ -19,12 +19,7 @@ public struct Sidebar: View {
                 profiles: state.profiles
             )
         } main: { snapshot in
-            if let snapshot = snapshot {
-                SidebarContent(snapshot: snapshot)
-            } else {
-                // Loading state
-                ProgressView()
-            }
+            SidebarContent(snapshot: snapshot)
         }
     }
 }
@@ -104,7 +99,9 @@ private struct SidebarContent: View {
                 .padding(.bottom, 8)
         }
         .frame(width: 200)
-        .background(Color(.windowBackgroundColor).opacity(0.95))
+        .background {
+            TransparentBg()
+        }
     }
 }
 

@@ -41,6 +41,25 @@ public struct SidebarButtonStyle: ButtonStyle {
     }
 }
 
+struct GhostButtonStyle: ButtonStyle {
+    @State private var hovered = false
+    @Environment(\.isEnabled) private var isEnabled
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.primary)
+                    .opacity(isEnabled ? 1 : 0.33)
+                    .opacity(hovered && isEnabled ? 0.07 : 0)
+                    .scaleEffect(configuration.isPressed ? 0.9 : 1)
+                    .animation(.snappy, value: configuration.isPressed)
+                    .contentShape(.rect)
+                    .onHover(perform: { self.hovered = $0 })
+            }
+    }
+}
+
 // MARK: - Icon Button Style
 public struct IconButtonStyle: ButtonStyle {
     public init() {}
