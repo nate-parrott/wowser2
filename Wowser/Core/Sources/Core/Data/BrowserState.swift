@@ -269,7 +269,6 @@ public class BrowserStore: DataStore<BrowserState> {
 
 extension BrowserStore: WebContentDelegate {
     public func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy {
-        print("DECIDE POLICY FOR NAV IN \(webContent)")
         #if os(macOS)
         if NSEvent.modifierFlags.contains(.command), let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
             // open in new tab
