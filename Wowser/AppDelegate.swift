@@ -1,17 +1,19 @@
-//
-//  AppDelegate.swift
-//  Wowser
-//
-//  Created by Nate Parrott on 3/9/25.
-//
-
+import Core
 import Cocoa
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
+    @IBAction func showPreferences(_ sender: Any) {
+        SettingsWindow.showSettings()
+    }
     
-
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.register(defaults: [
+            DefaultsKeys.adblock.rawValue: true,
+            DefaultsKeys.autoDarkMode.rawValue: true,
+        ])
+    }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
@@ -24,7 +26,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return true
     }
-
-
 }
-

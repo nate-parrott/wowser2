@@ -8,14 +8,33 @@ import AppKit
 #endif
 
 class WebContentWebView: WKWebView {
-    var onTraitCollectChanged: (() -> Void)?
+    var onDarkModeChanged: ((Bool) -> Void)?
 
     #if os(iOS)
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
-        onTraitCollectChanged?()
+        
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection){
+            onDarkModeChanged?(traitCollection.userInterfaceStyle == .dark)
+        }
+        
     }
     #endif
+    
+    #if os(macOS)
+    override func layout() {
+        super.layout()
+        darkMode = NSAppearance.currentDrawing().name == .darkAqua
+    }
+    private var darkMode = false {
+        didSet {
+            if darkMode != oldValue {
+                onDarkModeChanged?(darkMode)
+            }
+        }
+    }
+    #endif
+    
 }
 
 public protocol WebContentDelegate: AnyObject {
@@ -40,8 +59,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     }
 
     // MARK: - Configuration
-    @Published var adblockEnabled = false
-
+    @Published var adblockEnabled = DefaultsKeys.adblock.boolValue(defaultValue: false)
     var injectedCSS: String = "" {
         didSet(old) {
             if injectedCSS != old {
@@ -65,7 +83,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     }
     #endif
 
-    var autoDarkMode = false {
+    var autoDarkMode = DefaultsKeys.autoDarkMode.boolValue(defaultValue: false) {
         didSet {
             if autoDarkMode != oldValue {
                 updateInjectedCode()
@@ -73,7 +91,6 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             }
         }
     }
-
     // MARK: - API
     public struct Info: Equatable, Codable {
         public var url: URL?
@@ -186,12 +203,30 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         NotificationCenter.default.addObserver(self, selector: #selector(appDidForeground), name: NSApplication.didBecomeActiveNotification, object: nil)
         #endif
 
-        webview.onTraitCollectChanged = { [weak self] in
+        webview.onDarkModeChanged = { [weak self] darkMode in
             guard let self else { return }
-            self.colorScheme = self.webview.colorScheme
+            self.colorScheme = darkMode ? .dark : .light // self.webview.colorScheme
         }
+        
+        // Observe UserDefaults changes for settings
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                // Update adblock setting if changed in UserDefaults
+                let adblockSetting = DefaultsKeys.adblock.boolValue(defaultValue: false)
+                if self.adblockEnabled != adblockSetting {
+                    self.adblockEnabled = adblockSetting
+                }
+                
+                // Update autoDarkMode setting if changed in UserDefaults
+                let autoDarkModeSetting = DefaultsKeys.autoDarkMode.boolValue(defaultValue: false)
+                if self.autoDarkMode != autoDarkModeSetting {
+                    self.autoDarkMode = autoDarkModeSetting
+                }
+            }
+            .store(in: &subscriptions)
     }
-
     var colorScheme = ColorScheme.light {
         didSet {
             if colorScheme != oldValue, autoDarkMode {

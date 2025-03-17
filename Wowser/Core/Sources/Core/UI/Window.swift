@@ -93,6 +93,7 @@ private struct WindowContentContainer: View {
                             .edgesIgnoringSafeArea(.all)
                     }
                 }
+                .edgesIgnoringSafeArea(.all)
             }
         }
     }
