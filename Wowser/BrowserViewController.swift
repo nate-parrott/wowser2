@@ -9,9 +9,9 @@ import Cocoa
 import SwiftUI
 import Core
 
-class ViewController: NSViewController {
+class BrowserViewController: NSViewController {
     // The window ID for this instance
-    private var windowID: ID<WindowState>?
+    private(set) var windowID: ID<WindowState>?
     
     // Store references for cleanup
     private var rootHostingView: NSView?
@@ -19,11 +19,6 @@ class ViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupBrowserWindow()
-    }
-    
-    deinit {
-        // When deallocating, clean up by removing the window from the store
-        cleanupWindow()
     }
     
     private func setupBrowserWindow() {
@@ -74,21 +69,6 @@ class ViewController: NSViewController {
         rootHostingView = hostingController.view
     }
     
-    private func cleanupWindow() {
-        guard let windowID = self.windowID else { return }
-        
-        // Use the helper method to close all contents in this window
-        BrowserStore.shared.modify { state in
-            state.closeWindow(id: windowID)
-        }
-    }
-    
-    // Handle window close event
-    override func viewDidDisappear() {
-        super.viewDidDisappear()
-        cleanupWindow()
-    }
-    
     // MARK: - Action Methods
     
     /// Edit the URL of the current tab (Cmd+L)
@@ -122,24 +102,22 @@ class ViewController: NSViewController {
     @IBAction func closeCurrentTab(_ sender: Any?) {
         guard let windowID = self.windowID else { return }
         
-        Task {
-            await BrowserStore.shared.readAsync { state in
-                let currentTabID = state.windows[windowID]?.currentTab
-                
-                // Close the tab if we found one
-                if let tabID = currentTabID {
-                    // First get all pane IDs for this tab
-                    let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
-                    
-                    // Return to main queue to close them
-                    DispatchQueue.main.async {
-                        // Close each pane (which will close the tab if it's the last one)
-                        for paneID in paneIDs {
-                            BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
-                        }
-                    }
-                }
+        let state = BrowserStore.shared.model
+        let currentTabID = state.windows[windowID]?.currentTab
+        
+        // Close the tab if we found one
+        if let tabID = currentTabID {
+            // First get all pane IDs for this tab
+            let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
+            
+            // Close each pane (which will close the tab if it's the last one)
+            for paneID in paneIDs {
+                BrowserStore.shared.close(webContentId: paneID, removeIfPinned: false)
             }
+        } else {
+            // No tab active, close window
+            view.window?.close()
+            
         }
     }
 }

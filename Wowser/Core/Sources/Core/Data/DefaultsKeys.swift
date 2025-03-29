@@ -5,6 +5,7 @@ public enum DefaultsKeys: String {
     case openAIKey
     case adblock // bool
     case autoDarkMode
+    case topbarLocked // bool
 }
 
 public extension DefaultsKeys {

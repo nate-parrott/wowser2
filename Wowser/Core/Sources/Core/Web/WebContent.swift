@@ -250,6 +250,14 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             if transparent != old { updateTransparency() }
         }
     }
+    
+    public func focus() {
+        #if os(iOS)
+        webview.becomeFirstResponder()
+        #else
+        webview.window?.makeFirstResponder(webview)
+        #endif
+    }
 
     private func updateTransparency() {
         #if os(iOS)

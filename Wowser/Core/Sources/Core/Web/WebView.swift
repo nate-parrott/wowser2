@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct WebView: View {
     var webContent: WebContent
+    
     public init(webContent: WebContent) {
         self.webContent = webContent
     }

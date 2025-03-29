@@ -150,6 +150,9 @@ public struct SearchOverlay: View {
                 selectedResultIndex = min(searcher.results.count - 1, selectedResultIndex + 1)
             }
             
+        case .key(.escape):
+            dismissOverlay()
+            
         case .blur:
             // Optional: dismiss on blur
             break
