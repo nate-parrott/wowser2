@@ -121,6 +121,28 @@ private struct FavoriteTabsView: View {
                 )
             }
         }
+        if tabIDs.count == 0 {
+            EmptyStateDropTarget(text: "Drag favorites here")
+        }
+    }
+}
+
+private struct EmptyStateDropTarget: View {
+    var text: String
+    
+    var body: some View {
+        Text(text)
+            .multilineTextAlignment(.center)
+            .padding(6)
+            .lineLimit(nil)
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary)
+                    .opacity(0.1)
+            }
+        // TODO: Add drop target
     }
 }
 
