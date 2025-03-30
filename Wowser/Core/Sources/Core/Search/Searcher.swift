@@ -40,39 +40,55 @@ struct SearchResult: Equatable, Identifiable {
     }
     
     var score: Double {
-        var k: Double = 0
-        
         switch item.content {
-        case .searchWhatYouTyped: k += 5
-        case .urlYouTyped: k += 10
-        case .searchSuggestion(_, let index): k += 2 - Double(index) * 0.1
-        case .imFeelingLucky: k += 10
-        case .historyItem(let item):
-            if item.score > 10 {
-                k += 10
-            } else if item.score >= 2 {
-                k += 5
-            } else if item.score >= 0.5 {
-                k += 1
+        case .searchWhatYouTyped:
+            return 10
+        case .urlYouTyped:
+            return 100
+        case .searchSuggestion(_, let int):
+            if matchQuality == .prefixMatchTitle || matchQuality == .prefixMatchURL {
+                return 1 - Double(int) * 0.1
             }
-            k += item.score * 0.001 // tiebreaker
-        }
-        return k
-    }
-    
-    var topHitCandidate: Bool {
-        switch item.content {
-        case .searchWhatYouTyped, .urlYouTyped, .imFeelingLucky:
-            return true
-        case .searchSuggestion:
-            return false
+            return 0
+        case .imFeelingLucky:
+            if matchQuality == .prefixMatchTitle {
+                return 11
+            }
+            return 0
         case .historyItem(let historyItem):
+            print("\(historyItem.url): \(historyItem.score)")
+            // `historyItem.score` is decayed visit count, where half-life = 5 days
+            let topSite = historyItem.score >= 4
+            let recentSite = historyItem.score >= 0.6
             switch matchQuality {
-            case .prefixMatchURL, .prefixMatchTitle: return historyItem.score >= 1.5
-            case .substringMatchTitle: return false // maybe change?
-            case .none: return false
+            case .prefixMatchURL:
+                return topSite ? 30 : (recentSite ? 12 : 5)
+            case .prefixMatchTitle:
+                return topSite ? 15 : (recentSite ? 8 : 3)
+            case .substringMatchTitle:
+                return topSite ? 9 : (recentSite ? 4 : 2)
+            case .none:
+                return 0
             }
         }
+//        var k: Double = 0
+//        
+//        switch item.content {
+//        case .searchWhatYouTyped: k += 5
+//        case .urlYouTyped: k += 10
+//        case .searchSuggestion(_, let index): k += 2 - Double(index) * 0.1
+//        case .imFeelingLucky: k += 10
+//        case .historyItem(let item):
+//            if item.score > 10 {
+//                k += 10
+//            } else if item.score >= 2 {
+//                k += 5
+//            } else if item.score >= 0.5 {
+//                k += 1
+//            }
+//            k += item.score * 0.001 // tiebreaker
+//        }
+//        return k
     }
 }
 
@@ -102,6 +118,14 @@ extension CharacterSet {
     @Published var results = [SearchResult]()
     var n = 5
     
+    init() {
+        
+    }
+    
+    init(forTestingWithHistoryStore historyStore: HistoryStore?) {
+        self.historyStore = historyStore
+    }
+    
     var profileID: ID<Profile>? {
         didSet {
             if profileID != oldValue {
@@ -109,7 +133,8 @@ extension CharacterSet {
             }
         }
     }
-    var historyStore: HistoryStore?
+    
+    private var historyStore: HistoryStore?
     
     @Published var query = "" {
         didSet {
@@ -144,9 +169,9 @@ extension CharacterSet {
         }
     }
     
-    var subscriptions = Set<AnyCancellable>()
+    private var subscriptions = Set<AnyCancellable>()
     
-    func setupHistoryObservers() {
+    private func setupHistoryObservers() {
         subscriptions.removeAll()
         historyStore = nil
         
@@ -177,13 +202,20 @@ extension CharacterSet {
     func fastPathSearch(query: String, prevResults: [SearchResult]) -> [SearchResult] {
         let normQuery = NormalizedSearchableString(text: query)
         var results = [SearchResult]()
+        // If typed a literal URL, include it:
         if let url = URL.withNaturalString(query) {
             results.append(.urlYouTyped(url))
         }
-        if let hit = historyTopHitCandidates.compactMap({ $0.match(query: normQuery) }).max(by: { $0.score < $1.score }) {
+        // Filter the highest-ranking URLs from historyTopHitCandidates, and any from the prev search
+        let prevHistoryItems = prevResults.filter({ $0.item.historyItem != nil }).map { $0.item }
+        if let hit = (historyTopHitCandidates + prevHistoryItems).compactMap({ $0.match(query: normQuery) }).max(by: { $0.score < $1.score }) {
             results.append(hit)
         }
         results.append(.searchYouTyped(query))
+        
+        // Sort THESE first 3 according to rank. Don't sort the whole set, because we don't want URL-you-typed and search-you-typed moving out of top 3
+        results.sort(by: { $0.score > $1.score })
+        
         
         let dedupeKeys = Set(results.map({ $0.item.dedupeKey }))
         let matchesFromPrevResults = prevResults
@@ -193,6 +225,8 @@ extension CharacterSet {
             if results.count >= n { break }
             results.append(item)
         }
+        
+//        results = results.sorted(by: { $0.score > $1.score })
         
         return results
     }
@@ -351,6 +385,13 @@ extension SearchableItem {
             return .substringMatchTitle
         }
         return .none
+    }
+    
+    var historyItem: HistoryItem? {
+        if case .historyItem(let item) = content {
+            return item
+        }
+        return nil
     }
 }
 

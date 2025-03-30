@@ -8,10 +8,10 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Browsing") {
-                Toggle("Enable AdBlock", isOn: $adblockEnabled)
+                Toggle("Block ads", isOn: $adblockEnabled)
                     .help("Blocks ads on websites using built-in filter lists")
                 
-                Toggle("Auto Dark Mode", isOn: $autoDarkModeEnabled)
+                Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
             }
         }

@@ -1,28 +1,28 @@
 import SwiftUI
 
 // MARK: - Tab Button Style
-public struct TabButtonStyle: ButtonStyle {
-    let isActive: Bool
-    
-    public init(isActive: Bool = false) {
-        self.isActive = isActive
-    }
-    
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13))
-            .foregroundColor(isActive ? .primary : .secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        configuration.isPressed
-                        ? Color.gray.opacity(0.3)
-                        : (isActive ? Color.gray.opacity(0.2) : Color.clear)
-                    )
-            )
-    }
-}
+//public struct TabButtonStyle: ButtonStyle {
+//    let isActive: Bool
+//    
+//    public init(isActive: Bool = false) {
+//        self.isActive = isActive
+//    }
+//    
+//    public func makeBody(configuration: Configuration) -> some View {
+//        configuration.label
+//            .font(.system(size: 13))
+//            .foregroundColor(isActive ? .primary : .secondary)
+//            .frame(maxWidth: .infinity, alignment: .leading)
+//            .background(
+//                RoundedRectangle(cornerRadius: 6)
+//                    .fill(
+//                        configuration.isPressed
+//                        ? Color.gray.opacity(0.3)
+//                        : (isActive ? Color.gray.opacity(0.2) : Color.clear)
+//                    )
+//            )
+//    }
+//}
 
 // MARK: - Sidebar Button Style
 public struct SidebarButtonStyle: ButtonStyle {
@@ -92,11 +92,10 @@ public struct SearchResultButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Button Style Extensions
 public extension Button {
-    func tabStyle(isActive: Bool = false) -> some View {
-        self.buttonStyle(TabButtonStyle(isActive: isActive))
-    }
+//    func tabStyle(isActive: Bool = false) -> some View {
+//        self.buttonStyle(TabButtonStyle(isActive: isActive))
+//    }
     
     func sidebarStyle() -> some View {
         self.buttonStyle(SidebarButtonStyle())
@@ -108,5 +107,49 @@ public extension Button {
     
     func searchResultStyle(isHighlighted: Bool = false) -> some View {
         self.buttonStyle(SearchResultButtonStyle(isHighlighted: isHighlighted))
+    }
+}
+
+struct TabStyleButtonModifier: ViewModifier {
+    var isSelected: Bool
+    var pressed: () -> Void
+    
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: 13))
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background{
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            LinearGradient(colors: [
+                                Color("TabBackground", bundle: .module),
+                                Color("TabBackground", bundle: .module).opacity(0.7),
+                            ], startPoint: .top, endPoint: .bottom)
+                        )
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                pressed()
+            }
+    }
+}
+
+struct CircleButtonStyle: ButtonStyle {
+    @State private var hovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .background {
+                if hovered {
+                    Circle()
+                        .foregroundStyle(.primary)
+                        .opacity(0.1)
+                }
+            }
+            .onHover(perform: { self.hovered = $0 })
     }
 }

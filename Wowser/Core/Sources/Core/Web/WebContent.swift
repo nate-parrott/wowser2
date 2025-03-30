@@ -440,7 +440,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     // MARK: - CSS Injection
     private func updateInjectedCode() {
         var injectedStyles = [injectedCSS]
-        print("[AD] Autodark: \(autoDarkMode), pageDark: \(info.inferredDarkMode), markMode: \(colorScheme == .dark)")
+//        print("[AD] Autodark: \(autoDarkMode), pageDark: \(info.inferredDarkMode), markMode: \(colorScheme == .dark)")
         if autoDarkMode, !info.inferredDarkMode, colorScheme == .dark {
             injectedStyles.append("""
             html { filter: hue-rotate(180deg) invert(1) contrast(0.9) brightness(0.95); }

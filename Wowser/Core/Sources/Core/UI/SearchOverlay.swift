@@ -276,9 +276,7 @@ private struct SearchResultRow: View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
                 // Icon
-                Image(systemName: iconName)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.blue)
+                SearchIcon(item: result.item, size: 20)
                 
                 // Title and URL
                 VStack(alignment: .leading, spacing: 2) {

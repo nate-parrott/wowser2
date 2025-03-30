@@ -25,7 +25,10 @@ let package = Package(
         .target(
             name: "Core",
             dependencies: ["ChatToys"],
-            resources: [.copy("Adblock/easylist.min.json")]
+            resources: [
+                .copy("Adblock/easylist.min.json"),
+                .process("Assets.xcassets"),
+            ]
         ),
         .testTarget(
             name: "CoreTests",

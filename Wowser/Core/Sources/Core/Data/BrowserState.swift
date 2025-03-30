@@ -222,49 +222,6 @@ public class BrowserStore: DataStore<BrowserState> {
         return tabID!
     }
     
-//    /// Closes all content in a window, including all tabs and panes.
-//    /// Also properly handles favorites that are open in the window.
-//    /// - Parameters:
-//    ///   - windowID: The ID of the window to close
-//    ///   - removeWindow: Whether to remove the window from the store after closing contents
-//    public func closeAllContentsInWindow(windowID: ID<WindowState>, removeWindow: Bool = true) {
-//        modify { state in
-//            guard let window = state.windows[windowID] else { return }
-//            
-//            // Get the profile for this window
-//            let profileID = window.profile
-//            
-//            // First, collect all tab IDs in this window - both regular tabs and favorites
-//            var tabsToClose = Set<ID<Tab>>(window.tabs)
-//            
-//            // Add favorites that may be open in this window
-//            if let profile = state.profiles[profileID] {
-//                let favorites = profile.manualFavorites + profile.autoFavorites
-//                for favoriteID in favorites {
-//                    if state.windowContaining(tabId: favoriteID)?.id == windowID {
-//                        tabsToClose.insert(favoriteID)
-//                    }
-//                }
-//            }
-//            
-//            // Close each tab and its contents
-//            for tabID in tabsToClose {
-//                // First get all the pane IDs before we modify the tab
-//                let paneIDs = state.tabs[tabID]?.panes.map { $0.id } ?? []
-//                
-//                // Close each pane in the tab
-//                for paneID in paneIDs {
-//                    state._close(webContentId: paneID, removeIfPinned: true)
-//                    self.liveWebContents.removeValue(forKey: paneID)
-//                }
-//            }
-//            
-//            // Finally, remove the window if requested
-//            if removeWindow {
-//                state.windows.removeValue(forKey: windowID)
-//            }
-//        }
-//    }
 }
 
 extension BrowserStore: WebContentDelegate {

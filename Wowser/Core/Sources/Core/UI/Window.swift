@@ -266,20 +266,9 @@ private struct EmptyTabView: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "safari")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-            
-            Text("No tab selected")
-                .font(.title)
-                .foregroundColor(.secondary)
-            
-            Button("New Tab") {
-                createNewTab(windowID: windowID)
-            }
-            .buttonStyle(TabButtonStyle())
-        }
+        Text("No tab selected")
+            .font(.title)
+            .foregroundColor(.secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.windowBackgroundColor))
     }

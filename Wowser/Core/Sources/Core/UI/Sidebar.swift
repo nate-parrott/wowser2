@@ -110,6 +110,7 @@ private struct FavoriteTabsView: View {
     let tabIDs: [ID<Tab>]
     let currentTabID: ID<Tab>?
     let windowID: ID<WindowState>
+    @Environment(\.profileID) private var profileID
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -119,7 +120,17 @@ private struct FavoriteTabsView: View {
                     isSelected: tabID == currentTabID,
                     windowID: windowID
                 )
+                .sidebarDropTarget { point, bounds in
+                    // Drop before this tab in favorites
+                    guard let profileID = profileID else { return nil }
+                    return .favorites(profile: profileID, before: tabID)
+                }
             }
+        }
+        // Add a drop target for the entire area if there are tabs
+        .sidebarDropTarget { point, bounds in
+            guard let profileID = profileID, !tabIDs.isEmpty else { return nil }
+            return .favorites(profile: profileID, before: nil)
         }
         if tabIDs.count == 0 {
             EmptyStateDropTarget(text: "Drag favorites here")
@@ -129,6 +140,7 @@ private struct FavoriteTabsView: View {
 
 private struct EmptyStateDropTarget: View {
     var text: String
+    @Environment(\.profileID) private var profileID
     
     var body: some View {
         Text(text)
@@ -142,7 +154,11 @@ private struct EmptyStateDropTarget: View {
                     .fill(Color.primary)
                     .opacity(0.1)
             }
-        // TODO: Add drop target
+            .sidebarDropTarget { _, _ in 
+                // When dropping in empty favorites section, it's always at the end of manual favorites
+                guard let profileID = profileID else { return nil }
+                return .favorites(profile: profileID, before: nil)
+            }
     }
 }
 
@@ -161,10 +177,19 @@ private struct RegularTabsView: View {
                         isSelected: tabID == currentTabID,
                         windowID: windowID
                     )
+                    .sidebarDropTarget { point, bounds in
+                        // Drop before this tab in the window's regular tabs
+                        return .ordinaryTabs(window: windowID, before: tabID)
+                    }
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+            // Background drop target for the entire area
+            .sidebarDropTarget { point, bounds in
+                // Drop at the end of the window's regular tabs
+                return .ordinaryTabs(window: windowID, before: nil)
+            }
         }
     }
 }
@@ -215,6 +240,10 @@ private struct FavoriteTabRow: View {
                     isSelected: isSelected,
                     windowID: windowID
                 )
+                .onDrag {
+                    // Create a drag item with the tab ID as text
+                    NSItemProvider(object: tabID.raw as NSString)
+                }
             }
         }
         .id(tabID)
@@ -239,8 +268,13 @@ private struct RegularTabRow: View {
                     isHovered: isHovered,
                     windowID: windowID
                 )
+                .contentShape(Rectangle())
                 .onHover { hovering in
                     isHovered = hovering
+                }
+                .onDrag {
+                    // Create a drag item with the tab ID as text
+                    NSItemProvider(object: tabID.raw as NSString)
                 }
             }
         }
@@ -255,26 +289,23 @@ private struct FavoriteTabButton: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        Button(action: {
-            selectTab(tabID: tabID, windowID: windowID)
-        }) {
-            HStack(spacing: 8) {
-                // Favicon
-                getFaviconImage(for: tab)
-                    .frame(width: 16, height: 16)
-                
-                // Title with truncation
-                Text(getTabTitle(tab: tab))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+        HStack(spacing: 8) {
+            // Favicon
+            FaviconView(url: tab.panes.first?.info.url)
+            
+            // Title with truncation
+            Text(getTabTitle(tab: tab))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            
+            Spacer()
         }
-        .buttonStyle(TabButtonStyle(isActive: isSelected))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
+            selectTab(tabID: tabID, windowID: windowID)
+        }))
         .padding(.horizontal, 8)
     }
 }
@@ -288,40 +319,60 @@ private struct RegularTabButton: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        Button(action: {
-            selectTab(tabID: tabID, windowID: windowID)
-        }) {
-            HStack(spacing: 8) {
-                // Favicon
-                getFaviconImage(for: tab)
-                    .frame(width: 16, height: 16)
-                
-                // Title with truncation
+        content
+            .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
+                selectTab(tabID: tabID, windowID: windowID)
+            }))
+    }
+    
+    @ViewBuilder private var content: some View {
+        HStack(spacing: 8) {
+            // Favicon
+            FaviconView(url: tab.panes.first?.info.url)
+            
+            // Title with truncation
+            VStack(alignment: .leading, spacing: 0) {
                 Text(getTabTitle(tab: tab))
-                    .lineLimit(1)
                     .truncationMode(.tail)
                 
-                Spacer()
-                
-                // Close button that appears on hover
-                if isHovered {
-                    Button(action: {
-                        closeTab(tabID: tabID)
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(3)
-                    .contentShape(Circle())
+                if isSelected, let host = tab.panes.first?.info.url?.hostWithoutWWW {
+                    Text(host)
+                        .font(.system(.caption, weight: .medium))
+                        .truncationMode(.middle)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+            .lineLimit(1)
+            
+            Spacer()
+            
+            // Close button that appears on hover
+            if isHovered {
+                CloseTabButton(tabID: tabID)
+            }
         }
-        .buttonStyle(TabButtonStyle(isActive: isSelected))
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .frame(height: 30)
+        .contentShape(Rectangle())
+
+    }
+}
+
+private struct CloseTabButton: View {
+    var tabID: ID<Tab>
+    
+    var body: some View {
+        Button(action: {
+            closeTab(tabID: tabID)
+        }) {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.secondary)
+                .help("Close Tab")
+                .padding(6)
+        }
+        .buttonStyle(CircleButtonStyle())
+
     }
 }
 
@@ -340,41 +391,7 @@ private func closeTab(tabID: ID<Tab>) {
     BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
 }
 
-private func getFaviconImage(for tab: Tab) -> some View {
-    let iconType = getTabIconType(tab: tab)
-    
-    switch iconType {
-    case .website:
-        return Image(systemName: "globe")
-            .foregroundColor(.blue)
-    case .document:
-        return Image(systemName: "doc.text")
-            .foregroundColor(.gray)
-    case .newTab:
-        return Image(systemName: "plus.square")
-            .foregroundColor(.gray)
-    }
-}
-
-// Icon types for tabs
-private enum TabIconType {
-    case website
-    case document
-    case newTab
-}
-
 // Helper functions to extract tab metadata
-private func getTabIconType(tab: Tab) -> TabIconType {
-    guard let url = tab.panes.first?.info.url else {
-        return .newTab
-    }
-    
-    if url.scheme == "file" {
-        return .document
-    } else {
-        return .website
-    }
-}
 
 private func getTabTitle(tab: Tab) -> String {
     return tab.panes.first?.info.title ?? 

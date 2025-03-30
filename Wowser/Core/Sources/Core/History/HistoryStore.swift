@@ -73,8 +73,9 @@ class HistoryStore: DataStore<HistoryState> {
             state.modify(url: url) { item in
                 item.url = url // b/c multiple history keys may resolve to different urls
                 item.title = title ?? item.title
-                if item.lastVisit.isWithinPast(minutes: 5) {
+                if !item.lastVisit.isWithinPast(minutes: 5) {
                     item.decayedVisitCount.add(count: 1, interval: .decayedVisitCounterHalfLife)
+                    item.lastVisit = Date()
                 }
             }
         }
@@ -91,5 +92,5 @@ class HistoryStore: DataStore<HistoryState> {
 }
 
 extension TimeInterval {
-    static var decayedVisitCounterHalfLife: TimeInterval = 24 * 60 * 60 * 3 // 3 days
+    static var decayedVisitCounterHalfLife: TimeInterval = 24 * 60 * 60 * 5 // 5 days
 }
