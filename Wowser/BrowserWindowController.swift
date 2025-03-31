@@ -6,6 +6,8 @@ class BrowserWindowController: NSWindowController {
     override func windowDidLoad() {
         super.windowDidLoad()
         
+        self.window?.isMovableByWindowBackground = true
+        
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: self.window!, queue: .main) { [weak self] _ in
             if let self {
                 self.willClose()

@@ -7,3 +7,12 @@ Prefer to store application state in `BrowserStore`, an object that protect a va
 `BrowserState` is a persisted value type, so only store not-huge data that can be converted to JSON. (E.g. don't store images or function callbacks here.)
 
 Observe the store using `WithSnapshotMain` or `uiPublisher`. Observe the minimum 'snapshot' of data necessary by mapping the state to a view-specific `Snapshot` object that is equatable, and only receiving updates when the snapshot changes.
+Use WithSnapshotMain (which does not make the snapshot optional) for main-thread datastores (i.e. BrowserStore).
+
+(Define snapshot creation as an extension function on `BrowserState`; make snapshots equatable)
+
+Best practices:
+- put business logic in extensions on BrowserState, not helpers at the view layer
+- write many small composable views, not large ones
+- do heavy lifting off the main thread
+- use `if let x { ... }` syntax for unwraping optionals

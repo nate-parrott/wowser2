@@ -77,7 +77,7 @@ private struct SidebarContent: View {
             Divider()
             
             // Research section
-            Text("Research")
+            Text("New Tabs")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 12)
@@ -185,11 +185,11 @@ private struct RegularTabsView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            // Background drop target for the entire area
-            .sidebarDropTarget { point, bounds in
-                // Drop at the end of the window's regular tabs
-                return .ordinaryTabs(window: windowID, before: nil)
-            }
+        }
+        // Background drop target for the entire area
+        .sidebarDropTarget { point, bounds in
+            // Drop at the end of the window's regular tabs
+            return .ordinaryTabs(window: windowID, before: nil)
         }
     }
 }
@@ -405,7 +405,7 @@ public struct Sidebar_Previews: PreviewProvider {
             .frame(width: 200, height: 500)
             .withBrowserContext(
                 windowID: ID<WindowState>(raw: "w0"),
-                profileID: ID<Profile>(raw: "p0")
+                profileID: .defaultProfile
             )
     }
 }

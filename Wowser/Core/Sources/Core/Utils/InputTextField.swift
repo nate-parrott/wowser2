@@ -96,9 +96,13 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
         didSet {
             if focusDate != oldValue {
                 if focusDate != nil {
-                    window?.makeFirstResponder(textView)
+                    DispatchQueue.main.async {
+                        self.window?.makeFirstResponder(self.textView)
+                    }
                 } else {
-                    window?.makeFirstResponder(nil)
+                    DispatchQueue.main.async {
+                        self.window?.makeFirstResponder(nil)
+                    }
                 }
             }
         }

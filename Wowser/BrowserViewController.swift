@@ -16,9 +16,17 @@ class BrowserViewController: NSViewController {
     // Store references for cleanup
     private var rootHostingView: NSView?
     
+    private let moveBlockingView = MoveBlockingView()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupBrowserWindow()
+        view.addSubview(moveBlockingView)
+    }
+    
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        moveBlockingView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height - UIConstants.macHeaderHeight)
     }
     
     private func setupBrowserWindow() {
@@ -129,4 +137,8 @@ private struct BrowserWindowWrapper: View {
     var body: some View {
         BrowserWindow(windowID: windowID)
     }
+}
+
+private class MoveBlockingView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
 }

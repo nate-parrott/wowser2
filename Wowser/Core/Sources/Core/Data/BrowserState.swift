@@ -16,9 +16,13 @@ public struct BrowserState: Equatable, Codable {
             windows: [:],
             tabs: [:],
             profiles: [
-                ID<Profile>(raw: "p0"): Profile(id: .init(raw: "p0"), dataStoreUUID: UUID())
+                ID<Profile>.defaultProfile: Profile(id: .defaultProfile, dataStoreUUID: UUID())
             ])
     }
+}
+
+public extension ID where Element == Profile {
+    static var defaultProfile = Core.ID<Profile>(raw: "p0")
 }
 
 public struct Tab: Equatable, Identifiable, Codable {
@@ -125,10 +129,21 @@ public class BrowserStore: DataStore<BrowserState> {
     }
     
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
+        assertOnMainThread()
+        let model = self.model
         if let live = liveWebContents[id] {
+            // Update last-active-in-window
+            // TODO: Catch tabs active in multiple windows
+            if let tabId = model.paneToTabMapping[id],
+                let tab = model.tabs[tabId],
+               tab.lastActiveInWindow != windowID {
+                self.model.tabs[tabId]?.lastActiveInWindow = windowID
+                print("Switching tab.lastActiveInWindow for \(id)")
+            }
+            
             return live
         }
-        let model = self.model
+        // Need to create new webcontent:
         guard let tabId = model.paneToTabMapping[id],
                 let pane = model.tabs[tabId]?.panes[id],
 //              let win = model.windowContaining(tabId: tabId),
