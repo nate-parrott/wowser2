@@ -27,6 +27,7 @@ public struct InputTextFieldOptions: Equatable {
     var requireCmdEnter: Bool = false
     var wantsUpDownArrowEvents: Bool = true
     var largePasteThreshold: Int? = nil
+    var selectAllOnFocus: Bool = false
     
     var effectivePlaceholderColor: NSColor {
         return placeholderColor ?? color.withAlphaComponentSafe(0.5)
@@ -42,7 +43,7 @@ public struct InputTextFieldOptions: Equatable {
     public init(placeholder: String,
                 font: NSFont = NSFont.systemFont(ofSize: 14),
                 color: UINSColor = UINSColor.textColor,
-                insets: CGSize = CGSize(width: 0, height: 0), placeholderColor: NSColor? = nil, requireCmdEnter: Bool = false, wantsUpDownArrowEvents: Bool = true, largePasteThreshold: Int? = nil) {
+                insets: CGSize = CGSize(width: 0, height: 0), placeholderColor: NSColor? = nil, requireCmdEnter: Bool = false, wantsUpDownArrowEvents: Bool = true, largePasteThreshold: Int? = nil, selectAllOnFocus: Bool = false) {
         self.placeholder = placeholder
         self.font = font
         self.color = color
@@ -51,6 +52,7 @@ public struct InputTextFieldOptions: Equatable {
         self.requireCmdEnter = requireCmdEnter
         self.wantsUpDownArrowEvents = wantsUpDownArrowEvents
         self.largePasteThreshold = largePasteThreshold
+        self.selectAllOnFocus = selectAllOnFocus
     }
 }
 
@@ -98,6 +100,9 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                 if focusDate != nil {
                     DispatchQueue.main.async {
                         self.window?.makeFirstResponder(self.textView)
+                        if self.options.selectAllOnFocus {
+                            self.textView.selectAll(nil)
+                        }
                     }
                 } else {
                     DispatchQueue.main.async {

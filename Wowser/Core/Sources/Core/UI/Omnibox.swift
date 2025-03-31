@@ -17,9 +17,10 @@ struct Omnibox: View {
             text: $searchText,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
-                font: .systemFont(ofSize: 16),
-                insets: CGSize(width: 16, height: 9),
-                wantsUpDownArrowEvents: true
+                font: .systemFont(ofSize: 14, weight: .medium),
+                insets: CGSize(width: 12, height: 10),
+                wantsUpDownArrowEvents: true,
+                selectAllOnFocus: true
             ),
             focusDate: focusDate,
             onEvent: handleTextFieldEvent,
