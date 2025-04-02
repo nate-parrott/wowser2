@@ -22,11 +22,15 @@ private struct WindowSnapshot: Equatable {
         var webContentId: ID<WebContent>?
         var focused: Bool
         var searchActive: Bool
+        var colorScheme: ContentColorScheme?
     }
     
     // Must have at least one, even if empty
     var panes: [PaneSnapshot]
     var profileID: ID<Profile>
+    var anyPaneHasSearchActive: Bool {
+        panes.filter({ $0.searchActive }).count > 0
+    }
     
     init(state: BrowserState, id: ID<WindowState>) {
         guard let window = state.windows[id] else {
@@ -41,7 +45,7 @@ private struct WindowSnapshot: Equatable {
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
             let focused = i == tab.focusedPaneIdx
-            return PaneSnapshot(id: pane.id.raw, webContentId: pane.id, focused: focused, searchActive: focused && window.searchOverlayActive)
+            return PaneSnapshot(id: pane.id.raw, webContentId: pane.id, focused: focused, searchActive: focused && window.searchOverlayActive, colorScheme: pane.info.colorScheme)
         })
     }
 }
@@ -50,15 +54,33 @@ private struct WindowSnapshot: Equatable {
 private struct WindowContent: View {
     var snapshot: WindowSnapshot
     
+    @State private var topHovered = false
+    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+    
     var body: some View {
         HStack(spacing: 0) {
             Sidebar()
+            Divider()
+                .edgesIgnoringSafeArea(.all)
             HStack(spacing: 0) {
                 ForEach(snapshot.panes) { pane in
-                    PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1)
+                    PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible, toolbarColorScheme: pane.colorScheme)
                 }
             }
+            .trackMouseOutsideWindow(onMouseMoved: { self.hoverAreaMouseMoved($0, rect: $1) })
             .edgesIgnoringSafeArea(.all)
+        }
+    }
+    
+    private var topbarVisible: Bool {
+        topHovered || topbarLocked || snapshot.anyPaneHasSearchActive
+    }
+    
+    private func hoverAreaMouseMoved(_ pt: CGPoint, rect: CGRect) {
+        let hoverZone = CGRect(x: 0, y: -50, width: rect.width, height: 50 + (topbarVisible ? UIConstants.macHeaderHeight + 40 : 12))
+        let hovered = hoverZone.contains(pt)
+        if topHovered != hovered {
+            topHovered = hovered
         }
     }
 }
@@ -66,6 +88,8 @@ private struct WindowContent: View {
 fileprivate struct PaneView: View {
     var snapshot: WindowSnapshot.PaneSnapshot
     var singlePane: Bool
+    var topbarVisible: Bool
+    var toolbarColorScheme: ContentColorScheme?
     
     @State private var searchText: String = ""
     @State private var selectedResultIndex = 0
@@ -74,18 +98,34 @@ fileprivate struct PaneView: View {
     // Create Searcher with profile-specific history store
     @StateObject private var searcher = Searcher()
     @Environment(\.profileID) private var profileID
+    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+    @State private var size: CGSize = .zero
     
     var body: some View {
-        VStack(spacing: 0) {
-            ToolbarView(searchFocused: snapshot.searchActive, webContentID: snapshot.webContentId, searcher: searcher, searchText: $searchText, selectedResultIndex: $selectedResultIndex)
-            
+        ZStack(alignment: .top) {
             content
-                .overlay {
-                    if snapshot.searchActive {
-                        SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
-                    }
-                }
+                .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
+                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
+            
+            if snapshot.searchActive {
+                SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
+                    .padding(.top, UIConstants.macHeaderHeight)
+            }
+            
+            ToolbarView(
+                searchFocused: snapshot.searchActive,
+                webContentID: snapshot.webContentId,
+                fgColor: toolbarColorScheme?.foreground,
+                searcher: searcher,
+                searchText: $searchText,
+                selectedResultIndex: $selectedResultIndex
+            )
+                .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
+                .animation(.niceDefault, value: toolbarColorScheme)
+                .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
+//                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
+        .measureSize { self.size = $0 }
         .overlay {
             if snapshot.focused, !singlePane {
                 Rectangle().strokeBorder(Color.blue, lineWidth: 2)
@@ -104,6 +144,8 @@ fileprivate struct PaneView: View {
                 searchText = ""
             }
         }
+        .animation(.niceDefault(duration: 0.12), value: topbarVisible)
+//        .animation(.spring(response: 0.1, dampingFraction: 0.8, blendDuration: 0.05), value: topbarVisible)
     }
     
     @ViewBuilder private var content: some View {

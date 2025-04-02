@@ -20,7 +20,7 @@ public struct SearchResultsOverlay: View {
             // Semi-transparent background overlay
             Color.primary.opacity(0.1)
                 .edgesIgnoringSafeArea(.all)
-                .background(.thinMaterial)
+                .background(.ultraThinMaterial)
                 .onTapGesture {
                     dismissOverlay()
                 }

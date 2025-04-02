@@ -5,6 +5,7 @@ struct Omnibox: View {
     @Binding var searchText: String
     @Binding var selectedResultIndex: Int
     @ObservedObject var searcher: Searcher
+    var fgColor: HSBA?
     var onFocus: () -> Void // Handler should focus this pane within its tab and set searchOverlay visible on the pane state.
     
     @State private var contentSize: CGSize = .zero
@@ -18,6 +19,7 @@ struct Omnibox: View {
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
                 font: .systemFont(ofSize: 14, weight: .medium),
+                color: fgColor?.uiColor ?? UINSColor.textColor,
                 insets: CGSize(width: 12, height: 10),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true

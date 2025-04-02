@@ -102,6 +102,9 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                         self.window?.makeFirstResponder(self.textView)
                         if self.options.selectAllOnFocus {
                             self.textView.selectAll(nil)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self.textView.selectAll(nil)
+                            }
                         }
                     }
                 } else {

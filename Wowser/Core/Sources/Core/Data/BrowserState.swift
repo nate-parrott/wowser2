@@ -128,6 +128,10 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
     }
     
+    public override func processModelAfterLoad(model: inout BrowserState) {
+        model.processAfterLoad()
+    }
+    
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         assertOnMainThread()
         let model = self.model
@@ -424,5 +428,19 @@ extension BrowserState {
             }
             return []
         }.asSet
+    }
+}
+
+private extension BrowserState {
+    mutating func processAfterLoad() {
+        for windowID in windows.keys {
+            windows[windowID]?.processAfterLoad()
+        }
+    }
+}
+
+private extension WindowState {
+    mutating func processAfterLoad() {
+        searchOverlayActive = false
     }
 }

@@ -62,8 +62,8 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "283"
-            endingLineNumber = "283"
+            startingLineNumber = "287"
+            endingLineNumber = "287"
             landmarkName = "webContent(_:decidePolicyForResponse:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -244,8 +244,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/ToolbarView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "111"
-            endingLineNumber = "111"
+            startingLineNumber = "116"
+            endingLineNumber = "116"
             landmarkName = "activateSearchOverlay()"
             landmarkType = "7">
          </BreakpointContent>

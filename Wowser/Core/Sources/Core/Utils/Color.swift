@@ -12,17 +12,17 @@ extension NSColor {
 }
 #endif
 
-struct HSBA: Equatable, Codable {
-    var hue: CGFloat
-    var saturation: CGFloat
-    var brightness: CGFloat
-    var alpha: CGFloat
+public struct HSBA: Equatable, Codable {
+    public var hue: CGFloat
+    public var saturation: CGFloat
+    public var brightness: CGFloat
+    public var alpha: CGFloat
 
-    var uiColor: UINSColor {
+    public var uiColor: UINSColor {
         .init(hue: hue, saturation: saturation, brightness: brightness, alpha: alpha)
     }
 
-    var color: Color {
+    public var color: Color {
         Color(uiColor)
     }
 

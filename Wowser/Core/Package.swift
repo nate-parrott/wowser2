@@ -18,13 +18,14 @@ let package = Package(
     ],
     dependencies: [
         .package(name: "ChatToys", path: "../../../chattoys"),
+        .package(url: "https://github.com/DenDmitriev/DominantColors.git", .upToNextMajor(from: "1.2.0")),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "Core",
-            dependencies: ["ChatToys"],
+            dependencies: ["ChatToys", "DominantColors"],
             resources: [
                 .copy("Adblock/easylist.min.json"),
                 .process("Assets.xcassets"),

@@ -2,6 +2,7 @@ import Foundation
 import WebKit
 import Combine
 import SwiftUI
+import DominantColors
 
 #if os(macOS)
 import AppKit
@@ -100,6 +101,8 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         public var estimatedProgress: Double = 0
         public var isLoading = false
         public var inferredDarkMode = false
+        public var autoDarkModeApplied = false
+        public var topColor: HSBA?
     }
 
     @Published private(set) public var info = Info() {
@@ -426,8 +429,25 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         info.title = webview.title
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         self.info = info
+        
         if injectedCSS != "" || injectedJS != "" || autoDarkMode {
             updateInjectedCode()
+        }
+        
+        // Capture the top portion of the page to determine dominant color
+        Task {
+            guard let hsba = await webview.extractTopDominantColor() else {
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                // Only update if different from current value
+                if self.info.topColor != hsba {
+                    var updatedInfo = self.info
+                    updatedInfo.topColor = hsba
+                    self.info = updatedInfo
+                }
+            }
         }
     }
 
@@ -441,7 +461,11 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     private func updateInjectedCode() {
         var injectedStyles = [injectedCSS]
 //        print("[AD] Autodark: \(autoDarkMode), pageDark: \(info.inferredDarkMode), markMode: \(colorScheme == .dark)")
-        if autoDarkMode, !info.inferredDarkMode, colorScheme == .dark {
+        let applyAutoDark = autoDarkMode && !info.inferredDarkMode && colorScheme == .dark
+        if applyAutoDark != info.autoDarkModeApplied {
+            info.autoDarkModeApplied = applyAutoDark
+        }
+        if applyAutoDark {
             injectedStyles.append("""
             html { filter: hue-rotate(180deg) invert(1) contrast(0.9) brightness(0.95); }
             img, video, object, iframe { filter: invert(1) hue-rotate(180deg); }
@@ -463,4 +487,51 @@ if (css) {
 """
         webview.evaluateJavaScript((cssJS + "\n" + injectedJS).wrappedInSelfCallingJSFunction, completionHandler: nil)
     }
+}
+
+// MARK: - Web Page Dominant Color Extraction
+private extension DispatchQueue {
+    static let pageColorQueue = DispatchQueue(label: "com.wowser.pageColorQueue", qos: .userInitiated)
+}
+
+private extension WKWebView {
+    /// Captures the top portion of the web page and extracts the dominant color
+    func extractTopDominantColor() async -> HSBA? {
+        // Capture only the top portion (2 rows of pixels)
+        let height: CGFloat = 2
+        let captureRect = CGRect(x: 0, y: 0, width: bounds.width, height: height)
+        
+        let config = WKSnapshotConfiguration()
+        config.rect = captureRect
+        
+        do {
+            let snapshot = try await takeSnapshot(configuration: config).cgImage(forProposedRect: nil, context: nil, hints: nil)
+            
+            return await withCheckedContinuation { continuation in
+                DispatchQueue.pageColorQueue.async {
+                    do {
+                        guard let dominantColors = try snapshot?.dominantColors() else {
+                            throw DominantColorsError.cantCaptureImage
+                        }
+                        if let primaryColor = dominantColors.first {
+                            let hsba = NSColor(cgColor: primaryColor)?.hsba
+                            continuation.resume(returning: hsba)
+                        } else {
+                            continuation.resume(returning: nil)
+                        }
+                    } catch {
+                        print("Error extracting dominant color: \(error)")
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+        } catch {
+            print("Error taking snapshot: \(error)")
+            return nil
+        }
+    }
+}
+
+private enum DominantColorsError: Error {
+    case cantCaptureImage
 }
