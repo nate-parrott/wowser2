@@ -291,20 +291,18 @@ private struct CloseTabButton: View {
 
 // Extension to apply tab style to any shape
 extension Shape {
+    @ViewBuilder
     func applyTabStyle(isSelected: Bool, isHovered: Bool) -> some View {
         if isSelected {
-            return AnyView(
-                self.fill(
-                    LinearGradient(colors: [
-                        Color("TabBackground", bundle: .module),
-                        Color("TabBackground", bundle: .module).opacity(0.7),
-                    ], startPoint: .top, endPoint: .bottom)
-                )
+            self.fill(
+                LinearGradient(colors: [
+                    Color("TabBackground", bundle: .module),
+                    Color("TabBackground", bundle: .module).opacity(0.7),
+                ], startPoint: .top, endPoint: .bottom)
             )
+            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
         } else {
-            return AnyView(
-                self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
-            )
+            self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
         }
     }
 }

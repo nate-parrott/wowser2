@@ -180,8 +180,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "158"
-            endingLineNumber = "158"
+            startingLineNumber = "159"
+            endingLineNumber = "159"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -196,8 +196,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "160"
-            endingLineNumber = "160"
+            startingLineNumber = "161"
+            endingLineNumber = "161"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -212,8 +212,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "157"
-            endingLineNumber = "157"
+            startingLineNumber = "158"
+            endingLineNumber = "158"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -228,8 +228,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "264"
-            endingLineNumber = "264"
+            startingLineNumber = "265"
+            endingLineNumber = "265"
             landmarkName = "slowPathSearch(query:fastPath:)"
             landmarkType = "7">
          </BreakpointContent>

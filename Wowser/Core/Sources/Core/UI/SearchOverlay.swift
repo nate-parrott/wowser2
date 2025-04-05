@@ -102,7 +102,7 @@ private struct SearchResultRow: View {
             .contentShape(Rectangle())
             .lineLimit(1)
         }
-        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected))
+        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, result: result))
     }
     
     // Computed properties to extract user-friendly data from the SearchResult

@@ -112,9 +112,9 @@ public struct ToolbarView: View {
                 .padding(.trailing, 8)
             }
             .frame(height: UIConstants.macHeaderHeight)
-            .overlay(alignment: .bottom) {
-                (fgColor?.color ?? Color.primary).frame(height: 1).opacity(0.1)
-            }
+//            .overlay(alignment: .bottom) {
+//                (fgColor?.color ?? Color.primary).frame(height: 1).opacity(0.1)
+//            }
         }
         .onAppearOrChange(of: searchFocused, perform: { focused in
             focusDate = focused ? Date() : nil

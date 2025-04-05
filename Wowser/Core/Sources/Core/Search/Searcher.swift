@@ -1,3 +1,4 @@
+import SwiftUI
 import Combine
 import Foundation
 
@@ -333,6 +334,19 @@ private extension SearchResult {
     
     static func navItem(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "nav:\(query)"), content: .imFeelingLucky(query)), matchQuality: .prefixMatchTitle)
+    }
+}
+
+extension SearchResult {
+    public var highlightColor: Color {
+        switch item.content {
+        case .chatbot:
+            return Color.purple
+        case .imFeelingLucky:
+            return Color.green
+        case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
+            return Color.blue
+        }
     }
 }
 

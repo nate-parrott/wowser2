@@ -94,25 +94,31 @@ public struct IconButtonStyle: ButtonStyle {
 }
 
 // MARK: - Search Result Button Style
-public struct SearchResultButtonStyle: ButtonStyle {
+struct SearchResultButtonStyle: ButtonStyle {
     var isHighlighted: Bool
     @State private var hovered = false
+    var result: SearchResult?
     
-    public init(isHighlighted: Bool = false) {
+    init(isHighlighted: Bool = false, result: SearchResult? = nil) {
         self.isHighlighted = isHighlighted
+        self.result = result
     }
     
-    public func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundColor(isHighlighted ? Color.white : nil)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
-                        isHighlighted ? Color.accentColor : (hovered ? Color.accentColor.opacity(0.1) : Color.clear)
+                        isHighlighted ? highlightColor : (hovered ? highlightColor.opacity(0.1) : Color.clear)
                     )
             )
             .contentShape(Rectangle())
             .onHover(perform: { self.hovered = $0 })
+    }
+    
+    private var highlightColor: Color {
+        result?.highlightColor ?? Color.accentColor
     }
 }
 
