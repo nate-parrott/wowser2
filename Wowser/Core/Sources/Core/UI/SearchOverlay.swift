@@ -118,6 +118,8 @@ private struct SearchResultRow: View {
             return query
         case .historyItem(let item):
             return item.title ?? item.url.displayString
+        case .chatbot(let query):
+            return query
         }
     }
     
@@ -130,7 +132,9 @@ private struct SearchResultRow: View {
         case .searchSuggestion:
             return nil
         case .imFeelingLucky:
-            return "Go"
+            return "Go Direct"
+        case .chatbot:
+            return "Chat"
         case .historyItem(let item):
             return item.url.displayString
         }

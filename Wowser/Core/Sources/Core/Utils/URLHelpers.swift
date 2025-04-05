@@ -13,7 +13,11 @@ extension URL {
     }
     
     public static func withNaturalString(_ string: String) -> URL? {
-        if !(string.contains(":") || string.contains(".")) {
+        if string.contains(" ") {
+            return nil
+        }
+        let hasUrlChars = string.contains(":") || string.withoutSuffix(".").contains(".")
+        if !hasUrlChars {
             return nil
         }
         if stringHasURLScheme(string) {
@@ -89,7 +93,7 @@ extension URL {
                 str = String(str.suffix(from: str.index(str.startIndex, offsetBy: prefix.count)))
             }
         }
-        return str
+        return String(str.withoutSuffix("/"))
     }
 
     public func isAncestorOf(_ child: URL) -> Bool {

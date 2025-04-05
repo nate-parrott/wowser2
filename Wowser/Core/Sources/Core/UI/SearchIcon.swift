@@ -18,12 +18,15 @@ struct SearchIcon: View {
                 Image(systemName: "magnifyingglass")
 //                    .foregroundColor(.blue)
                 
+            case .chatbot:
+                Image(systemName: "questionmark.bubble")
+                
             case .searchSuggestion:
                 Image(systemName: "text.magnifyingglass")
 //                    .foregroundColor(.blue)
                 
             case .imFeelingLucky:
-                Image(systemName: "dice")
+                Image(systemName: "arrow.forward.circle.fill")
 //                    .foregroundColor(.blue)
             }
         }

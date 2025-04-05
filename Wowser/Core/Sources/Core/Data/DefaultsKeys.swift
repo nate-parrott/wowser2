@@ -14,6 +14,9 @@ public enum DefaultsKeys: String {
     case openrouterKey
     case openAIKey
     case anthropicKey
+    
+    case searchEngine // SearchEngine
+    case Chatbot // Chatbot
 }
 
 public extension DefaultsKeys {
@@ -24,4 +27,16 @@ public extension DefaultsKeys {
     func stringValue(defaultValue def: String = "") -> String {
         return UserDefaults.standard.string(forKey: rawValue) ?? def
     }
+}
+
+public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
+    case google
+    case duckduckgo
+    case kagi
+}
+
+public enum Chatbot: String, CaseIterable, Equatable, Hashable, Codable {
+    case claude
+    case chatgpt
+    case perplexity
 }

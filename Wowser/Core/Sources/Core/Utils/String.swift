@@ -18,6 +18,13 @@ extension String {
         }
         return self
     }
+    
+    func withoutSuffix(_ suffix: String) -> String {
+        if hasSuffix(suffix) {
+            return String(dropLast(suffix.count))
+        }
+        return self
+    }
 
     func truncateTailWithEllipsis(chars: Int) -> String {
         // Written by Phil

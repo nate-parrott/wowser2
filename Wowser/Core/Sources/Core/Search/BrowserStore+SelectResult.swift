@@ -12,6 +12,9 @@ extension BrowserStore {
         case .searchSuggestion(let query, _):
             performSearch(query, windowID: windowID)
             
+        case .chatbot(let query):
+            performSearch(query, windowID: windowID, chatbot: true)
+            
         case .imFeelingLucky(let query):
             // Implement "I'm feeling lucky" functionality
             performImFeelingLucky(query, windowID: windowID)
@@ -49,7 +52,14 @@ extension BrowserStore {
     }
     
     // Perform a search with the given query
-    private func performSearch(_ query: String, windowID: ID<WindowState>) {
+    private func performSearch(_ query: String, windowID: ID<WindowState>, chatbot: Bool = false) {
+        if chatbot {
+            if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let searchURL = URL(string: "https://claude.ai/new?q=\(encodedQuery)") {
+                loadURL(searchURL, windowID: windowID)
+            }
+            return
+        }
         // Encode query for search URL
         if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
            let searchURL = URL(string: "https://www.google.com/search?q=\(encodedQuery)") {

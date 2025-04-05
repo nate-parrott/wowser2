@@ -8,6 +8,7 @@ struct SearchableItem: Equatable {
         case searchSuggestion(String, Int /* source index */)
         case imFeelingLucky(String) // navigates to the first search result for this
         case historyItem(HistoryItem)
+        case chatbot(String)
     }
     
     var id: ID<SearchableItem>
@@ -21,6 +22,7 @@ struct SearchableItem: Equatable {
         case .searchSuggestion(let string, _): return URL.googleSearch(string).historyKey
         case .imFeelingLucky(let string): return "lucky:\(string)"
         case .historyItem(let historyItem): return historyItem.key
+        case .chatbot(let query): return "chat:\(query)"
         }
     }
 }
@@ -51,6 +53,11 @@ struct SearchResult: Equatable, Identifiable {
             }
             return 0
         case .imFeelingLucky:
+            if matchQuality == .prefixMatchTitle {
+                return 12
+            }
+            return 0
+        case .chatbot:
             if matchQuality == .prefixMatchTitle {
                 return 11
             }
@@ -202,19 +209,35 @@ extension CharacterSet {
     func fastPathSearch(query: String, prevResults: [SearchResult]) -> [SearchResult] {
         let normQuery = NormalizedSearchableString(text: query)
         var results = [SearchResult]()
+        
+        let classification = classifyQuery(query)
+        
+        if classification == .nav {
+            results.append(.navItem(query))
+        }
+        
         // If typed a literal URL, include it:
         if let url = URL.withNaturalString(query) {
             results.append(.urlYouTyped(url))
         }
-        // Filter the highest-ranking URLs from historyTopHitCandidates, and any from the prev search
-        let prevHistoryItems = prevResults.filter({ $0.item.historyItem != nil }).map { $0.item }
-        if let hit = (historyTopHitCandidates + prevHistoryItems).compactMap({ $0.match(query: normQuery) }).max(by: { $0.score < $1.score }) {
-            results.append(hit)
+        
+        if classification == .chat {
+            results.append(.chatbot(query))
         }
         results.append(.searchYouTyped(query))
         
+        // Filter the highest-ranking URLs from historyTopHitCandidates, and any from the prev search
+        let prevHistoryItems = prevResults.filter({ $0.item.historyItem != nil }).map { $0.item }
+        if let topHistoryItem = (historyTopHitCandidates + prevHistoryItems).compactMap({ $0.match(query: normQuery) }).max(by: { $0.score < $1.score }) {
+            if let insertBefore = results.firstIndex(where: { topHistoryItem.score > $0.score }) {
+                results.insert(topHistoryItem, at: insertBefore)
+            } else {
+                results.append(topHistoryItem)
+            }
+        }
+        
         // Sort THESE first 3 according to rank. Don't sort the whole set, because we don't want URL-you-typed and search-you-typed moving out of top 3
-        results.sort(by: { $0.score > $1.score })
+//        results.sort(by: { $0.score > $1.score })
         
         
         let dedupeKeys = Set(results.map({ $0.item.dedupeKey }))
@@ -302,6 +325,14 @@ private extension SearchResult {
     
     static func searchYouTyped(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "typed:\(query)"), content: .searchWhatYouTyped(query)), matchQuality: .prefixMatchTitle)
+    }
+    
+    static func chatbot(_ query: String) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "chat:\(query)"), content: .chatbot(query)), matchQuality: .prefixMatchTitle)
+    }
+    
+    static func navItem(_ query: String) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "nav:\(query)"), content: .imFeelingLucky(query)), matchQuality: .prefixMatchTitle)
     }
 }
 
@@ -409,5 +440,36 @@ extension URL {
             strings.append(abs.withoutPrefix("www."))
         }
         return strings.map { NormalizedSearchableString(text: $0) }
+    }
+}
+
+enum OmniboxClassifierLabel: String, Equatable {
+    case nav
+    case chat
+    case search
+    
+    @available(macOS 14.0, *)
+    static let sharedModel: OmniboxClassifier? = try? OmniboxClassifier()
+    
+    static func preheat() {
+        if #available(macOS 14.0, *) {
+            _ = OmniboxClassifierLabel.sharedModel
+        }
+    }
+}
+
+func classifyQuery(_ query: String) -> OmniboxClassifierLabel? {
+    if query.count > 1 && query.hasSuffix("?") {
+        return .chat
+    }
+    if query.count < 3 {
+        return nil
+    }
+    if #available(macOS 14.0, *) {
+        guard let model = OmniboxClassifierLabel.sharedModel else { return nil }
+        let label = try! model.prediction(input: .init(text: query.lowercased())).label
+        return OmniboxClassifierLabel(rawValue: label)
+    } else {
+        return nil
     }
 }
