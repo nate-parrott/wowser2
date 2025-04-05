@@ -207,7 +207,7 @@ public class BrowserStore: DataStore<BrowserState> {
         for id in toRemove {
             if let wv = liveWebContents[id]?.webview {
                 print("Trying to close web content '\(wv.title ?? "[no title]")'")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak wv] in
                     if let wv {
                         assertionFailure("Expected to deallocate webview: \(wv)")
                     }

@@ -103,7 +103,10 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                         if self.options.selectAllOnFocus {
                             self.textView.selectAll(nil)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                self.textView.selectAll(nil)
+                                // If text field is already short (ie user is typing) dont
+                                if self.textView.string.count > 3 {
+                                    self.textView.selectAll(nil)
+                                }
                             }
                         }
                     }

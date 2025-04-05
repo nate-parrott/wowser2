@@ -150,6 +150,12 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         self.id = id ?? .assign()
         let config = config ?? WKWebViewConfiguration()
         if #available(macOS 14.0, *) {
+            config.preferences.inactiveSchedulingPolicy = .throttle
+            // https://stackoverflow.com/questions/78758812/wkwebview-oauth-popup-misses-window-opener-in-ios-17-5
+            GlobalHacks.hacks!.fixPreferences(config.preferences)
+//            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
+        }
+        if #available(macOS 14.0, *) {
             config.websiteDataStore = WKWebsiteDataStore(forIdentifier: profileUUID)
         } else {
             // Fallback on earlier versions
@@ -168,6 +174,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         }
         #if os(macOS)
         webview.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
+//        webview.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #else
         webview.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
         #endif
@@ -446,6 +453,65 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         delegate?.webContent(self, didSpawnNewWebContent: newWebContent, shouldActivate: !commandPressed)
         
         return newWebContent.webview
+    }
+    
+    public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor () -> Void) {
+        Task {
+            await Alerts.showAppAlert(title: frame.request.url?.host ?? "JavaScript", message: message, baseView: webview)
+            completionHandler()
+        }
+    }
+    
+    public func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor (String?) -> Void) {
+        Task {
+            let result = await Alerts.showAppPrompt(
+                title: frame.request.url?.host ?? "JavaScript",
+                message: prompt,
+                textPlaceholder: defaultText ?? "",
+                submitTitle: "OK",
+                cancelTitle: "Cancel",
+                baseView: webview
+            )
+            completionHandler(result)
+        }
+    }
+    
+    public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
+        return await Alerts.showAppConfirmationDialog(
+            title: frame.request.url?.host ?? "JavaScript",
+            message: message,
+            yesTitle: "OK",
+            noTitle: "Cancel",
+            baseView: webview
+        )
+    }
+    
+    #if os(macOS)
+    public func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo) async -> [URL]? {
+        let openPanel = NSOpenPanel()
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = parameters.allowsDirectories
+        openPanel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        
+        guard let window = webview.window else { return nil }
+        
+        let response = await openPanel.beginSheetModal(for: window)
+        return response == .OK ? openPanel.urls : nil
+    }
+    #endif
+    
+    public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping @MainActor (WKPermissionDecision) -> Void) {
+        Task {
+            let mediaType = type == .microphone ? "microphone" : type == .camera ? "camera" : "camera and microphone"
+            let confirmed = await Alerts.showAppConfirmationDialog(
+                title: "Media Access Request",
+                message: "Allow \(origin.host) to access your \(mediaType)?",
+                yesTitle: "Allow",
+                noTitle: "Deny",
+                baseView: webview
+            )
+            decisionHandler(confirmed ? .grant : .deny)
+        }
     }
 
     // MARK: - Metadata

@@ -208,6 +208,7 @@ private struct RegularTabRow: View {
                     isHovered = hovering
                 }
                 .onDrag {
+                    // WARNING: onDrag appears to leak the hosting view when clicked
                     // Create a drag item with the tab ID as text
                     NSItemProvider(object: tabID.raw as NSString)
                 }

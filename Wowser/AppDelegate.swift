@@ -35,6 +35,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
     
     func applicationWillFinishLaunching(_ notification: Notification) {
+        GlobalHacks.hacks = MacHacks()
+        
         UserDefaults.standard.register(defaults: [
             DefaultsKeys.adblock.rawValue: true,
             DefaultsKeys.autoDarkMode.rawValue: true,

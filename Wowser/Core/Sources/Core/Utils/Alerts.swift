@@ -8,8 +8,8 @@ enum Alerts {
     }
 
     @MainActor
-    static func showAppAlert(title: String, message: String) async {
-        guard let mainWin = windowForAlerts else { return }
+    static func showAppAlert(title: String, message: String, baseView: UINSView? = nil) async {
+        guard let mainWin = baseView?.window ?? windowForAlerts else { return }
         // Written by Phil
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -25,9 +25,9 @@ enum Alerts {
     }
 
     @MainActor
-    static func showAppConfirmationDialog(title: String, message: String, yesTitle: String, noTitle: String) async -> Bool {
+    static func showAppConfirmationDialog(title: String, message: String, yesTitle: String, noTitle: String, baseView: UINSView? = nil) async -> Bool {
         // Written by Phil
-        guard let mainWin = windowForAlerts else { return false }
+        guard let mainWin = baseView?.window ?? windowForAlerts else { return false }
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = title
@@ -50,9 +50,10 @@ enum Alerts {
         message: String,
         textPlaceholder: String,
         submitTitle: String,
-        cancelTitle: String
+        cancelTitle: String,
+        baseView: UINSView? = nil
     ) async -> String? {
-        guard let mainWin = windowForAlerts else { return nil }
+        guard let mainWin = baseView?.window ?? windowForAlerts else { return nil }
 
         let alert = NSAlert()
         alert.alertStyle = .informational

@@ -2,15 +2,18 @@ import SwiftUI
 
 public struct BrowserWindow: View {
     private let windowID: ID<WindowState>
+    public var unmount = false
     
     public init(windowID: ID<WindowState>) {
         self.windowID = windowID
     }
     
     public var body: some View {
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { WindowSnapshot(state: $0, id: self.windowID) }) { snapshot in
-            WindowContent(snapshot: snapshot)
-                .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
+        if !unmount {
+            WithSnapshotMain(store: BrowserStore.shared, snapshot: { WindowSnapshot(state: $0, id: self.windowID) }) { snapshot in
+                WindowContent(snapshot: snapshot)
+                    .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
+            }
         }
     }
 }

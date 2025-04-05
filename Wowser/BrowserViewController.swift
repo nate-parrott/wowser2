@@ -14,7 +14,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     private(set) var windowID: ID<WindowState>?
     
     // Store references for cleanup
-    private var rootHostingView: NSView?
+    private(set) var rootHostingController: NSHostingController<BrowserWindow>?
     
     private let moveBlockingView = MoveBlockingView()
     
@@ -50,31 +50,23 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         
         // Create the SwiftUI hosting view
         if let windowID = self.windowID {
-            setupHostingView(windowID: windowID)
+            // Create and configure the hosting view
+            let browserWindowView = BrowserWindow(windowID: windowID)
+            let hostingController = NSHostingController(rootView: browserWindowView)
+            hostingController.sizingOptions = []
+            
+            // Add the hosting view to our view hierarchy
+            addChild(hostingController)
+            view.addSubview(hostingController.view)
+            
+            // Store reference for cleanup
+            rootHostingController = hostingController
         }
     }
     
-    private func setupHostingView(windowID: ID<WindowState>) {
-        // Create and configure the hosting view
-        let browserWindowView = BrowserWindow(windowID: windowID)
-        let hostingController = NSHostingController(rootView: browserWindowView)
-        hostingController.sizingOptions = []
-        
-        // Add the hosting view to our view hierarchy
-        addChild(hostingController)
-        view.addSubview(hostingController.view)
-        
-        // Configure constraints
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-        
-        // Store reference for cleanup
-        rootHostingView = hostingController.view
+    // Called by BrowserWindowController
+    func willClose() {
+        rootHostingController?.rootView.unmount = true
     }
     
     // MARK: - Action Methods
@@ -150,6 +142,15 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             view.window?.close()
             
         }
+    }
+    
+    override func viewWillLayout() {
+        super.viewWillLayout()
+        rootHostingController?.view.frame = view.bounds
+    }
+    
+    deinit {
+        print("BrowserViewController deinit")
     }
 }
 

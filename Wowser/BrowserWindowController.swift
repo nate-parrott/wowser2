@@ -35,6 +35,7 @@ class BrowserWindowController: NSWindowController {
     }
     
     private func willClose() {
+        self.browserViewController?.willClose()
         if let windowID = browserViewController?.windowID {
             BrowserStore.shared.modify { state in
                 state.closeWindow(id: windowID)
@@ -44,5 +45,21 @@ class BrowserWindowController: NSWindowController {
     
     deinit {
         print("BrowserWindowController deinit")
+    }
+}
+
+// HACK: NSHostingController interacts weirdly with onDrag and doesn't clean up its subviews (including webviews) when being torn down.
+// To force at least some cleanup, we need to 'finalize' the hosting view by forcing it to render
+// with `unmount=true`, which causes it to render an empty view and release any attached webviews.
+class BrowserNSWindow: NSWindow {
+    override func close() {
+        if let content = contentViewController as? BrowserViewController, let hostController = content.rootHostingController, !hostController.rootView.unmount {
+            hostController.rootView.unmount = true
+            DispatchQueue.main.async {
+                self.close()
+            }
+            return
+        }
+        super.close()
     }
 }
