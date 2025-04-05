@@ -17,33 +17,26 @@ public struct SearchResultsOverlay: View {
     // Main overlay container
     private var mainOverlayView: some View {
         ZStack(alignment: .topLeading) {
-            Color.clear
+            Color.white.opacity(0.01)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     dismissOverlay()
                 }
             
-            // Search interface
-            resultsStack
-                .frame(maxWidth: 500)
+            if searcher.results.count > 0 {
+                // Search interface
+                resultsStack
+                    .background {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color("Background",  bundle: .module))
+                            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 2, y: 3)
+                    }
+                    .frame(maxWidth: 500)
+                    .padding(5)
+            }
         }
     }
-    
-//    // Search results list view
-//    private var searchResultsList: some View {
-//        ScrollViewReader { scrollProxy in
-//            ScrollView {
-//                resultsStack
-//            }
-//            .frame(maxHeight: 350)
-//            .onChange(of: selectedResultIndex) { newValue in
-//                withAnimation {
-//                    scrollProxy.scrollTo(newValue, anchor: .center)
-//                }
-//            }
-//        }
-//    }
-    
+
     // Results stack containing all result rows
     private var resultsStack: some View {
         VStack(spacing: 0) {
@@ -61,7 +54,7 @@ public struct SearchResultsOverlay: View {
                 .id(index)
             }
         }
-        .padding(12)
+        .padding(5)
     }
     
     // Dismiss the search overlay

@@ -213,18 +213,18 @@ extension CharacterSet {
         
         let classification = classifyQuery(query)
         
-        if classification == .nav {
-            results.append(.navItem(query))
-        }
-        
         // If typed a literal URL, include it:
         if let url = URL.withNaturalString(query) {
             results.append(.urlYouTyped(url))
         }
         
-        if classification == .chat {
-            results.append(.chatbot(query))
+        if classification == .nav {
+            results.append(.navItem(query))
         }
+        
+//        if classification == .chat {
+//            results.append(.chatbot(query))
+//        }
         results.append(.searchYouTyped(query))
         
         // Filter the highest-ranking URLs from historyTopHitCandidates, and any from the prev search

@@ -112,7 +112,7 @@ fileprivate struct PaneView: View {
             content
                 .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
                 .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
-                .opacity(snapshot.searchActive ? 0.1 : 1)
+//                .opacity(snapshot.searchActive ? 0.1 : 1)
             
             if snapshot.searchActive {
                 SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)

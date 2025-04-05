@@ -22,7 +22,7 @@ struct SearchIcon: View {
                 Image(systemName: "questionmark.bubble")
                 
             case .searchSuggestion:
-                Image(systemName: "text.magnifyingglass")
+                Image(systemName: "magnifyingglass")
 //                    .foregroundColor(.blue)
                 
             case .imFeelingLucky:
