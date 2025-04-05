@@ -73,7 +73,8 @@ public struct IconButtonStyle: ButtonStyle {
 
 // MARK: - Search Result Button Style
 public struct SearchResultButtonStyle: ButtonStyle {
-    let isHighlighted: Bool
+    var isHighlighted: Bool
+    @State private var hovered = false
     
     public init(isHighlighted: Bool = false) {
         self.isHighlighted = isHighlighted
@@ -81,14 +82,15 @@ public struct SearchResultButtonStyle: ButtonStyle {
     
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .foregroundColor(isHighlighted ? Color.white : nil)
             .background(
-                Rectangle()
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
-                        configuration.isPressed
-                        ? Color.accentColor.opacity(0.2)
-                        : (isHighlighted ? Color.accentColor.opacity(0.1) : Color.clear)
+                        isHighlighted ? Color.accentColor : (hovered ? Color.accentColor.opacity(0.1) : Color.clear)
                     )
             )
+            .contentShape(Rectangle())
+            .onHover(perform: { self.hovered = $0 })
     }
 }
 
@@ -103,11 +105,7 @@ public extension Button {
     
     func iconStyle() -> some View {
         self.buttonStyle(IconButtonStyle())
-    }
-    
-    func searchResultStyle(isHighlighted: Bool = false) -> some View {
-        self.buttonStyle(SearchResultButtonStyle(isHighlighted: isHighlighted))
-    }
+    }    
 }
 
 struct TabStyleButtonModifier: ViewModifier {

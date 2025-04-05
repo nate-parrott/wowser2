@@ -41,7 +41,7 @@ public struct FaviconView: View {
                         placeholderCircle
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.1, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.18, style: .continuous))
             } else {
                 placeholderCircle
             }

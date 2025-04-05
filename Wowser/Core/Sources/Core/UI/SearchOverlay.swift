@@ -16,51 +16,33 @@ public struct SearchResultsOverlay: View {
     
     // Main overlay container
     private var mainOverlayView: some View {
-        ZStack {
-            // Semi-transparent background overlay
-            Color.primary.opacity(0.1)
+        ZStack(alignment: .topLeading) {
+            Color.clear
                 .edgesIgnoringSafeArea(.all)
-                .background(.ultraThinMaterial)
                 .onTapGesture {
                     dismissOverlay()
                 }
             
             // Search interface
-            searchInterfaceView
+            resultsStack
+                .frame(maxWidth: 500)
         }
     }
     
-    // Search interface including input and results
-    private var searchInterfaceView: some View {
-        VStack(spacing: 0) {
-            // Search input area
-//            searchInputView
-            
-            // Results
-            if !searcher.results.isEmpty {
-                searchResultsList
-            }
-        }
-        .frame(width: 550, height: 350, alignment: .top)
-        .padding(.vertical)
-    }
-    
-    // Search results list view
-    private var searchResultsList: some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView {
-                resultsStack
-            }
-            .frame(maxHeight: 350)
-            .onChange(of: selectedResultIndex) { newValue in
-                withAnimation {
-                    scrollProxy.scrollTo(newValue, anchor: .center)
-                }
-            }
-        }
-        .background(Color(.windowBackgroundColor))
-        .cornerRadius(6)
-    }
+//    // Search results list view
+//    private var searchResultsList: some View {
+//        ScrollViewReader { scrollProxy in
+//            ScrollView {
+//                resultsStack
+//            }
+//            .frame(maxHeight: 350)
+//            .onChange(of: selectedResultIndex) { newValue in
+//                withAnimation {
+//                    scrollProxy.scrollTo(newValue, anchor: .center)
+//                }
+//            }
+//        }
+//    }
     
     // Results stack containing all result rows
     private var resultsStack: some View {
@@ -79,7 +61,7 @@ public struct SearchResultsOverlay: View {
                 .id(index)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
     }
     
     // Dismiss the search overlay
@@ -104,24 +86,21 @@ private struct SearchResultRow: View {
                 // Icon
                 SearchIcon(item: result.item, size: 20)
                 
-                // Title and URL
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 14))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
+                Text(title + "  ")
+                    .font(.system(size: 14))
+                    .layoutPriority(2)
+                
+                Text(subtitle ?? "")
+                    .font(.system(size: 12))
+                    .layoutPriority(1)
+                    .opacity(0.5)
                 
                 Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
+            .lineLimit(1)
         }
         .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected))
     }
@@ -130,45 +109,30 @@ private struct SearchResultRow: View {
     private var title: String {
         switch result.item.content {
         case .searchWhatYouTyped(let query):
-            return "Search for \"\(query)\""
+            return query
         case .urlYouTyped(let url):
-            return url.host ?? url.absoluteString
+            return url.displayString
         case .searchSuggestion(let query, _):
             return query
         case .imFeelingLucky(let query):
-            return "I'm Feeling Lucky: \(query)"
+            return query
         case .historyItem(let item):
             return item.title ?? item.url.displayString
         }
     }
     
-    private var subtitle: String {
+    private var subtitle: String? {
         switch result.item.content {
         case .searchWhatYouTyped:
-            return "Search with Google"
+            return nil
         case .urlYouTyped(let url):
             return url.absoluteString
         case .searchSuggestion:
-            return "Search suggestion"
+            return nil
         case .imFeelingLucky:
-            return "Go directly to first result"
+            return "Go"
         case .historyItem(let item):
             return item.url.displayString
-        }
-    }
-    
-    private var iconName: String {
-        switch result.item.content {
-        case .searchWhatYouTyped:
-            return "magnifyingglass"
-        case .urlYouTyped:
-            return "globe"
-        case .searchSuggestion:
-            return "text.magnifyingglass"
-        case .imFeelingLucky:
-            return "dice"
-        case .historyItem:
-            return "clock"
         }
     }
 }

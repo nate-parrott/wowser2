@@ -16,15 +16,15 @@ struct SearchIcon: View {
                 
             case .searchWhatYouTyped:
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.blue)
+//                    .foregroundColor(.blue)
                 
             case .searchSuggestion:
                 Image(systemName: "text.magnifyingglass")
-                    .foregroundColor(.blue)
+//                    .foregroundColor(.blue)
                 
             case .imFeelingLucky:
                 Image(systemName: "dice")
-                    .foregroundColor(.blue)
+//                    .foregroundColor(.blue)
             }
         }
         .frame(width: size, height: size)
