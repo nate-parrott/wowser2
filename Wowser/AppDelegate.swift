@@ -24,6 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.window?.makeKeyAndOrderFront(nil)
     }
     
+    @IBOutlet private(set) var historyMenu: NSMenu?
+    
     // MARK: - Window controllers
     var windowControllers = [BrowserWindowController]()
     

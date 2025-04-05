@@ -113,11 +113,6 @@
                                                 <action selector="saveDocumentAs:" target="Ady-hI-5gd" id="mDf-zr-I0C"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Revert to Saved" keyEquivalent="r" id="KaW-ft-85H">
-                                            <connections>
-                                                <action selector="revertDocumentToSaved:" target="Ady-hI-5gd" id="iJ3-Pv-kwq"/>
-                                            </connections>
-                                        </menuItem>
                                         <menuItem isSeparatorItem="YES" id="aJh-i4-bef"/>
                                         <menuItem title="Page Setup…" keyEquivalent="P" id="qIS-W8-SiK">
                                             <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
@@ -206,7 +201,8 @@
                                                             <action selector="performFindPanelAction:" target="Ady-hI-5gd" id="HOh-sY-3ay"/>
                                                         </connections>
                                                     </menuItem>
-                                                    <menuItem title="Use Selection for Find" tag="7" keyEquivalent="e" id="buJ-ug-pKt">
+                                                    <menuItem title="Use Selection for Find" tag="7" id="buJ-ug-pKt">
+                                                        <modifierMask key="keyEquivalentModifierMask"/>
                                                         <connections>
                                                             <action selector="performFindPanelAction:" target="Ady-hI-5gd" id="U76-nv-p5D"/>
                                                         </connections>
@@ -348,6 +344,56 @@
                                                     </menuItem>
                                                 </items>
                                             </menu>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
+                            <menuItem title="History" id="znX-79-Hz4">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="History" id="KM3-fD-0ti">
+                                    <items>
+                                        <menuItem title="Back" keyEquivalent="" id="3Yo-OE-oRK">
+                                            <connections>
+                                                <action selector="goBack:" target="Ady-hI-5gd" id="cCv-PX-t5K"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Forward" keyEquivalent="" id="dPR-Nd-Lzw">
+                                            <connections>
+                                                <action selector="goForward:" target="Ady-hI-5gd" id="Ra9-Go-xTh"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Back" hidden="YES" keyEquivalent="[" id="lUG-UE-JuP">
+                                            <connections>
+                                                <action selector="goBack:" target="Ady-hI-5gd" id="rQK-fQ-aCM"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Forward" hidden="YES" keyEquivalent="]" id="iZT-p7-lgf">
+                                            <connections>
+                                                <action selector="goForward:" target="Ady-hI-5gd" id="ut1-Np-Cn1"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Reload" keyEquivalent="r" id="nwy-Kf-o3M">
+                                            <connections>
+                                                <action selector="reload:" target="Ady-hI-5gd" id="OEs-SD-08z"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="fGE-C5-rlN"/>
+                                        <menuItem title="Previous Tab" keyEquivalent="e" id="15O-Qk-4SM">
+                                            <connections>
+                                                <action selector="goToPreviousTab:" target="Ady-hI-5gd" id="qud-9Y-KFt"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Switch to Tab Above" keyEquivalent="" id="9IL-4H-AQ0">
+                                            <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="switchToTabAbove:" target="Ady-hI-5gd" id="xwp-Cp-4Le"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Switch to Tab Below" keyEquivalent="" id="QEf-42-iv6">
+                                            <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="switchToTabBelow:" target="Ady-hI-5gd" id="A2V-vP-1rp"/>
+                                            </connections>
                                         </menuItem>
                                     </items>
                                 </menu>
@@ -689,11 +735,15 @@
                         <outlet property="delegate" destination="Voe-Tx-rLC" id="PrD-fu-P6m"/>
                     </connections>
                 </application>
-                <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Wowser" customModuleProvider="target"/>
+                <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Wowser" customModuleProvider="target">
+                    <connections>
+                        <outlet property="historyMenu" destination="KM3-fD-0ti" id="kms-np-cTl"/>
+                    </connections>
+                </customObject>
                 <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
                 <customObject id="Ady-hI-5gd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="75" y="0.0"/>
+            <point key="canvasLocation" x="75" y="-41"/>
         </scene>
         <!--Browser Window Controller-->
         <scene sceneID="R2V-B0-nI4">

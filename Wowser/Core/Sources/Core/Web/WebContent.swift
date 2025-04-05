@@ -290,12 +290,16 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
     public var view: UINSView { webview }
 
-    func goBack() {
+    public func goBack() {
         webview.goBack()
     }
 
-    func goForward() {
+    public  func goForward() {
         webview.goForward()
+    }
+    
+    public  func reload() {
+        webview.reload()
     }
     
     // func configure(_ block: (WKWebView) -> Void) {

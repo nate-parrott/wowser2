@@ -34,7 +34,7 @@ struct HistoryState: Equatable, Codable {
             block(&existing)
             self.items[existing.id] = existing
         } else {
-            var item = HistoryItem(key: url.historyKey, title: nil, url: url, lastVisit: Date())
+            var item = HistoryItem(key: url.historyKey, title: nil, url: url, lastVisit: .distantPast)
             block(&item)
             self.items[item.id] = item
         }

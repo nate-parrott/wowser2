@@ -9,7 +9,7 @@ import Cocoa
 import SwiftUI
 import Core
 
-class BrowserViewController: NSViewController {
+class BrowserViewController: NSViewController, NSMenuItemValidation {
     // The window ID for this instance
     private(set) var windowID: ID<WindowState>?
     
@@ -78,6 +78,29 @@ class BrowserViewController: NSViewController {
     }
     
     // MARK: - Action Methods
+    
+    // Gets the ID of the current focused pane
+    private func getCurrentPaneID() -> ID<WebContent>? {
+        guard let windowID = self.windowID else { return nil }
+        let state = BrowserStore.shared.model
+        
+        // Get the current tab and its focused pane
+        guard let currentTabID = state.windows[windowID]?.currentTab,
+              let tab = state.tabs[currentTabID],
+              let paneID = tab.panes.elements.get(tab.focusedPaneIdx)?.id else {
+            return nil
+        }
+        
+        return paneID
+    }
+    
+    // Gets the WebContent for the current focused pane
+    func getCurrentWebContent() -> WebContent? {
+        guard let windowID = self.windowID,
+              let paneID = getCurrentPaneID() else { return nil }
+        
+        return BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID)
+    }
     
     /// Edit the URL of the current tab (Cmd+L)
     @IBAction func editCurrentURL(_ sender: Any?) {

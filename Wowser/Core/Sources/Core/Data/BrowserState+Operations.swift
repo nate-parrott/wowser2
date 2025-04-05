@@ -42,7 +42,7 @@ extension BrowserState {
 //    mutating func insert(tabId: ID<Tab>, inWindow window: ID<WindowState>, location: SidebarLocation) {
 //    }
     
-    mutating func activate(tabId id: ID<Tab>?, in window: ID<WindowState>) {
+    public mutating func activate(tabId id: ID<Tab>?, in window: ID<WindowState>) {
         if let old = windows[window]?.currentTab {
             modifyTab(id: old) { tab in
                 tab.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
@@ -201,5 +201,55 @@ extension BrowserState {
             return true
         }
         return false
+    }
+    
+    /// Returns the most recently used tab that isn't the currently active tab
+    /// - Parameter windowID: The ID of the window to find tabs in
+    /// - Returns: The ID of the most recently used tab, or nil if there are no other tabs
+    public func findPreviouslyActiveTab(inWindow windowID: ID<WindowState>) -> ID<Tab>? {
+        guard let window = windows[windowID],
+              let currentTabID = window.currentTab else {
+            return nil
+        }
+        
+        // Get all tabs in the window
+        let allWindowTabs = tabsInVisibleOrder(inWindow: windowID)
+        
+        // Filter out the current tab and sort by last accessed date
+        return allWindowTabs
+            .filter { $0 != currentTabID }
+            .compactMap { tabID -> (ID<Tab>, Date)? in
+                guard let tab = tabs[tabID] else { return nil }
+                return (tabID, tab.lastAccessed)
+            }
+            .sorted { $0.1 > $1.1 } // Sort descending by access date
+            .first?.0 // Get the ID of the most recently accessed tab
+    }
+    
+    /// Returns all tabs in a window in their visible display order
+    /// - Parameter windowID: The ID of the window to find tabs in
+    /// - Returns: Array of tab IDs in display order
+    public func tabsInVisibleOrder(inWindow windowID: ID<WindowState>) -> [ID<Tab>] {
+        guard let window = windows[windowID] else {
+            return []
+        }
+        
+        var visibleTabs: [ID<Tab>] = []
+        
+        // First add favorite tabs (pinned and auto)
+        let favoriteTabs = favorites(profileId: window.profile)
+        visibleTabs.append(contentsOf: favoriteTabs)
+        
+        // Then add either project tabs or main tabs
+        if let focusedProjectID = window.focusedOnProject, 
+           let project = projects[focusedProjectID] {
+            // Add project tabs if a project is focused
+            visibleTabs.append(contentsOf: project.tabs)
+        } else {
+            // Otherwise add main tabs
+            visibleTabs.append(contentsOf: window.tabs)
+        }
+        
+        return visibleTabs
     }
 }

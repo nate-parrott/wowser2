@@ -74,7 +74,7 @@ private struct SidebarContent: View {
             )
             .padding(.vertical, 10)
             
-            Divider()
+//            Divider()
             
             // Research section
             Text("New Tabs")
@@ -105,63 +105,6 @@ private struct SidebarContent: View {
     }
 }
 
-// Favorites tabs section
-private struct FavoriteTabsView: View {
-    let tabIDs: [ID<Tab>]
-    let currentTabID: ID<Tab>?
-    let windowID: ID<WindowState>
-    @Environment(\.profileID) private var profileID
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(tabIDs) { tabID in
-                FavoriteTabRow(
-                    tabID: tabID,
-                    isSelected: tabID == currentTabID,
-                    windowID: windowID
-                )
-                .sidebarDropTarget { point, bounds in
-                    // Drop before this tab in favorites
-                    guard let profileID = profileID else { return nil }
-                    return .favorites(profile: profileID, before: tabID)
-                }
-            }
-        }
-        // Add a drop target for the entire area if there are tabs
-        .sidebarDropTarget { point, bounds in
-            guard let profileID = profileID, !tabIDs.isEmpty else { return nil }
-            return .favorites(profile: profileID, before: nil)
-        }
-        if tabIDs.count == 0 {
-            EmptyStateDropTarget(text: "Drag favorites here")
-        }
-    }
-}
-
-private struct EmptyStateDropTarget: View {
-    var text: String
-    @Environment(\.profileID) private var profileID
-    
-    var body: some View {
-        Text(text)
-            .multilineTextAlignment(.center)
-            .padding(6)
-            .lineLimit(nil)
-            .frame(maxWidth: .infinity)
-            .frame(height: 40)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary)
-                    .opacity(0.1)
-            }
-            .sidebarDropTarget { _, _ in 
-                // When dropping in empty favorites section, it's always at the end of manual favorites
-                guard let profileID = profileID else { return nil }
-                return .favorites(profile: profileID, before: nil)
-            }
-    }
-}
-
 // Regular tabs section
 private struct RegularTabsView: View {
     let tabIDs: [ID<Tab>]
@@ -181,6 +124,9 @@ private struct RegularTabsView: View {
                         // Drop before this tab in the window's regular tabs
                         return .ordinaryTabs(window: windowID, before: tabID)
                     }
+                }
+                if tabIDs.isEmpty {
+                    Color.clear
                 }
             }
             .padding(.horizontal, 8)
@@ -224,32 +170,6 @@ private struct NewTabButton: View {
     }
 }
 
-// Individual favorite tab row that looks up its own data by ID
-private struct FavoriteTabRow: View {
-    let tabID: ID<Tab>
-    let isSelected: Bool
-    let windowID: ID<WindowState>
-    
-    var body: some View {
-        // Look up the data from BrowserStore
-        WithSnapshot(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { (tab: Tab??) in
-            if let tab = tab ?? nil {
-                FavoriteTabButton(
-                    tabID: tabID,
-                    tab: tab,
-                    isSelected: isSelected,
-                    windowID: windowID
-                )
-                .onDrag {
-                    // Create a drag item with the tab ID as text
-                    NSItemProvider(object: tabID.raw as NSString)
-                }
-            }
-        }
-        .id(tabID)
-    }
-}
-
 // Individual regular tab row that looks up its own data by ID
 private struct RegularTabRow: View {
     let tabID: ID<Tab>
@@ -281,34 +201,6 @@ private struct RegularTabRow: View {
     }
 }
 
-// Favorite tab button component
-private struct FavoriteTabButton: View {
-    let tabID: ID<Tab>
-    let tab: Tab
-    let isSelected: Bool
-    let windowID: ID<WindowState>
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            // Favicon
-            FaviconView(url: tab.panes.first?.info.url)
-            
-            // Title with truncation
-            Text(getTabTitle(tab: tab))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
-            selectTab(tabID: tabID, windowID: windowID)
-        }))
-        .padding(.horizontal, 8)
-    }
-}
 
 // Regular tab button component
 private struct RegularTabButton: View {
@@ -377,12 +269,6 @@ private struct CloseTabButton: View {
 }
 
 // Helper functions
-private func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
-    BrowserStore.shared.modify { state in 
-        state.activate(tabId: tabID, in: windowID)
-    }
-}
-
 private func closeTab(tabID: ID<Tab>) {
     // First read the state to get the pane ID
     guard let tab = BrowserStore.shared.model.tabs[tabID],
@@ -391,12 +277,24 @@ private func closeTab(tabID: ID<Tab>) {
     BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
 }
 
-// Helper functions to extract tab metadata
-
-private func getTabTitle(tab: Tab) -> String {
-    return tab.panes.first?.info.title ?? 
-           tab.panes.first?.info.url?.host ?? 
-           "New Tab"
+// Extension to apply tab style to any shape
+extension Shape {
+    func applyTabStyle(isSelected: Bool, isHovered: Bool) -> some View {
+        if isSelected {
+            return AnyView(
+                self.fill(
+                    LinearGradient(colors: [
+                        Color("TabBackground", bundle: .module),
+                        Color("TabBackground", bundle: .module).opacity(0.7),
+                    ], startPoint: .top, endPoint: .bottom)
+                )
+            )
+        } else {
+            return AnyView(
+                self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
+            )
+        }
+    }
 }
 
 public struct Sidebar_Previews: PreviewProvider {

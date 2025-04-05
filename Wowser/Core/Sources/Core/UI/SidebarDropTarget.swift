@@ -20,7 +20,12 @@ struct SidebarDropTarget: ViewModifier {
                 
                 return dragTabIDString != nil
             }
-            .opacity(isTargeted ? 0.7 : 1.0)
+            .overlay {
+                if isTargeted {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                }
+            }
             .animation(.easeInOut(duration: 0.2), value: isTargeted)
     }
     

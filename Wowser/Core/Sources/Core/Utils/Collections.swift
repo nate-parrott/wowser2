@@ -37,7 +37,7 @@ extension Sequence {
 }
 
 
-extension Array {
+public extension Array {
     func get(_ idx: Int) -> Element? {
         if idx >= 0 && idx < count {
             return self[idx]

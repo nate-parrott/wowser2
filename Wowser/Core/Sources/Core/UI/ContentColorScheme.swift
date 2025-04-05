@@ -18,7 +18,6 @@ struct WithContentColorScheme: ViewModifier {
 extension WebContent.Info {
     var colorScheme: ContentColorScheme? {
         if let topColor {
-            print("Lightnes: \(topColor.hsla.lightness)")
             let fg = HSBA(hue: topColor.hue, saturation: 0.1, brightness: topColor.hsla.lightness < 0.65 ? 0.95 : 0.05, alpha: 1)
             return .init(background: topColor, foreground: fg)
         }
