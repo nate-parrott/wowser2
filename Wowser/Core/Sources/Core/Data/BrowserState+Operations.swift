@@ -17,6 +17,112 @@ extension BrowserState {
         }
     }
     
+    /// Moves a tab's pane into another tab's split view
+    /// - Parameters:
+    ///   - sourceTabId: The ID of the tab containing the pane to be moved
+    ///   - sourcePaneId: The ID of the pane to be moved
+    ///   - destinationTabId: The ID of the tab to which the pane will be added
+    ///   - activatePane: Whether to make the moved pane the active one in its new tab
+    /// - Returns: True if the operation was successful, false otherwise
+    @discardableResult
+    public mutating func moveToSplitView(
+        sourceTabId: ID<Tab>, 
+        sourcePaneId: ID<WebContent>,
+        destinationTabId: ID<Tab>,
+        activatePane: Bool = true
+    ) -> Bool {
+        // Verify both tabs exist and the source pane exists in the source tab
+        guard let sourceTab = tabs[sourceTabId],
+              let destinationTab = tabs[destinationTabId],
+              let sourcePane = sourceTab.panes.first(where: { $0.id == sourcePaneId }) else {
+            return false
+        }
+        
+        // Don't allow moving to the same tab
+        if sourceTabId == destinationTabId {
+            return false
+        }
+        
+        // Remove the pane from the source tab
+        modifyTab(id: sourceTabId) { tab in
+            tab.panes.remove(id: sourcePaneId)
+        }
+        
+        // Add the pane to the destination tab
+        modifyTab(id: destinationTabId) { tab in
+            tab.panes.append(sourcePane)
+            
+            // Activate the pane if requested
+            if activatePane {
+                tab.focusedPaneIdx = tab.panes.count - 1
+            }
+        }
+        
+        // If the source tab has no more panes, remove it completely
+        if let tab = tabs[sourceTabId], tab.panes.isEmpty {
+            _removeTab_unsafe_doesntCloseWebContent(tabId: sourceTabId)
+        }
+        
+//        // Update pane-to-tab mapping for the moved pane
+//        paneToTabMapping[sourcePaneId] = destinationTabId
+        
+        return true
+    }
+    
+    /// Moves all panes from one tab to another tab's split view
+    /// - Parameters:
+    ///   - sourceTabId: The ID of the tab containing the panes to be moved
+    ///   - destinationTabId: The ID of the tab to which the panes will be added
+    ///   - activateLast: Whether to make the last moved pane the active one in its new tab
+    /// - Returns: True if the operation was successful, false otherwise
+    @discardableResult
+    public mutating func moveAllPanesToSplitView(
+        sourceTabId: ID<Tab>,
+        destinationTabId: ID<Tab>,
+        activateLast: Bool = true
+    ) -> Bool {
+        // Verify both tabs exist
+        guard let sourceTab = tabs[sourceTabId],
+              tabs[destinationTabId] != nil,
+              !sourceTab.panes.isEmpty else {
+            return false
+        }
+        
+        // Don't allow moving to the same tab
+        if sourceTabId == destinationTabId {
+            return false
+        }
+        
+        // Copy the panes to a local array to avoid mutation issues
+        let sourcePanes = sourceTab.panes.asArray
+        
+        // Track if at least one pane was moved successfully
+        var atLeastOneSuccess = false
+        
+        // Move each pane one by one
+        for (index, pane) in sourcePanes.enumerated() {
+            let isLast = index == sourcePanes.count - 1
+            
+            let success = moveToSplitView(
+                sourceTabId: sourceTabId,
+                sourcePaneId: pane.id,
+                destinationTabId: destinationTabId,
+                activatePane: activateLast && isLast
+            )
+            
+            if success {
+                atLeastOneSuccess = true
+            }
+            
+            // If the source tab no longer exists, break the loop
+            if tabs[sourceTabId] == nil {
+                break
+            }
+        }
+        
+        return atLeastOneSuccess
+    }
+    
     var activeWindow: WindowState? {
         windows.values.max(by: { ($0.lastActive ?? .distantPast) < ($1.lastActive ?? .distantPast) })
     }

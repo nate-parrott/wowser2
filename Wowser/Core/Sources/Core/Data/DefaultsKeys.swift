@@ -1,11 +1,19 @@
 import Foundation
 
 public enum DefaultsKeys: String {
-    case openrouterKey
-    case openAIKey
     case adblock // bool
     case autoDarkMode
     case topbarLocked // bool
+    
+    case llmChoice // LLMChoice
+    case ollamaCustomModel // string
+    case openrouterCustomModel // string
+    case openAICustomModel // string
+    case anthropicCustomModel // string
+    
+    case openrouterKey
+    case openAIKey
+    case anthropicKey
 }
 
 public extension DefaultsKeys {

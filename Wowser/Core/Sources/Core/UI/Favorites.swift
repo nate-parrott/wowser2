@@ -98,34 +98,49 @@ struct FavoriteCell: View {
     
     var body: some View {
         // Look up the data from BrowserStore
-        WithSnapshot(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { (tab: Tab??) in
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { tab in
             if let tab = tab ?? nil {
                 let title = getTabTitle(tab: tab)
+                let pane = tab.panes.first
                 
-                FaviconView(url: tab.panes.first?.baseInfo?.url ?? tab.panes.first?.info.url)
+                // Check if reset is available (only when selected and baseInfo URL differs from current URL)
+                let canReset = isSelected && 
+                    pane?.baseInfo != nil && 
+                    pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
+                
+                FaviconView(url: pane?.baseInfo?.url ?? pane?.info.url)
                     .frame(width: 24, height: 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.vertical, 8)
-//                    .padding(.horizontal, 12)
-                    .background {
-                        Capsule()
-                            .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
+                    .overlay(alignment: .trailing) {
+                        if canReset {
+                            ResetBadge()
+                        }
                     }
-                    .contentShape(Capsule())
-                    .onTapGesture {
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule()
+                        .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
+                }
+                .contentShape(Capsule())
+                .onTapGesture {
+                    if canReset && isHovered {
+                        // Reset to base URL
+                        resetTabToBaseURL(tabID: tabID, windowID: windowID)
+                    } else {
                         selectTab(tabID: tabID, windowID: windowID)
                     }
-                    .onHover { hovering in
-                        isHovered = hovering
-                    }
-                    .onDrag {
-                        // Create a drag item with the tab ID as text
-                        NSItemProvider(object: tabID.raw as NSString)
-                    }
-                    .contextMenu {
-                        TabContextMenu(tabID: tabID, isFavorite: true)
-                    }
-                    .help(title)
+                }
+                .onHover { hovering in
+                    isHovered = hovering
+                }
+                .onDrag {
+                    // Create a drag item with the tab ID as text
+                    NSItemProvider(object: tabID.raw as NSString)
+                }
+                .contextMenu {
+                    TabContextMenu(tabID: tabID, isFavorite: true)
+                }
+                .help(canReset && isHovered ? "Reset to original URL" : title)
             }
         }
         .id(tabID)
@@ -164,9 +179,34 @@ func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
     }
 }
 
+// Reset tab to its base URL
+func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {
+    let state = BrowserStore.shared.model
+    if let tab = state.tabs[tabID],
+       let pane = tab.panes.first,
+       let baseURL = pane.baseInfo?.url {
+        
+        // Navigate to the base URL - this triggers WebContent via BrowserViewController
+        if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: pane.id, toBeActiveInWindow: windowID) {
+            webContent.load(url: baseURL)
+        }
+    }
+}
+
 // Helper function to extract tab metadata
 func getTabTitle(tab: Tab) -> String {
     return tab.panes.first?.info.title ?? 
            tab.panes.first?.info.url?.host ?? 
            "New Tab"
+}
+
+private struct ResetBadge: View {
+    var body: some View {
+        Image(systemName: "arrowshape.turn.up.backward.circle.fill")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.secondary)
+            .frame(both: 16)
+            .background(Circle().fill(Color("TabBackground", bundle: .module)))
+            .frame(both: 1)
+    }
 }

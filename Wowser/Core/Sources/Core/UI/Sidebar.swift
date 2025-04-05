@@ -245,11 +245,11 @@ private struct RegularTabButton: View {
                 Text(getTabTitle(tab: tab))
                     .truncationMode(.tail)
                 
-                if isSelected, let host = tab.panes.first?.info.url?.hostWithoutWWW {
-                    Text(host)
-                        .font(.system(.caption, weight: .medium))
-                        .truncationMode(.middle)
-                }
+//                if isSelected, let host = tab.panes.first?.info.url?.hostWithoutWWW {
+//                    Text(host)
+//                        .font(.system(.caption, weight: .medium))
+//                        .truncationMode(.middle)
+//                }
             }
             .lineLimit(1)
             

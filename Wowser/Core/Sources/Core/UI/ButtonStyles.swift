@@ -148,6 +148,7 @@ struct TabStyleButtonModifier: ViewModifier {
                                 Color("TabBackground", bundle: .module).opacity(0.7),
                             ], startPoint: .top, endPoint: .bottom)
                         )
+                        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
                 }
             }
             .contentShape(Rectangle())

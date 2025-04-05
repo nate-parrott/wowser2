@@ -53,7 +53,7 @@ final class SearcherTests: XCTestCase {
         let historyStore = createTestHistoryStore()
         
         // Create a searcher with that store
-        let searcher = Searcher(historyStore: historyStore)
+        let searcher = Searcher(forTestingWithHistoryStore: historyStore)
         
         // Test fast path search directly
         let fastResults = searcher.testFastPathSearch(query: "fakewebsite.com")
@@ -75,7 +75,7 @@ final class SearcherTests: XCTestCase {
         let historyStore = createTestHistoryStore()
         
         // Create a searcher with that store
-        let searcher = Searcher(historyStore: historyStore)
+        let searcher = Searcher(forTestingWithHistoryStore: historyStore)
         
         // Test fast path search directly
         let fastResults = searcher.testFastPathSearch(query: "git")

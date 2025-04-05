@@ -10,6 +10,7 @@ import AppKit
 
 class WebContentWebView: WKWebView {
     var onDarkModeChanged: ((Bool) -> Void)?
+    var onBecomeFirstResponder: (() -> Void)?
 
     #if os(iOS)
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -18,7 +19,18 @@ class WebContentWebView: WKWebView {
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection){
             onDarkModeChanged?(traitCollection.userInterfaceStyle == .dark)
         }
-        
+    }
+    
+    override var canBecomeFirstResponder: Bool {
+        return true
+    }
+    
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if result {
+            onBecomeFirstResponder?()
+        }
+        return result
     }
     #endif
     
@@ -27,6 +39,16 @@ class WebContentWebView: WKWebView {
         super.layout()
         darkMode = NSAppearance.currentDrawing().name == .darkAqua
     }
+    
+    // TODO: this only works when we focus the text view
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if result {
+            onBecomeFirstResponder?()
+        }
+        return result
+    }
+    
     private var darkMode = false {
         didSet {
             if darkMode != oldValue {
@@ -44,6 +66,7 @@ public protocol WebContentDelegate: AnyObject {
     func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool)
     func webContentWantsToClose(_ webContent: WebContent)
     func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?)
+    func webContentDidBecomeFirstResponder(_ webContent: WebContent)
 }
 
 public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, ObservableObject {
@@ -209,6 +232,11 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         webview.onDarkModeChanged = { [weak self] darkMode in
             guard let self else { return }
             self.colorScheme = darkMode ? .dark : .light // self.webview.colorScheme
+        }
+        
+        webview.onBecomeFirstResponder = { [weak self] in
+            guard let self else { return }
+            self.delegate?.webContentDidBecomeFirstResponder(self)
         }
         
         // Observe UserDefaults changes for settings

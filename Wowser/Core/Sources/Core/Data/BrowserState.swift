@@ -347,6 +347,24 @@ extension BrowserStore: WebContentDelegate {
             }
         }
     }
+    
+    public func webContentDidBecomeFirstResponder(_ webContent: WebContent) {
+        // Find the tab and pane index for this webContent
+        guard let tabId = model.paneToTabMapping[webContent.id], 
+              let tab = model.tabs[tabId],
+              let paneIndex = tab.panes.elements.firstIndex(where: { $0.id == webContent.id }) else {
+            return
+        }
+        
+        // Update the focused pane index if it's different
+        if tab.focusedPaneIdx != paneIndex {
+            modify { state in
+                state.modifyTab(id: tabId) { tab in
+                    tab.focusedPaneIdx = paneIndex
+                }
+            }
+        }
+    }
 }
 
 extension BrowserState {
