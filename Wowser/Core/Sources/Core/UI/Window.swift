@@ -69,6 +69,9 @@ private struct WindowContent: View {
             }
             .trackMouseOutsideWindow(onMouseMoved: { self.hoverAreaMouseMoved($0, rect: $1) })
             .edgesIgnoringSafeArea(.all)
+            .overlay(alignment: .topTrailing) {
+                ToastViewer()
+            }
         }
     }
     

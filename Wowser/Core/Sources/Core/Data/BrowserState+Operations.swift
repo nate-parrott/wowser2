@@ -1,6 +1,22 @@
 import Foundation
 
 extension BrowserState {
+    // Toast related operations
+    public mutating func addToast(message: String, icon: String, in windowID: ID<WindowState>) {
+        let toast = Toast(message: message, icon: icon)
+        windows[windowID]?.toasts.append(toast)
+    }
+    
+    mutating func removeToast(id: UUID, in windowID: ID<WindowState>) {
+        windows[windowID]?.toasts.removeAll(where: { $0.id == id })
+    }
+    
+    mutating func removeFirstToast(in windowID: ID<WindowState>) {
+        if windows[windowID]?.toasts.isEmpty == false {
+            windows[windowID]?.toasts.removeFirst()
+        }
+    }
+    
     var activeWindow: WindowState? {
         windows.values.max(by: { ($0.lastActive ?? .distantPast) < ($1.lastActive ?? .distantPast) })
     }
@@ -187,6 +203,12 @@ enum SidebarLocation: Equatable {
     case favorites(Int)
     case ordinaryTabs(Int)
     case project(ID<Project>, Int)
+}
+
+extension WindowState {
+    var currentToast: Toast? {
+        return toasts.first
+    }
 }
 
 extension BrowserState {

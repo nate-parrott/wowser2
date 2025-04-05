@@ -2,6 +2,21 @@ import AppKit
 import Core
 
 extension BrowserViewController {
+    @IBAction func copyCurrentURL(_ sender: Any?) {
+        if let urlString = getCurrentWebContent()?.info.url?.absoluteString,
+           let windowID = self.windowID {
+            // Copy to clipboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(urlString, forType: .string)
+            
+            // Show toast notification
+            BrowserStore.shared.modify { state in
+                state.addToast(message: "URL copied to clipboard", icon: "doc.on.clipboard", in: windowID)
+            }
+        }
+    }
+    
     @IBAction func goBack(_ sender: Any?) {
         getCurrentWebContent()?.goBack()
     }
@@ -61,6 +76,38 @@ extension BrowserViewController {
         shiftVisibleTabIndex(by: 1) // Move down by one position (or wrap to top)
     }
     
+    /// Switch to a specific tab by its index in the visible tabs array
+    /// - Parameter index: Zero-based index of the tab to activate (0 for first tab, 1 for second, etc.)
+    func switchToTabByIndex(_ index: Int) {
+        guard let windowID = self.windowID else { return }
+        let state = BrowserStore.shared.model
+        
+        // Get tabs in visible order
+        let visibleTabs = state.tabsInVisibleOrder(inWindow: windowID)
+        
+        // Validate the index is within bounds
+        guard index >= 0, index < visibleTabs.count else { return }
+        
+        // Get the tab to activate
+        let tabToActivate = visibleTabs[index]
+        
+        // Activate the tab
+        BrowserStore.shared.modify { state in
+            state.activate(tabId: tabToActivate, in: windowID)
+        }
+    }
+    
+    @objc func switchToNthTab(_ sender: NSMenuItem) {
+        guard let index = AppDelegate.shared.tabSwitchMenuItems[sender] else { return }
+        
+        // Forward to the current key window's browser view controller
+        if let window = NSApp.keyWindow,
+           let windowController = window.windowController as? BrowserWindowController,
+           let browserViewController = windowController.contentViewController as? BrowserViewController {
+            browserViewController.switchToTabByIndex(index)
+        }
+    }
+    
     // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -69,7 +116,7 @@ extension BrowserViewController {
             return getCurrentWebContent()?.info.canGoBack ?? false
         case #selector(goForward):
             return getCurrentWebContent()?.info.canGoForward ?? false
-        case #selector(reload):
+        case #selector(reload), #selector(copyCurrentURL):
             return getCurrentWebContent() != nil
         case #selector(goToPreviousTab):
             // Only enable if there's a window ID and there's a previous tab to go to
@@ -82,6 +129,16 @@ extension BrowserViewController {
             if let windowID = self.windowID {
                 let tabCount = BrowserStore.shared.model.tabsInVisibleOrder(inWindow: windowID).count
                 return tabCount > 1
+            }
+            return false
+        case #selector(BrowserViewController.switchToNthTab(_:)):
+            // For tab index switching shortcuts (CMD+1...9)
+            if let windowID = self.windowID, 
+               let appDelegate = AppDelegate.shared,
+               let index = appDelegate.tabSwitchMenuItems[menuItem] {
+                // Enable only if this tab index exists
+                let visibleTabs = BrowserStore.shared.model.tabsInVisibleOrder(inWindow: windowID)
+                return index < visibleTabs.count
             }
             return false
         default:

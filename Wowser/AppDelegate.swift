@@ -26,6 +26,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @IBOutlet private(set) var historyMenu: NSMenu?
     
+    // Maps menu items to tab indices for quick tab switching
+    var tabSwitchMenuItems = [NSMenuItem: Int]()
+    
     // MARK: - Window controllers
     var windowControllers = [BrowserWindowController]()
     
@@ -40,6 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         createInitialWindowIfNeeded()
+        setupTabSwitchingMenuItems()
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
@@ -59,5 +63,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return true
+    }
+    
+    // MARK: - Tab Switching Menu Items
+    
+    private func setupTabSwitchingMenuItems() {
+        guard let historyMenu = historyMenu else { return }
+        
+        // Create hidden menu items for CMD+1 through CMD+9
+        for i in 1...9 {
+            let menuItem = NSMenuItem(title: "Switch to Tab \(i)", 
+                                      action: #selector(BrowserViewController.switchToNthTab(_:)), 
+                                     keyEquivalent: "\(i)")
+            menuItem.keyEquivalentModifierMask = .command
+            menuItem.isHidden = true
+            menuItem.allowsKeyEquivalentWhenHidden = true
+            
+            // Store the mapping of menu item to index (0-based internally)
+            tabSwitchMenuItems[menuItem] = i - 1
+            
+            // Add to the history menu (they'll be hidden)
+            historyMenu.addItem(menuItem)
+        }
     }
 }

@@ -73,6 +73,11 @@
                                                 <action selector="editCurrentURL:" target="Ady-hI-5gd" id="ahd-6U-LyK"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem title="Copy Current URL" keyEquivalent="C" id="YHv-wF-tog">
+                                            <connections>
+                                                <action selector="copyCurrentURL:" target="Ady-hI-5gd" id="R7g-z9-Hip"/>
+                                            </connections>
+                                        </menuItem>
                                         <menuItem isSeparatorItem="YES" id="m54-Is-iLE"/>
                                         <menuItem title="New Window" keyEquivalent="n" id="4z6-kc-eTQ">
                                             <connections>

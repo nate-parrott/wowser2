@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 public struct Sidebar: View {
     @Environment(\.windowID) private var windowID
@@ -94,8 +95,8 @@ private struct SidebarContent: View {
             
             Spacer()
             
-            // New tab button at the bottom
-            NewTabButton(windowID: snapshot.windowID)
+            // Bottom buttons
+            SidebarBottomButtons(windowID: snapshot.windowID)
                 .padding(.bottom, 8)
         }
         .frame(width: 200)
@@ -140,19 +141,28 @@ private struct RegularTabsView: View {
     }
 }
 
-// New tab button
-private struct NewTabButton: View {
+// Bottom buttons component
+private struct SidebarBottomButtons: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        Button(action: { newTab() }) {
-            HStack {
+        HStack(spacing: 8) {
+            // New Tab button
+            Button(action: { newTab() }) {
                 Image(systemName: "plus")
-                Text("New Tab")
+                    .imageScale(.large)
+                    .help("New Tab")
             }
-            .frame(maxWidth: .infinity, alignment: .center)
+            
+            // Focus button
+            Button(action: { focus() }) {
+                Image(systemName: "moon")
+                    .imageScale(.large)
+                    .help("Focus")
+            }
         }
-        .buttonStyle(SidebarButtonStyle())
+        .buttonStyle(BigSidebarButtonStyle())
+        .padding(.horizontal, 8)
     }
     
     func newTab() {
@@ -167,6 +177,11 @@ private struct NewTabButton: View {
         BrowserStore.shared.modify { state in
             state.windows[windowID]?.searchOverlayActive = true
         }
+    }
+    
+    func focus() {
+        // No-op for now
+        // Will implement focus mode functionality in the future
     }
 }
 
@@ -215,6 +230,9 @@ private struct RegularTabButton: View {
             .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
                 selectTab(tabID: tabID, windowID: windowID)
             }))
+            .contextMenu {
+                TabContextMenu(tabID: tabID, isFavorite: false)
+            }
     }
     
     @ViewBuilder private var content: some View {
@@ -269,13 +287,6 @@ private struct CloseTabButton: View {
 }
 
 // Helper functions
-private func closeTab(tabID: ID<Tab>) {
-    // First read the state to get the pane ID
-    guard let tab = BrowserStore.shared.model.tabs[tabID],
-          let paneID = tab.panes.first?.id else { return }
-    // Then close via BrowserStore's API
-    BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
-}
 
 // Extension to apply tab style to any shape
 extension Shape {

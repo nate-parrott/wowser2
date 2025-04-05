@@ -84,6 +84,20 @@ public struct Pane: Equatable, Identifiable, Codable {
     public var baseInfo: WebContent.Info?
 }
 
+public struct Toast: Equatable, Codable, Identifiable {
+    public var id: UUID
+    public var message: String
+    public var icon: String // SF Symbol name
+    public var createdAt: Date
+    
+    public init(id: UUID = UUID(), message: String, icon: String, createdAt: Date = Date()) {
+        self.id = id
+        self.message = message
+        self.icon = icon
+        self.createdAt = createdAt
+    }
+}
+
 public struct WindowState: Equatable, Codable {
     public var id: ID<WindowState>
     public var profile: ID<Profile>
@@ -92,6 +106,7 @@ public struct WindowState: Equatable, Codable {
     public var lastActive: Date?
     public var focusedOnProject: ID<Project>?
     public var searchOverlayActive = false
+    public var toasts = [Toast]()
 }
 
 public struct Profile: Equatable, Codable {

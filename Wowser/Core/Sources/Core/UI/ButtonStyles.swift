@@ -41,6 +41,28 @@ public struct SidebarButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Big Sidebar Button Style
+public struct BigSidebarButtonStyle: ButtonStyle {
+    @State private var hovered = false
+    
+    public init() {}
+    
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary)
+                    .opacity(hovered ? (configuration.isPressed ? 0.15 : 0.1) : 0)
+            )
+            .contentShape(Rectangle())
+            .onHover(perform: { self.hovered = $0 })
+//            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.niceDefault(duration: 0.12), value: hovered)
+    }
+}
+
 struct GhostButtonStyle: ButtonStyle {
     @State private var hovered = false
     @Environment(\.isEnabled) private var isEnabled

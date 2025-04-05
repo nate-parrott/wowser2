@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // Favorites grid snapshot to compute the layout
 struct FavoritesGridSnapshot: Equatable {
@@ -82,6 +83,7 @@ struct FavoriteTabsView: View {
                 }
             } else {
                 EmptyStateDropTarget(text: "Drag favorites here")
+                    .padding(.horizontal, 8)
             }
         }
     }
@@ -100,7 +102,7 @@ struct FavoriteCell: View {
             if let tab = tab ?? nil {
                 let title = getTabTitle(tab: tab)
                 
-                FaviconView(url: tab.panes.first?.info.url)
+                FaviconView(url: tab.panes.first?.baseInfo?.url ?? tab.panes.first?.info.url)
                     .frame(width: 24, height: 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.vertical, 8)
@@ -120,6 +122,9 @@ struct FavoriteCell: View {
                         // Create a drag item with the tab ID as text
                         NSItemProvider(object: tabID.raw as NSString)
                     }
+                    .contextMenu {
+                        TabContextMenu(tabID: tabID, isFavorite: true)
+                    }
                     .help(title)
             }
         }
@@ -134,6 +139,7 @@ struct EmptyStateDropTarget: View {
     var body: some View {
         Text(text)
             .multilineTextAlignment(.center)
+            .font(.caption)
             .padding(6)
             .lineLimit(nil)
             .frame(maxWidth: .infinity)

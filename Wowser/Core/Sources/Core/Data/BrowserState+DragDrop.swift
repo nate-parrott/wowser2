@@ -64,6 +64,13 @@ extension BrowserState {
             }
             windows[windowId]?.tabs.insert(tab, at: insertIndex)
             
+            // Clear baseInfo when moving to ordinary tabs
+            modifyTab(id: tab) { tab in
+                for i in 0..<tab.panes.count {
+                    tab.panes[i]!.baseInfo = nil
+                }
+            }
+            
         case .favorites(let profileId, let beforeTab):
             let insertIndex: Int
             if let beforeTab = beforeTab, let idx = profiles[profileId]?.manualFavorites.firstIndex(of: beforeTab) {
@@ -74,6 +81,13 @@ extension BrowserState {
             profiles[profileId]?.manualFavorites.insert(tab, at: insertIndex)
             // Ensure it's not in auto favorites
             profiles[profileId]?.autoFavorites.removeAll { $0 == tab }
+            
+            // Set baseInfo to current info when moving to favorites
+            modifyTab(id: tab) { tab in
+                for i in 0..<tab.panes.count {
+                    tab.panes[i]!.baseInfo = tab.panes[i]!.info
+                }
+            }
             
         case .project(let projectId, let beforeTab):
             let insertIndex: Int

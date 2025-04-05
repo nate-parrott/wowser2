@@ -9,6 +9,7 @@ public struct ToolbarViewSnapshot: Equatable {
     var canGoForward: Bool
     var webContentId: ID<WebContent>?
     var isBookmarked: Bool
+    var hasMultiplePanes: Bool
     
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?) {
@@ -23,6 +24,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.canGoForward = false
             self.webContentId = webContentId
             self.isBookmarked = false
+            self.hasMultiplePanes = false
             return
         }
         
@@ -33,6 +35,7 @@ public struct ToolbarViewSnapshot: Equatable {
         self.canGoForward = paneData.info.canGoForward
         self.webContentId = webContentId
         self.isBookmarked = false // Bookmark functionality not implemented yet
+        self.hasMultiplePanes = tab.panes.count > 1
     }
 }
 
@@ -95,6 +98,16 @@ public struct ToolbarView: View {
                             .imageScale(.medium)
                     }
                     .buttonStyle(ToolbarButtonStyle())
+                    
+                    // Close pane button (only visible in split view)
+                    if snapshot.hasMultiplePanes {
+                        Button(action: closeCurrentPane) {
+                            Image(systemName: "xmark")
+                                .imageScale(.medium)
+                        }
+                        .buttonStyle(ToolbarButtonStyle())
+                        .help("Close pane")
+                    }
                 }
                 .padding(.trailing, 8)
             }
@@ -148,6 +161,13 @@ public struct ToolbarView: View {
     
     private func toggleBookmark() {
         // Bookmark functionality not implemented yet
+    }
+    
+    private func closeCurrentPane() {
+        guard let webContentID, let windowID else { return }
+        
+        // Close the current pane using BrowserStore
+        browserStore.close(webContentId: webContentID, removeIfPinned: false)
     }
 }
 
