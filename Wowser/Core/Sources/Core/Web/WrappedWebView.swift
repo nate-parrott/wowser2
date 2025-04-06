@@ -28,7 +28,9 @@ public struct WrappedWebView: View {
             WebView(webContent: webContent)
                 .onAppearOrChange(of: focusWebview, perform: { focus in
                     if focus {
-                        webContent.focus()
+                        DispatchQueue.main.async {
+                            webContent.focus()
+                        }
                     }
                 })
                 .id(webContent)

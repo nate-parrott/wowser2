@@ -89,11 +89,18 @@ public struct Toast: Equatable, Codable, Identifiable {
     public var message: String
     public var icon: String // SF Symbol name
     public var createdAt: Date
+    public var location: ToastLocation
     
-    public init(id: UUID = UUID(), message: String, icon: String, createdAt: Date = Date()) {
+    public enum ToastLocation: String, Codable {
+        case normal
+        case nearSidebar
+    }
+    
+    public init(id: UUID = UUID(), message: String, icon: String, location: ToastLocation = .normal, createdAt: Date = Date()) {
         self.id = id
         self.message = message
         self.icon = icon
+        self.location = location
         self.createdAt = createdAt
     }
 }
@@ -108,6 +115,7 @@ public struct WindowState: Equatable, Codable {
     public var searchOverlayActive = false
     public var toasts = [Toast]()    
     public var sidebarLocked = true
+    public var downloads = [ID<Download>: Download]()
 }
 
 public struct Profile: Equatable, Codable {
@@ -305,21 +313,38 @@ extension BrowserStore: WebContentDelegate {
     }
     
     public func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool) {
+        var winID: ID<WindowState>?
+        
         modify { state in
             // TODO: Store tab parent?
             let newTab = Tab(id: .assign(), panes: [.init(id: newWebContent.id, info: newWebContent.info)])
+            
             if let oldTabId = state.paneToTabMapping[webContent.id], let win = state.windowContaining(tabId: oldTabId) {
+                winID = win.id
                 let location = state.insertionIndex(window: win.id, spawningTabId: oldTabId)
                 state.insertTab(newTab, location: location, inWindow: win.id)
+                
+                // Check if sidebar is not locked (hidden) and show toast in that case
+                if !win.sidebarLocked {
+                    let toast = Toast(
+                        message: "Switched to New Tab",
+                        icon: "arrow.up.forward.square",
+                        location: .nearSidebar
+                    )
+                    state.windows[win.id]?.toasts.append(toast)
+                }
             } else {
                 // Kinda unexpected...
                 let win = state.getOrCreateActiveWindow()
+                winID = win.id
                 state.insertTab(newTab, location: .ordinaryTabs(0), inWindow: win.id)
             }
-            if shouldActivate, let win = state.windowContaining(tabId: newTab.id) {
-                state.activate(tabId: newTab.id, in: win.id)
+            
+            if shouldActivate, let winId = winID {
+                state.activate(tabId: newTab.id, in: winId)
             }
         }
+        
         setupBindings(webContent: newWebContent)
     }
     
@@ -380,6 +405,13 @@ extension BrowserState {
     func profile(forWebContentId id: ID<WebContent>) -> Profile? {
         if let tabId = paneToTabMapping[id], let win = windowContaining(tabId: tabId), let profile = profiles[win.profile] {
             return profile
+        }
+        return nil
+    }
+    
+    func windowContaining(webContentId id: ID<WebContent>) -> WindowState? {
+        if let tabId = paneToTabMapping[id] {
+            return windowContaining(tabId: tabId)
         }
         return nil
     }

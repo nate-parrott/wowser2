@@ -112,7 +112,9 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                     }
                 } else {
                     DispatchQueue.main.async {
-                        self.window?.makeFirstResponder(nil)
+                        if self.textView.window?.firstResponder == self.textView {
+                            self.window?.makeFirstResponder(nil)
+                        }
                     }
                 }
             }

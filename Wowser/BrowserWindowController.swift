@@ -10,17 +10,17 @@ class BrowserWindowController: NSWindowController {
         
         self.window?.isMovableByWindowBackground = true
         
-//        // Observe window's first responder changes
-//        firstResponderObserver = window?.observe(\.firstResponder, options: [.new, .old]) { [weak self] window, change in
-//            if let newResponder = change.newValue ?? nil {
-//                print("First responder changed to: \(type(of: newResponder)) - \(newResponder)")
-//                
-//                // If it's a WebContentWebView, log additional details
-////                if let webView = newResponder as? WKWebView {
-////                    print("WebView became first responder: \(webView) - URL: \(webView.url?.absoluteString ?? "none")")
-////                }
-//            }
-//        }
+        // Observe window's first responder changes
+        firstResponderObserver = window?.observe(\.firstResponder, options: [.new, .old]) { [weak self] window, change in
+            if let newResponder = change.newValue ?? nil {
+                print("[First responder] \(type(of: newResponder)) - \(newResponder)")
+                
+                // If it's a WebContentWebView, log additional details
+//                if let webView = newResponder as? WKWebView {
+//                    print("WebView became first responder: \(webView) - URL: \(webView.url?.absoluteString ?? "none")")
+//                }
+            }
+        }
         
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: self.window!, queue: .main) { [weak self] _ in
             if let self {

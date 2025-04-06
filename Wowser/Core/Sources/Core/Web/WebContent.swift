@@ -126,6 +126,8 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         public var inferredDarkMode = false
         public var autoDarkModeApplied = false
         public var topColor: HSBA?
+        public var favicon: URL?
+        public var ogImage: URL?
     }
 
     @Published private(set) public var info = Info() {
@@ -397,27 +399,48 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         delegate?.webContentWantsToClose(self)
     }
 
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
         if silenced {
-            decisionHandler(.allow)
+            decisionHandler(.allow, preferences)
             return
         }
+        
+        if navigationAction.shouldPerformDownload {
+            decisionHandler(.download, preferences)
+            return
+        }
+        
         if navigationAction.targetFrame?.isMainFrame ?? true,
             let delegate {
             let decision = delegate.webContent(self, decidePolicyFor: navigationAction)
-            decisionHandler(decision)
+            decisionHandler(decision, preferences)
             return
         }
-        decisionHandler(.allow)
+        decisionHandler(.allow, preferences)
     }
 
     public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if !navigationResponse.canShowMIMEType {
+            decisionHandler(.download)
+            return
+        }
+        
         if let delegate {
             let decision = delegate.webContent(self, decidePolicyForResponse: navigationResponse)
             decisionHandler(decision)
             return
         }
         decisionHandler(.allow)
+    }
+    
+    public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
+        DownloadManager.shared.webView(webView, navigationAction: navigationAction, didBecome: download, windowID: windowID)
+    }
+    
+    public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
+        DownloadManager.shared.webView(webView, navigationResponse: navigationResponse, didBecome: download, windowID: windowID)
     }
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
@@ -527,6 +550,18 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         info.title = webview.title
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         self.info = info
+        
+        Task {
+            do {
+                let extracted = try await extractWebContentData()
+                DispatchQueue.main.async {
+                    self.info.favicon = extracted.favicon
+                    self.info.ogImage = extracted.ogImage
+                }
+            } catch {
+                print("[🌐❌ Webview metadata extraction error] \(error)")
+            }
+        }
         
         if injectedCSS != "" || injectedJS != "" || autoDarkMode {
             updateInjectedCode()

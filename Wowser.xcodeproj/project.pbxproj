@@ -437,6 +437,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can request access to your location.";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
@@ -472,6 +473,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can request access to your location.";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;

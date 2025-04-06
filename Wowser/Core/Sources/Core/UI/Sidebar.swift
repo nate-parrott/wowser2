@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import WebKit
 
 public struct Sidebar: View {
     var floating: Bool
@@ -36,6 +37,9 @@ private struct SidebarSnapshot: Equatable {
     // Current tab ID
     let currentTabID: ID<Tab>?
     
+    // Downloads
+    let hasDownloads: Bool
+    
     init(windowID: ID<WindowState>, 
          profileID: ID<Profile>,
          windows: [ID<WindowState>: WindowState],
@@ -58,6 +62,9 @@ private struct SidebarSnapshot: Equatable {
         
         // Extract regular tabs
         self.regularTabIDs = window?.tabs ?? []
+        
+        // Check if there are downloads
+        self.hasDownloads = !(window?.downloads.isEmpty ?? true)
     }
 }
 
@@ -97,6 +104,11 @@ private struct SidebarContent: View {
                 currentTabID: snapshot.currentTabID,
                 windowID: snapshot.windowID
             )
+            
+            // Downloads section
+            if snapshot.hasDownloads {
+                DownloadsSidebar(windowID: snapshot.windowID)
+            }
             
             Spacer()
             
