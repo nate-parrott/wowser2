@@ -55,6 +55,7 @@ public struct ToolbarView: View {
     @Binding var selectedResultIndex: Int
     
     @Environment(\.windowID) private var windowID
+    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     
     private let browserStore = BrowserStore.shared
     @State private var focusDate: Date?
@@ -115,6 +116,18 @@ public struct ToolbarView: View {
                         }
                         .buttonStyle(ToolbarButtonStyle())
                         .help("Close pane")
+                    }
+                }
+                .contentShape(Rectangle())
+                .contextMenu {
+                    Button(action: {
+                        copyURLToClipboard(url: snapshot.url)
+                    }) {
+                        Text("Copy URL")
+                    }
+                    
+                    Toggle(isOn: $topbarLocked) {
+                        Text("Lock Toolbar")
                     }
                 }
                 .padding(.trailing, 8)
