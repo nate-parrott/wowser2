@@ -2,12 +2,11 @@ import SwiftUI
 import AppKit
 
 public struct Sidebar: View {
+    var floating: Bool
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     private let browserStore = BrowserStore.shared
-    
-    public init() {}
-    
+        
     public var body: some View {
         // Use the snapshot pattern to observe only necessary data
         WithSnapshotMain(store: browserStore) { state in
@@ -20,7 +19,7 @@ public struct Sidebar: View {
                 profiles: state.profiles
             )
         } main: { snapshot in
-            SidebarContent(snapshot: snapshot)
+            SidebarContent(snapshot: snapshot, floating: floating)
         }
     }
 }
@@ -63,17 +62,23 @@ private struct SidebarSnapshot: Equatable {
 }
 
 private struct SidebarContent: View {
-    let snapshot: SidebarSnapshot
+    var snapshot: SidebarSnapshot
+    var floating: Bool
     
     var body: some View {
         VStack(spacing: 0) {
+            if floating {
+                Spacer().frame(height: 30)
+            }
+            
             // Favorite bookmarks/tabs section
             FavoriteTabsView(
                 tabIDs: snapshot.favoriteTabIDs,
                 currentTabID: snapshot.currentTabID,
                 windowID: snapshot.windowID
             )
-            .padding(.vertical, 10)
+            .padding(.top, 5)
+            .padding(.bottom, 10)
             
 //            Divider()
             
@@ -99,9 +104,31 @@ private struct SidebarContent: View {
             SidebarBottomButtons(windowID: snapshot.windowID)
                 .padding(.bottom, 8)
         }
-        .frame(width: 200)
-        .background {
-            TransparentBg()
+        .frame(width: UIConstants.sidebarWidth)
+        .overlay(alignment: .topLeading) {
+            topButtons
+                .padding(.leading, 72)
+        }
+    }
+    
+    @ViewBuilder private var topButtons: some View {
+        HStack {
+            Button(action: toggleSidebarLocked) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .help("Toggle Sidebar Hidden")
+                    .frame(both: 26)
+            }
+            .buttonStyle(GhostButtonStyle())
+        }
+        .frame(height: 30)
+        .edgesIgnoringSafeArea(.all)
+    }
+    
+    func toggleSidebarLocked() {
+        BrowserStore.shared.modify { state in
+            state.windows[snapshot.windowID]?.sidebarLocked.toggle()
         }
     }
 }
@@ -309,7 +336,7 @@ extension Shape {
 
 public struct Sidebar_Previews: PreviewProvider {
     public static var previews: some View {
-        Sidebar()
+        Sidebar(floating: true)
             .frame(width: 200, height: 500)
             .withBrowserContext(
                 windowID: ID<WindowState>(raw: "w0"),

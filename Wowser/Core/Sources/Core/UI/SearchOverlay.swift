@@ -29,10 +29,10 @@ public struct SearchResultsOverlay: View {
                     .background {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color("Background",  bundle: .module))
-                            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 2, y: 3)
+                            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 2, y: 3)
                     }
                     .frame(maxWidth: 500)
-                    .padding(5)
+                    .padding(8)
             }
         }
     }
@@ -74,14 +74,18 @@ private struct SearchResultRow: View {
     let onSelect: () -> Void
     
     var body: some View {
+        let (title, subtitle) = titleSubtitle
+        
         Button(action: onSelect) {
             HStack(spacing: 12) {
                 // Icon
                 SearchIcon(item: result.item, size: 20)
                 
-                Text(title + "  ")
-                    .font(.system(size: 14))
-                    .layoutPriority(2)
+                if let title {
+                    Text(title + "  ")
+                        .font(.system(size: 14))
+                        .layoutPriority(2)
+                }
                 
                 Text(subtitle ?? "")
                     .font(.system(size: 12))
@@ -96,6 +100,15 @@ private struct SearchResultRow: View {
             .lineLimit(1)
         }
         .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, result: result))
+    }
+    
+    private var titleSubtitle: (String?, String?) {
+        let title = self.title
+        let subtitle = self.subtitle
+        if title == "" {
+            return (subtitle, nil)
+        }
+        return (title, subtitle)
     }
     
     // Computed properties to extract user-friendly data from the SearchResult

@@ -64,7 +64,7 @@ struct SearchResult: Equatable, Identifiable {
             }
             return 0
         case .historyItem(let historyItem):
-            print("\(historyItem.url): \(historyItem.score)")
+//            print("\(historyItem.url): \(historyItem.score)")
             // `historyItem.score` is decayed visit count, where half-life = 5 days
             let topSite = historyItem.score >= 4
             let recentSite = historyItem.score >= 0.6

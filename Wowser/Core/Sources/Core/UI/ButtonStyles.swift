@@ -25,21 +25,21 @@ import SwiftUI
 //}
 
 // MARK: - Sidebar Button Style
-public struct SidebarButtonStyle: ButtonStyle {
-    public init() {}
-    
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13))
-            .foregroundColor(configuration.isPressed ? .primary : .secondary)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(configuration.isPressed ? Color.gray.opacity(0.3) : Color.clear)
-            )
-    }
-}
+//public struct SidebarButtonStyle: ButtonStyle {
+//    public init() {}
+//    
+//    public func makeBody(configuration: Configuration) -> some View {
+//        configuration.label
+//            .font(.system(size: 13))
+//            .foregroundColor(configuration.isPressed ? .primary : .secondary)
+//            .padding(.vertical, 6)
+//            .padding(.horizontal, 8)
+//            .background(
+//                RoundedRectangle(cornerRadius: 6)
+//                    .fill(configuration.isPressed ? Color.gray.opacity(0.3) : Color.clear)
+//            )
+//    }
+//}
 
 // MARK: - Big Sidebar Button Style
 public struct BigSidebarButtonStyle: ButtonStyle {
@@ -76,9 +76,9 @@ struct GhostButtonStyle: ButtonStyle {
                     .opacity(hovered && isEnabled ? 0.07 : 0)
                     .scaleEffect(configuration.isPressed ? 0.9 : 1)
                     .animation(.snappy, value: configuration.isPressed)
-                    .contentShape(.rect)
-                    .onHover(perform: { self.hovered = $0 })
             }
+            .contentShape(.rect)
+            .onHover(perform: { self.hovered = $0 })
     }
 }
 
@@ -127,9 +127,9 @@ public extension Button {
 //        self.buttonStyle(TabButtonStyle(isActive: isActive))
 //    }
     
-    func sidebarStyle() -> some View {
-        self.buttonStyle(SidebarButtonStyle())
-    }
+//    func sidebarStyle() -> some View {
+//        self.buttonStyle(SidebarButtonStyle())
+//    }
     
     func iconStyle() -> some View {
         self.buttonStyle(IconButtonStyle())

@@ -10,9 +10,10 @@ public struct ToolbarViewSnapshot: Equatable {
     var webContentId: ID<WebContent>?
     var isBookmarked: Bool
     var hasMultiplePanes: Bool
+    var makeRoomForTrafficLights: Bool
     
     /// Creates a snapshot based on the browser state for a specific pane
-    init(state: BrowserState, webContentId: ID<WebContent>?) {
+    init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -25,6 +26,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.webContentId = webContentId
             self.isBookmarked = false
             self.hasMultiplePanes = false
+            self.makeRoomForTrafficLights = false
             return
         }
         
@@ -36,6 +38,9 @@ public struct ToolbarViewSnapshot: Equatable {
         self.webContentId = webContentId
         self.isBookmarked = false // Bookmark functionality not implemented yet
         self.hasMultiplePanes = tab.panes.count > 1
+        let isFirstPane = tab.panes.first?.id == webContentId
+        let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
+        self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
     }
 }
 
@@ -55,8 +60,11 @@ public struct ToolbarView: View {
     @State private var focusDate: Date?
     
     public var body: some View {
-        WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID) }) { snapshot in
+        WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
             HStack(spacing: 8) {
+                if snapshot.makeRoomForTrafficLights {
+                    Spacer().frame(width: 60)
+                }
                 // Omnibox (search/URL input field)
                 Omnibox(
                     focusDate: focusDate,

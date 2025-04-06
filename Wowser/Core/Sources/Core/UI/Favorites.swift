@@ -157,6 +157,7 @@ struct EmptyStateDropTarget: View {
             .multilineTextAlignment(.center)
             .font(.caption)
             .padding(6)
+            .foregroundStyle(.secondary)
             .lineLimit(nil)
             .frame(maxWidth: .infinity)
             .frame(height: 40)
@@ -196,8 +197,8 @@ func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {
 
 // Helper function to extract tab metadata
 func getTabTitle(tab: Tab) -> String {
-    return tab.panes.first?.info.title ?? 
-           tab.panes.first?.info.url?.host ?? 
+    return tab.panes.first?.info.title?.nilIfEmpty ??
+           tab.panes.first?.info.url?.host ??
            "New Tab"
 }
 

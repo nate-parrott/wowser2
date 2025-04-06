@@ -25,30 +25,40 @@ private struct WindowSnapshot: Equatable {
         var webContentId: ID<WebContent>?
         var focused: Bool
         var searchActive: Bool
+        var emptyPage: Bool
         var colorScheme: ContentColorScheme?
     }
     
     // Must have at least one, even if empty
     var panes: [PaneSnapshot]
     var profileID: ID<Profile>
+    var sidebarLocked: Bool
     var anyPaneHasSearchActive: Bool {
         panes.filter({ $0.searchActive }).count > 0
     }
     
     init(state: BrowserState, id: ID<WindowState>) {
         guard let window = state.windows[id] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile
+            sidebarLocked = false
             return
         }
+        self.sidebarLocked = window.sidebarLocked
         self.profileID = window.profile
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
             let focused = i == tab.focusedPaneIdx
-            return PaneSnapshot(id: pane.id.raw, webContentId: pane.id, focused: focused, searchActive: focused && window.searchOverlayActive, colorScheme: pane.info.colorScheme)
+            return PaneSnapshot(
+                id: pane.id.raw,
+                webContentId: pane.id,
+                focused: focused,
+                searchActive: focused && window.searchOverlayActive,
+                emptyPage: pane.info.url == nil || pane.info.url == .aboutBlank,
+                colorScheme: pane.info.colorScheme)
         })
     }
 }
@@ -59,22 +69,42 @@ private struct WindowContent: View {
     
     @State private var topHovered = false
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+    @State private var sidebarHovered = false
     
     var body: some View {
         HStack(spacing: 0) {
-            Sidebar()
-            Divider()
-                .edgesIgnoringSafeArea(.all)
+            if snapshot.sidebarLocked {
+                Sidebar(floating: false)
+                    .background { TransparentBg() }
+                Divider()
+                    .edgesIgnoringSafeArea(.all)
+            }
+            
+            // Content:
             HStack(spacing: 0) {
                 ForEach(snapshot.panes) { pane in
-                    PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible, toolbarColorScheme: pane.colorScheme)
+                    PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
                 }
             }
-            .trackMouseOutsideWindow(onMouseMoved: { self.hoverAreaMouseMoved($0, rect: $1) })
             .edgesIgnoringSafeArea(.all)
             .overlay(alignment: .topTrailing) {
                 ToastViewer()
             }
+        }
+        .overlay(alignment: .leading) {
+            if !snapshot.sidebarLocked {
+                Sidebar(floating: true)
+                    .withFloatingSidebarContainer()
+                    .padding(8)
+                    .offset(x: sidebarHovered ? 0 : -UIConstants.sidebarWidth - 20)
+                    .animation(.spring(duration: 0.16, bounce: 0.2, blendDuration: 0.1), value: sidebarHovered)
+                    .edgesIgnoringSafeArea(.all)
+            }
+        }
+        .background {
+            Color.clear
+                .trackMouseOutsideWindow(onMouseMoved: { self.mouseMoved($0, rect: $1) })
+                .edgesIgnoringSafeArea(.all)
         }
     }
     
@@ -82,11 +112,28 @@ private struct WindowContent: View {
         topHovered || topbarLocked || snapshot.anyPaneHasSearchActive
     }
     
-    private func hoverAreaMouseMoved(_ pt: CGPoint, rect: CGRect) {
-        let hoverZone = CGRect(x: 0, y: -50, width: rect.width, height: 50 + (topbarVisible ? UIConstants.macHeaderHeight + 40 : 12))
-        let hovered = hoverZone.contains(pt)
-        if topHovered != hovered {
-            topHovered = hovered
+    private func mouseMoved(_ pt: CGPoint, rect: CGRect) {
+        // Update topbar hover:
+        let fixedSidebarWidth = snapshot.sidebarLocked ? UIConstants.sidebarWidth : 0
+        let topbarHoverZone = CGRect(
+            x: fixedSidebarWidth,
+            y: -50,
+            width: rect.width - fixedSidebarWidth,
+            height: 50 + (topbarVisible ? UIConstants.macHeaderHeight + 40 : 5)
+        )
+        let topHoveredNow = topbarHoverZone.contains(pt)
+        if topHovered != topHoveredNow {
+            topHovered = topHoveredNow
+        }
+        
+        // Update sidebar hover:
+        var sidebarHovered = false
+        if !snapshot.sidebarLocked {
+            let hoverZone = CGRect(x: -150, y: 0, width: self.sidebarHovered ? UIConstants.sidebarWidth + 8 + 10 + 150 : 150 + 4, height: rect.height)
+            sidebarHovered = hoverZone.contains(pt)
+        }
+        if self.sidebarHovered != sidebarHovered {
+            self.sidebarHovered = sidebarHovered
         }
     }
 }
@@ -128,6 +175,7 @@ fileprivate struct PaneView: View {
                 selectedResultIndex: $selectedResultIndex
             )
                 .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
+                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
                 .animation(.niceDefault, value: toolbarColorScheme)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
@@ -345,5 +393,19 @@ private struct EmptyTabView: View {
 public struct BrowserWindow_Previews: PreviewProvider {
     public static var previews: some View {
         BrowserWindow(windowID: ID<WindowState>(raw: "w0"))
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func withFloatingSidebarContainer() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        
+        self.background(.thinMaterial)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+            }
+            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
     }
 }
