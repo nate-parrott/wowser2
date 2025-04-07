@@ -53,7 +53,7 @@ private struct LoadingBar: View {
         GeometryReader { geo in
             ZStack {
                 Capsule()
-                    .fill(Color.blue)
+                    .fill(Color.accentColor)
                 
                 Capsule().fill(LinearGradient(colors: [Color.white, Color.black], startPoint: .top, endPoint: .bottom))
                     .blendMode(.overlay)
