@@ -52,22 +52,22 @@ public struct FaviconView: View {
     /// A placeholder circle in the site's primary color
     private var placeholderCircle: some View {
         Circle()
-            .fill(primaryColor)
+            .fill(.primary)
             .opacity(0.1)
     }
     
-    /// Generates a consistent color based on the URL's host
-    private var primaryColor: Color {
-        guard let url = url, let host = url.host else {
-            return .blue // Default color for no URL
-        }
-        
-        // Use the domain name to generate a consistent color
-        let hash = abs(host.hashValue)
-        let hue = Double(hash % 256) / 255.0
-        
-        return Color(hue: hue, saturation: 0.8, brightness: 0.9)
-    }
+//    /// Generates a consistent color based on the URL's host
+//    private var primaryColor: Color {
+//        guard let url = url, let host = url.host else {
+//            return .blue // Default color for no URL
+//        }
+//        
+//        // Use the domain name to generate a consistent color
+//        let hash = abs(host.hashValue)
+//        let hue = Double(hash % 256) / 255.0
+//        
+//        return Color(hue: hue, saturation: 0.8, brightness: 0.9)
+//    }
 }
 
 #Preview {

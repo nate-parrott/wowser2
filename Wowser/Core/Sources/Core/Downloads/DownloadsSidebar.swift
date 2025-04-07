@@ -95,9 +95,8 @@ private struct DownloadRow: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
-            Spacer()
-            
+            .frame(maxWidth: .infinity, alignment: .leading)
+                        
             // Close/remove button
             Button {
                 removeDownload()
@@ -110,8 +109,8 @@ private struct DownloadRow: View {
             .buttonStyle(CircleButtonStyle())
             .opacity(isHovered ? 1 : 0)
         }
-        .padding(.vertical, 4)
         .padding(.horizontal, 8)
+        .frame(height: 30)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(isHovered ? 0.1 : 0.05))

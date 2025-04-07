@@ -95,7 +95,7 @@ private struct WindowContent: View {
             if !snapshot.sidebarLocked {
                 Sidebar(floating: true)
                     .withFloatingSidebarContainer()
-                    .padding(8)
+//                    .padding(8)
                     .offset(x: sidebarHovered ? 0 : -UIConstants.sidebarWidth - 20)
                     .animation(.spring(duration: 0.16, bounce: 0.2, blendDuration: 0.1), value: sidebarHovered)
                     .edgesIgnoringSafeArea(.all)

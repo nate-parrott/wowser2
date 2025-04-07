@@ -112,8 +112,8 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
             return
         }
         
-        // Create destination URL in ~/Downloads directory
-        let destinationURL = downloadsDirectory.appendingPathComponent(suggestedFilename)
+        // Create unique destination URL in ~/Downloads directory
+        let destinationURL = URL.unique(folder: downloadsDirectory, name: suggestedFilename)
         
         // Create and add the download to browser state
         let newDownload = Download(

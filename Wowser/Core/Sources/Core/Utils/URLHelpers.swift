@@ -12,6 +12,43 @@ extension URL {
         stripped
     }
     
+    /// Creates a unique file URL by incrementing filename if it already exists
+    /// - Parameters:
+    ///   - folder: The directory URL where the file will be saved
+    ///   - name: The suggested filename, which may be modified to make it valid and unique
+    /// - Returns: A URL with a unique filename that doesn't exist on disk
+    public static func unique(folder: URL, name: String) -> URL {
+        // Sanitize the filename by removing leading dots and slashes
+        var sanitizedName = name
+        while sanitizedName.hasPrefix(".") || sanitizedName.hasPrefix("/") || sanitizedName.hasPrefix("\\") {
+            sanitizedName.removeFirst()
+        }
+        
+        // If name was completely invalid, use a default
+        if sanitizedName.isEmpty {
+            sanitizedName = "download"
+        }
+        
+        // Check if file already exists, if not return the URL
+        var fileURL = folder.appendingPathComponent(sanitizedName)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            return fileURL
+        }
+        
+        // File exists, need to create a unique name
+        let fileExtension = sanitizedName.contains(".") ? "." + sanitizedName.components(separatedBy: ".").last! : ""
+        let baseName = sanitizedName.contains(".") ? sanitizedName.components(separatedBy: ".").dropLast().joined(separator: ".") : sanitizedName
+        
+        var counter = 2
+        repeat {
+            let newName = "\(baseName) \(counter)\(fileExtension)"
+            fileURL = folder.appendingPathComponent(newName)
+            counter += 1
+        } while FileManager.default.fileExists(atPath: fileURL.path)
+        
+        return fileURL
+    }
+    
     public static func withNaturalString(_ string: String) -> URL? {
         if string.contains(" ") {
             return nil
