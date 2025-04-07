@@ -208,8 +208,19 @@ fileprivate struct PaneView: View {
             if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
                 WrappedWebView(webContent: webContent, isFocused: snapshot.focused)
                     .opacity(snapshot.emptyPage ? 0 : 1)
+                    .overlay(alignment: .top) {
+                        loader.padding(6)
+                    }
             } else {
                 Color.clear
+            }
+        }
+    }
+    
+    @ViewBuilder private var loader: some View {
+        if let webContentId = snapshot.webContentId {
+            WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.loadingProgress(webContentId: webContentId) }) { prog in
+                LoadingIndicator(progress: prog == 1 ? nil : prog)
             }
         }
     }
@@ -254,5 +265,14 @@ private extension View {
                 shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
             }
             .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
+    }
+}
+
+extension BrowserState {
+    func loadingProgress(webContentId: ID<WebContent>) -> Double? {
+        if let tabId = paneToTabMapping[webContentId], let tab = tabs[tabId], let pane = tab.panes[webContentId] {
+            return pane.info.estimatedProgress
+        }
+        return nil
     }
 }

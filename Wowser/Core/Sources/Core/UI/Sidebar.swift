@@ -277,8 +277,11 @@ private struct RegularTabButton: View {
     
     @ViewBuilder private var content: some View {
         HStack(spacing: 8) {
-            // Favicon
-            FaviconView(url: tab.panes.first?.info.url)
+            // Favicon - use the extracted favicon URL if available
+            FaviconView(
+                url: tab.panes.first?.info.url,
+                faviconURL: tab.panes.first?.info.favicon
+            )
             
             // Title with truncation
             VStack(alignment: .leading, spacing: 0) {

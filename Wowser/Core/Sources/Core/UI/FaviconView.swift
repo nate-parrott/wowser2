@@ -5,20 +5,31 @@ public struct FaviconView: View {
     /// The URL to display the favicon for
     let url: URL?
     
+    /// The favicon URL (if explicitly provided)
+    let faviconURL: URL?
+    
     /// The size of the favicon (width and height)
     let size: CGFloat
     
     /// Creates a new favicon view
     /// - Parameters:
     ///   - url: The URL to display the favicon for
+    ///   - faviconURL: The explicit favicon URL (if available)
     ///   - size: The size of the favicon (defaults to 16)
-    public init(url: URL?, size: CGFloat = 16) {
+    public init(url: URL?, faviconURL: URL? = nil, size: CGFloat = 16) {
         self.url = url
+        self.faviconURL = faviconURL
         self.size = size
     }
     
-    /// The Google favicon service URL
-    private var faviconURL: URL? {
+    /// The favicon URL to use for display
+    private var displayFaviconURL: URL? {
+        // First try using the explicit favicon URL if provided
+        if let faviconURL = faviconURL {
+            return faviconURL
+        }
+        
+        // Fall back to Google favicon service
         guard let url = url, let host = url.host else { return nil }
         let urlString = "https://www.google.com/s2/favicons?domain=\(host)&sz=128"
         return URL(string: urlString)
@@ -26,8 +37,8 @@ public struct FaviconView: View {
     
     public var body: some View {
         Group {
-            if let faviconURL = faviconURL {
-                AsyncImage(url: faviconURL) { phase in
+            if let displayURL = displayFaviconURL {
+                AsyncImage(url: displayURL) { phase in
                     switch phase {
                     case .empty:
                         placeholderCircle

@@ -341,9 +341,9 @@ extension SearchResult {
     public var highlightColor: Color {
         switch item.content {
         case .chatbot:
-            return Color.purple
-        case .imFeelingLucky:
             return Color.green
+        case .imFeelingLucky:
+            return Color.purple
         case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
             return Color.blue
         }

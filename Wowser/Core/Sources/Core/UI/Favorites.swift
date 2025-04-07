@@ -108,7 +108,10 @@ struct FavoriteCell: View {
                     pane?.baseInfo != nil && 
                     pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
                 
-                FaviconView(url: pane?.baseInfo?.url ?? pane?.info.url)
+                FaviconView(
+                    url: pane?.baseInfo?.url ?? pane?.info.url,
+                    faviconURL: pane?.info.favicon
+                )
                     .frame(width: 24, height: 24)
                     .overlay(alignment: .trailing) {
                         if canReset {
