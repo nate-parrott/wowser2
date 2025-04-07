@@ -28,6 +28,7 @@ public struct InputTextFieldOptions: Equatable {
     var wantsUpDownArrowEvents: Bool = true
     var largePasteThreshold: Int? = nil
     var selectAllOnFocus: Bool = false
+    var lineLimit: Int? = nil
     
     var effectivePlaceholderColor: NSColor {
         return placeholderColor ?? color.withAlphaComponentSafe(0.5)
@@ -43,7 +44,13 @@ public struct InputTextFieldOptions: Equatable {
     public init(placeholder: String,
                 font: NSFont = NSFont.systemFont(ofSize: 14),
                 color: UINSColor = UINSColor.textColor,
-                insets: CGSize = CGSize(width: 0, height: 0), placeholderColor: NSColor? = nil, requireCmdEnter: Bool = false, wantsUpDownArrowEvents: Bool = true, largePasteThreshold: Int? = nil, selectAllOnFocus: Bool = false) {
+                insets: CGSize = CGSize(width: 0, height: 0), 
+                placeholderColor: NSColor? = nil, 
+                requireCmdEnter: Bool = false, 
+                wantsUpDownArrowEvents: Bool = true, 
+                largePasteThreshold: Int? = nil, 
+                selectAllOnFocus: Bool = false,
+                lineLimit: Int? = nil) {
         self.placeholder = placeholder
         self.font = font
         self.color = color
@@ -53,6 +60,7 @@ public struct InputTextFieldOptions: Equatable {
         self.wantsUpDownArrowEvents = wantsUpDownArrowEvents
         self.largePasteThreshold = largePasteThreshold
         self.selectAllOnFocus = selectAllOnFocus
+        self.lineLimit = lineLimit
     }
 }
 
@@ -148,6 +156,12 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
         textView.isRichText = false
         textView.delegate = self
         textView.allowsUndo = true
+        
+        // Default textview configuration
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+        
         NotificationCenter.default.addObserver(self, selector: #selector(textDidChange(_:)), name: NSText.didChangeNotification, object: textView)
 //        scrollView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scrollView)
@@ -167,6 +181,26 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
             textView.insertionPointColor = options.color
             textView.setValue(options.attributedPlaceholder, forKey: "placeholderAttributedString")
             textView.textContainerInset = options.insets
+            
+            // Apply line limit if specified
+            if let lineLimit = options.lineLimit {
+                textView.isVerticallyResizable = lineLimit > 1
+//                textView.setUsesFindPanel(lineLimit > 1)
+                textView.isHorizontallyResizable = false
+                if lineLimit == 1 {
+                    textView.textContainer?.maximumNumberOfLines = 1
+                    textView.textContainer?.widthTracksTextView = true
+                } else {
+                    textView.textContainer?.maximumNumberOfLines = lineLimit
+                    textView.textContainer?.widthTracksTextView = true
+                }
+            } else {
+                textView.isVerticallyResizable = true
+                textView.isHorizontallyResizable = false
+                textView.textContainer?.maximumNumberOfLines = 0
+                textView.textContainer?.widthTracksTextView = true
+            }
+            
             contentSizeMayHaveChanged()
         }
     }

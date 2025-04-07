@@ -218,7 +218,7 @@ fileprivate struct PaneView: View {
     }
     
     @ViewBuilder private var loader: some View {
-        if let webContentId = snapshot.webContentId {
+        if let webContentId = snapshot.webContentId, !snapshot.emptyPage {
             WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.loadingProgress(webContentId: webContentId) }) { prog in
                 LoadingIndicator(progress: prog == 1 ? nil : prog)
             }

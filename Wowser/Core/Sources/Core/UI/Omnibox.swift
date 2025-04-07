@@ -22,7 +22,8 @@ struct Omnibox: View {
                 color: fgColor?.uiColor ?? UINSColor.textColor,
                 insets: CGSize(width: 16, height: 12),
                 wantsUpDownArrowEvents: true,
-                selectAllOnFocus: true
+                selectAllOnFocus: true,
+                lineLimit: 1
             ),
             focusDate: focusDate,
             onEvent: handleTextFieldEvent,
