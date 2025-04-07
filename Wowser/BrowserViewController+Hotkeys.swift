@@ -108,6 +108,25 @@ extension BrowserViewController {
         }
     }
     
+    @IBAction func toggleBookmark(_ sender: NSMenuItem) {
+        if let webContent = getCurrentWebContent(),
+           let url = webContent.info.url,
+           let windowID = self.windowID {
+            Task {
+                let wasBookmarked = await ArchiveStore.shared.isItemBookmarked(url: url)
+                ArchiveStore.shared.toggleBookmark(url: url, title: webContent.info.title)
+                // Show toast notification
+                BrowserStore.shared.modify { state in
+                    // Check if the URL is bookmarked after toggle
+                    let isBookmarked = !wasBookmarked
+                    let message = isBookmarked ? "Bookmark added" : "Bookmark removed"
+                    let icon = isBookmarked ? "bookmark.fill" : "bookmark.slash"
+                    state.addToast(message: message, icon: icon, in: windowID)
+                }
+            }
+        }
+    }
+    
     // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

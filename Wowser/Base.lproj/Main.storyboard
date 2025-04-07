@@ -78,6 +78,11 @@
                                                 <action selector="copyCurrentURL:" target="Ady-hI-5gd" id="R7g-z9-Hip"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem title="Toggle Bookmark" keyEquivalent="d" id="ILv-2O-2xf">
+                                            <connections>
+                                                <action selector="toggleBookmark:" target="Ady-hI-5gd" id="Wgy-qP-jbF"/>
+                                            </connections>
+                                        </menuItem>
                                         <menuItem isSeparatorItem="YES" id="m54-Is-iLE"/>
                                         <menuItem title="New Window" keyEquivalent="n" id="4z6-kc-eTQ">
                                             <connections>
@@ -402,6 +407,10 @@
                                         </menuItem>
                                     </items>
                                 </menu>
+                            </menuItem>
+                            <menuItem title="Saved Tabs" id="toJ-eM-zhy">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Saved Tabs" id="e9l-Zu-Umo"/>
                             </menuItem>
                             <menuItem title="Format" id="jxT-CU-nIS">
                                 <modifierMask key="keyEquivalentModifierMask"/>
@@ -742,6 +751,7 @@
                 </application>
                 <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Wowser" customModuleProvider="target">
                     <connections>
+                        <outlet property="archiveMenuItem" destination="toJ-eM-zhy" id="9le-tc-5fY"/>
                         <outlet property="historyMenu" destination="KM3-fD-0ti" id="kms-np-cTl"/>
                     </connections>
                 </customObject>

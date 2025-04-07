@@ -25,7 +25,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @IBOutlet private(set) var historyMenu: NSMenu?
-    
+    @IBOutlet private(set) var archiveMenuItem: NSMenuItem?
+    private var archiveMenuManager: ArchiveMenuManager?
+
     // Maps menu items to tab indices for quick tab switching
     var tabSwitchMenuItems = [NSMenuItem: Int]()
     
@@ -45,6 +47,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
         ])
+        
+        archiveMenuManager = ArchiveMenuManager(parentMenuItem: archiveMenuItem!)
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {

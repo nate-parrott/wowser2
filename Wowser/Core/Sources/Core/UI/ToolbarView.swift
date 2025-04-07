@@ -8,7 +8,7 @@ public struct ToolbarViewSnapshot: Equatable {
     var canGoBack: Bool
     var canGoForward: Bool
     var webContentId: ID<WebContent>?
-    var isBookmarked: Bool
+//    var isBookmarked: Bool
     var hasMultiplePanes: Bool
     var makeRoomForTrafficLights: Bool
     
@@ -24,7 +24,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.canGoBack = false
             self.canGoForward = false
             self.webContentId = webContentId
-            self.isBookmarked = false
+//            self.isBookmarked = false
             self.hasMultiplePanes = false
             self.makeRoomForTrafficLights = false
             return
@@ -36,7 +36,7 @@ public struct ToolbarViewSnapshot: Equatable {
         self.canGoBack = paneData.info.canGoBack
         self.canGoForward = paneData.info.canGoForward
         self.webContentId = webContentId
-        self.isBookmarked = false // Bookmark functionality not implemented yet
+//        self.isBookmarked = false // Bookmark functionality not implemented yet
         self.hasMultiplePanes = tab.panes.count > 1
         let isFirstPane = tab.panes.first?.id == webContentId
         let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
@@ -59,6 +59,7 @@ public struct ToolbarView: View {
     
     private let browserStore = BrowserStore.shared
     @State private var focusDate: Date?
+    @State private var isBookmarked: Bool = false
     
     public var body: some View {
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
@@ -101,12 +102,14 @@ public struct ToolbarView: View {
                     }
                     .buttonStyle(ToolbarButtonStyle())
                     
-                    // Bookmark button (not implemented)
                     Button(action: toggleBookmark) {
-                        Image(systemName: snapshot.isBookmarked ? "bookmark.fill" : "bookmark")
+                        Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                             .imageScale(.medium)
+                            .help(isBookmarked ? "Remove Bookmark" : "Add Bookmark")
                     }
                     .buttonStyle(ToolbarButtonStyle())
+                    .disabled(snapshot.url == nil)
+                    .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
                     
                     // Close pane button (only visible in split view)
                     if snapshot.hasMultiplePanes {
@@ -181,7 +184,9 @@ public struct ToolbarView: View {
     }
     
     private func toggleBookmark() {
-        // Bookmark functionality not implemented yet
+        guard let webContentID else { return }
+        guard let tabInfo = browserStore.model.tabInfo(forWebContentId: webContentID) else { return }
+        ArchiveStore.shared.toggleBookmark(url: tabInfo.url, title: tabInfo.title)
     }
     
     private func closeCurrentPane() {
@@ -219,5 +224,14 @@ extension BrowserState {
             return tab.panes.first(where: { $0.id == id })?.info
         }
         return nil
+    }
+}
+
+extension ArchiveState {
+    func isBookmarked(url: URL?) -> Bool {
+        if let url {
+            return itemsByHistoryKey[url.historyKey]?.kind == .bookmark
+        }
+        return false
     }
 }

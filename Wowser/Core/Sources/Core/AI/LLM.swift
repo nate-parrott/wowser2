@@ -24,8 +24,15 @@ public enum LLMChoice: String, Equatable, Codable, CaseIterable {
     case anthropic_custom
 }
 
-extension ChatLLM {
-    func current(json: Bool) -> (any ChatLLM)? {
+enum LLMs {
+    static func currentOrThrow(json: Bool) throws -> any ChatLLM {
+        if let cur = current(json: json) {
+            return cur
+        }
+        throw AIError.noModelChosen
+    }
+    
+    static func current(json: Bool) -> (any ChatLLM)? {
         guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue()) else {
             return nil
         }
@@ -147,4 +154,8 @@ extension ChatLLM {
             return nil
         }
     }
+}
+
+enum AIError: Error {
+    case noModelChosen
 }
