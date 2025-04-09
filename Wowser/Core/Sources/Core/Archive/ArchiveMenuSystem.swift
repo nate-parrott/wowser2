@@ -1,15 +1,13 @@
 import AppKit
 
 public class ArchiveMenuManager: NSObject, NSMenuDelegate {
-    let parentMenuItem: NSMenuItem
-    let menu: NSMenu
+    let historyMenu: NSMenu
+    let bookmarksMenuItem: NSMenuItem
     
-    public init(parentMenuItem: NSMenuItem) {
-        self.parentMenuItem = parentMenuItem
-        self.menu = parentMenuItem.menu!
+    public init(historyMenu: NSMenu, bookmarksMenuItem: NSMenuItem) {
+        self.historyMenu = historyMenu
+        self.bookmarksMenuItem = bookmarksMenuItem
         super.init()
-        self.menu.delegate = self
-        // TODO
     }
     
     // TODO: Refresh menu and show bookmarked tabs

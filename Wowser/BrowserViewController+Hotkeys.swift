@@ -127,6 +127,10 @@ extension BrowserViewController {
         }
     }
     
+    @IBAction func clearAllTabs(_ sender: NSMenuItem) {
+        // TODO
+    }
+    
     // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
