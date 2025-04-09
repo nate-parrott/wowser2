@@ -145,10 +145,10 @@ public class BrowserStore: DataStore<BrowserState> {
     public override func setup() {
         super.setup()
         uiPublisher.throttle(for: .seconds(0.5), scheduler: DispatchQueue.main, latest: true)
-            .map(\.validLiveWebContentIds)
-            .removeDuplicates()
+//            .map(\.validLiveWebContentIds)
+//            .removeDuplicates()
             .sink { [weak self] ids in
-                self?.removeWebContentNotInIds(ids)
+                self?.removeWebContentNotInValidIds()
             }.store(in: &subscriptions)
     }
     
@@ -180,6 +180,7 @@ public class BrowserStore: DataStore<BrowserState> {
         else {
             return nil
         }
+        print("CREATING WC FOR TAB \(tabId)")
         
         modify { state in
             // Must set this otherwise tab will be unloaded
@@ -211,6 +212,9 @@ public class BrowserStore: DataStore<BrowserState> {
         }
     }
     
+    private func removeWebContentNotInValidIds() {
+        removeWebContentNotInIds(model.validLiveWebContentIds)
+    }
     private func removeWebContentNotInIds(_ ids: Set<ID<WebContent>>) {
         let toRemove = liveWebContents.keys.filter { !ids.contains($0) }
         for id in toRemove {

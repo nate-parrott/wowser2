@@ -15,6 +15,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
         didSet {
             if _model != oldValue {
                 subject.send(_model)
+                _frameThrottler.update(value: _model)
             }
         }
     }
@@ -48,21 +49,17 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
     public var publisher: AnyPublisher<Model, Never> { subject.eraseToAnyPublisher() }
     
     // uiPublisher is preferable to publisher for ui stuff b/c it will eventually be throttled to the display refresh.
-    public var uiPublisher: AnyPublisher<Model, Never> { subject.eraseToAnyPublisher() } // TODO: Throttle to UI refresh
+    private let _frameThrottler: FrameThrottledValue<Model>
+    public var uiPublisher: AnyPublisher<Model, Never> { _frameThrottler.publisher }
 
-//    private let _observableWithMetadata: MutableObservable<(Model, TransactionMetadata)>
-//    public var observableWithMetadata: Observable<(Model, TransactionMetadata)> { return _observableWithMetadata }
-//    private let observer = Observer()
     private var changeHooks = [ChangeHook]()
 
     public init(persistenceKey: String?, defaultModel: Model, queue: Queue) {
         _model = defaultModel
         self.queue = queue
         self.persistenceKey = persistenceKey
-//        self._observableWithMetadata = MutableObservable(current: (defaultModel, TransactionMetadata(sender: nil)), queue: queue)
-//        self.observable = self._observableWithMetadata.map({ $0.0 })
-//        self.uiObservable = self.observable.onQueue(.main).throttledToDisplayRefreshRate
         self.subject = .init(defaultModel)
+        self._frameThrottler = FrameThrottledValue(value: defaultModel)
         super.init()
 
         // Platform-specific notifications:
@@ -91,7 +88,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
                         self.processModelAfterLoad(model: &state)
                         return state
                     } catch {
-                        let name = self.persistenceKey ?? "<unknown>"
+//                        let name = self.persistenceKey ?? "<unknown>"
 //                        print("Failed to load \(name) datastore: \(error)")
                     }
                 }
@@ -100,6 +97,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
 
             if let state = initialState {
                 self._model = state
+                self._frameThrottler.update(value: state)
             }
             NotificationCenter.default.addObserver(self, selector: #selector(self.save), name: willResignActive, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(self.saveSync), name: willTerminate, object: nil)
