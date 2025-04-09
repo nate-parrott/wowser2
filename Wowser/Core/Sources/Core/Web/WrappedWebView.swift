@@ -6,15 +6,11 @@ import Combine
 public struct WrappedWebView: View {
     var webContent: WebContent
     var isFocused: Bool
+    var hiddenBecauseEmpty: Bool
     
     @State private var isFindInPageActive = false
     @State private var windowWantsWebviewFocus = false
     @Environment(\.windowID) private var windowID
-    
-    public init(webContent: WebContent, isFocused: Bool) {
-        self.webContent = webContent
-        self.isFocused = isFocused
-    }
     
     public var body: some View {
         ZStack {
@@ -25,7 +21,7 @@ public struct WrappedWebView: View {
             }
             
             // The base WebView
-            WebView(webContent: webContent)
+            WebView(webContent: webContent, hiddenBecauseEmpty: hiddenBecauseEmpty)
                 .onAppearOrChange(of: focusWebview, perform: { focus in
                     if focus {
                         DispatchQueue.main.async {

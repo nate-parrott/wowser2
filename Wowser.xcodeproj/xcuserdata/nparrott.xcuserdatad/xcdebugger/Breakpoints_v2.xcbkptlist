@@ -276,10 +276,10 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "399"
-            endingLineNumber = "399"
-            landmarkName = "webViewDidClose(_:)"
-            landmarkType = "7">
+            startingLineNumber = "400"
+            endingLineNumber = "400"
+            landmarkName = "WebContent"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -292,9 +292,9 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "298"
-            endingLineNumber = "298"
-            landmarkName = "focus()"
+            startingLineNumber = "299"
+            endingLineNumber = "299"
+            landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -344,6 +344,22 @@
             endingLineNumber = "90"
             landmarkName = "toggleBookmark(url:title:)"
             landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "AE35DDD0-F34B-42D9-99A5-D247A6D93B7D"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "20"
+            endingLineNumber = "20"
+            landmarkName = "hiddenBecauseEmpty"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
