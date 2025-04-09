@@ -24,9 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.window?.makeKeyAndOrderFront(nil)
     }
     
-    @IBOutlet private(set) var historyMenu: NSMenu?
-    @IBOutlet private(set) var archiveMenuItem: NSMenuItem?
-    private var archiveMenuManager: ArchiveMenuManager?
+    @IBOutlet private(set) var historyMenu: NSMenu?    
+    @IBOutlet private(set) var bookmarksMenuItem: NSMenuItem?
 
     // Maps menu items to tab indices for quick tab switching
     var tabSwitchMenuItems = [NSMenuItem: Int]()
