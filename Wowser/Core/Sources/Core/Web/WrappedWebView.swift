@@ -6,7 +6,7 @@ import Combine
 public struct WrappedWebView: View {
     var webContent: WebContent
     var isFocused: Bool
-    var hiddenBecauseEmpty: Bool
+    var shrunk: Bool
     
     @State private var isFindInPageActive = false
     @State private var windowWantsWebviewFocus = false
@@ -21,7 +21,7 @@ public struct WrappedWebView: View {
             }
             
             // The base WebView
-            WebView(webContent: webContent, hiddenBecauseEmpty: hiddenBecauseEmpty)
+            WebView(webContent: webContent, shrunk: shrunk)
                 .onAppearOrChange(of: focusWebview, perform: { focus in
                     if focus {
                         DispatchQueue.main.async {

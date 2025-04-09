@@ -206,7 +206,7 @@ fileprivate struct PaneView: View {
     @ViewBuilder private var content: some View {
         ZStack {
             if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-                WrappedWebView(webContent: webContent, isFocused: snapshot.focused, hiddenBecauseEmpty: snapshot.emptyPage)
+                WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
 //                    .opacity(snapshot.emptyPage ? 0 : 1)
                     .overlay(alignment: .top) {
                         loader.padding(6)
