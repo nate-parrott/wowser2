@@ -22,27 +22,22 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Add swipe gesture container and set it as the parent view
-        view.addSubview(swipeGestureContainer)
         view.addSubview(moveBlockingView)
+        view.addSubview(swipeGestureContainer)
+        
+        // Setup swipe gesture observer
+        swipeGestureContainer.onSwipeGestureOffsetChanged = { [weak self] offset in
+            guard let self = self, let windowID = self.windowID else { return }
+            
+            BrowserStore.shared.modify { state in
+                state.windows[windowID]?.swipeGestureOffset = offset
+            }
+        }
     }
     
+    // we only expect this to ever be called once per window, by appdelegate
     func setupBrowserViewController(id: ID<WindowState>) {
-        // Create a new window ID and initialize it in the BrowserStore
         self.windowID = id
-        
-//        BrowserStore.shared.modify { state in
-//            let window = state.newWindow()
-//            self.windowID = window.id
-//        }
-        
-        // Create a default tab using the helper method directly on BrowserStore
-//        if let windowID = windowID {
-//            BrowserStore.shared.createTab(
-//                withURL: URL(string: "https://www.google.com"),
-//                in: windowID,
-//                activate: true
-//            )
-//        }
         
         // Create the SwiftUI hosting view
         if let windowID = self.windowID {
@@ -163,9 +158,4 @@ private struct BrowserWindowWrapper: View {
 
 private class MoveBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
-}
-
-class SwipeGestureContainer: NSView {
-    // This class will be used to contain the BrowserViewController
-    // and handle swipe gestures
 }

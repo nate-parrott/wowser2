@@ -41,7 +41,7 @@ private struct WindowSnapshot: Equatable {
         guard let window = state.windows[id] else {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile
-            sidebarLocked = false
+            self.sidebarLocked = false
             return
         }
         self.sidebarLocked = window.sidebarLocked
@@ -88,6 +88,9 @@ private struct WindowContent: View {
             .edgesIgnoringSafeArea(.all)
             .overlay(alignment: .topTrailing) {
                 ToastViewer()
+            }
+            .overlay(alignment: .topTrailing) {
+                SwipeDebugView()
             }
         }
         .overlay(alignment: .leading) {
@@ -265,6 +268,36 @@ private extension View {
                 shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
             }
             .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
+    }
+}
+
+struct SwipeDebugView: View {
+    @Environment(\.windowID) private var windowID
+    
+    struct Snapshot: Equatable {
+        let offset: Int?
+        
+        init(state: BrowserState, windowID: ID<WindowState>) {
+            offset = state.windows[windowID]?.swipeGestureOffset
+        }
+    }
+    
+    var body: some View {
+        if let windowID {
+            WithSnapshotMain(store: BrowserStore.shared, snapshot: { Snapshot(state: $0, windowID: windowID) }) { snapshot in
+                if let offset = snapshot.offset {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Swipe: \(offset)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .padding(8)
+                    .background(Color.red)
+                    .cornerRadius(6)
+                    .padding()
+                }
+            }
+        }
     }
 }
 

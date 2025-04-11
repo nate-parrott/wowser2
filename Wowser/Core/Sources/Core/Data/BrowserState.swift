@@ -116,6 +116,7 @@ public struct WindowState: Equatable, Codable {
     public var toasts = [Toast]()    
     public var sidebarLocked = true
     public var downloads = [ID<Download>: Download]()
+    public var swipeGestureOffset: Int?
 }
 
 public struct Profile: Equatable, Codable {
@@ -513,5 +514,6 @@ private extension BrowserState {
 private extension WindowState {
     mutating func processAfterLoad() {
         searchOverlayActive = false
+        swipeGestureOffset = nil
     }
 }
