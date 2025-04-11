@@ -52,11 +52,16 @@ class BrowserWindowController: NSWindowController {
 // To force at least some cleanup, we need to 'finalize' the hosting view by forcing it to render
 // with `unmount=true`, which causes it to render an empty view and release any attached webviews.
 class BrowserNSWindow: NSWindow {
+    private var wasClosed = false
     override func close() {
-        if let content = contentViewController as? BrowserViewController, let hostController = content.rootHostingController, !hostController.rootView.unmount {
+        if wasClosed {
+            return
+        }
+        wasClosed = true
+        if let content = contentViewController as? BrowserViewController, let hostController = content.rootHostingController {
             hostController.rootView.unmount = true
             DispatchQueue.main.async {
-                self.close()
+                super.close()
             }
             return
         }

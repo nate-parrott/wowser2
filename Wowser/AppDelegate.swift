@@ -2,6 +2,7 @@ import Core
 import Cocoa
 import CoreServices
 import Carbon
+import Combine
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -20,10 +21,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         newWindow(nil)
     }
     
+    private var windowIDs: Set<ID<WindowState>> = .init() {
+        didSet {
+            let addedWindowIDs = windowIDs.filter({ !oldValue.contains($0) })
+            let removedWindowIDs = oldValue.filter({ !windowIDs.contains($0) })
+            for id in addedWindowIDs {
+                let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
+                windowControllers.append(windowController)
+                windowController.browserViewController?.setupBrowserViewController(id: id)
+                windowController.window?.makeKeyAndOrderFront(nil)
+            }
+            for id in removedWindowIDs {
+                if let controller = windowControllers.first(where: { $0.browserViewController?.windowID == id }) {
+                    controller.window?.close()
+                }
+            }
+        }
+    }
+    
     @IBAction func newWindow(_ sender: Any?) {
-        let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
-        windowControllers.append(windowController)
-        windowController.window?.makeKeyAndOrderFront(nil)
+        BrowserStore.shared.modify { state in
+            let id = state.newWindow().id
+            state.openTab(url: URL(string: "https://google.com")!, activate: true, windowID: id)
+        }
+//        let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
+//        windowControllers.append(windowController)
+//        windowController.window?.makeKeyAndOrderFront(nil)
     }
     
     @IBAction func becomeDefaultBrowser(_ sender: Any?) {
@@ -62,6 +85,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Lifecycle
     
+    private var subscriptions = Set<AnyCancellable>()
+    
     func applicationWillFinishLaunching(_ notification: Notification) {
         GlobalHacks.hacks = MacHacks()
         
@@ -75,7 +100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ])
         
         archiveMenuManager = ArchiveMenuManager(historyMenu: historyMenu!, bookmarksMenuItem: bookmarksMenuItem!, openURL: { [weak self] url in
-            self?.openURLInWindow(url)
+            self?.openURL(url)
         })
         
         // Register for Apple Events to handle URLs
@@ -89,6 +114,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        BrowserStore.shared.publisher.map { $0.windows.keys }.removeDuplicates()
+            .sink { [weak self] ids in
+                self?.windowIDs = Set(ids)
+            }.store(in: &subscriptions)
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
     }
@@ -121,7 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Handle URLs passed to the application
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            openURLInWindow(url)
+            openURL(url)
         }
     }
     
@@ -134,11 +163,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Open the URL in our browser
-        openURLInWindow(url)
+        openURL(url)
     }
     
     // Handles URLs directly
-    func openURLInWindow(_ url: URL) {
+    func openURL(_ url: URL) {
         // Use BrowserStore's openTab method to open the URL
         BrowserStore.shared.modify { state in
             state.openTab(url: url, activate: true)

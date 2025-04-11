@@ -21,31 +21,28 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupBrowserWindow()
-        
         // Add swipe gesture container and set it as the parent view
         view.addSubview(swipeGestureContainer)
         view.addSubview(moveBlockingView)
     }
     
-    private func setupBrowserWindow() {
+    func setupBrowserViewController(id: ID<WindowState>) {
         // Create a new window ID and initialize it in the BrowserStore
-        let newWindowID = ID<WindowState>.assign()
-        self.windowID = newWindowID
+        self.windowID = id
         
-        BrowserStore.shared.modify { state in
-            let window = state.newWindow()
-            self.windowID = window.id
-        }
+//        BrowserStore.shared.modify { state in
+//            let window = state.newWindow()
+//            self.windowID = window.id
+//        }
         
         // Create a default tab using the helper method directly on BrowserStore
-        if let windowID = windowID {
-            BrowserStore.shared.createTab(
-                withURL: URL(string: "https://www.google.com"),
-                in: windowID,
-                activate: true
-            )
-        }
+//        if let windowID = windowID {
+//            BrowserStore.shared.createTab(
+//                withURL: URL(string: "https://www.google.com"),
+//                in: windowID,
+//                activate: true
+//            )
+//        }
         
         // Create the SwiftUI hosting view
         if let windowID = self.windowID {

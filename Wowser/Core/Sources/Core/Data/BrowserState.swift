@@ -503,9 +503,10 @@ extension BrowserState {
 
 private extension BrowserState {
     mutating func processAfterLoad() {
-        for windowID in windows.keys {
-            windows[windowID]?.processAfterLoad()
-        }
+        windows = [:]
+//        for windowID in windows.keys {
+//            windows[windowID]?.processAfterLoad()
+//        }
     }
 }
 
