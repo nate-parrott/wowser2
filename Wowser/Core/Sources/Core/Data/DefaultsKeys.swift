@@ -4,6 +4,7 @@ public enum DefaultsKeys: String {
     case adblock // bool
     case autoDarkMode
     case topbarLocked // bool
+    case animateNewTabs // bool
     
     case llmChoice // LLMChoice
     case ollamaCustomModel // string

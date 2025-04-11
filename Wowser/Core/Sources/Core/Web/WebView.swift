@@ -10,7 +10,8 @@ public struct WebView: View {
     }
     
     public var body: some View {
-        WebViewRepresentable(webContent: webContent, shrunk: shrunk)
+        let shouldShrink = shrunk && DefaultsKeys.animateNewTabs.boolValue(defaultValue: true)
+        WebViewRepresentable(webContent: webContent, shrunk: shouldShrink)
     }
 }
 

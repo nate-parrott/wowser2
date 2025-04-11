@@ -95,6 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [
             DefaultsKeys.adblock.rawValue: true,
             DefaultsKeys.autoDarkMode.rawValue: true,
+            DefaultsKeys.animateNewTabs.rawValue: true,
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
         ])

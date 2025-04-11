@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.adblock.rawValue) private var adblockEnabled = false
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkModeEnabled = false
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+    @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
     
     var body: some View {
         Form {
@@ -17,6 +18,9 @@ struct SettingsView: View {
                 
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
+                
+                Toggle("Animate new tabs", isOn: $animateNewTabsEnabled)
+                    .help("Show animation when new tabs are loaded")
             }
             
             AISettings()
