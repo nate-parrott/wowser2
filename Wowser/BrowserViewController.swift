@@ -17,16 +17,15 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     private(set) var rootHostingController: NSHostingController<BrowserWindow>?
     
     private let moveBlockingView = MoveBlockingView()
+    private let swipeGestureContainer = SwipeGestureContainer()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupBrowserWindow()
+        
+        // Add swipe gesture container and set it as the parent view
+        view.addSubview(swipeGestureContainer)
         view.addSubview(moveBlockingView)
-    }
-    
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        moveBlockingView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height - UIConstants.macHeaderHeight)
     }
     
     private func setupBrowserWindow() {
@@ -57,7 +56,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             
             // Add the hosting view to our view hierarchy
             addChild(hostingController)
-            view.addSubview(hostingController.view)
+            swipeGestureContainer.addSubview(hostingController.view)
             
             // Store reference for cleanup
             rootHostingController = hostingController
@@ -146,7 +145,9 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     
     override func viewWillLayout() {
         super.viewWillLayout()
-        rootHostingController?.view.frame = view.bounds
+        swipeGestureContainer.frame = view.bounds
+        moveBlockingView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height - UIConstants.macHeaderHeight)
+        rootHostingController?.view.frame = swipeGestureContainer.bounds
     }
     
     deinit {
@@ -165,4 +166,9 @@ private struct BrowserWindowWrapper: View {
 
 private class MoveBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
+}
+
+class SwipeGestureContainer: NSView {
+    // This class will be used to contain the BrowserViewController
+    // and handle swipe gestures
 }

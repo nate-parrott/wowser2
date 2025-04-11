@@ -37,7 +37,7 @@ class FrameThrottledValue<V> {
             displayLink = DisplayLink { [weak self] in
                 assertOnMainThread()
                 guard let self = self, let pendingVal = self.pendingVal else { return }
-                subject.value = value
+                subject.value = pendingVal
 //                self.value = pendingVal
                 self.pendingVal = nil
                 self.displayLink?.invalidate()

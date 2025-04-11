@@ -148,8 +148,8 @@ extension BrowserState {
     }
     
     @discardableResult
-    mutating func openTab(url: URL, activate: Bool = true) -> Tab {
-        let win = getOrCreateActiveWindow()
+    public mutating func openTab(url: URL, activate: Bool = true, windowID: ID<WindowState>? = nil) -> Tab {
+        let win: WindowState = (windowID != nil ? windows[windowID!] : nil) ?? getOrCreateActiveWindow()
         let insertionLocation = insertionIndex(window: win.id, spawningTabId: win.currentTab)
 //        let tab = Tab(id: .assign(), info: .init(url: url), lastAccessed: Date(), aiLabel: nil)
         let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: url))])

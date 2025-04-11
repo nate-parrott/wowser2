@@ -128,7 +128,9 @@ extension BrowserViewController {
     }
     
     @IBAction func clearAllTabs(_ sender: NSMenuItem) {
-        // TODO
+        if let windowID {
+            BrowserStore.shared.clearAllTabs(in: windowID)
+        }
     }
     
     // MARK: - Menu Validation

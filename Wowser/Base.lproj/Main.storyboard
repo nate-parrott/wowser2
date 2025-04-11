@@ -27,6 +27,12 @@
                                                 <action selector="showPreferences:" target="Ady-hI-5gd" id="Wjq-oj-YlR"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem title="Become Default Browser" id="pRj-xA-LgP">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="becomeDefaultBrowser:" target="Ady-hI-5gd" id="JFM-8q-mFg"/>
+                                            </connections>
+                                        </menuItem>
                                         <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                                         <menuItem title="Services" id="NMo-om-nkz">
                                             <modifierMask key="keyEquivalentModifierMask"/>
@@ -634,12 +640,12 @@
                                                 <action selector="goForward:" target="Ady-hI-5gd" id="Ra9-Go-xTh"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Back" hidden="YES" keyEquivalent="[" id="lUG-UE-JuP">
+                                        <menuItem title="Back" hidden="YES" keyEquivalent="[" allowsKeyEquivalentWhenHidden="YES" id="lUG-UE-JuP">
                                             <connections>
                                                 <action selector="goBack:" target="Ady-hI-5gd" id="rQK-fQ-aCM"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Forward" hidden="YES" keyEquivalent="]" id="iZT-p7-lgf">
+                                        <menuItem title="Forward" hidden="YES" keyEquivalent="]" allowsKeyEquivalentWhenHidden="YES" id="iZT-p7-lgf">
                                             <connections>
                                                 <action selector="goForward:" target="Ady-hI-5gd" id="ut1-Np-Cn1"/>
                                             </connections>
@@ -655,13 +661,13 @@
                                                 <action selector="goToPreviousTab:" target="Ady-hI-5gd" id="qud-9Y-KFt"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Switch to Tab Above" keyEquivalent="" id="9IL-4H-AQ0">
+                                        <menuItem title="Switch to Tab Above" hidden="YES" keyEquivalent="" allowsKeyEquivalentWhenHidden="YES" id="9IL-4H-AQ0">
                                             <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                             <connections>
                                                 <action selector="switchToTabAbove:" target="Ady-hI-5gd" id="xwp-Cp-4Le"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Switch to Tab Below" keyEquivalent="" id="QEf-42-iv6">
+                                        <menuItem title="Switch to Tab Below" hidden="YES" keyEquivalent="" allowsKeyEquivalentWhenHidden="YES" id="QEf-42-iv6">
                                             <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                             <connections>
                                                 <action selector="switchToTabBelow:" target="Ady-hI-5gd" id="A2V-vP-1rp"/>
@@ -672,7 +678,13 @@
                             </menuItem>
                             <menuItem title="Bookmarks" id="toJ-eM-zhy">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <menu key="submenu" title="Bookmarks" id="e9l-Zu-Umo"/>
+                                <menu key="submenu" title="Bookmarks" id="e9l-Zu-Umo">
+                                    <items>
+                                        <menuItem title="Bookmarks" enabled="NO" id="a2S-5L-Bs4">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                        </menuItem>
+                                    </items>
+                                </menu>
                             </menuItem>
                             <menuItem title="View" id="H8h-7b-M4v">
                                 <modifierMask key="keyEquivalentModifierMask"/>

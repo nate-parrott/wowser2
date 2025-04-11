@@ -16,6 +16,7 @@ public struct ArchiveItem: Identifiable, Codable, Equatable {
     enum Kind: String, Equatable, Codable {
         case bookmark
         case autoArchivedTab
+        case manuallyArchivedTab
     }
     
     enum Category: String, Equatable, Codable, CaseIterable {
