@@ -30,7 +30,8 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             guard let self = self, let windowID = self.windowID else { return }
             
             BrowserStore.shared.modify { state in
-                state.windows[windowID]?.swipeGestureOffset = offset
+                state.setSwipeGestureOffset(offset, forWindowID: windowID)
+//                state.windows[windowID]?.swipeGestureOffset = offset
             }
         }
     }

@@ -380,4 +380,24 @@ extension BrowserState {
         
         return visibleTabs
     }
+    
+    public func tabsInRecencyOrder(inWindow windowID: ID<WindowState>, max: Int) -> [ID<Tab>] {
+        tabsInVisibleOrder(inWindow: windowID).sorted(by: {
+            let date1 = self.tabs[$0]?.lastAccessed ?? .distantPast
+            let date2 = self.tabs[$1]?.lastAccessed ?? .distantPast
+            return date1 > date2
+        }).prefix(max).asArray
+    }
+//    state.setSwipeGestureOffset(offet, forWindowID: windowID)
+    
+    public mutating func setSwipeGestureOffset(_ offset: Int?, forWindowID windowID: ID<WindowState>) {
+        let oldVal = windows[windowID]?.swipeGestureOffset
+        windows[windowID]?.swipeGestureOffset = offset
+        if offset == nil, let oldOffset = oldVal {
+            let newSelectedTabId = tabsInRecencyOrder(inWindow: windowID, max: oldOffset + 1).get(oldOffset)
+            if let newSelectedTabId {
+                activate(tabId: newSelectedTabId, in: windowID)
+            }
+        }
+    }
 }

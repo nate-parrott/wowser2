@@ -8,11 +8,6 @@ class SwipeGestureContainer: NSView {
         allowedTouchTypes = [.indirect, .direct]
 //        wantsRestingTouches = true
         wantsLayer = true
-//        layer?.backgroundColor = NSColor.red.cgColor
-//        
-//        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-//            self.window!.makeFirstResponder(self)
-//        }
         
         NotificationCenter.default.addObserver(
             self,
@@ -55,7 +50,7 @@ class SwipeGestureContainer: NSView {
     private var state = GestureState.none {
         didSet {
             if state != oldValue {
-                print("Gesture state changed: \(state)")
+//                print("Gesture state changed: \(state)")
                 switch state {
                 case .none, .gesturePossible, .gestureCancelled:
                     swipeGestureOffset = nil
@@ -69,7 +64,7 @@ class SwipeGestureContainer: NSView {
     
     private var touchCount = 0 {
         didSet {
-            print("Touch count: \(touchCount)")
+//            print("Touch count: \(touchCount)")
         }
     }
     

@@ -134,7 +134,7 @@ private struct SidebarContent: View {
             }
             .buttonStyle(GhostButtonStyle())
         }
-        .frame(height: 30)
+        .frame(height: 28)
         .edgesIgnoringSafeArea(.all)
     }
     

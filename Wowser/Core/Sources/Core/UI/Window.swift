@@ -19,10 +19,10 @@ public struct BrowserWindow: View {
 }
 
 // Window snapshot with minimal data
-private struct WindowSnapshot: Equatable {
+struct WindowSnapshot: Equatable {
     struct PaneSnapshot: Equatable, Identifiable {
         var id: String
-        var webContentId: ID<WebContent>?
+        var webContentId: Core.ID<WebContent>?
         var focused: Bool
         var searchActive: Bool
         var emptyPage: Bool
@@ -31,8 +31,11 @@ private struct WindowSnapshot: Equatable {
     
     // Must have at least one, even if empty
     var panes: [PaneSnapshot]
+    var tabId: ID<Tab>?
     var profileID: ID<Profile>
     var sidebarLocked: Bool
+    var swipeGestureOffset: Int?
+    var recentTabIds: [ID<Tab>]
     var anyPaneHasSearchActive: Bool {
         panes.filter({ $0.searchActive }).count > 0
     }
@@ -42,10 +45,14 @@ private struct WindowSnapshot: Equatable {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
+            self.recentTabIds = []
             return
         }
         self.sidebarLocked = window.sidebarLocked
+        self.tabId = window.currentTab
         self.profileID = window.profile
+        self.recentTabIds = state.tabsInRecencyOrder(inWindow: id, max: 5).dropFirst().asArray
+        self.swipeGestureOffset = window.swipeGestureOffset
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true)]
             return
@@ -80,11 +87,7 @@ private struct WindowContent: View {
             }
             
             // Content:
-            HStack(spacing: 0) {
-                ForEach(snapshot.panes) { pane in
-                    PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
-                }
-            }
+            TabStack3D(snapshot: snapshot, topbarVisible: topbarVisible)
             .edgesIgnoringSafeArea(.all)
             .overlay(alignment: .topTrailing) {
                 ToastViewer()
@@ -137,94 +140,6 @@ private struct WindowContent: View {
         }
         if self.sidebarHovered != sidebarHovered {
             self.sidebarHovered = sidebarHovered
-        }
-    }
-}
-
-fileprivate struct PaneView: View {
-    var snapshot: WindowSnapshot.PaneSnapshot
-    var singlePane: Bool
-    var topbarVisible: Bool
-    var toolbarColorScheme: ContentColorScheme?
-    
-    @State private var searchText: String = ""
-    @State private var selectedResultIndex = 0
-    
-    @Environment(\.windowID) private var windowID
-    // Create Searcher with profile-specific history store
-    @StateObject private var searcher = Searcher()
-    @Environment(\.profileID) private var profileID
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
-    @State private var size: CGSize = .zero
-    
-    var body: some View {
-        ZStack(alignment: .top) {
-            content
-                .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
-                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
-//                .opacity(snapshot.searchActive ? 0.1 : 1)
-            
-            if snapshot.searchActive {
-                SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
-                    .padding(.top, UIConstants.macHeaderHeight)
-            }
-            
-            ToolbarView(
-                searchFocused: snapshot.searchActive,
-                webContentID: snapshot.webContentId,
-                fgColor: toolbarColorScheme?.foreground,
-                searcher: searcher,
-                searchText: $searchText,
-                selectedResultIndex: $selectedResultIndex
-            )
-                .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
-                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
-                .animation(.niceDefault, value: toolbarColorScheme)
-                .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
-//                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
-        }
-        .measureSize { self.size = $0 }
-        .overlay {
-            if snapshot.focused, !singlePane {
-                Rectangle().strokeBorder(Color.blue, lineWidth: 2)
-                    .allowsHitTesting(false)
-            }
-        }
-        .onAppearOrChange(of: profileID) { profileID in
-            searcher.profileID = profileID
-        }
-        .onChange(of: searchText) { newValue in
-            searcher.query = newValue
-            selectedResultIndex = 0 // Reset selection when query changes
-        }
-        .onChange(of: snapshot.searchActive) {
-            if !$0 {
-                searchText = ""
-            }
-        }
-        .animation(.niceDefault(duration: 0.12), value: topbarVisible)
-//        .animation(.spring(response: 0.1, dampingFraction: 0.8, blendDuration: 0.05), value: topbarVisible)
-    }
-    
-    @ViewBuilder private var content: some View {
-        ZStack {
-            if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-                WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
-//                    .opacity(snapshot.emptyPage ? 0 : 1)
-                    .overlay(alignment: .top) {
-                        loader.padding(6)
-                    }
-            } else {
-                Color.clear
-            }
-        }
-    }
-    
-    @ViewBuilder private var loader: some View {
-        if let webContentId = snapshot.webContentId, !snapshot.emptyPage {
-            WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.loadingProgress(webContentId: webContentId) }) { prog in
-                LoadingIndicator(progress: prog == 1 ? nil : prog)
-            }
         }
     }
 }

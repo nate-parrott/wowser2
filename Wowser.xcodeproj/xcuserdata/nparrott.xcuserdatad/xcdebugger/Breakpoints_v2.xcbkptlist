@@ -388,8 +388,8 @@
             filePath = "Wowser/SwipeGestureContainer.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "87"
-            endingLineNumber = "87"
+            startingLineNumber = "82"
+            endingLineNumber = "82"
             landmarkName = "touchesBegan(with:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -404,8 +404,8 @@
             filePath = "Wowser/SwipeGestureContainer.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "76"
-            endingLineNumber = "76"
+            startingLineNumber = "71"
+            endingLineNumber = "71"
             landmarkName = "mouseDown(with:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -436,8 +436,8 @@
             filePath = "Wowser/SwipeGestureContainer.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "75"
-            endingLineNumber = "75"
+            startingLineNumber = "70"
+            endingLineNumber = "70"
             landmarkName = "SwipeGestureContainer"
             landmarkType = "3">
          </BreakpointContent>
@@ -452,8 +452,8 @@
             filePath = "Wowser/SwipeGestureContainer.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "83"
-            endingLineNumber = "83"
+            startingLineNumber = "78"
+            endingLineNumber = "78"
             landmarkName = "touchesBegan(with:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -468,8 +468,8 @@
             filePath = "Wowser/SwipeGestureContainer.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "104"
-            endingLineNumber = "104"
+            startingLineNumber = "99"
+            endingLineNumber = "99"
             landmarkName = "touchesMoved(with:)"
             landmarkType = "7">
          </BreakpointContent>
