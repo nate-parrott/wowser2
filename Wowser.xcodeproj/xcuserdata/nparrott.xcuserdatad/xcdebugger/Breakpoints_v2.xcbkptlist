@@ -244,8 +244,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/ToolbarView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "128"
-            endingLineNumber = "128"
+            startingLineNumber = "129"
+            endingLineNumber = "129"
             landmarkName = "body"
             landmarkType = "24">
          </BreakpointContent>
@@ -471,6 +471,22 @@
             startingLineNumber = "99"
             endingLineNumber = "99"
             landmarkName = "touchesMoved(with:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "094C4928-D14A-41F8-A6A5-E6E27A3EED4C"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/UI/ThumbnailCache.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "73"
+            endingLineNumber = "73"
+            landmarkName = "captureAllPaneThumbnails(tabId:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

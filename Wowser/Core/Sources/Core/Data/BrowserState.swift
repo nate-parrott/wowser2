@@ -399,6 +399,13 @@ extension BrowserStore: WebContentDelegate {
 }
 
 extension BrowserState {
+    func pane(forId id: ID<WebContent>) -> Pane? {
+        if let tabId = paneToTabMapping[id], let tab = tabs[tabId] {
+            return tab.panes[id]
+        }
+        return nil
+    }
+    
     mutating func modifyPaneAndTab(forWebContentId id: ID<WebContent>, block: (inout Pane, inout Tab) -> Void) {
         if let tabId = paneToTabMapping[id], var tab = tabs[tabId], var pane = tab.panes.first(where: { $0.id == id }) {
             block(&pane, &tab)

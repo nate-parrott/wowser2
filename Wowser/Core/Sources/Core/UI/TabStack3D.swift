@@ -75,25 +75,25 @@ struct TabStack3D: View {
 //    }
     
     func cardTransition(index: Int) -> AnyTransition {
-        .opacity
-//        let height = size?.height ?? 0
-//        let insertion: AnyTransition = .offset(y: -200).combined(with: .opacity)
-//        let removal: AnyTransition
-//        let focusedIdx = max(0, cards.count - 1 - (swipeGestureOffsetAnimatable ?? 0))
-//        if index > focusedIdx {
-//            removal = .opacity // .offset(y: height + 100)
-//        } else {
-//            removal = .offset(y: -height / 2 - 100)
-//        }
-//        return .asymmetric(insertion: insertion, removal: removal)
+//        .opacity
+        let height = size?.height ?? 0
+        let insertion: AnyTransition = .offset(y: -200).combined(with: .opacity)
+        let removal: AnyTransition
+        let focusedIdx = max(0, cards.count - 1 - (swipeGestureOffsetAnimatable ?? 0))
+        if index > focusedIdx {
+            removal = .opacity // .offset(y: height + 100)
+        } else {
+            removal = .offset(y: -height / 2 - 100)
+        }
+        return .asymmetric(insertion: insertion, removal: removal)
     }
     
     func yOffset(forIndex index: Int) -> CGFloat {
         let height = size?.height ?? 0
         let focusedIdx = max(0, cards.count - 1 - (swipeGestureOffsetAnimatable ?? 0))
-        if swipeGestureOffsetAnimatable == nil {
-            return index > focusedIdx ? height + 50 : -height - 50
-        }
+//        if swipeGestureOffsetAnimatable == nil {
+//            return index > focusedIdx ? height + 50 : -height - 50
+//        }
         if index > focusedIdx {
             if index > focusedIdx + 1 {
                 return height + 100
@@ -115,8 +115,10 @@ struct TabStack3D: View {
             if card.isLive {
                 TabContentView(snapshot: snapshot, topbarVisible: topbarVisible)
             } else if let tabId = card.tabId {
-                WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first?.id }) { id in
-                    FakePaneView(webContentId: id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: nil)
+                WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
+                    if let pane {
+                        FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme)
+                    }
                 }
             }
 //            else {

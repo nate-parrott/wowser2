@@ -48,11 +48,12 @@ public struct ToolbarViewSnapshot: Equatable {
 public struct ToolbarView: View {
     var searchFocused: Bool
     var webContentID: ID<WebContent>?
-    var fgColor: HSBA?
     
     @ObservedObject var searcher: Searcher
     @Binding var searchText: String
     @Binding var selectedResultIndex: Int
+    
+    var colorScheme: ContentColorScheme?
     
     @Environment(\.windowID) private var windowID
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
@@ -73,7 +74,7 @@ public struct ToolbarView: View {
                     searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
                     selectedResultIndex: $selectedResultIndex,
                     searcher: searcher,
-                    fgColor: fgColor,
+                    fgColor: colorScheme?.foreground,
                     onFocus: activateSearchOverlay
                 )
                 
@@ -143,6 +144,9 @@ public struct ToolbarView: View {
         .onAppearOrChange(of: searchFocused, perform: { focused in
             focusDate = focused ? Date() : nil
         })
+        .modifier(WithContentColorScheme(scheme: colorScheme))
+        .compositingGroup()
+        .animation(.niceDefault, value: colorScheme)
         .id(webContentID)
     }
     

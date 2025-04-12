@@ -31,14 +31,12 @@ struct PaneView: View {
             ToolbarView(
                 searchFocused: snapshot.searchActive,
                 webContentID: snapshot.webContentId,
-                fgColor: toolbarColorScheme?.foreground,
                 searcher: searcher,
                 searchText: $searchText,
-                selectedResultIndex: $selectedResultIndex
+                selectedResultIndex: $selectedResultIndex,
+                colorScheme: toolbarColorScheme
             )
-                .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
                 .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
-                .animation(.niceDefault, value: toolbarColorScheme)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
