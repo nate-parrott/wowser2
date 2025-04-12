@@ -6,6 +6,9 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkModeEnabled = false
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
+    @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
+    
+
     
     var body: some View {
         Form {
@@ -21,6 +24,8 @@ struct SettingsView: View {
                 
                 Toggle("Animate new tabs", isOn: $animateNewTabsEnabled)
                     .help("Show animation when new tabs are loaded")
+                
+                Toggle("Save windows when quitting", isOn: $preserveWindowsAcrossRestarts)
             }
             
             AISettings()

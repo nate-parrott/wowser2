@@ -511,10 +511,13 @@ extension BrowserState {
 
 private extension BrowserState {
     mutating func processAfterLoad() {
-        windows = [:]
-//        for windowID in windows.keys {
-//            windows[windowID]?.processAfterLoad()
-//        }
+        if DefaultsKeys.preserveWindowsAcrossRestarts.boolValue() {
+            for windowID in windows.keys {
+                windows[windowID]?.processAfterLoad()
+            }
+        } else {
+            windows = [:]
+        }
     }
 }
 

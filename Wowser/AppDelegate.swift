@@ -88,17 +88,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var subscriptions = Set<AnyCancellable>()
     
     func applicationWillFinishLaunching(_ notification: Notification) {
-        GlobalHacks.hacks = MacHacks()
-        
-        Preheat.preheat()
-        
         UserDefaults.standard.register(defaults: [
             DefaultsKeys.adblock.rawValue: true,
             DefaultsKeys.autoDarkMode.rawValue: true,
             DefaultsKeys.animateNewTabs.rawValue: true,
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
+            DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
         ])
+        
+        GlobalHacks.hacks = MacHacks()
+        
+        Preheat.preheat()
         
         archiveMenuManager = ArchiveMenuManager(historyMenu: historyMenu!, bookmarksMenuItem: bookmarksMenuItem!, openURL: { [weak self] url in
             self?.openURL(url)
