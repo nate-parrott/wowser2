@@ -4,128 +4,235 @@ struct TabStack3D: View {
     var snapshot: WindowSnapshot
     var topbarVisible: Bool
     
-    @State private var cards = [Card]()
+    @StateObject private var model = TabStack3DModel()
     @State private var size: CGSize?
-    @State private var animCount = 0
-    @State private var swipeGestureOffsetAnimatable: Int?
-        
+    @Environment(\.windowID) private var windowID
+    
     var body: some View {
-        let swiping = swipeGestureOffsetAnimatable != nil
+        let (cards, selectedIdx) = model.cardsAndSelectedIndex
         ZStack {
             ForEach(cards) { card in
                 let idx = cards.firstIndex(of: card) ?? 0
                 
                 render(card: card)
                     .clipped()
-                    .rotation3DEffect(Angle(degrees: swipeGestureOffsetAnimatable != nil ? -10 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, anchorZ: 0, perspective: 1)
+                    .rotation3DEffect(Angle(degrees: model.isActive3D ? -10 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, anchorZ: 0, perspective: 1)
                     .zIndex(Double(idx))
-                    .scaleEffect(swiping ? 0.9 : 1)
-                    .offset(y: yOffset(forIndex: idx))
-                    .transition(cardTransition(index: idx))
+                    .scaleEffect(model.isActive3D ? 0.9 : 1)
+                    .offset(y: yOffset(forIndexOffset: idx - selectedIdx))
+//                    .transition(cardTransition(beforeActiveCard: idx < selectedIdx))
             }
         }
         .measureSize({ self.size = $0 })
-        .animation(.spring(), value: animCount)
+        .animation(.spring(), value: model.animCount)
 //        .animation(.spring(), value: snapshot.swipeGestureOffset)
 //        .animation(.spring(), value: cards.map(\.id))
         .onChange(of: snapshot, initial: true) { oldValue, newValue in
-            swipeGestureOffsetAnimatable = newValue.swipeGestureOffset
-            
-            if oldValue.tabId != newValue.tabId || cards.count == 0 {
-                // Ensure cards contains current tab and is marked live
-                for i in 0..<cards.count {
-                    cards[i].isLive = cards[i].tabId == newValue.tabId
-                }
-                let hasLiveTab = cards.contains(where: { $0.isLive })
-                if !hasLiveTab {
-                    cards.append(Card(id: UUID().uuidString, tabId: newValue.tabId, isLive: true))
-                }
-            }
-            
-            let isGesturing = newValue.swipeGestureOffset != nil
-            let wasGesturing = oldValue.swipeGestureOffset != nil
-            if isGesturing != wasGesturing {
-                if isGesturing {
-                    // Gesture began
-                    self.cards = newValue.recentTabIds.reversed().map({ tabId in
-                        Card(id: UUID().uuidString, tabId: tabId, isLive: false)
-                    }) + self.cards
-                }
-            }
-            
+            guard let windowID else { return }
             if oldValue.swipeGestureOffset != newValue.swipeGestureOffset {
-                animCount += 1
+                model.swipeGestureOffsetChanged(offset: newValue.swipeGestureOffset, windowID: windowID)
             }
-            
-            if newValue.swipeGestureOffset == nil {
-                // No gesture; remove unused
-                self.cards = self.cards.filter({ $0.isLive })
-            }
-            
-            // may happen if cur tab is nil?
-            if self.cards.count == 0 {
-                self.cards.append(Card(id: UUID().uuidString, tabId: newValue.tabId, isLive: true))
-                print("[TabStack3D] OOPS: no cards in stack so creating one...")
+            if oldValue.tabId != newValue.tabId {
+                model.swipeGestureActiveTabChanged(tabId: newValue.tabId)
             }
         }
     }
     
-//    var cardTransition: AnyTransition {
-//        .asymmetric(insertion: , removal: .offset(y: (size?.height ?? 0) + 100))
+//    func cardTransition(beforeActiveCard: Bool) -> AnyTransition {
+////        .opacity
+//        let height = size?.height ?? 0
+//        let insertion: AnyTransition = .offset(y: -200).combined(with: .opacity)
+//        let removal: AnyTransition
+//        if beforeActiveCard {
+//            removal = .offset(y: -(size?.height ?? 0))
+//        }
+//        return .asymmetric(insertion: insertion, removal: removal)
 //    }
     
-    func cardTransition(index: Int) -> AnyTransition {
-//        .opacity
+    func yOffset(forIndexOffset offset: Int) -> CGFloat {
         let height = size?.height ?? 0
-        let insertion: AnyTransition = .offset(y: -200).combined(with: .opacity)
-        let removal: AnyTransition
-        let focusedIdx = max(0, cards.count - 1 - (swipeGestureOffsetAnimatable ?? 0))
-        if index > focusedIdx {
-            removal = .opacity // .offset(y: height + 100)
-        } else {
-            removal = .offset(y: -height / 2 - 100)
-        }
-        return .asymmetric(insertion: insertion, removal: removal)
-    }
-    
-    func yOffset(forIndex index: Int) -> CGFloat {
-        let height = size?.height ?? 0
-        let focusedIdx = max(0, cards.count - 1 - (swipeGestureOffsetAnimatable ?? 0))
-//        if swipeGestureOffsetAnimatable == nil {
-//            return index > focusedIdx ? height + 50 : -height - 50
-//        }
-        if index > focusedIdx {
-            if index > focusedIdx + 1 {
-                return height + 100
+        
+        if model.isActive3D {
+            if offset == 0 {
+                return 0
+            } else if offset < 0 {
+                return -20 * Double(abs(offset))
+            } else {
+                return height - 100 + 50 * Double(offset - 1)
             }
-            return height - 100
+//            return Double(index - focusedIdx) * 20
+        } else {
+            // Inactive
+            if offset == 0 {
+                return 0
+            } else if offset < 0 {
+                return -200 // -height - 50
+            } else {
+                return height + 50
+            }
         }
-        return Double(index - focusedIdx) * 20
     }
     
-    struct Card: Identifiable, Equatable {
-        var id: String
-        var tabId: ID<Tab>?
-        var isLive: Bool
-    }
-    
-    @ViewBuilder func render(card: Card) -> some View {
+    @ViewBuilder private func render(card: TabStack3DModel.Card) -> some View {
         ZStack {
             Color("Background", bundle: .module)
             if card.isLive {
                 TabContentView(snapshot: snapshot, topbarVisible: topbarVisible)
-            } else if let tabId = card.tabId {
+                    .transition(.identity)
+            }
+            
+            if !card.isLive, let tabId = card.tabId {
                 WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
                     if let pane {
                         FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme)
                     }
                 }
+                .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.niceDefault(duration: 0.2).delay(0.2))))
             }
 //            else {
 //                Color("Background", bundle: .module)
 //            }
         }
         .compositingGroup()
+    }
+}
+
+private class TabStack3DModel: ObservableObject {
+    struct Card: Identifiable, Equatable {
+        var id: String
+        var tabId: ID<Tab>?
+        var isLive: Bool
+        
+        static var emptyCard: Card {
+            Card(id: UUID().uuidString, isLive: true)
+        }
+    }
+    enum State: Equatable {
+        case normal(Card)
+        case pre3d(gestureId: UUID, orderedCards: [Card], swipeOffset: Int) // looks normal but rendering cards behind for pre-transition. orderedCards[-1] is visible.
+        case active3d(gestureId: UUID, orderedCards: [Card], swipeOffset: Int) // orderedCards[-1-swipeOffset] is visible
+        case post3d(gestureId: UUID, orderedCards: [Card], swipeOffset: Int)
+    }
+    @Published private(set) var state: State = .normal(.emptyCard)
+    @Published private(set) var animCount = 0
+    
+    func swipeGestureOffsetChanged(offset: Int?, windowID: ID<WindowState>) {
+        if let offset {
+            // Gesture should be active
+            switch state {
+            case .normal(let card):
+                // Transition to pre3d, then active 3d
+                let newCards = BrowserStore.shared.model.tabsInRecencyOrder(inWindow: windowID, max: 5)
+                    .map { tabId in
+                        if card.tabId == tabId {
+                            return card
+                        } else {
+                            return Card(id: UUID().uuidString, tabId: tabId, isLive: false)
+                        }
+                    }.reversed().asArray
+                let gestureId = UUID()
+                self.state = .pre3d(gestureId: gestureId, orderedCards: newCards, swipeOffset: offset)
+                DispatchQueue.main.asyncAfter(deadline: .now()) {
+                    self.transitionToActive3dFromPre3dState(ifGestureIdStill: gestureId)
+                }
+            case .pre3d(let gestureId, let orderedCards, _):
+                // Just update the offset
+                self.state = .pre3d(gestureId: gestureId, orderedCards: orderedCards, swipeOffset: offset)
+            case .active3d(let gestureId, let orderedCards, _):
+                // Just update the offset
+                self.state = .active3d(gestureId: gestureId, orderedCards: orderedCards, swipeOffset: offset)
+                animCount += 1
+            case .post3d(let gestureId, let orderedCards, _):
+                // Just update the offset
+                self.state = .post3d(gestureId: gestureId, orderedCards: orderedCards, swipeOffset: offset)
+            }
+        } else {
+            // Gesture should end
+            switch state {
+            case .normal(_): () // Already in correct state
+            case .pre3d(_, let orderedCards, _):
+                // Can end immediately
+                state = .normal(orderedCards.last ?? .emptyCard)
+            case .active3d(let gestureId, let orderedCards, let swipeOffset):
+                // End
+                self.state = .post3d(gestureId: gestureId, orderedCards: orderedCards, swipeOffset: swipeOffset)
+                self.animCount += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.returnToNormalFromPost3dState(ifGestureIdStill: gestureId)
+                }
+            case .post3d(let gestureId, _, _):
+                returnToNormalFromPost3dState(ifGestureIdStill: gestureId)
+            }
+        }
+    }
+    
+    var cardsAndSelectedIndex: ([Card], Int) {
+        switch state {
+        case .normal(let card):
+            return ([card], 0)
+        case .pre3d(_, let orderedCards, _):
+            // We store the swipe offset but do NOT render it yet
+            return (orderedCards, orderedCards.count - 1) // orderedCards.count - 1 - swipeOffset)
+        case .active3d(_, let orderedCards, let swipeOffset):
+            return (orderedCards, orderedCards.count - 1 - swipeOffset)
+        case .post3d(_, let orderedCards, let swipeOffset):
+            return (orderedCards, orderedCards.count - 1 - swipeOffset)
+        }
+    }
+    
+    var isActive3D: Bool {
+        if case .active3d = state {
+            return true
+        }
+        return false
+    }
+    
+    func swipeGestureActiveTabChanged(tabId: ID<Tab>?) {
+        switch state {
+        case .normal(let card):
+            if card.tabId == tabId {
+                // no change
+            } else {
+                state = .normal(Card(id: UUID().uuidString, tabId: tabId, isLive: true))
+            }
+        case .pre3d(let gestureId, let orderedCards, let swipeOffset):
+            state = .pre3d(gestureId: gestureId, orderedCards: updateCardList(orderedCards, toReflectActiveTabId: tabId), swipeOffset: swipeOffset)
+        case .active3d(let gestureId, let orderedCards, let swipeOffset):
+            state = .active3d(gestureId: gestureId, orderedCards: updateCardList(orderedCards, toReflectActiveTabId: tabId), swipeOffset: swipeOffset)
+            animCount += 1
+        case .post3d(let gestureId, let orderedCards, let swipeOffset):
+            state = .post3d(gestureId: gestureId, orderedCards: updateCardList(orderedCards, toReflectActiveTabId: tabId), swipeOffset: swipeOffset)
+            animCount += 1
+        }
+    }
+    
+    private func updateCardList(_ cards: [Card], toReflectActiveTabId selectedTabId: ID<Tab>?) -> [Card] {
+        var cards = cards.map { card in
+            var c = card
+            c.isLive = selectedTabId == card.tabId
+            return c
+        }
+        if !cards.contains(where: { $0.isLive }) {
+            cards.append(Card(id: UUID().uuidString, tabId: selectedTabId, isLive: true))
+        }
+        return cards
+    }
+    
+    private func transitionToActive3dFromPre3dState(ifGestureIdStill id: UUID) {
+        if case .pre3d(let gestureId, let orderedCards, let swipeOffset) = state, gestureId == id {
+            self.state = .active3d(gestureId: gestureId, orderedCards: orderedCards, swipeOffset: swipeOffset)
+            self.animCount += 1
+        }
+    }
+    
+    private func returnToNormalFromPost3dState(ifGestureIdStill id: UUID) {
+        if case .post3d(let gestureId, let orderedCards, let swipeOffset) = self.state, gestureId == id {
+            if let selectedCard = orderedCards.get(orderedCards.count - 1 - swipeOffset) {
+                state = .normal(selectedCard)
+            } else {
+                state = .normal(.emptyCard)
+            }
+        }
     }
 }
 
@@ -141,56 +248,3 @@ struct TabContentView: View {
         }
     }
 }
-
-//struct TabStack3D: View {
-//    var snapshot: WindowSnapshot.PaneSnapshot
-//    var singlePane: Bool
-//    var topbarVisible: Bool
-//    var toolbarColorScheme: ContentColorScheme?
-//    
-//    @Environment(\.windowID) private var windowID
-//
-//    var body: some View {
-//        PaneView(snapshot: snapshot, singlePane: singlePane, topbarVisible: topbarVisible, toolbarColorScheme: toolbarColorScheme)
-//    }
-//    
-//    @ViewBuilder func render(webContentId: ID<WebContent>, real: Bool) -> some View {
-//        if real {
-//            PaneView(snapshot: snapshot, singlePane: singlePane, topbarVisible: topbarVisible, toolbarColorScheme: toolbarColorScheme)
-//        } else {
-//            FakePaneView(snapshot: snapshot, singlePane: singlePane, topbarVisible: topbarVisible, toolbarColorScheme: toolbarColorScheme)
-//        }
-//    }
-//}
-
-//private class TabStack3DModel: ObservableObject {
-//    @Published
-//    @Published private(set) var currentWebContentId: ID<WebContent>?
-//    @Published private(set) var orderedWebContents = Set<ID<WebContent>>()
-//}
-
-//private struct TabStack3DModel: Equatable {
-//    private(set) var gestureOffset: Int?
-//    private(set) var currentWebContentId: ID<WebContent>?
-//    private(set) var orderedWebContents = Set<ID<WebContent>>()
-//}
-//
-//private struct TabStackInputSnapshot: Equatable {
-//    var gestureOffset: Int?
-//    var currentWebContentId: ID<WebContent>?
-//    var previousWebContent: [ID<WebContent>] // in most-recently-used order, only set if gesture is active
-//}
-//
-//private extension BrowserState {
-//    func tabStackInputSnapshot(forWindowID id: ID<WindowState>?, curWebContentId: ID<WebContent>?) -> TabStackInputSnapshot {
-//        guard let id, let win = windows[id] else {
-//            return .init(previousWebContent: [])
-//        }
-//        // TODO: be split-view aware
-//        return .init(
-//            gestureOffset: win.swipeGestureOffset,
-//            currentWebContentId: curWebContentId,
-//            previousWebContent: <#T##[ID<WebContent>]#>
-//        )
-//    }
-//}

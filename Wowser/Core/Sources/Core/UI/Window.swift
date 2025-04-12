@@ -35,7 +35,6 @@ struct WindowSnapshot: Equatable {
     var profileID: ID<Profile>
     var sidebarLocked: Bool
     var swipeGestureOffset: Int?
-    var recentTabIds: [ID<Tab>]
     var anyPaneHasSearchActive: Bool {
         panes.filter({ $0.searchActive }).count > 0
     }
@@ -45,13 +44,11 @@ struct WindowSnapshot: Equatable {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
-            self.recentTabIds = []
             return
         }
         self.sidebarLocked = window.sidebarLocked
         self.tabId = window.currentTab
         self.profileID = window.profile
-        self.recentTabIds = state.tabsInRecencyOrder(inWindow: id, max: 5).dropFirst().asArray
         self.swipeGestureOffset = window.swipeGestureOffset
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true)]
@@ -92,9 +89,9 @@ private struct WindowContent: View {
             .overlay(alignment: .topTrailing) {
                 ToastViewer()
             }
-            .overlay(alignment: .topTrailing) {
-                SwipeDebugView()
-            }
+//            .overlay(alignment: .topTrailing) {
+//                SwipeDebugView()
+//            }
         }
         .overlay(alignment: .leading) {
             if !snapshot.sidebarLocked {

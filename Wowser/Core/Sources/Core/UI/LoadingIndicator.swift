@@ -62,7 +62,7 @@ private struct LoadingBar: View {
                 Capsule().strokeBorder(Color.white, lineWidth: 0.5)
                     .opacity(0.1)
             }
-            .shadow(color: Color(hex: 0x404080, alpha: 0.4), radius: 6, x: 0, y: 0)
+            .shadow(color: Color(hex: 0x404080, alpha: 0.25), radius: 6, x: 0, y: 0)
             .frame(width: geo.size.width * driver.displayProgress, height: 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .animation(.spring(duration: driver.displayProgress == 1 ? 0.15 : 0.3, bounce: 0, blendDuration: 0.2), value: driver.displayProgress)
