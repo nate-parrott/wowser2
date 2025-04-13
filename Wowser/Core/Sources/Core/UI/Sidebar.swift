@@ -201,6 +201,36 @@ private struct GroupHeader: View {
     }
 }
 
+private enum TabListCell: Equatable, Identifiable {
+    case header(id: String, name: String?) // if name is nil, .render as divider
+    case tabID(ID<Tab>)
+    
+    var id: String {
+        switch self {
+        case .header(let id, _):
+            return id
+        case .tabID(let id):
+            return id.raw
+        }
+    }
+    
+    static func cellsFrom(groups: [TabGroup]) -> [TabListCell] {
+        var cells = [TabListCell]()
+        var isFirst = true
+        for group in groups {
+            if let name = group.name {
+                cells.append(.header(id: "header:" + group.id, name: name))
+            } else if !isFirst {
+                // Append non-textual (divider) header
+                cells.append(.header(id: "header:" + group.id, name: nil))
+            }
+            cells += group.tabIDs.map { TabListCell.tabID($0) }
+            isFirst = false
+        }
+        return cells
+    }
+}
+
 // Grouped tabs section
 private struct GroupedTabsView: View {
     let tabGroups: [TabGroup]
@@ -208,43 +238,38 @@ private struct GroupedTabsView: View {
     let windowID: ID<WindowState>
     
     var body: some View {
+        let cells: [TabListCell] = TabListCell.cellsFrom(groups: tabGroups)
         ScrollViewReader { scrollProxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(tabGroups) { group in
-                        let isFirstGroup = group == tabGroups[0]
-                        // Group header
-                        if let name = group.name {
-                            GroupHeader(name: name)
-                        } else if !isFirstGroup {
-                            Divider()
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 3)
-                        }
-                        
-                        // Tabs in this group
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(group.tabIDs) { tabID in
-                                RegularTabRow(
-                                    tabID: tabID,
-                                    isSelected: tabID == currentTabID,
-                                    windowID: windowID
-                                )
-                                .id(tabID)
-                                .sidebarDropTarget { point, bounds in
-                                    // Drop before this tab in the window's regular tabs
-                                    return .ordinaryTabs(window: windowID, before: tabID)
-                                }
+                    ForEach(cells) { cell in
+                        switch cell {
+                        case .header(id: _, name: let name):
+                            if let name {
+                                GroupHeader(name: name)
+                            } else {
+                                Divider()
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 6)
+                            }
+                        case .tabID(let tabID):
+                            RegularTabRow(
+                                tabID: tabID,
+                                isSelected: tabID == currentTabID,
+                                windowID: windowID
+                            )
+                            .sidebarDropTarget { point, bounds in
+                                // Drop before this tab in the window's regular tabs
+                                return .ordinaryTabs(window: windowID, before: tabID)
                             }
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
                     }
                     
                     if tabGroups.isEmpty {
                         Color.clear
                     }
                 }
+                .animation(.niceDefault(duration: 0.12), value: tabGroups)
             }
             // Background drop target for the entire area
             .sidebarDropTarget { point, bounds in

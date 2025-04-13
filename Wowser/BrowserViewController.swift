@@ -136,7 +136,10 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         } else {
             // No tab active, close window
             view.window?.close()
-            
+        }
+        
+        BrowserStore.shared.modify { state in
+            state.windows[windowID]?.searchOverlayActive = false
         }
     }
     
