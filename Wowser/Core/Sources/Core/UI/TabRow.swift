@@ -23,6 +23,7 @@ struct RegularTabRow: View {
                     isHovered: isHovered,
                     windowID: windowID
                 )
+                .help(snapshot.displayName)
                 .contentShape(Rectangle())
                 .onHover { hovering in
                     isHovered = hovering
