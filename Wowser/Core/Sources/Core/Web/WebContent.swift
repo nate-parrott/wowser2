@@ -161,6 +161,9 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
         observers.append(webview.observe(\.underPageBackgroundColor, options: [.new], changeHandler: { [weak self] _, val in
             self?.refreshAutoDarkMode()
+//            if let self {
+//                self.info.topColor = self.webview.underPageBackgroundColor.hsba
+//            }
         }))
 
 
@@ -342,6 +345,10 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         needsMetadataRefresh()
+        // Trigger a final refresh a bit later, just in case stuff hasn't rendered yet
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.needsMetadataRefresh()
+        }
     }
     
     public func webViewDidClose(_ webView: WKWebView) {
@@ -487,13 +494,19 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     }
 
     // MARK: - Metadata
+    private var _mdRefreshScheduled = false
     private func needsMetadataRefresh() {
+        if _mdRefreshScheduled { return }
+        _mdRefreshScheduled = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             self.refreshMetadataNow()
         }
     }
 
+    // do not call directly; call needsMetadataRefresh
     private func refreshMetadataNow() {
+        self._mdRefreshScheduled = false
+        
         var info = self.info
         info.url = webview.url
         info.title = webview.title
@@ -516,7 +529,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             updateInjectedCode()
         }
         
-        // Capture the top portion of the page to determine dominant color
+//         Capture the top portion of the page to determine dominant color
         Task {
             guard let hsba = await webview.extractTopDominantColor() else {
                 return
@@ -546,6 +559,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         let applyAutoDark = autoDarkMode && !info.inferredDarkMode && colorScheme == .dark
         if applyAutoDark != info.autoDarkModeApplied {
             info.autoDarkModeApplied = applyAutoDark
+            self.needsMetadataRefresh() // If we are about to change auto-dark status, let's trigger a refresh
         }
         if applyAutoDark {
             injectedStyles.append("""

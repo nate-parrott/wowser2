@@ -26,7 +26,7 @@ struct SidebarDropTarget: ViewModifier {
                         .stroke(Color.accentColor, lineWidth: 2)
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: isTargeted)
+//            .animation(.easeInOut(duration: 0.2), value: isTargeted)
     }
     
     private func handleDrop(tabIDString: String, at point: CGPoint) {

@@ -30,7 +30,7 @@ struct DropToCreateSplitViewTarget: ViewModifier {
                     }
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: isTargeted)
+//            .animation(.easeInOut(duration: 0.2), value: isTargeted)
     }
     
     private func handleDrop(tabIDString: String) {
