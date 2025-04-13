@@ -5,6 +5,17 @@ class WebContentWebView: WKWebView {
     var onDarkModeChanged: ((Bool) -> Void)?
     var onBecomeFirstResponder: (() -> Void)?
     
+    func updateFrameEvenWhileShrunk(_ frame: CGRect) {
+        if let layer {
+            let t = layer.transform
+            layer.transform = .init()
+            self.frame = frame
+            layer.transform = t
+        } else {
+            self.frame = frame
+        }
+    }
+    
     var shrunk: Bool = false {
         didSet {
             if shrunk != oldValue {

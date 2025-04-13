@@ -10,7 +10,8 @@ struct WithContentColorScheme: ViewModifier {
     var scheme: ContentColorScheme?
     
     func body(content: Content) -> some View {
-        content.background(scheme?.background.color ?? Color("Background", bundle: .module))
+        content
+            .background(scheme?.background.color ?? Color("Background", bundle: .module))
             .foregroundColor(scheme?.foreground.color)
     }
 }

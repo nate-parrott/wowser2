@@ -24,13 +24,15 @@ struct WebViewRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> some NSView {
         let container = WebviewContainer()
         container.webview = webContent.webview
-        container.webview?.shrunk = shrunk
+        container.shrunk = shrunk
+//        container.webview?.shrunk = shrunk
         return container
     }
     
     func updateNSView(_ nsView: NSViewType, context: Context) {
-        if let webview = nsView as? WebviewContainer {
-            webview.webview?.shrunk = shrunk
+        if let container = nsView as? WebviewContainer {
+            container.shrunk = shrunk
+//            webview.webview?.shrunk = shrunk
         }
     }
 }
@@ -53,6 +55,22 @@ private class WebviewContainer: UINSView {
                 }
                 if let webview {
                     addSubview(webview)
+                    webview.isHidden = shrunk
+                }
+            }
+        }
+    }
+    
+    var shrunk: Bool = false {
+        didSet {
+            if shrunk != oldValue {
+                if shrunk {
+                    webview?.isHidden = true
+                } else {
+                    // disabling shrunk
+                    webview?.shrunk = true // this is not animated
+                    webview?.isHidden = false
+                    webview?.shrunk = false // this animates
                 }
             }
         }
@@ -62,6 +80,21 @@ private class WebviewContainer: UINSView {
     override func layout() {
         super.layout()
         webview?.frame = bounds
+//        webview?.setFrameSize(bounds.size)
+//        if let webview {
+//            if webview.shrunk {
+//                webview.shrunk = false
+//                webview.frame = bounds
+//                webview.shrunk = true
+//            } else {
+//                webview.frame = bounds
+//            }
+//        }
+//        webview?.setBoundsSize(bounds.size)
+//        webview?.layer?.bounds = bounds
+//        webview?.layer?.position = CGPoint(x: bounds.midX, y: bounds.midY)
+//        webview?.updateFrameEvenWhileShrunk(bounds)
+        
     }
     #else
     override func layoutSubviews() {

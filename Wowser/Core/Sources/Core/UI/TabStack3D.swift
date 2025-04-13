@@ -75,7 +75,8 @@ struct TabStack3D: View {
     
     @ViewBuilder private func render(card: TabStack3DModel.Card) -> some View {
         ZStack {
-            Color("Background", bundle: .module)
+//            Color("Background", bundle: .module)
+//                .opacity(0.5)
             if card.isLive {
                 TabContentView(snapshot: snapshot, topbarVisible: topbarVisible)
                     .transition(.identity)
@@ -244,6 +245,7 @@ struct TabContentView: View {
         HStack(spacing: 0) {
             ForEach(snapshot.panes) { pane in
                 PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
+                    .dropToCreateSplitViewTarget(paneId: pane.webContentId)
             }
         }
     }
