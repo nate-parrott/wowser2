@@ -99,6 +99,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     public init(id: ID<WebContent>?, profileUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
         self.id = id ?? .assign()
         let config = config ?? WKWebViewConfiguration()
+        config.preferences.isElementFullscreenEnabled = true
         if #available(macOS 14.0, *) {
             config.preferences.inactiveSchedulingPolicy = .throttle
             // https://stackoverflow.com/questions/78758812/wkwebview-oauth-popup-misses-window-opener-in-ios-17-5
