@@ -74,6 +74,19 @@ struct TabSnapshot: Equatable {
             result.iconType = .sfSymbol("magnifyingglass")
         }
         
+        // Handle DuckDuckGo "I'm feeling lucky" pages
+        if let url = self.url, url.parsedAsDuckDuckGoLuckyQuery != nil {
+            result.displayName = ""
+            result.iconType = .empty
+        }
+        
+        if let url, url.hasRootHost("duckduckgo.com"), url.path == "/l" {
+            result.iconType = .empty
+            result.displayName = ""
+        }
+//        print("[URL] \(url); icon: \(result.iconType)")
+        
+        
         // Add more preprocessing rules here
         
         return result

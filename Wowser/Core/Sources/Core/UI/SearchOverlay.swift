@@ -138,7 +138,7 @@ private struct SearchResultRow: View {
         case .searchSuggestion:
             return nil
         case .imFeelingLucky:
-            return "Go Direct"
+            return "Direct to Website"
         case .chatbot:
             return "Chat"
         case .historyItem(let item):

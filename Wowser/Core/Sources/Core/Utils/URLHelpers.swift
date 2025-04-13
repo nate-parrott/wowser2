@@ -183,6 +183,31 @@ extension URL {
         guard path == "/search" || path == "/webhp" else { return nil }
         return queryParam(name: "q")?.nilIfEmpty
     }
+    
+    public var parsedAsDuckDuckGoLuckyQuery: String? {
+        guard hasRootHost("duckduckgo.com") else { return nil }
+        guard let query = queryParam(name: "q") else { return nil }
+        
+        // Check if it's a backslash query (I'm feeling lucky format)
+        if query.hasPrefix("\\") {
+            // %5C is the escaped backslash
+            let decodedQuery = String(query.dropFirst(1))
+            return decodedQuery.removingPercentEncoding
+        }
+        
+        return nil
+    }
+    
+    /// Creates a DuckDuckGo "I'm feeling lucky" URL
+    /// - Parameter query: The search query
+    /// - Returns: URL for a "I'm feeling lucky" search
+    public static func duckDuckGoLuckyURL(for query: String) -> URL? {
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        let backslashQuery = "%5C" + encodedQuery
+        return URL(string: "https://duckduckgo.com/?q=\(backslashQuery)")
+    }
 }
 
 private func shouldDropQueryItemForHistoryKey(_ name: String, val: String?) -> Bool {

@@ -69,12 +69,8 @@ extension BrowserStore {
     
     // Perform "I'm feeling lucky" search
     private func performImFeelingLucky(_ query: String, windowID: ID<WindowState>) {
-        // DuckDuckGo's "I'm feeling lucky" URL format
-        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            let backslashQuery = "%5C" + encodedQuery
-            if let luckyURL = URL(string: "https://duckduckgo.com/?q=\(backslashQuery)") {
-                loadURL(luckyURL, windowID: windowID)
-            }
+        if let luckyURL = URL.duckDuckGoLuckyURL(for: query) {
+            loadURL(luckyURL, windowID: windowID)
         }
     }
     

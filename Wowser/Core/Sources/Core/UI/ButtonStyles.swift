@@ -136,6 +136,7 @@ public extension Button {
     }    
 }
 
+// cant be a real button b/c it breaks drag and drop on mac
 struct TabStyleButtonModifier: ViewModifier {
     var isSelected: Bool
     var pressed: () -> Void
@@ -158,6 +159,7 @@ struct TabStyleButtonModifier: ViewModifier {
                 }
             }
             .padding(.horizontal, 6)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
             .onTapGesture {
                 pressed()
