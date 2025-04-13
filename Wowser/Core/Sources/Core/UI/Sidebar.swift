@@ -25,6 +25,13 @@ public struct Sidebar: View {
     }
 }
 
+// Helper struct to represent a tab group for the sidebar
+private struct TabGroup: Equatable, Identifiable {
+    var id: String
+    var name: String?
+    var tabIDs: [ID<Tab>]
+}
+
 // Define a minimal snapshot struct for sidebar data
 private struct SidebarSnapshot: Equatable {
     let windowID: ID<WindowState>
@@ -32,7 +39,7 @@ private struct SidebarSnapshot: Equatable {
     
     // List of favorite and regular tab IDs
     let favoriteTabIDs: [ID<Tab>]
-    let regularTabIDs: [ID<Tab>]
+    let regularTabGroups: [TabGroup]
     
     // Current tab ID
     let currentTabID: ID<Tab>?
@@ -60,8 +67,47 @@ private struct SidebarSnapshot: Equatable {
         }
         self.favoriteTabIDs = favoriteIDs
         
-        // Extract regular tabs
-        self.regularTabIDs = window?.tabs ?? []
+        // Process tabs in their original order but add headers when group changes
+        let regularTabIDs = window?.tabs ?? []
+        var tabGroups: [TabGroup] = []
+        var currentGroupName: String? = nil
+        var currentGroupTabs: [ID<Tab>] = []
+        
+        // Go through tabs one by one in their original order
+        for tabID in regularTabIDs {
+            let tabGroupName = tabs[tabID]?.aiTags?.groupName
+            
+            // If the group changed or this is the first tab
+            if tabGroupName != currentGroupName {
+                // Save the previous group if it has tabs
+                if !currentGroupTabs.isEmpty {
+                    tabGroups.append(TabGroup(
+                        id: "group-\(currentGroupName ?? "")-\(tabGroups.count)", // Make ID unique with count
+                        name: currentGroupName,
+                        tabIDs: currentGroupTabs
+                    ))
+                }
+                
+                // Start a new group
+                currentGroupName = tabGroupName
+                currentGroupTabs = [tabID]
+            } else {
+                // Add to current group
+                currentGroupTabs.append(tabID)
+            }
+        }
+        
+        // Add the last group if it has tabs
+        if !currentGroupTabs.isEmpty {
+            let name = currentGroupName ?? "New Tabs"
+            tabGroups.append(TabGroup(
+                id: "group-\(name)-\(tabGroups.count)",
+                name: name,
+                tabIDs: currentGroupTabs
+            ))
+        }
+        
+        self.regularTabGroups = tabGroups
         
         // Check if there are downloads
         self.hasDownloads = !(window?.downloads.isEmpty ?? true)
@@ -89,18 +135,9 @@ private struct SidebarContent: View {
             
 //            Divider()
             
-            // Research section
-            Text("New Tabs")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Regular tabs section
-            RegularTabsView(
-                tabIDs: snapshot.regularTabIDs,
+            // Regular tabs section with group headers
+            GroupedTabsView(
+                tabGroups: snapshot.regularTabGroups,
                 currentTabID: snapshot.currentTabID,
                 windowID: snapshot.windowID
             )
@@ -145,32 +182,62 @@ private struct SidebarContent: View {
     }
 }
 
-// Regular tabs section
-private struct RegularTabsView: View {
-    let tabIDs: [ID<Tab>]
+private struct GroupHeader: View {
+    var name: String
+    
+    var body: some View {
+        Text(name)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// Grouped tabs section
+private struct GroupedTabsView: View {
+    let tabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
     let windowID: ID<WindowState>
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(tabIDs) { tabID in
-                    RegularTabRow(
-                        tabID: tabID,
-                        isSelected: tabID == currentTabID,
-                        windowID: windowID
-                    )
-                    .sidebarDropTarget { point, bounds in
-                        // Drop before this tab in the window's regular tabs
-                        return .ordinaryTabs(window: windowID, before: tabID)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(tabGroups) { group in
+                    let isFirstGroup = group == tabGroups[0]
+                    // Group header
+                    if let name = group.name {
+                        GroupHeader(name: name)
+                    } else if !isFirstGroup {
+                        Divider()
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 3)
                     }
+                    
+                    // Tabs in this group
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(group.tabIDs) { tabID in
+                            RegularTabRow(
+                                tabID: tabID,
+                                isSelected: tabID == currentTabID,
+                                windowID: windowID
+                            )
+                            .sidebarDropTarget { point, bounds in
+                                // Drop before this tab in the window's regular tabs
+                                return .ordinaryTabs(window: windowID, before: tabID)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
-                if tabIDs.isEmpty {
+                
+                if tabGroups.isEmpty {
                     Color.clear
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
         }
         // Background drop target for the entire area
         .sidebarDropTarget { point, bounds in
@@ -283,18 +350,21 @@ private struct RegularTabButton: View {
                 faviconURL: tab.panes.first?.info.favicon
             )
             
-            // Title with truncation
+            // Title with truncation and optional group name
             VStack(alignment: .leading, spacing: 0) {
                 Text(getTabTitle(tab: tab))
                     .truncationMode(.tail)
+                    .lineLimit(1)
                 
-//                if isSelected, let host = tab.panes.first?.info.url?.hostWithoutWWW {
-//                    Text(host)
-//                        .font(.system(.caption, weight: .medium))
-//                        .truncationMode(.middle)
+//                // Display group name as a subtitle if available
+//                if let aiTags = tab.aiTags {
+//                    Text(aiTags.groupName)
+//                        .font(.system(size: 9, weight: .medium))
+//                        .foregroundColor(.secondary)
+//                        .truncationMode(.tail)
+//                        .lineLimit(1)
 //                }
             }
-            .lineLimit(1)
             
             Spacer()
             

@@ -740,6 +740,13 @@
                                                 <action selector="arrangeInFront:" target="Ady-hI-5gd" id="DRN-fu-gQh"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="S9a-Kc-zze"/>
+                                        <menuItem title="Auto-Organize Tabs" id="6B0-j2-Hdd">
+                                            <modifierMask key="keyEquivalentModifierMask"/>
+                                            <connections>
+                                                <action selector="organizeTabs:" target="Ady-hI-5gd" id="ZkK-dH-TwB"/>
+                                            </connections>
+                                        </menuItem>
                                     </items>
                                 </menu>
                             </menuItem>

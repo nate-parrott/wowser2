@@ -29,6 +29,8 @@ struct SettingsView: View {
             }
             
             AISettings()
+            
+            DebugSettings()
         }
         .formStyle(.grouped)
         .padding()
@@ -136,5 +138,15 @@ struct AISettings: View {
 extension Binding where Value == Bool {
     func not() -> Binding<Bool> {
         .init(get: { !self.wrappedValue }, set: { self.wrappedValue = !$0 })
+    }
+}
+
+struct DebugSettings: View {
+    var body: some View {
+        Section("Debug") {
+            Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
+                Text("Clear AI tags")
+            }
+        }
     }
 }

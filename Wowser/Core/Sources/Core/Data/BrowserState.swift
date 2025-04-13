@@ -34,15 +34,20 @@ public struct Tab: Equatable, Identifiable, Codable {
     }
     public var lastAccessed: Date
     public var lastActiveInWindow: Core.ID<WindowState>?
-    public var aiLabel: String?
+    public var aiTags: AITags?
     public var focusedPaneIdx = 0
     
-    public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiLabel: String? = nil) {
+    public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
         self.panes = .init(items: panes)
         self.lastAccessed = lastAccessed
-        self.aiLabel = aiLabel
+        self.aiTags = aiTags
     }
+}
+
+public struct AITags: Equatable, Codable {
+    public var historyKeyWhenFetched: String
+    public var groupName: String
 }
 
 // MARK: - Tab Creation Helpers
