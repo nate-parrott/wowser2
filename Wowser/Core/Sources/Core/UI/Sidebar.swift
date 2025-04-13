@@ -73,38 +73,43 @@ private struct SidebarSnapshot: Equatable {
         var currentGroupName: String? = nil
         var currentGroupTabs: [ID<Tab>] = []
         
-        // Go through tabs one by one in their original order
-        for tabID in regularTabIDs {
-            let tabGroupName = tabs[tabID]?.aiTags?.groupName
-            
-            // If the group changed or this is the first tab
-            if tabGroupName != currentGroupName {
-                // Save the previous group if it has tabs
-                if !currentGroupTabs.isEmpty {
-                    tabGroups.append(TabGroup(
-                        id: "group-\(currentGroupName ?? "")-\(tabGroups.count)", // Make ID unique with count
-                        name: currentGroupName,
-                        tabIDs: currentGroupTabs
-                    ))
-                }
+        if regularTabIDs.count < UIConstants.autoOrgMinTabCount {
+            tabGroups = [TabGroup(id: "0", tabIDs: regularTabIDs)]
+        } else {
+            // we have enough to make groups
+            // Go through tabs one by one in their original order
+            for tabID in regularTabIDs {
+                let tabGroupName = tabs[tabID]?.aiTags?.groupName
                 
-                // Start a new group
-                currentGroupName = tabGroupName
-                currentGroupTabs = [tabID]
-            } else {
-                // Add to current group
-                currentGroupTabs.append(tabID)
+                // If the group changed or this is the first tab
+                if tabGroupName != currentGroupName {
+                    // Save the previous group if it has tabs
+                    if !currentGroupTabs.isEmpty {
+                        tabGroups.append(TabGroup(
+                            id: "group-\(currentGroupName ?? "")-\(tabGroups.count)", // Make ID unique with count
+                            name: currentGroupName,
+                            tabIDs: currentGroupTabs
+                        ))
+                    }
+                    
+                    // Start a new group
+                    currentGroupName = tabGroupName
+                    currentGroupTabs = [tabID]
+                } else {
+                    // Add to current group
+                    currentGroupTabs.append(tabID)
+                }
             }
-        }
-        
-        // Add the last group if it has tabs
-        if !currentGroupTabs.isEmpty {
-            let name = currentGroupName ?? "New Tabs"
-            tabGroups.append(TabGroup(
-                id: "group-\(name)-\(tabGroups.count)",
-                name: name,
-                tabIDs: currentGroupTabs
-            ))
+            
+            // Add the last group if it has tabs
+            if !currentGroupTabs.isEmpty {
+                let name = currentGroupName ?? "New Tabs"
+                tabGroups.append(TabGroup(
+                    id: "group-\(name)-\(tabGroups.count)",
+                    name: name,
+                    tabIDs: currentGroupTabs
+                ))
+            }
         }
         
         self.regularTabGroups = tabGroups
@@ -203,46 +208,65 @@ private struct GroupedTabsView: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(tabGroups) { group in
-                    let isFirstGroup = group == tabGroups[0]
-                    // Group header
-                    if let name = group.name {
-                        GroupHeader(name: name)
-                    } else if !isFirstGroup {
-                        Divider()
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 3)
-                    }
-                    
-                    // Tabs in this group
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(group.tabIDs) { tabID in
-                            RegularTabRow(
-                                tabID: tabID,
-                                isSelected: tabID == currentTabID,
-                                windowID: windowID
-                            )
-                            .sidebarDropTarget { point, bounds in
-                                // Drop before this tab in the window's regular tabs
-                                return .ordinaryTabs(window: windowID, before: tabID)
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(tabGroups) { group in
+                        let isFirstGroup = group == tabGroups[0]
+                        // Group header
+                        if let name = group.name {
+                            GroupHeader(name: name)
+                        } else if !isFirstGroup {
+                            Divider()
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 3)
+                        }
+                        
+                        // Tabs in this group
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(group.tabIDs) { tabID in
+                                RegularTabRow(
+                                    tabID: tabID,
+                                    isSelected: tabID == currentTabID,
+                                    windowID: windowID
+                                )
+                                .id(tabID)
+                                .sidebarDropTarget { point, bounds in
+                                    // Drop before this tab in the window's regular tabs
+                                    return .ordinaryTabs(window: windowID, before: tabID)
+                                }
                             }
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                }
-                
-                if tabGroups.isEmpty {
-                    Color.clear
+                    
+                    if tabGroups.isEmpty {
+                        Color.clear
+                    }
                 }
             }
-        }
-        // Background drop target for the entire area
-        .sidebarDropTarget { point, bounds in
-            // Drop at the end of the window's regular tabs
-            return .ordinaryTabs(window: windowID, before: nil)
+            // Background drop target for the entire area
+            .sidebarDropTarget { point, bounds in
+                // Drop at the end of the window's regular tabs
+                return .ordinaryTabs(window: windowID, before: nil)
+            }
+            .onChange(of: currentTabID) { newTabID in
+                if let newTabID = newTabID {
+                    withAnimation(.niceDefault) {
+                        scrollProxy.scrollTo(newTabID, anchor: nil)
+                    }
+                }
+            }
+            .onAppear {
+                if let currentTabID {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation {
+                            scrollProxy.scrollTo(currentTabID, anchor: nil)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -288,114 +312,6 @@ private struct SidebarBottomButtons: View {
     func focus() {
         // No-op for now
         // Will implement focus mode functionality in the future
-    }
-}
-
-// Individual regular tab row that looks up its own data by ID
-private struct RegularTabRow: View {
-    let tabID: ID<Tab>
-    let isSelected: Bool
-    let windowID: ID<WindowState>
-    @State private var isHovered = false
-    
-    var body: some View {
-        // Look up the data from BrowserStore
-        WithSnapshot(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { (tab: Tab??) in
-            if let tab = tab ?? nil {
-                RegularTabButton(
-                    tabID: tabID,
-                    tab: tab,
-                    isSelected: isSelected,
-                    isHovered: isHovered,
-                    windowID: windowID
-                )
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isHovered = hovering
-                }
-                .onDrag {
-                    // WARNING: onDrag appears to leak the hosting view when clicked
-                    // Create a drag item with the tab ID as text
-                    NSItemProvider(object: tabID.raw as NSString)
-                }
-            }
-        }
-    }
-}
-
-
-// Regular tab button component
-private struct RegularTabButton: View {
-    let tabID: ID<Tab>
-    let tab: Tab
-    let isSelected: Bool
-    let isHovered: Bool
-    let windowID: ID<WindowState>
-    
-    var body: some View {
-        content
-            .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
-                selectTab(tabID: tabID, windowID: windowID)
-            }))
-            .contextMenu {
-                TabContextMenu(tabID: tabID, isFavorite: false)
-            }
-    }
-    
-    @ViewBuilder private var content: some View {
-        HStack(spacing: 8) {
-            // Favicon - use the extracted favicon URL if available
-            FaviconView(
-                url: tab.panes.first?.info.url,
-                faviconURL: tab.panes.first?.info.favicon
-            )
-            
-            // Title with truncation and optional group name
-            VStack(alignment: .leading, spacing: 0) {
-                Text(getTabTitle(tab: tab))
-                    .truncationMode(.tail)
-                    .lineLimit(1)
-                
-//                // Display group name as a subtitle if available
-//                if let aiTags = tab.aiTags {
-//                    Text(aiTags.groupName)
-//                        .font(.system(size: 9, weight: .medium))
-//                        .foregroundColor(.secondary)
-//                        .truncationMode(.tail)
-//                        .lineLimit(1)
-//                }
-            }
-            
-            Spacer()
-            
-            // Close button that appears on hover
-            if isHovered {
-                CloseTabButton(tabID: tabID)
-            }
-        }
-        .padding(.leading, 8)
-        .padding(.trailing, 4)
-        .frame(height: 30)
-        .contentShape(Rectangle())
-
-    }
-}
-
-private struct CloseTabButton: View {
-    var tabID: ID<Tab>
-    
-    var body: some View {
-        Button(action: {
-            closeTab(tabID: tabID)
-        }) {
-            Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.secondary)
-                .help("Close Tab")
-                .padding(6)
-        }
-        .buttonStyle(CircleButtonStyle())
-
     }
 }
 

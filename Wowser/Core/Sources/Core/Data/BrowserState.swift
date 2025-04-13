@@ -47,7 +47,7 @@ public struct Tab: Equatable, Identifiable, Codable {
 
 public struct AITags: Equatable, Codable {
     public var historyKeyWhenFetched: String
-    public var groupName: String
+    public var groupName: String?
 }
 
 // MARK: - Tab Creation Helpers

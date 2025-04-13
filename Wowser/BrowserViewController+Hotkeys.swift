@@ -133,7 +133,7 @@ extension BrowserViewController {
         }
     }
     
-    @IBAction func organizeTabs(_ sender: NSMenuItem) {
+    @IBAction func organizeTabs(_ sender: NSMenuItem? = nil) {
         if let windowID {
             Task {
                 await BrowserStore.shared.autoOrganizeTabs(in: windowID)

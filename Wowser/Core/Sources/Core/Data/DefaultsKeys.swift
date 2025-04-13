@@ -6,6 +6,7 @@ public enum DefaultsKeys: String {
     case topbarLocked // bool
     case animateNewTabs // bool
     case preserveWindowsAcrossRestarts // bool
+    case autoOrganizeTabs // bool
     
     case llmChoice // LLMChoice
     case ollamaCustomModel // string

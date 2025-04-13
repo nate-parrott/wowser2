@@ -50,8 +50,8 @@ extension BrowserState {
         
         // First, collect tabs into their respective groups
         for tabId in ids {
-            if let tab = tabs[tabId], let aiTags = tab.aiTags {
-                groupsMap[aiTags.groupName, default: []].append(tabId)
+            if let tab = tabs[tabId], let name = tab.aiTags?.groupName {
+                groupsMap[name, default: []].append(tabId)
             } else {
                 untaggedTabs.append(tabId)
             }
@@ -97,6 +97,10 @@ extension BrowserStore {
             
             // Get all tabs in the window/project for processing
             let allWindowTabs = await readAsync { $0.allOrganizableTabsInWindow(windowID) }
+            if allWindowTabs.count < UIConstants.autoOrgMinTabCount {
+                print("[🤖 AutoOrganize]: not enough tabs")
+                return await reorganizeExistingGroups(in: windowID)
+            }
             
             // Step 2: Get existing group names to maintain consistency
             let existingGroupNames = await getExistingGroupNames(in: windowID)
@@ -176,6 +180,13 @@ extension BrowserStore {
         
         // Update tabs with their new AI tags
         await modifyAsync { state in
+            // First, count how many tabs are in each group
+            var groupCounts = [String: Int]()
+            for (_, groupName) in resp.groups {
+                groupCounts[groupName, default: 0] += 1
+            }
+            
+            // Process each tab
             for tabInfo in tabInfo {
                 // Get the assigned group for this tab
                 let simpleIdString = String(tabInfo.simpleId)
@@ -183,10 +194,12 @@ extension BrowserStore {
                 if let groupName = resp.groups[simpleIdString],
                    let tabToUpdate = state.tabs[tabInfo.actualId],
                    let firstPaneUrl = tabToUpdate.panes.first?.info.url {
+                    // Only set group name if there's more than one tab in this group
+                    let finalGroupName = groupCounts[groupName, default: 0] > 1 ? groupName : nil
                     state.modifyTab(id: tabInfo.actualId) { tab in
                         tab.aiTags = AITags(
                             historyKeyWhenFetched: firstPaneUrl.historyKey,
-                            groupName: groupName
+                            groupName: finalGroupName
                         )
                     }
                 }
@@ -227,6 +240,7 @@ extension BrowserStore {
         9. Assign casual, sentence-case 1-2 word names. You can also use site names if you see several tabs with the same site name.
         10. If you see many tabs about a particular proper noun / entity, that's a good way to group.
         11. Do not assume groups need to comprise contiguous tabs.
+        12. Prefer placing tabs in more specific groups, rather than catchalls like 'Searches', if possible.
         
         # Sample group names:
         Specific (ideal):

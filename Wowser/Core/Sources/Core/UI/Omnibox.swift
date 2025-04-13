@@ -18,7 +18,7 @@ struct Omnibox: View {
             text: $searchText,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
-                font: .systemFont(ofSize: 14, weight: .medium),
+                font: .systemFont(ofSize: 14, weight: .regular),
                 color: fgColor?.uiColor ?? UINSColor.textColor,
                 insets: CGSize(width: 16, height: 12),
                 wantsUpDownArrowEvents: true,

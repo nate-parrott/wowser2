@@ -8,6 +8,7 @@
 import Cocoa
 import SwiftUI
 import Core
+import Combine
 
 class BrowserViewController: NSViewController, NSMenuItemValidation {
     // The window ID for this instance
@@ -53,6 +54,9 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             
             // Store reference for cleanup
             rootHostingController = hostingController
+            
+            // Set up auto-organize observer
+            setupAutoOrganizeObserver()
         }
     }
     
@@ -145,6 +149,51 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     
     deinit {
         print("BrowserViewController deinit")
+        autoOrgSettingObserver?.cancel()
+        autoOrgTicker?.cancel()
+    }
+    
+    // MARK: - Auto-Organize Tabs
+
+    private func setupAutoOrganizeObserver() {
+        // Observe changes to the auto-organize setting in UserDefaults
+        autoOrgSettingObserver = NotificationCenter.default.publisher(
+            for: UserDefaults.didChangeNotification,
+            object: UserDefaults.standard
+        )
+        .map { _ in
+            UserDefaults.standard.bool(forKey: DefaultsKeys.autoOrganizeTabs.rawValue)
+        }
+        .prepend(UserDefaults.standard.bool(forKey: DefaultsKeys.autoOrganizeTabs.rawValue))
+        .removeDuplicates()
+        .sink { [weak self] enabled in
+            self?.autoOrganizeEnabled = enabled
+        }
+        
+        autoOrganizeEnabled = DefaultsKeys.autoOrganizeTabs.boolValue()
+    }
+    
+    private var autoOrgSettingObserver: AnyCancellable?
+    private var autoOrgTicker: AnyCancellable? // only set up if the setting is on
+    private var autoOrganizeEnabled: Bool = false {
+        didSet {
+            if autoOrganizeEnabled != oldValue {
+                if autoOrganizeEnabled {
+                    // Create a throttled observer of the BrowserStore that will trigger tab organization once per hour
+                    autoOrgTicker = BrowserStore.shared.uiPublisher
+                        .throttle(for: .seconds(3600), scheduler: DispatchQueue.main, latest: true)
+                        .sink { [weak self] _ in
+                            self?.organizeTabs()
+                        }
+                    // Run organization immediately
+//                    self.organizeTabs()
+                } else {
+                    // Tear down store observation
+                    autoOrgTicker?.cancel()
+                    autoOrgTicker = nil
+                }
+            }
+        }
     }
 }
 

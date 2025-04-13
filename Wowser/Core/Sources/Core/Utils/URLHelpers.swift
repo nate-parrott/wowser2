@@ -176,6 +176,13 @@ extension URL {
     }
 
     public static var aboutBlank: URL { URL(string: "about:blank")! }
+    
+    public var parsedAsGoogleSearchQuery: String? {
+        guard let host = host?.lowercased(), host.contains("google") else { return nil }
+        let path = path
+        guard path == "/search" || path == "/webhp" else { return nil }
+        return queryParam(name: "q")?.nilIfEmpty
+    }
 }
 
 private func shouldDropQueryItemForHistoryKey(_ name: String, val: String?) -> Bool {

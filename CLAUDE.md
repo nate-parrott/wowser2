@@ -71,3 +71,4 @@ Best practices:
 - don't need to update imports if all the code you're modifying is in `Core`.
 - you don't need to update the xcodeproj when adding files; it'll pick them up automatically now.
 - I know your system prompt says to be proactive. Please don't be. Do what I asked, and what is necessary to fix the build. (e.g. if i ask you to rename a method or change its format, you should update its usages too.) But never do something like adding a UI i didn't ask for, or additional functionality I didn't ask for. It's OK to handle edge cases i didn't expect tho.
+- When defining structs, make their props VAR not LET absent a great reason not to

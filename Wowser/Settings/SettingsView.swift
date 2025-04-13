@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
     @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
+    @AppStorage(DefaultsKeys.autoOrganizeTabs.rawValue) private var autoOrganizeTabsEnabled = false
     
 
     
@@ -26,6 +27,9 @@ struct SettingsView: View {
                     .help("Show animation when new tabs are loaded")
                 
                 Toggle("Save windows when quitting", isOn: $preserveWindowsAcrossRestarts)
+                
+                Toggle("Auto-organize tabs hourly", isOn: $autoOrganizeTabsEnabled)
+                    .help("Automatically organize tabs into logical groups once per hour")
             }
             
             AISettings()
