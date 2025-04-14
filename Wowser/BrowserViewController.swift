@@ -19,6 +19,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     
     private let moveBlockingView = MoveBlockingView()
     private let swipeGestureContainer = SwipeGestureContainer()
+    private var escapeKeyMonitor: Any?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -34,6 +35,25 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
                 state.setSwipeGestureOffset(offset, forWindowID: windowID)
 //                state.windows[windowID]?.swipeGestureOffset = offset
             }
+        }
+        
+        // Set up escape key monitoring
+        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, 
+                  self.view.window?.isKeyWindow == true,
+                  event.keyCode == 53 else { // Escape key
+                return event
+            }
+            
+            // Dismiss toast inline
+            if let windowID = self.windowID,
+               let currentToast = BrowserStore.shared.model.windows[windowID]?.currentToast {
+                BrowserStore.shared.modify { state in
+                    state.removeToast(id: currentToast.id, in: windowID)
+                }
+            }
+            
+            return event // Let the event continue to propagate
         }
     }
     
@@ -154,6 +174,11 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         print("BrowserViewController deinit")
         autoOrgSettingObserver?.cancel()
         autoOrgTicker?.cancel()
+        
+        // Remove the escape key monitor
+        if let monitor = escapeKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
     
     // MARK: - Auto-Organize Tabs

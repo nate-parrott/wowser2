@@ -7,7 +7,7 @@ extension BrowserState {
         windows[windowID]?.toasts.append(toast)
     }
     
-    mutating func removeToast(id: UUID, in windowID: ID<WindowState>) {
+    public mutating func removeToast(id: UUID, in windowID: ID<WindowState>) {
         windows[windowID]?.toasts.removeAll(where: { $0.id == id })
     }
     
@@ -312,7 +312,7 @@ enum SidebarLocation: Equatable {
 }
 
 extension WindowState {
-    var currentToast: Toast? {
+    public var currentToast: Toast? {
         return toasts.first
     }
 }

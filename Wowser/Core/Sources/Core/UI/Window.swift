@@ -35,6 +35,7 @@ struct WindowSnapshot: Equatable {
     var profileID: ID<Profile>
     var sidebarLocked: Bool
     var swipeGestureOffset: Int?
+    var hasToast: Bool
     var anyPaneHasSearchActive: Bool {
         panes.filter({ $0.searchActive }).count > 0
     }
@@ -44,12 +45,14 @@ struct WindowSnapshot: Equatable {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
+            self.hasToast = false
             return
         }
         self.sidebarLocked = window.sidebarLocked
         self.tabId = window.currentTab
         self.profileID = window.profile
         self.swipeGestureOffset = window.swipeGestureOffset
+        self.hasToast = window.currentToast != nil
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true)]
             return
@@ -84,14 +87,12 @@ private struct WindowContent: View {
             }
             
             // Content:
-            TabStack3D(snapshot: snapshot, topbarVisible: topbarVisible)
-            .edgesIgnoringSafeArea(.all)
-            .overlay(alignment: .topTrailing) {
+            VStack(spacing: 0) {
+                TabStack3D(snapshot: snapshot, topbarVisible: topbarVisible)
                 ToastViewer()
             }
-//            .overlay(alignment: .topTrailing) {
-//                SwipeDebugView()
-//            }
+            .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: snapshot.hasToast)
+            .edgesIgnoringSafeArea(.all)
         }
         .overlay(alignment: .leading) {
             if !snapshot.sidebarLocked {
@@ -108,7 +109,7 @@ private struct WindowContent: View {
                 .trackMouseOutsideWindow(onMouseMoved: { self.mouseMoved($0, rect: $1) })
                 .edgesIgnoringSafeArea(.all)
         }
-        .background { TransparentBg() }
+        .background { WindowBG() }
     }
     
     private var topbarVisible: Bool {
@@ -137,6 +138,15 @@ private struct WindowContent: View {
         }
         if self.sidebarHovered != sidebarHovered {
             self.sidebarHovered = sidebarHovered
+        }
+    }
+}
+
+private struct WindowBG: View {
+    var body: some View {
+        ZStack {
+            TransparentBg()
+            LinearGradient(colors: [Color.white.opacity(0), Color.accentColor.opacity(0.1)], startPoint: .top, endPoint: .bottom)
         }
     }
 }
