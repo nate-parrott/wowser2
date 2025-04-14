@@ -39,6 +39,7 @@ public struct WrappedWebView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .padding()
+                .transition(.move(edge: .top))
             }
             
             // Hidden find button for keyboard shortcut
@@ -50,6 +51,7 @@ public struct WrappedWebView: View {
                     .accessibility(hidden: true)
             }
         }
+        .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: isFindInPageActive)
     }
     
     private var focusWebview: Bool {

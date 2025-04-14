@@ -12,6 +12,7 @@ struct FindInPageView: View {
     @State private var focusDate: Date?
     
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 12) {
             // Search input
             InputTextField(
@@ -70,10 +71,14 @@ struct FindInPageView: View {
         .frame(maxWidth: 300)
         .padding(8)
         .background {
-            Color.white.opacity(0.01)
-                .background(.thinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+            ZStack {
+                LinearGradient(colors: [Color.white.opacity(0.1), Color.black.opacity(0.05)], startPoint: .top, endPoint: .bottom)
+                    .background(.thinMaterial)
+                    .clipShape(shape)
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+                
+                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+            }
         }
     }
     

@@ -41,9 +41,11 @@ struct PaneView: View {
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
         .measureSize { self.size = $0 }
-        .overlay {
+        .overlay(alignment: .bottom) {
             if snapshot.focused, !singlePane {
-                Rectangle().strokeBorder(Color.blue, lineWidth: 2)
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 3)
                     .allowsHitTesting(false)
             }
         }

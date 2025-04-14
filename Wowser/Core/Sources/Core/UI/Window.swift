@@ -184,7 +184,7 @@ private extension View {
     func withFloatingSidebarContainer() -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         
-        self.background(.thinMaterial)
+        self.background(.regularMaterial)
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
