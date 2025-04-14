@@ -7,6 +7,7 @@ public struct ToolbarViewSnapshot: Equatable {
     var isLoading: Bool
     var canGoBack: Bool
     var canGoForward: Bool
+    var isSecure: Bool
     var webContentId: ID<WebContent>?
 //    var isBookmarked: Bool
     var hasMultiplePanes: Bool
@@ -23,6 +24,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.isLoading = false
             self.canGoBack = false
             self.canGoForward = false
+            self.isSecure = false
             self.webContentId = webContentId
 //            self.isBookmarked = false
             self.hasMultiplePanes = false
@@ -35,6 +37,7 @@ public struct ToolbarViewSnapshot: Equatable {
         self.isLoading = paneData.info.isLoading
         self.canGoBack = paneData.info.canGoBack
         self.canGoForward = paneData.info.canGoForward
+        self.isSecure = paneData.info.isSecure
         self.webContentId = webContentId
 //        self.isBookmarked = false // Bookmark functionality not implemented yet
         self.hasMultiplePanes = tab.panes.count > 1
@@ -68,15 +71,20 @@ public struct ToolbarView: View {
                 if snapshot.makeRoomForTrafficLights {
                     Spacer().frame(width: 60)
                 }
-                // Omnibox (search/URL input field)
-                Omnibox(
-                    focusDate: focusDate,
-                    searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
-                    selectedResultIndex: $selectedResultIndex,
-                    searcher: searcher,
-                    fgColor: colorScheme?.foreground,
-                    onFocus: activateSearchOverlay
-                )
+                // Security indicator and Omnibox (search/URL input field)
+                HStack(spacing: -2) {
+                    SecureLock(isSecure: snapshot.url != nil ? snapshot.isSecure : nil)
+                        .padding(.leading, 6)
+                    
+                    Omnibox(
+                        focusDate: focusDate,
+                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
+                        selectedResultIndex: $selectedResultIndex,
+                        searcher: searcher,
+                        fgColor: colorScheme?.foreground,
+                        onFocus: activateSearchOverlay
+                    )
+                }
                 
                 // Trailing buttons container
                 HStack(spacing: 8) {
@@ -237,5 +245,24 @@ extension ArchiveState {
             return itemsByHistoryKey[url.historyKey]?.kind == .bookmark
         }
         return false
+    }
+}
+
+struct SecureLock: View {
+    var isSecure: Bool?
+    
+    var body: some View {
+        Button(action: {}) {
+            if let isSecure {
+                Image(systemName: isSecure ? "lock.fill" : "lock.open.fill")
+                    .opacity(0.33)
+            } else {
+                Image(systemName: "square.fill")
+                    .opacity(0.1)
+            }
+        }
+        .help(isSecure != nil ? (isSecure! ? "Site is secure" : "Site is not entirely secure") : "")
+        .accessibilityHidden(isSecure == nil)
+        .buttonStyle(ToolbarButtonStyle())
     }
 }

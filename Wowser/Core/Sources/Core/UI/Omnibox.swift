@@ -20,7 +20,7 @@ struct Omnibox: View {
                 placeholder: "Search or enter website name",
                 font: .systemFont(ofSize: 14, weight: .regular),
                 color: fgColor?.uiColor ?? UINSColor.textColor,
-                insets: CGSize(width: 16, height: 12),
+                insets: CGSize(width: 8, height: 12),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
                 lineLimit: 1

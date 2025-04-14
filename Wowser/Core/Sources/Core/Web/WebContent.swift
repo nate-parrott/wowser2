@@ -76,6 +76,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         public var topColor: HSBA?
         public var favicon: URL?
         public var ogImage: URL?
+        public var isSecure = false
     }
 
     @Published private(set) public var info = Info() {
@@ -157,6 +158,10 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
         observers.append(webview.observe(\.isLoading, options: [.new], changeHandler: { [weak self] _, val in
             self?.info.isLoading = val.newValue ?? false
+        }))
+        
+        observers.append(webview.observe(\.hasOnlySecureContent, options: [.new], changeHandler: { [weak self] _, val in
+            self?.info.isSecure = val.newValue ?? false
         }))
 
         observers.append(webview.observe(\.underPageBackgroundColor, options: [.new], changeHandler: { [weak self] _, val in
@@ -510,6 +515,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         var info = self.info
         info.url = webview.url
         info.title = webview.title
+        info.isSecure = webview.hasOnlySecureContent
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         self.info = info
         

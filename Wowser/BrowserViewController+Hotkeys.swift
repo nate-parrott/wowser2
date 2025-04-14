@@ -12,7 +12,7 @@ extension BrowserViewController {
             
             // Show toast notification
             BrowserStore.shared.modify { state in
-                state.addToast(message: "URL copied to clipboard", icon: "doc.on.clipboard", in: windowID)
+                state.addToast(message: "Copied Link", icon: "doc.on.clipboard", in: windowID)
             }
         }
     }
