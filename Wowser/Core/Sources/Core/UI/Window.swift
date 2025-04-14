@@ -64,9 +64,15 @@ struct WindowSnapshot: Equatable {
                 webContentId: pane.id,
                 focused: focused,
                 searchActive: focused && window.searchOverlayActive,
-                emptyPage: pane.info.url == nil || pane.info.url == .aboutBlank,
+                emptyPage: pane.info.isEmptyPage,
                 colorScheme: pane.info.colorScheme)
         })
+    }
+}
+
+extension WebContent.Info {
+    var isEmptyPage: Bool {
+        url == nil || url == .aboutBlank
     }
 }
 

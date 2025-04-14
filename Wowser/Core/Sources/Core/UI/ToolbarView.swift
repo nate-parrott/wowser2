@@ -12,6 +12,7 @@ public struct ToolbarViewSnapshot: Equatable {
 //    var isBookmarked: Bool
     var hasMultiplePanes: Bool
     var makeRoomForTrafficLights: Bool
+    var isEmptyPage: Bool
     
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
@@ -29,6 +30,7 @@ public struct ToolbarViewSnapshot: Equatable {
 //            self.isBookmarked = false
             self.hasMultiplePanes = false
             self.makeRoomForTrafficLights = false
+            self.isEmptyPage = false
             return
         }
         
@@ -44,6 +46,7 @@ public struct ToolbarViewSnapshot: Equatable {
         let isFirstPane = tab.panes.first?.id == webContentId
         let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
+        self.isEmptyPage = paneData.info.isEmptyPage
     }
 }
 
@@ -73,7 +76,7 @@ public struct ToolbarView: View {
                 }
                 // Security indicator and Omnibox (search/URL input field)
                 HStack(spacing: -2) {
-                    SecureLock(isSecure: snapshot.url != nil ? snapshot.isSecure : nil)
+                    LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
                         .padding(.leading, 6)
                     
                     Omnibox(
@@ -87,7 +90,7 @@ public struct ToolbarView: View {
                 }
                 
                 // Trailing buttons container
-                HStack(spacing: 8) {
+                HStack(spacing: 0) {
                     // Back button
                     Button(action: goBack) {
                         Image(systemName: "chevron.backward")
@@ -248,12 +251,16 @@ extension ArchiveState {
     }
 }
 
-struct SecureLock: View {
+private struct LeadingIcon: View {
     var isSecure: Bool?
+    var iconOverride: String?
     
     var body: some View {
         Button(action: {}) {
-            if let isSecure {
+            if let iconOverride {
+                Image(systemName: iconOverride)
+                    .opacity(0.33)
+            } else if let isSecure {
                 Image(systemName: isSecure ? "lock.fill" : "lock.open.fill")
                     .opacity(0.33)
             } else {

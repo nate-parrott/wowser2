@@ -103,9 +103,9 @@ private struct SidebarSnapshot: Equatable {
             
             // Add the last group if it has tabs
             if !currentGroupTabs.isEmpty {
-                let name = currentGroupName ?? "New Tabs"
+                let name = currentGroupName
                 tabGroups.append(TabGroup(
-                    id: "group-\(name)-\(tabGroups.count)",
+                    id: "group-\(name ?? "")-\(tabGroups.count)",
                     name: name,
                     tabIDs: currentGroupTabs
                 ))
