@@ -3,16 +3,31 @@ import AppKit
 
 // Favorites grid snapshot to compute the layout
 struct FavoritesGridSnapshot: Equatable {
-    let rows: [[ID<Tab>]]
+    enum Cell: Equatable, Identifiable {
+        case tab(ID<Tab>)
+        case placeholder(String)
+        
+        var id: String {
+            switch self {
+            case .tab(let id):
+                return id.raw
+            case .placeholder(let id):
+                return id // UUID().uuidString // Each placeholder gets a unique ID
+            }
+        }
+    }
+    
+    let rows: [[Cell]]
     
     init(tabIDs: [ID<Tab>]) {
         let maxItemsPerRow = 4
-        var rows = [[ID<Tab>]]()
-        var currentRow = [ID<Tab>]()
+        let minTotalItems = 3 // Minimum number of cells (including placeholders)
+        var rows = [[Cell]]()
+        var currentRow = [Cell]()
         
-        // Create initial rows with maxItemsPerRow items each
+        // Create initial rows with real tab items
         for tabID in tabIDs {
-            currentRow.append(tabID)
+            currentRow.append(.tab(tabID))
             
             if currentRow.count == maxItemsPerRow {
                 rows.append(currentRow)
@@ -23,12 +38,49 @@ struct FavoritesGridSnapshot: Equatable {
         // Add any remaining items as the last row
         if !currentRow.isEmpty {
             rows.append(currentRow)
+            currentRow = []
         }
         
         // Balance the last two rows if the last row has only 1 item
         if rows.count >= 2 && rows.last!.count == 1 && rows[rows.count - 2].count > 1 {
             let lastItem = rows[rows.count - 2].removeLast()
             rows[rows.count - 1].insert(lastItem, at: 0)
+        }
+        
+        // Count total real items
+        let totalRealItems = rows.flatMap { $0 }.count
+        
+        // Add placeholders if needed to reach minimum total
+        if totalRealItems < minTotalItems {
+            let placeholdersNeeded = minTotalItems - totalRealItems
+            
+            // Add placeholders to the last row first
+            if !rows.isEmpty {
+                let lastRowIndex = rows.count - 1
+                let spacesInLastRow = maxItemsPerRow - rows[lastRowIndex].count
+                let placeholdersForLastRow = min(spacesInLastRow, placeholdersNeeded)
+                
+                for i in 0..<placeholdersForLastRow {
+                    rows[lastRowIndex].append(.placeholder("placeholder:\(i)"))
+                }
+                
+                // If we still need more placeholders, add a new row
+                let remainingPlaceholders = placeholdersNeeded - placeholdersForLastRow
+                if remainingPlaceholders > 0 {
+                    var newRow = [Cell]()
+                    for i in 0..<remainingPlaceholders {
+                        newRow.append(.placeholder("placeholder:lastrow:\(i)"))
+                    }
+                    rows.append(newRow)
+                }
+            } else {
+                // No rows yet, create a new row with placeholders
+                var newRow = [Cell]()
+                for i in 0..<placeholdersNeeded {
+                    newRow.append(.placeholder("placeholder:empty:\(i)"))
+                }
+                rows.append(newRow)
+            }
         }
         
         self.rows = rows
@@ -48,44 +100,43 @@ struct FavoriteTabsView: View {
     }
     
     var body: some View {
-        Group {
-            if !tabIDs.isEmpty {
-                VStack(alignment: .center, spacing: 8) {
-                    ForEach(Array(gridSnapshot.rows.enumerated()), id: \.offset) { _, row in
-                        HStack(spacing: 8) {
-                            ForEach(row) { tabID in
-                                FavoriteCell(
-                                    tabID: tabID,
-                                    isSelected: tabID == currentTabID,
-                                    windowID: windowID
-                                )
-                                .frame(height: 40)
-                                .sidebarDropTarget { point, bounds in
-                                    // Drop before this tab in favorites
-                                    guard let profileID = profileID else { return nil }
-                                    return .favorites(profile: profileID, before: tabID)
-                                }
+        // Always show the grid now, even if tabIDs is empty (will use placeholders)
+        VStack(alignment: .center, spacing: 8) {
+            ForEach(Array(gridSnapshot.rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 8) {
+                    ForEach(row) { cell in
+                        switch cell {
+                        case .tab(let tabID):
+                            FavoriteCell(
+                                tabID: tabID,
+                                isSelected: tabID == currentTabID,
+                                windowID: windowID
+                            )
+                            .frame(height: 40)
+                            .sidebarDropTarget { point, bounds in
+                                // Drop before this tab in favorites
+                                guard let profileID = profileID else { return nil }
+                                return .favorites(profile: profileID, before: tabID)
                             }
-                            
-//                            // Fill remaining space to ensure even spacing with fewer than max items
-//                            if row.count < 4 {
-//                                Spacer()
-//                                    .frame(maxWidth: .infinity)
-//                            }
+                        case .placeholder:
+                            PlaceholderFavoriteCell()
+                                .frame(height: 40)
+//                                .contentShape(Rectangle())
+                                .sidebarDropTarget { _, _ in
+                                    guard let profileID = profileID else { return nil }
+                                    return .favorites(profile: profileID, before: nil)
+                                }
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                // Add a drop target for the entire area
-                .sidebarDropTarget { point, bounds in
-                    guard let profileID = profileID else { return nil }
-                    return .favorites(profile: profileID, before: nil)
-                }
-            } else {
-                EmptyStateDropTarget(text: "Drag favorites here")
-                    .padding(.horizontal, 8)
             }
         }
+        .padding(.horizontal, 8)
+//        // Add a drop target for the entire area
+//        .sidebarDropTarget { point, bounds in
+//            guard let profileID = profileID else { return nil }
+//            return .favorites(profile: profileID, before: nil)
+//        }
     }
 }
 
@@ -148,6 +199,25 @@ struct FavoriteCell: View {
             }
         }
         .id(tabID)
+    }
+}
+
+struct PlaceholderFavoriteCell: View {
+    var body: some View {
+        Color.clear
+////            .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1.5)
+//            .frame(width: 24, height: 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 8)
+            .background {
+                Capsule()
+                    .fill(Color.primary.opacity(0.05))
+            }
+            .contentShape(Capsule())
+//            .onHover { hovering in
+//                isHovered = hovering
+//            }
+            .help("Drop a tab here to add it to favorites")
     }
 }
 

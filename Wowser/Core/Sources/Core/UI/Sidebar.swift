@@ -152,7 +152,7 @@ private struct SidebarContent: View {
                 currentTabID: snapshot.currentTabID,
                 windowID: snapshot.windowID
             )
-            
+                        
             // Downloads section
             if snapshot.hasDownloads {
                 DownloadsSidebar(windowID: snapshot.windowID)
@@ -276,11 +276,8 @@ private struct GroupedTabsView: View {
                             }
                         }
                     }
-                    
-                    if tabGroups.isEmpty {
-                        Color.clear
-                    }
                 }
+                .frame(maxWidth: .infinity)
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
             }
             // Background drop target for the entire area
