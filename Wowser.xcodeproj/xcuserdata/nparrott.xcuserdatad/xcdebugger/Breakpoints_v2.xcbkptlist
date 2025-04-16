@@ -62,8 +62,8 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "298"
-            endingLineNumber = "298"
+            startingLineNumber = "327"
+            endingLineNumber = "327"
             landmarkName = "webContent(_:decidePolicyFor:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -180,8 +180,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "159"
-            endingLineNumber = "159"
+            startingLineNumber = "141"
+            endingLineNumber = "141"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -196,8 +196,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "161"
-            endingLineNumber = "161"
+            startingLineNumber = "143"
+            endingLineNumber = "143"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -212,8 +212,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "158"
-            endingLineNumber = "158"
+            startingLineNumber = "140"
+            endingLineNumber = "140"
             landmarkName = "query"
             landmarkType = "24">
          </BreakpointContent>
@@ -228,8 +228,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "265"
-            endingLineNumber = "265"
+            startingLineNumber = "247"
+            endingLineNumber = "247"
             landmarkName = "slowPathSearch(query:fastPath:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -260,8 +260,8 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "371"
-            endingLineNumber = "371"
+            startingLineNumber = "400"
+            endingLineNumber = "400"
             landmarkName = "webContent(_:infoDidChange:previous:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -580,8 +580,8 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "283"
-            endingLineNumber = "283"
+            startingLineNumber = "312"
+            endingLineNumber = "312"
             landmarkName = "webContent(_:decidePolicyFor:)"
             landmarkType = "7">
          </BreakpointContent>

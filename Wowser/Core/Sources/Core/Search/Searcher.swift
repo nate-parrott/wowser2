@@ -79,24 +79,6 @@ struct SearchResult: Equatable, Identifiable {
                 return 0
             }
         }
-//        var k: Double = 0
-//        
-//        switch item.content {
-//        case .searchWhatYouTyped: k += 5
-//        case .urlYouTyped: k += 10
-//        case .searchSuggestion(_, let index): k += 2 - Double(index) * 0.1
-//        case .imFeelingLucky: k += 10
-//        case .historyItem(let item):
-//            if item.score > 10 {
-//                k += 10
-//            } else if item.score >= 2 {
-//                k += 5
-//            } else if item.score >= 0.5 {
-//                k += 1
-//            }
-//            k += item.score * 0.001 // tiebreaker
-//        }
-//        return k
     }
 }
 

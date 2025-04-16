@@ -113,15 +113,44 @@ public struct Toast: Equatable, Codable, Identifiable {
 public struct WindowState: Equatable, Codable {
     public var id: ID<WindowState>
     public var profile: ID<Profile>
-    public var tabs = [ID<Tab>]()
-    public var currentTab: ID<Tab>?
+    
+    // Per-profile data passthru
+    public var tabs: [ID<Tab>] {
+        get { perProfileData[profile]?.tabs ?? [] }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.tabs = newValue }
+    }
+    public var currentTab: ID<Tab>? {
+        get { perProfileData[profile]?.currentTab }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.currentTab = newValue }
+    }
+    public var focusedOnProject: ID<Project>? {
+        get { perProfileData[profile]?.focusedOnProject }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.focusedOnProject = newValue }
+    }
+    public var downloads: [ID<Download>: Download] {
+        get { perProfileData[profile]?.downloads ?? [:] }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.downloads = newValue }
+    }
+    
     public var lastActive: Date?
-    public var focusedOnProject: ID<Project>?
     public var searchOverlayActive = false
     public var toasts = [Toast]()    
     public var sidebarLocked = true
-    public var downloads = [ID<Download>: Download]()
     public var swipeGestureOffset: Int?
+    public var perProfileData = [ID<Profile>: PerProfileData]()
+    
+    public struct PerProfileData: Equatable, Codable {
+        public var tabs: [ID<Tab>]
+        public var currentTab: ID<Tab>?
+        public var focusedOnProject: ID<Project>?
+        public var downloads = [ID<Download>: Download]()
+    }
+    
+    private mutating func ensurePerProfileDataForCurProfile() {
+        if perProfileData[profile] == nil {
+            perProfileData[profile] = .init(tabs: [])
+        }
+    }
 }
 
 public struct Profile: Equatable, Codable {
