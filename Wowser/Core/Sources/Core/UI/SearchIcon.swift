@@ -49,7 +49,7 @@ private struct SwitchToTabBadge: View {
             .font(.system(size: 12))
 //            .foregroundStyle(selected ? Color.orange : Color.primary)
             .frame(both: 16)
-            .background(Circle().fill(selected ? Color.green : Color("Background", bundle: .module)))
+            .background(Circle().fill(selected ? Color.gray : Color("Background", bundle: .module)))
             .frame(both: 1)
     }
 }

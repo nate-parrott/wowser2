@@ -29,10 +29,12 @@ public struct SearchResultsOverlay: View {
                     .background {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color("Background",  bundle: .module))
+                            .padding(.top, -10)
+                            .clipShape(Rectangle())
                             .shadow(color: Color.black.opacity(0.12), radius: 8, x: 2, y: 3)
                     }
-                    .frame(maxWidth: 500)
-                    .padding(8)
+//                    .frame(maxWidth: 500)
+//                    .padding(8)
             }
         }
     }
@@ -54,7 +56,7 @@ public struct SearchResultsOverlay: View {
                 .id(index)
             }
         }
-        .padding(5)
+        .padding(10)
     }
     
     // Dismiss the search overlay

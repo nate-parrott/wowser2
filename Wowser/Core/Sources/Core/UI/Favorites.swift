@@ -217,7 +217,7 @@ struct PlaceholderFavoriteCell: View {
 //            .onHover { hovering in
 //                isHovered = hovering
 //            }
-            .help("Drop a tab here to add it to favorites")
+            .help("Drag your favorite tabs here")
     }
 }
 

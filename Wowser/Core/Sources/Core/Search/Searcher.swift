@@ -391,7 +391,7 @@ extension SearchResult {
         case .imFeelingLucky:
             return Color.purple
         case .tab:
-            return Color.green
+            return Color.gray
         case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
             return Color.blue
         }
