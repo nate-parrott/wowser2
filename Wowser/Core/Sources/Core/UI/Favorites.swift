@@ -203,6 +203,8 @@ struct FavoriteCell: View {
 }
 
 struct PlaceholderFavoriteCell: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         Color.clear
 ////            .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1.5)
@@ -211,7 +213,11 @@ struct PlaceholderFavoriteCell: View {
             .padding(.vertical, 8)
             .background {
                 Capsule()
-                    .fill(Color.primary.opacity(0.05))
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05))
+                Capsule()
+                    .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
+                    .opacity(colorScheme == .dark ? 0.2 : 0.15)
+//                    .fill(Color.primary.opacity(0.05))
             }
             .contentShape(Capsule())
 //            .onHover { hovering in
@@ -219,33 +225,40 @@ struct PlaceholderFavoriteCell: View {
 //            }
             .help("Drag your favorite tabs here")
     }
-}
-
-struct EmptyStateDropTarget: View {
-    var text: String
-    @Environment(\.profileID) private var profileID
     
-    var body: some View {
-        Text(text)
-            .multilineTextAlignment(.center)
-            .font(.caption)
-            .padding(6)
-            .foregroundStyle(.secondary)
-            .lineLimit(nil)
-            .frame(maxWidth: .infinity)
-            .frame(height: 40)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary)
-                    .opacity(0.1)
-            }
-            .sidebarDropTarget { _, _ in 
-                // When dropping in empty favorites section, it's always at the end of manual favorites
-                guard let profileID = profileID else { return nil }
-                return .favorites(profile: profileID, before: nil)
-            }
+    private var colors: [Color] {
+        if colorScheme == .dark {
+            return [Color.black.opacity(0.7), Color.white.opacity(0.4)]
+        }
+        return [Color.black.opacity(0.5), Color.gray.opacity(0.3)]
     }
 }
+
+//struct EmptyStateDropTarget: View {
+//    var text: String
+//    @Environment(\.profileID) private var profileID
+//    
+//    var body: some View {
+//        Text(text)
+//            .multilineTextAlignment(.center)
+//            .font(.caption)
+//            .padding(6)
+//            .foregroundStyle(.secondary)
+//            .lineLimit(nil)
+//            .frame(maxWidth: .infinity)
+//            .frame(height: 40)
+//            .background {
+//                RoundedRectangle(cornerRadius: 8, style: .continuous)
+//                    .fill(Color.primary)
+//                    .opacity(0.1)
+//            }
+//            .sidebarDropTarget { _, _ in 
+//                // When dropping in empty favorites section, it's always at the end of manual favorites
+//                guard let profileID = profileID else { return nil }
+//                return .favorites(profile: profileID, before: nil)
+//            }
+//    }
+//}
 
 // Helper functions
 func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
