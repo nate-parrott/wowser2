@@ -43,6 +43,15 @@ class FrameThrottledValue<V> {
                 self.displayLink?.invalidate()
                 self.displayLink = nil
             }
+            if let displayLink, !displayLink.isValid {
+                // Failed to setup (may happen when inactive)
+                // So just process the change immediately
+                if let pendingVal {
+                    subject.value = pendingVal
+                    self.pendingVal = nil
+                }
+                self.displayLink = nil
+            }
         }
     }
 }
@@ -51,18 +60,19 @@ class FrameThrottledValue<V> {
 
 private class DisplayLink {
     private var callback: () -> Void
-    private var isValid = true
+    private(set) var isValid = true
     
     #if os(iOS) || os(tvOS)
     private var displayLink: CADisplayLink?
     #elseif os(macOS)
     private var displayLink: CVDisplayLink?
-    private var lastTimestamp: CFTimeInterval = 0
     #endif
     
     init(callback: @escaping () -> Void) {
         self.callback = callback
-        setupDisplayLink()
+        if !setupDisplayLink() {
+            self.isValid = false
+        }
     }
     
     func invalidate() {
@@ -80,11 +90,12 @@ private class DisplayLink {
         #endif
     }
     
-    private func setupDisplayLink() {
+    private func setupDisplayLink() -> Bool {
         #if os(iOS) || os(tvOS)
         let displayLink = CADisplayLink(target: self, selector: #selector(handleDisplayLinkCallback))
         displayLink.add(to: .main, forMode: .common)
         self.displayLink = displayLink
+        return true
         #elseif os(macOS)
         var displayLink: CVDisplayLink?
         CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
@@ -99,6 +110,9 @@ private class DisplayLink {
             
             CVDisplayLinkStart(displayLink)
             self.displayLink = displayLink
+            return true
+        } else {
+            return false
         }
         #endif
     }

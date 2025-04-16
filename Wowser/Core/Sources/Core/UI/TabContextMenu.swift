@@ -7,14 +7,14 @@ public struct TabContextMenu: View {
     let isFavorite: Bool
     
     public var body: some View {
-        WithSnapshot(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { (tab: Tab??) in
-            if let tab = tab ?? nil {
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { (tab: Tab?) in
+            if let tab {
                 Group {
                     // Copy URL option
                     Button(action: {
                         copyURLToClipboard(url: tab.panes.first?.info.url)
                     }) {
-                        Text("Copy URL")
+                        Text("Copy Link")
                     }
                     
                     if isFavorite {

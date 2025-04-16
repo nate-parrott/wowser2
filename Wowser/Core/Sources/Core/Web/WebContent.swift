@@ -523,7 +523,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
             do {
                 let extracted = try await extractWebContentData()
                 DispatchQueue.main.async {
-                    self.info.favicon = extracted.favicon
+                    self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
                     self.info.ogImage = extracted.ogImage
                 }
             } catch {
@@ -636,4 +636,10 @@ private extension WKWebView {
 
 private enum DominantColorsError: Error {
     case cantCaptureImage
+}
+
+extension URL {
+    fileprivate func nilIfExtensionIs(_ ext: String) -> URL? {
+        pathExtension == ext ? nil : self
+    }
 }

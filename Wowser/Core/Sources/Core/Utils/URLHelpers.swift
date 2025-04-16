@@ -179,9 +179,12 @@ extension URL {
     
     public var parsedAsGoogleSearchQuery: String? {
         guard let host = host?.lowercased(), host.contains("google") else { return nil }
-        let path = path
+        guard let urlWithSpacesSubbed = URL(string: self.absoluteString.replacingOccurrences(of: "+", with: "%20")) else {
+            return nil
+        }
+        let path = urlWithSpacesSubbed.path
         guard path == "/search" || path == "/webhp" else { return nil }
-        return queryParam(name: "q")?.nilIfEmpty
+        return urlWithSpacesSubbed.queryParam(name: "q")?.nilIfEmpty
     }
     
     public var parsedAsDuckDuckGoLuckyQuery: String? {
