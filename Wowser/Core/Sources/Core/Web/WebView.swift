@@ -80,20 +80,6 @@ private class WebviewContainer: UINSView {
     override func layout() {
         super.layout()
         webview?.frame = bounds
-//        webview?.setFrameSize(bounds.size)
-//        if let webview {
-//            if webview.shrunk {
-//                webview.shrunk = false
-//                webview.frame = bounds
-//                webview.shrunk = true
-//            } else {
-//                webview.frame = bounds
-//            }
-//        }
-//        webview?.setBoundsSize(bounds.size)
-//        webview?.layer?.bounds = bounds
-//        webview?.layer?.position = CGPoint(x: bounds.midX, y: bounds.midY)
-//        webview?.updateFrameEvenWhileShrunk(bounds)
         
     }
     #else

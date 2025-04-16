@@ -231,7 +231,9 @@ extension BrowserState {
               let tab = tabs[tabId],
               let winId = self.windowContaining(tabId: tabId)?.id
         else { return }
-                
+        
+        let isCurrentTab = self.windows[winId]?.currentTab == tabId
+        
         func reselect() {
             let selectNext = tabToSelectAfterClosing(tabId: tabId)
             activate(tabId: selectNext, in: winId)
@@ -253,7 +255,7 @@ extension BrowserState {
         
         if isPinned && !removeIfPinned {
             resetToBase()
-            reselect()
+            if isCurrentTab { reselect() }
             return
         }
         
@@ -261,7 +263,7 @@ extension BrowserState {
             // Don't close tab, just pane
             _removePane_unsafe(id: id)
         } else {
-            reselect()
+            if isCurrentTab { reselect() }
             remove()
         }
     }
