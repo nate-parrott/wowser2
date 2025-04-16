@@ -17,6 +17,15 @@ extension BrowserState {
         }
     }
     
+    // Create a new profile with a unique ID and UUID for its data store
+    public mutating func createNewProfile() -> ID<Profile> {
+        let profilesCount = profiles.count
+        let id = ID<Profile>(raw: "p\(profilesCount)")
+        let profile = Profile(id: id, dataStoreUUID: UUID(), creationOrder: profilesCount)
+        profiles[id] = profile
+        return id
+    }
+    
     /// Moves a tab's pane into another tab's split view
     /// - Parameters:
     ///   - sourceTabId: The ID of the tab containing the pane to be moved

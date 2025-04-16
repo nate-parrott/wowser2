@@ -10,6 +10,7 @@ struct SearchableItem: Equatable {
         case imFeelingLucky(String) // navigates to the first search result for this
         case historyItem(HistoryItem)
         case chatbot(String)
+        case tab(ID<Tab>, WebContent.Info)
     }
     
     var id: ID<SearchableItem>
@@ -24,6 +25,7 @@ struct SearchableItem: Equatable {
         case .imFeelingLucky(let string): return "lucky:\(string)"
         case .historyItem(let historyItem): return historyItem.key
         case .chatbot(let query): return "chat:\(query)"
+        case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
         }
     }
 }
@@ -78,6 +80,18 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
+        case .tab:
+            // Tab scores are similar to history items but with a slight boost to prioritize open tabs
+            switch matchQuality {
+            case .prefixMatchURL:
+                return 35
+            case .prefixMatchTitle:
+                return 18
+            case .substringMatchTitle:
+                return 10
+            case .none:
+                return 0
+            }
         }
     }
 }
@@ -112,9 +126,15 @@ extension CharacterSet {
         
     }
     
+    init(windowID: ID<WindowState>) {
+        self.windowID = windowID
+    }
+    
     init(forTestingWithHistoryStore historyStore: HistoryStore?) {
         self.historyStore = historyStore
     }
+    
+    var windowID: ID<WindowState>?
     
     var profileID: ID<Profile>? {
         didSet {
@@ -209,19 +229,25 @@ extension CharacterSet {
 //        }
         results.append(.searchYouTyped(query))
         
+        // Check for matching tab in current window (fast, synchronous)
+        if let tabMatch = tabMatch(query: normQuery) {
+            if let insertBefore = results.firstIndex(where: { tabMatch.score > $0.score }) {
+                results.insert(tabMatch, at: insertBefore)
+            } else {
+                results.append(tabMatch)
+            }
+        }
+        
         // Filter the highest-ranking URLs from historyTopHitCandidates, and any from the prev search
         let prevHistoryItems = prevResults.filter({ $0.item.historyItem != nil }).map { $0.item }
         if let topHistoryItem = (historyTopHitCandidates + prevHistoryItems).compactMap({ $0.match(query: normQuery) }).max(by: { $0.score < $1.score }) {
+            // Insert based on score-driven position
             if let insertBefore = results.firstIndex(where: { topHistoryItem.score > $0.score }) {
                 results.insert(topHistoryItem, at: insertBefore)
             } else {
                 results.append(topHistoryItem)
             }
         }
-        
-        // Sort THESE first 3 according to rank. Don't sort the whole set, because we don't want URL-you-typed and search-you-typed moving out of top 3
-//        results.sort(by: { $0.score > $1.score })
-        
         
         let dedupeKeys = Set(results.map({ $0.item.dedupeKey }))
         let matchesFromPrevResults = prevResults
@@ -237,14 +263,52 @@ extension CharacterSet {
         return results
     }
     
+    private func tabMatch(query: NormalizedSearchableString) -> SearchResult? {
+        guard let windowID = self.windowID else { return nil }
+        
+        let state = BrowserStore.shared.model
+        guard let window = state.windows[windowID] else { return nil }
+        let currentTabId = window.currentTab
+        
+        // Find the best matching tab that isn't the current tab
+        return window.tabs.compactMap { tabId -> SearchResult? in
+            // Skip the current tab as we don't want to show "switch to tab" for the tab we're already on
+            if tabId == currentTabId {
+                return nil
+            }
+            
+            guard let tab = state.tabs[tabId] else { return nil }
+            
+            // Check all panes in the tab for matching content
+            for pane in tab.panes {
+                // Create searchable item for this tab's pane
+                let item = SearchableItem(
+                    id: .init(raw: "tab:\(tabId.raw):\(pane.id.raw)"),
+                    content: .tab(tabId, pane.info),
+                    urlMatchStrings: pane.info.url?.searchStrings ?? [],
+                    titleMatchStr: pane.info.title != nil ? NormalizedSearchableString(text: pane.info.title!) : nil
+                )
+                
+                if let result = item.match(query: query) {
+                    return result
+                }
+            }
+            
+            return nil
+        }
+        .max(by: { $0.score < $1.score }) // Return the highest scoring tab match
+    }
+    
     func slowPathSearch(query: String, fastPath: [SearchResult]) async -> [SearchResult] {
         // filter all fast-path items PLUS slow-path items (all of history store) and google queries, async.
         // 2s timeout
         let q = NormalizedSearchableString(text: query)
         async let historyMatches_ = self.historyMatches(query: q, limit: n)
         async let searchSuggestions_ = googleSuggestions(query: query)
+        
         let historyMatches = await historyMatches_
         let searchSuggestions = (try? await searchSuggestions_) ?? []
+        
         let newResults = (historyMatches + searchSuggestions)
             .sorted(by: { $0.score > $1.score })
             .prefix(n)
@@ -326,6 +390,8 @@ extension SearchResult {
             return Color.green
         case .imFeelingLucky:
             return Color.purple
+        case .tab:
+            return Color.green
         case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
             return Color.blue
         }

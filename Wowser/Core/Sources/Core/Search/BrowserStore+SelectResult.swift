@@ -21,6 +21,28 @@ extension BrowserStore {
             
         case .historyItem(let historyItem):
             loadURL(historyItem.url, windowID: windowID)
+            
+        case .tab(let tabId, _):
+            // Activate the existing tab and close current tab if it's empty
+            modify { state in
+                // Are we in an empty new tab? if so we'll wanna close it when we switch
+                if let currentTabId = state.windows[windowID]?.currentTab,
+                   let currentTab = state.tabs[currentTabId],
+                   currentTab.panes.count == 1,
+                   let currentPane = currentTab.panes[currentTab.focusedPaneIdx],
+                   currentPane.info.isEmptyPage {
+                    
+                    // First activate the target tab
+                    state.activate(tabId: tabId, in: windowID)
+                    
+                    DispatchQueue.main.async {
+                        self.close(webContentId: currentPane.id, removeIfPinned: false)
+                    }
+                } else {
+                    // Just activate the target tab
+                    state.activate(tabId: tabId, in: windowID)
+                }
+            }
         }
     }
     

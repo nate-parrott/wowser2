@@ -4,6 +4,7 @@ import SwiftUI
 struct SearchIcon: View {
     var item: SearchableItem
     var size: CGFloat = 16
+    var selected = false
     
     public var body: some View {
         Group {
@@ -28,9 +29,28 @@ struct SearchIcon: View {
             case .imFeelingLucky:
                 Image(systemName: "arrow.forward.circle.fill")
 //                    .foregroundColor(.blue)
+                
+            case .tab(_, let info):
+                FaviconView(url: info.url, faviconURL: info.favicon, size: size)
+                    .overlay(alignment: .leading) {
+                        SwitchToTabBadge(selected: selected)
+                    }
             }
         }
         .frame(width: size, height: size)
+    }
+}
+
+private struct SwitchToTabBadge: View {
+    var selected: Bool
+    
+    var body: some View {
+        Image(systemName: "arrow.right.circle.fill")
+            .font(.system(size: 12))
+//            .foregroundStyle(selected ? Color.orange : Color.primary)
+            .frame(both: 16)
+            .background(Circle().fill(selected ? Color.green : Color("Background", bundle: .module)))
+            .frame(both: 1)
     }
 }
 

@@ -52,6 +52,9 @@ struct PaneView: View {
         .onAppearOrChange(of: profileID) { profileID in
             searcher.profileID = profileID
         }
+        .onAppearOrChange(of: windowID, perform: { windowID in
+            searcher.windowID = windowID
+        })
         .onChange(of: searchText) { newValue in
             searcher.query = newValue
             selectedResultIndex = 0 // Reset selection when query changes

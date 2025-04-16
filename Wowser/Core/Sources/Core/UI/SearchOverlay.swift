@@ -79,7 +79,7 @@ private struct SearchResultRow: View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
                 // Icon
-                SearchIcon(item: result.item, size: 20)
+                SearchIcon(item: result.item, size: 20, selected: isSelected)
                 
                 if let title {
                     Text(title + "  ")
@@ -126,6 +126,8 @@ private struct SearchResultRow: View {
             return item.title ?? item.url.displayString
         case .chatbot(let query):
             return query
+        case .tab(_, let info):
+            return info.title ?? info.url?.stripped ?? "Tab"
         }
     }
     
@@ -143,6 +145,8 @@ private struct SearchResultRow: View {
             return "Chat"
         case .historyItem(let item):
             return item.url.displayString
+        case .tab(_, _):
+            return "Switch to Tab"
         }
     }
 }

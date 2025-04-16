@@ -1,5 +1,6 @@
 # Instructions for interacting with me
 - I know your system prompt says to be proactive. Please don't be. Do what I asked, and what is necessary to fix the build. (e.g. if i ask you to rename a method or change its format, you should update its usages too.) But never do something like adding a UI i didn't ask for, or additional functionality I didn't ask for. It's OK to handle edge cases i didn't expect tho.
+  - For example, don't show a toast or an alert to confirm an action UNLESS i tell you that you should.
 - When i give you feedback, or ask for code changes, I want you to briefly reflect on it and state what you did wrong and how you'll improve. My feedback is your ultimate guide. If I tell you not to do something, do NOT do it again. If I have to repeat myself you've failed.
 
 # Project details

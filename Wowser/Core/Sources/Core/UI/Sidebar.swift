@@ -14,7 +14,7 @@ public struct Sidebar: View {
             // Create a minimal snapshot for sidebar data
             SidebarSnapshot(
                 windowID: windowID ?? ID<WindowState>(raw: ""),
-                profileID: profileID ?? ID<Profile>(raw: ""),
+                profileID: nil, // Use window's current profile
                 windows: state.windows,
                 tabs: state.tabs,
                 profiles: state.profiles
@@ -48,27 +48,33 @@ private struct SidebarSnapshot: Equatable {
     let hasDownloads: Bool
     
     init(windowID: ID<WindowState>, 
-         profileID: ID<Profile>,
+         profileID: ID<Profile>?, // Can be nil, will use window's current profile
          windows: [ID<WindowState>: WindowState],
          tabs: [ID<Tab>: Tab],
          profiles: [ID<Profile>: Profile]) {
         
         self.windowID = windowID
-        self.profileID = profileID
         
-        // Extract window state
+        // Use provided profileID if not nil, otherwise use window's current profile
         let window = windows[windowID]
-        self.currentTabID = window?.currentTab
+        let effectiveProfileID = profileID ?? window?.profile ?? .defaultProfile
+        self.profileID = effectiveProfileID
+        
+        // Get per-profile data from window state
+        let perProfileData = window?.perProfileData[effectiveProfileID]
+        
+        // Get profile-specific current tab
+        self.currentTabID = perProfileData?.currentTab
         
         // Extract favorites
         var favoriteIDs = [ID<Tab>]()
-        if let profile = profiles[profileID] {
+        if let profile = profiles[effectiveProfileID] {
             favoriteIDs = profile.manualFavorites + profile.autoFavorites
         }
         self.favoriteTabIDs = favoriteIDs
         
         // Process tabs in their original order but add headers when group changes
-        let regularTabIDs = window?.tabs ?? []
+        let regularTabIDs = perProfileData?.tabs ?? []
         var tabGroups: [TabGroup] = []
         var currentGroupName: String? = nil
         var currentGroupTabs: [ID<Tab>] = []
@@ -115,7 +121,7 @@ private struct SidebarSnapshot: Equatable {
         self.regularTabGroups = tabGroups
         
         // Check if there are downloads
-        self.hasDownloads = !(window?.downloads.isEmpty ?? true)
+        self.hasDownloads = !(perProfileData?.downloads.isEmpty ?? true)
     }
 }
 
@@ -162,6 +168,12 @@ private struct SidebarContent: View {
         .overlay(alignment: .topLeading) {
             topButtons
                 .padding(.leading, 72)
+        }
+        .contextMenu {
+            ProfilePicker(
+                currentProfileID: snapshot.profileID,
+                windowID: snapshot.windowID
+            )
         }
     }
     
@@ -356,6 +368,50 @@ extension Shape {
             .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
         } else {
             self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
+        }
+    }
+}
+
+// Profile picker for context menu
+private struct ProfilePicker: View {
+    let currentProfileID: ID<Profile>
+    let windowID: ID<WindowState>
+    
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            state.profiles
+        } main: { profiles in
+            Group {
+                ForEach(profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }), id: \.id.raw) { profile in
+                    Button {
+                        switchToProfile(profileID: profile.id)
+                    } label: {
+                        Text(profile.id.raw)
+                    }
+                }
+                
+                Divider()
+                
+                Button("New Profile") {
+                    createNewProfile()
+                }
+            }
+        }
+    }
+    
+    private func createNewProfile() {
+        BrowserStore.shared.modify { state in
+            let newProfileID = state.createNewProfile()
+            state.windows[windowID]?.profile = newProfileID
+        }
+    }
+    
+    private func switchToProfile(profileID: ID<Profile>) {
+        BrowserStore.shared.modify { state in
+            if state.windows[windowID]?.perProfileData[profileID] == nil {
+                state.windows[windowID]?.perProfileData[profileID] = WindowState.PerProfileData(tabs: [])
+            }
+            state.windows[windowID]?.profile = profileID
         }
     }
 }
