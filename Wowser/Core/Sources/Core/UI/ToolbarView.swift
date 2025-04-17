@@ -70,9 +70,11 @@ public struct ToolbarView: View {
     
     public var body: some View {
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 if snapshot.makeRoomForTrafficLights {
-                    Spacer().frame(width: 60)
+                    MacWindowControlsIfValidElse(leftPadding: 12) {
+                        EmptyView()
+                    }
                 }
                 // Security indicator and Omnibox (search/URL input field)
                 HStack(spacing: -2) {

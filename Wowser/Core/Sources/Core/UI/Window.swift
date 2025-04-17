@@ -12,9 +12,11 @@ public struct BrowserWindow: View {
     public var body: some View {
         if !unmount {
             WithSnapshotMain(store: BrowserStore.shared, snapshot: { WindowSnapshot(state: $0, id: self.windowID) }) { snapshot in
-                WindowContent(snapshot: snapshot)
-                    .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
-                    .environment(\.isFullscreen, isFullscreen)
+                ZStack(alignment: .topLeading) {
+                    WindowContent(snapshot: snapshot)
+                        .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
+                        .environment(\.isFullscreen, isFullscreen)
+                }
             }
         }
     }
@@ -100,7 +102,7 @@ private struct WindowContent: View {
                 ToastViewer()
             }
             .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: snapshot.hasToast)
-            .edgesIgnoringSafeArea(.all)
+//            .edgesIgnoringSafeArea(.all)
         }
         .overlay(alignment: .leading) {
             if !snapshot.sidebarLocked {
@@ -118,6 +120,7 @@ private struct WindowContent: View {
                 .edgesIgnoringSafeArea(.all)
         }
         .background { WindowBG() }
+        .edgesIgnoringSafeArea(.all)
     }
     
     private var topbarVisible: Bool {

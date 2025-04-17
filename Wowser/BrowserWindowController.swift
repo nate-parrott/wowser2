@@ -4,11 +4,20 @@ import Core
 class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var observers = [Any]()
     private var firstResponderObserver: NSKeyValueObservation?
+    private var windowControlsHacker: MacWindowControlsHacker?
     
     override func windowDidLoad() {
         super.windowDidLoad()
         
         self.window?.isMovableByWindowBackground = true
+        
+        // Setup window controls hacker
+        if let window = self.window {
+            windowControlsHacker = MacWindowControlsHacker(window: window)
+            windowControlsHacker?.fullscreenChanged = { [weak self] isFullscreen in
+                self?.isFullscreen = isFullscreen
+            }
+        }
         
         // Observe window's first responder changes
         firstResponderObserver = window?.observe(\.firstResponder, options: [.new, .old]) { [weak self] window, change in
@@ -29,13 +38,7 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
             }
         })
         
-        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: self.window!, queue: .main) { [weak self] _ in
-            self?.isFullscreen = true
-        })
-        
-        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: self.window!, queue: .main) { [weak self] _ in
-            self?.isFullscreen = false
-        })
+        isFullscreen = windowControlsHacker?.isFullscreen ?? false
     }
     
     private(set) var isFullscreen: Bool = false {

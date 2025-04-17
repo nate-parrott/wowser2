@@ -128,12 +128,20 @@ private struct SidebarSnapshot: Equatable {
 private struct SidebarContent: View {
     var snapshot: SidebarSnapshot
     var floating: Bool
-    
+        
     var body: some View {
         VStack(spacing: 0) {
-            if floating {
-                Spacer().frame(height: 30)
+//            if floating {
+//                Spacer().frame(height: 30)
+//            }
+            HStack {
+                MacWindowControlsIfValidElse {
+                    EmptyView()
+                }
+                Spacer()
+                topButtons
             }
+            .padding(6)
             
             // Favorite bookmarks/tabs section
             FavoriteTabsView(
@@ -165,10 +173,6 @@ private struct SidebarContent: View {
                 .padding(.bottom, 8)
         }
         .frame(width: UIConstants.sidebarWidth)
-        .overlay(alignment: .topLeading) {
-            topButtons
-                .padding(.leading, 72)
-        }
         .contextMenu {
             ProfilePicker(
                 currentProfileID: snapshot.profileID,
@@ -188,8 +192,8 @@ private struct SidebarContent: View {
             }
             .buttonStyle(GhostButtonStyle())
         }
-        .frame(height: 28)
-        .edgesIgnoringSafeArea(.all)
+//        .frame(height: 28)
+//        .edgesIgnoringSafeArea(.all)
     }
     
     func toggleSidebarLocked() {

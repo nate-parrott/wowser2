@@ -20,12 +20,24 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     private let moveBlockingView = MoveBlockingView()
     private let swipeGestureContainer = SwipeGestureContainer()
     private var escapeKeyMonitor: Any?
+    private var windowControlsHacker: MacWindowControlsHacker?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Add swipe gesture container and set it as the parent view
         view.addSubview(moveBlockingView)
         view.addSubview(swipeGestureContainer)
+        
+        // Setup window controls
+        if let window = self.view.window {
+            windowControlsHacker = MacWindowControlsHacker(window: window)
+            windowControlsHacker?.fullscreenChanged = { [weak self] isFullscreen in
+                self?.isFullscreen = isFullscreen
+            }
+            
+            // Initialize fullscreen state
+            isFullscreen = windowControlsHacker?.isFullscreen ?? false
+        }
         
         // Setup swipe gesture observer
         swipeGestureContainer.onSwipeGestureOffsetChanged = { [weak self] offset in
@@ -83,6 +95,12 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     // Called by BrowserWindowController
     func willClose() {
         rootHostingController?.rootView.unmount = true
+    }
+    
+    var isFullscreen: Bool = false {
+        didSet {
+            rootHostingController?.rootView.isFullscreen = isFullscreen
+        }
     }
     
     // MARK: - Action Methods
