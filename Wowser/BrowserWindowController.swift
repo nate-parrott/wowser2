@@ -1,7 +1,7 @@
 import AppKit
 import Core
 
-class BrowserWindowController: NSWindowController {
+class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var observers = [Any]()
     private var firstResponderObserver: NSKeyValueObservation?
     
@@ -22,11 +22,25 @@ class BrowserWindowController: NSWindowController {
             }
         }
         
-        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: self.window!, queue: .main) { [weak self] _ in
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: self.window!, queue: .main) { [weak self] _ in
             if let self {
                 self.willClose()
                 AppDelegate.shared.windowControllers.removeAll(where: { $0 === self })
             }
+        })
+        
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: self.window!, queue: .main) { [weak self] _ in
+            self?.isFullscreen = true
+        })
+        
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: self.window!, queue: .main) { [weak self] _ in
+            self?.isFullscreen = false
+        })
+    }
+    
+    private(set) var isFullscreen: Bool = false {
+        didSet {
+            browserViewController?.rootHostingController?.rootView.isFullscreen = isFullscreen
         }
     }
     

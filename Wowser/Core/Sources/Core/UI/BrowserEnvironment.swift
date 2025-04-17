@@ -10,6 +10,11 @@ private struct ProfileIDKey: EnvironmentKey {
     static let defaultValue: ID<Profile>? = nil
 }
 
+// MARK: - Fullscreen Environment Key
+private struct IsFullscreenKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 // MARK: - Environment Extensions
 public extension EnvironmentValues {
     var windowID: ID<WindowState>? {
@@ -20,6 +25,11 @@ public extension EnvironmentValues {
     var profileID: ID<Profile>? {
         get { self[ProfileIDKey.self] }
         set { self[ProfileIDKey.self] = newValue }
+    }
+    
+    var isFullscreen: Bool {
+        get { self[IsFullscreenKey.self] }
+        set { self[IsFullscreenKey.self] = newValue }
     }
 }
 

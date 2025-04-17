@@ -201,25 +201,55 @@ private struct SidebarContent: View {
 
 private struct GroupHeader: View {
     var name: String
+    let tabGroup: TabGroup
+    
+    @State private var isHovered = false
     
     var body: some View {
-        Text(name)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack {
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.leading, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            if isHovered {
+                Button(action: {
+                    closeTabGroup(tabGroup: tabGroup)
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundColor(.secondary)
+                        .frame(both: 18)
+                        .help("Close tabs in this group")
+                }
+                .padding(-4)
+                .buttonStyle(GhostButtonStyle())
+                .padding(.trailing, 16)
+            }
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+    
+    private func closeTabGroup(tabGroup: TabGroup) {
+        for tabID in tabGroup.tabIDs {
+            closeTab(tabID: tabID)
+        }
     }
 }
 
 private enum TabListCell: Equatable, Identifiable {
-    case header(id: String, name: String?) // if name is nil, .render as divider
+    case header(id: String, name: String?, tabGroup: TabGroup) // if name is nil, .render as divider
     case tabID(ID<Tab>)
     
     var id: String {
         switch self {
-        case .header(let id, _):
+        case .header(let id, _, _):
             return id
         case .tabID(let id):
             return id.raw
@@ -231,10 +261,10 @@ private enum TabListCell: Equatable, Identifiable {
         var isFirst = true
         for group in groups {
             if let name = group.name {
-                cells.append(.header(id: "header:" + group.id, name: name))
+                cells.append(.header(id: "header:" + group.id, name: name, tabGroup: group))
             } else if !isFirst {
                 // Append non-textual (divider) header
-                cells.append(.header(id: "header:" + group.id, name: nil))
+                cells.append(.header(id: "header:" + group.id, name: nil, tabGroup: group))
             }
             cells += group.tabIDs.map { TabListCell.tabID($0) }
             isFirst = false
@@ -256,9 +286,9 @@ private struct GroupedTabsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(cells) { cell in
                         switch cell {
-                        case .header(id: _, name: let name):
+                        case .header(id: _, name: let name, tabGroup: let tabGroup):
                             if let name {
-                                GroupHeader(name: name)
+                                GroupHeader(name: name, tabGroup: tabGroup)
                             } else {
                                 Divider()
                                     .padding(.horizontal, 14)

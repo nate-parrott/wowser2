@@ -164,8 +164,8 @@
             filePath = "Wowser/BrowserWindowController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "32"
-            endingLineNumber = "32"
+            startingLineNumber = "46"
+            endingLineNumber = "46"
             landmarkName = "BrowserWindowController"
             landmarkType = "3">
          </BreakpointContent>
