@@ -128,53 +128,68 @@ private struct SidebarSnapshot: Equatable {
 private struct SidebarContent: View {
     var snapshot: SidebarSnapshot
     var floating: Bool
+    @State private var pageTransitionAmount: CGFloat = 0 // Add for animation effect
     
     var body: some View {
-        VStack(spacing: 0) {
-            if floating {
-                Spacer().frame(height: 30)
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            state.profiles
+        } main: { profiles in
+            TabView(selection: Binding(
+                get: { snapshot.profileID },
+                set: { newProfileID in
+                    if newProfileID != snapshot.profileID {
+                        BrowserStore.shared.modify { state in
+                            if state.windows[snapshot.windowID]?.perProfileData[newProfileID] == nil {
+                                state.windows[snapshot.windowID]?.perProfileData[newProfileID] = WindowState.PerProfileData(tabs: [])
+                            }
+                            state.windows[snapshot.windowID]?.profile = newProfileID
+                        }
+                    }
+                }
+            )) {
+                ForEach(profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }), id: \.id.raw) { profile in
+                    ProfileSidebarContent(
+                        snapshot: snapshot, 
+                        profileID: profile.id,
+                        floating: floating
+                    )
+                    .tag(profile.id)
+                }
             }
-            
-            // Favorite bookmarks/tabs section
-            FavoriteTabsView(
-                tabIDs: snapshot.favoriteTabIDs,
-                currentTabID: snapshot.currentTabID,
-                windowID: snapshot.windowID
-            )
-            .padding(.top, 5)
-            .padding(.bottom, 10)
-            
-//            Divider()
-            
-            // Regular tabs section with group headers
-            GroupedTabsView(
-                tabGroups: snapshot.regularTabGroups,
-                currentTabID: snapshot.currentTabID,
-                windowID: snapshot.windowID
-            )
-                        
-            // Downloads section
-            if snapshot.hasDownloads {
-                DownloadsSidebar(windowID: snapshot.windowID)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(width: UIConstants.sidebarWidth)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: snapshot.profileID)
+            .overlay(alignment: .topLeading) {
+                topButtons
+                    .padding(.leading, 72)
             }
-            
-            Spacer()
-            
-            // Bottom buttons
-            SidebarBottomButtons(windowID: snapshot.windowID)
-                .padding(.bottom, 8)
+            .overlay(alignment: .bottom) {
+                profileIndicator(profiles: profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }))
+                    .padding(.bottom, 4)
+            }
+            .contextMenu {
+                ProfilePicker(
+                    currentProfileID: snapshot.profileID,
+                    windowID: snapshot.windowID
+                )
+            }
         }
-        .frame(width: UIConstants.sidebarWidth)
-        .overlay(alignment: .topLeading) {
-            topButtons
-                .padding(.leading, 72)
+    }
+    
+    // Profile indicator dots at the bottom
+    @ViewBuilder
+    private func profileIndicator(profiles: [Profile]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(profiles, id: \.id.raw) { profile in
+                Circle()
+                    .fill(profile.id == snapshot.profileID ? Color.accentColor : Color.gray.opacity(0.5))
+                    .frame(width: 6, height: 6)
+            }
         }
-        .contextMenu {
-            ProfilePicker(
-                currentProfileID: snapshot.profileID,
-                windowID: snapshot.windowID
-            )
-        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.primary.opacity(0.05))
+        .cornerRadius(8)
     }
     
     @ViewBuilder private var topButtons: some View {
@@ -195,6 +210,59 @@ private struct SidebarContent: View {
     func toggleSidebarLocked() {
         BrowserStore.shared.modify { state in
             state.windows[snapshot.windowID]?.sidebarLocked.toggle()
+        }
+    }
+}
+
+private struct ProfileSidebarContent: View {
+    var snapshot: SidebarSnapshot
+    var profileID: ID<Profile>
+    var floating: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            if floating {
+                Spacer().frame(height: 30)
+            }
+            
+            // Create a profile-specific snapshot
+            WithSnapshotMain(store: BrowserStore.shared) { state in
+                SidebarSnapshot(
+                    windowID: snapshot.windowID,
+                    profileID: profileID, // Use the specific profile
+                    windows: state.windows,
+                    tabs: state.tabs,
+                    profiles: state.profiles
+                )
+            } main: { profileSnapshot in
+                VStack(spacing: 0) {
+                    // Favorite bookmarks/tabs section
+                    FavoriteTabsView(
+                        tabIDs: profileSnapshot.favoriteTabIDs,
+                        currentTabID: profileSnapshot.currentTabID,
+                        windowID: profileSnapshot.windowID
+                    )
+                    .padding(.top, 5)
+                    .padding(.bottom, 10)
+                    
+                    GroupedTabsView(
+                        tabGroups: profileSnapshot.regularTabGroups,
+                        currentTabID: profileSnapshot.currentTabID,
+                        windowID: profileSnapshot.windowID
+                    )
+                    
+                    // Downloads section
+                    if profileSnapshot.hasDownloads {
+                        DownloadsSidebar(windowID: profileSnapshot.windowID)
+                    }
+                    
+                    Spacer()
+                    
+                    // Bottom buttons
+                    SidebarBottomButtons(windowID: profileSnapshot.windowID)
+                        .padding(.bottom, 8)
+                }
+            }
         }
     }
 }
