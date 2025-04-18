@@ -103,6 +103,8 @@ public class MacWindowControlsView: NSView {
 public struct MacWindowControls: NSViewRepresentable {
     public init() {}
     
+    // TODO: Fix lack of hover effect
+    
     public func makeNSView(context: Context) -> MacWindowControlsView {
         return MacWindowControlsView()
     }
@@ -117,8 +119,8 @@ public struct MacWindowControls: NSViewRepresentable {
 struct MacWindowControlsIfValidElse<V: View>: View {
     @Environment(\.isFullscreen) private var isFullscreen
     var leftPadding: CGFloat = 0
-    
     @ViewBuilder var elseView: () -> V
+    
     var body: some View {
         #if os(macOS)
         if !isFullscreen {
