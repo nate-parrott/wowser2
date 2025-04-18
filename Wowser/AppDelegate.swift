@@ -101,7 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         Preheat.preheat()
         
-        archiveMenuManager = ArchiveMenuManager(historyMenu: historyMenu!, bookmarksMenuItem: bookmarksMenuItem!, openURL: { [weak self] url in
+        archiveMenuManager = ArchiveMenuManager(bookmarksMenuItem: bookmarksMenuItem!, openURL: { [weak self] url in
             self?.openURL(url)
         })
         

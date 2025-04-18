@@ -23,11 +23,6 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
         firstResponderObserver = window?.observe(\.firstResponder, options: [.new, .old]) { [weak self] window, change in
             if let newResponder = change.newValue ?? nil {
                 print("[First responder] \(type(of: newResponder)) - \(newResponder)")
-                
-                // If it's a WebContentWebView, log additional details
-//                if let webView = newResponder as? WKWebView {
-//                    print("WebView became first responder: \(webView) - URL: \(webView.url?.absoluteString ?? "none")")
-//                }
             }
         }
         

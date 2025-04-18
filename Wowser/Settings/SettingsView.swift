@@ -8,13 +8,18 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
     @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
     @AppStorage(DefaultsKeys.autoOrganizeTabs.rawValue) private var autoOrganizeTabsEnabled = false
+    @AppStorage(DefaultsKeys.autoArchiveTabs.rawValue) private var autoArchiveTabsEnabled = false
     
 
     
     var body: some View {
         Form {
-            Section("Interface") {
-                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
+            Section("Tabs") {
+                Toggle("Move old tabs to 'Old Tabs' every night", isOn: $autoArchiveTabsEnabled)
+                    .help("When enabled, old tabs will be automatically archived and accessible via the Old Tabs menu")
+                
+                Toggle("Auto-organize tabs hourly", isOn: $autoOrganizeTabsEnabled)
+                    .help("Automatically organize tabs into logical groups once per hour")
             }
             Section("Browsing") {
                 Toggle("Block ads", isOn: $adblockEnabled)
@@ -27,9 +32,10 @@ struct SettingsView: View {
                     .help("Show animation when new tabs are loaded")
                 
                 Toggle("Save windows when quitting", isOn: $preserveWindowsAcrossRestarts)
-                
-                Toggle("Auto-organize tabs hourly", isOn: $autoOrganizeTabsEnabled)
-                    .help("Automatically organize tabs into logical groups once per hour")
+            }
+            
+            Section("Appearance") {
+                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
             }
             
             AISettings()

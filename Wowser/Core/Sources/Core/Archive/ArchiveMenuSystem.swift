@@ -1,23 +1,68 @@
 import AppKit
 import SwiftUI
 
+#if os(macOS)
 public class ArchiveMenuManager: NSObject, NSMenuDelegate {
-    let historyMenu: NSMenu
+    let oldTabsMenu: NSMenu
+    let oldTabsMenuItem: NSMenuItem
     let bookmarksMenuItem: NSMenuItem
     let openURL: (URL) -> Void
     
     private var dynamicMenuItems: [NSMenuItem] = []
     private var bookmarksMenu: NSMenu! { bookmarksMenuItem.submenu }
     
-    public init(historyMenu: NSMenu, bookmarksMenuItem: NSMenuItem, openURL: @escaping (URL) -> Void) {
-        self.historyMenu = historyMenu
+    public init(bookmarksMenuItem: NSMenuItem, openURL: @escaping (URL) -> Void) {
+        self.oldTabsMenu = NSMenu(title: "Old Tabs")
+        self.oldTabsMenuItem = NSMenuItem(title: "Old Tabs", action: nil, keyEquivalent: "")
+        self.oldTabsMenu.items.append(.separator()) // need to have at least one item in the submenu for it to open
+        oldTabsMenuItem.submenu = oldTabsMenu
+        
         self.bookmarksMenuItem = bookmarksMenuItem
         self.openURL = openURL
         super.init()
         
         // Set up menu delegates
-        historyMenu.delegate = self
+        oldTabsMenu.delegate = self
         bookmarksMenuItem.submenu?.delegate = self
+        
+        // Initialize menu visibility based on user settings
+        oldTabsMenuVisible = UserDefaults.standard.bool(forKey: DefaultsKeys.autoArchiveTabs.rawValue)
+        
+        // Observe changes to auto archive setting
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.updateMenuVisibilityFromSettings()
+        }
+        
+        // Set initial visibility
+        updateOldTabsMenuVisibility()
+    }
+    
+    var oldTabsMenuVisible = false {
+        didSet {
+            if oldTabsMenuVisible != oldValue {
+                updateOldTabsMenuVisibility()
+            }
+        }
+    }
+    
+    private func updateMenuVisibilityFromSettings() {
+        oldTabsMenuVisible = UserDefaults.standard.bool(forKey: DefaultsKeys.autoArchiveTabs.rawValue)
+    }
+    
+    private func updateOldTabsMenuVisibility() {
+        if let mainMenu = NSApplication.shared.mainMenu {
+            if oldTabsMenuVisible {
+                // Only add if not already in menu
+                if oldTabsMenuItem.menu == nil {
+                    mainMenu.insertItem(oldTabsMenuItem, at: max(1, mainMenu.items.count - 3))
+                }
+            } else {
+                // Remove if present
+                if oldTabsMenuItem.menu != nil {
+                    mainMenu.removeItem(oldTabsMenuItem)
+                }
+            }
+        }
     }
     
     public func menuWillOpen(_ menu: NSMenu) {
@@ -25,8 +70,8 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
         clearDynamicItems(from: menu)
         
         Task { @MainActor in
-            if menu === historyMenu {
-                await populateHistoryMenu()
+            if menu === oldTabsMenu {
+                await populateOldTabsMenu()
             } else if menu === bookmarksMenu {
                 await populateBookmarksMenu()
             }
@@ -70,7 +115,7 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
     }
     
     @MainActor
-    private func populateHistoryMenu() async {
+    private func populateOldTabsMenu() async {
         let state = await ArchiveStore.shared.readAsync()
         let cutoffDate = Date().addingTimeInterval(-48 * 60 * 60) // 48 hours ago
         let recentItems = state.itemsByHistoryKey.values
@@ -83,31 +128,33 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
             .prefix(40)
         
         // Add separator if menu already has items
-        if self.historyMenu.items.count > 0 {
+        if self.oldTabsMenu.items.count > 0 {
             let separator = NSMenuItem.separator()
-            self.historyMenu.addItem(separator)
+            self.oldTabsMenu.addItem(separator)
             self.dynamicMenuItems.append(separator)
         }
         
         // Add section title
-        let titleItem = NSMenuItem(title: "Recently Archived", action: nil, keyEquivalent: "")
-        titleItem.isEnabled = false
-        self.historyMenu.addItem(titleItem)
-        self.dynamicMenuItems.append(titleItem)
+//        let titleItem = NSMenuItem(title: "Recently Archived", action: nil, keyEquivalent: "")
+//        titleItem.isEnabled = false
+//        self.historyMenu.addItem(titleItem)
+//        self.dynamicMenuItems.append(titleItem)
         
         if recentItems.isEmpty {
-            let emptyItem = NSMenuItem(title: "No Recent Archived Items", action: nil, keyEquivalent: "")
+            let emptyItem = NSMenuItem(title: "No Old Tabs", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
-            self.historyMenu.addItem(emptyItem)
+            self.oldTabsMenu.addItem(emptyItem)
             self.dynamicMenuItems.append(emptyItem)
         } else {
             for item in recentItems {
                 let menuItem = ArchiveMenuItem(archiveItem: item) { [weak self] in
                     self?.openURL(item.url)
                 }
-                self.historyMenu.addItem(menuItem)
+                self.oldTabsMenu.addItem(menuItem)
                 self.dynamicMenuItems.append(menuItem)
             }
         }
     }
 }
+
+#endif

@@ -164,8 +164,8 @@
             filePath = "Wowser/BrowserWindowController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "54"
-            endingLineNumber = "54"
+            startingLineNumber = "49"
+            endingLineNumber = "49"
             landmarkName = "willClose()"
             landmarkType = "7">
          </BreakpointContent>
@@ -356,9 +356,9 @@
             filePath = "Wowser/Core/Sources/Core/Archive/ArchiveMenuSystem.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "66"
-            endingLineNumber = "66"
-            landmarkName = "populateBookmarksMenu()"
+            startingLineNumber = "82"
+            endingLineNumber = "82"
+            landmarkName = "clearDynamicItems(from:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -372,9 +372,9 @@
             filePath = "Wowser/Core/Sources/Core/Archive/ArchiveMenuSystem.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "65"
-            endingLineNumber = "65"
-            landmarkName = "populateBookmarksMenu()"
+            startingLineNumber = "81"
+            endingLineNumber = "81"
+            landmarkName = "clearDynamicItems(from:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -792,6 +792,22 @@
             endingLineNumber = "84"
             landmarkName = "SidebarSwipeContent"
             landmarkType = "14">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4C1B8A9C-5995-42B5-8D9C-DBBC203BDB55"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/Archive/Archive.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "84"
+            endingLineNumber = "84"
+            landmarkName = "toggleBookmark(url:title:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

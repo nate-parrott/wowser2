@@ -103,6 +103,10 @@ public class ArchiveStore: DataStore<ArchiveState> {
             if var existing = state.itemsByHistoryKey[item.historyKey] {
                 existing.title = item.title
                 existing.url = item.url
+                if item.kind == .bookmark {
+                    existing.kind = .bookmark // bookmark beats auto-archived
+                }
+                state.itemsByHistoryKey[item.historyKey] = existing
             } else {
                 state.itemsByHistoryKey[item.historyKey] = item
                 Task {
