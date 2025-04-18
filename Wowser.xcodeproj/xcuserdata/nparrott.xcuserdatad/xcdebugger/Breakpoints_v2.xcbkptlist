@@ -356,8 +356,8 @@
             filePath = "Wowser/Core/Sources/Core/Archive/ArchiveMenuSystem.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "82"
-            endingLineNumber = "82"
+            startingLineNumber = "88"
+            endingLineNumber = "88"
             landmarkName = "clearDynamicItems(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -372,8 +372,8 @@
             filePath = "Wowser/Core/Sources/Core/Archive/ArchiveMenuSystem.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "81"
-            endingLineNumber = "81"
+            startingLineNumber = "87"
+            endingLineNumber = "87"
             landmarkName = "clearDynamicItems(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -807,6 +807,22 @@
             startingLineNumber = "84"
             endingLineNumber = "84"
             landmarkName = "toggleBookmark(url:title:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "3A60D294-56D2-4A56-B801-2B22F3652C50"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/Utils/NSMenuItem+Animation.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "24"
+            endingLineNumber = "24"
+            landmarkName = "animateTextMessage(text:timeout:skipAnimation:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

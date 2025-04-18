@@ -11,6 +11,8 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
     private var dynamicMenuItems: [NSMenuItem] = []
     private var bookmarksMenu: NSMenu! { bookmarksMenuItem.submenu }
     
+    static private(set) var shared: ArchiveMenuManager?
+    
     public init(bookmarksMenuItem: NSMenuItem, openURL: @escaping (URL) -> Void) {
         self.oldTabsMenu = NSMenu(title: "Old Tabs")
         self.oldTabsMenuItem = NSMenuItem(title: "Old Tabs", action: nil, keyEquivalent: "")
@@ -20,6 +22,10 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
         self.bookmarksMenuItem = bookmarksMenuItem
         self.openURL = openURL
         super.init()
+        
+        if Self.shared == nil {
+            Self.shared = self
+        }
         
         // Set up menu delegates
         oldTabsMenu.delegate = self

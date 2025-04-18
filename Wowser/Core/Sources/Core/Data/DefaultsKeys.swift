@@ -8,6 +8,7 @@ public enum DefaultsKeys: String {
     case preserveWindowsAcrossRestarts // bool
     case autoOrganizeTabs // bool
     case autoArchiveTabs
+    case lastAutoArchiveDate // Date
     
     case llmChoice // LLMChoice
     case ollamaCustomModel // string
@@ -30,6 +31,22 @@ public extension DefaultsKeys {
 
     func stringValue(defaultValue def: String = "") -> String {
         return UserDefaults.standard.string(forKey: rawValue) ?? def
+    }
+    
+    func dateValue() -> Date? {
+        return UserDefaults.standard.object(forKey: rawValue) as? Date
+    }
+    
+    func setDate(_ date: Date) {
+        UserDefaults.standard.set(date, forKey: rawValue)
+    }
+    
+    func setBool(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: rawValue)
+    }
+    
+    func setString(_ value: String) {
+        UserDefaults.standard.set(value, forKey: rawValue)
     }
 }
 

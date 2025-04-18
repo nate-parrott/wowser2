@@ -79,6 +79,53 @@ Best practices:
 - you don't need to update the xcodeproj when adding files; it'll pick them up automatically now.
 - When defining structs, make their props VAR not LET absent a great reason not to
 
+## Working with DefaultsKeys
+
+Always use the DefaultsKeys enum for accessing UserDefaults:
+
+```swift
+// Reading values
+let isEnabled = DefaultsKeys.autoArchiveTabs.boolValue()
+let apiKey = DefaultsKeys.openAIKey.stringValue()
+let lastDate = DefaultsKeys.lastAutoArchiveDate.dateValue()
+
+// Writing values
+DefaultsKeys.autoArchiveTabs.setBool(true) // add this method if needed
+DefaultsKeys.lastAutoArchiveDate.setDate(Date())
+```
+
+Benefits:
+- Type-safe key access
+- Centralized key definitions
+- Better auto-completion
+- Prevents typos in string keys
+
+## Closing Tabs
+
+When closing tabs, follow these principles:
+
+1. Identify tabs to close outside of the modify block to avoid nested transactions:
+```swift
+// Get tabs to close
+let tabsToClose = self.model.tabsToClose(...)
+
+// Close them outside the modify block
+for (_, paneID, _, _) in tabsToClose {
+    close(webContentId: paneID, removeIfPinned: false)
+}
+```
+
+2. Use BrowserState extensions for listing tabs to close and BrowserStore methods for actually closing:
+```swift
+// In BrowserState extension:
+func tabsToClose(...) -> [(tabID: ID<Tab>, paneID: ID<WebContent>, ...)]
+
+// In BrowserStore:
+func close(webContentId: ID<WebContent>, removeIfPinned: Bool)
+```
+
+3. Archive tabs before closing when appropriate
+
 # Code Organization and Architecture
 
 ## Overall Architecture

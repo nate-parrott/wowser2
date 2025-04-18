@@ -115,6 +115,7 @@ extension BrowserViewController {
             Task {
                 let wasBookmarked = await ArchiveStore.shared.isItemBookmarked(url: url)
                 ArchiveStore.shared.toggleBookmark(url: url, title: webContent.info.title)
+                
                 // Show toast notification
                 BrowserStore.shared.modify { state in
                     // Check if the URL is bookmarked after toggle

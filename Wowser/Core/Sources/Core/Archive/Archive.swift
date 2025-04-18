@@ -1,5 +1,6 @@
 import ChatToys
 import SwiftUI
+import AppKit
 
 public struct ArchiveItem: Identifiable, Codable, Equatable {
     public var id: String {
@@ -79,7 +80,7 @@ public class ArchiveStore: DataStore<ArchiveState> {
     /// - Returns: The new bookmark status (true if bookmarked, false if not)
     public func toggleBookmark(url: URL?, title: String?) {
         guard let url = url else { return }
-        Task {
+        Task { @MainActor in
             let bookmarked = await self.isItemBookmarked(url: url)
             if bookmarked {
                 // Remove
@@ -90,6 +91,11 @@ public class ArchiveStore: DataStore<ArchiveState> {
                 // Add
                 let item = ArchiveItem(added: Date(), url: url, historyKey: url.historyKey, title: title, kind: .bookmark)
                 self.add(item: item)
+                
+                // Animate the bookmarks menu item
+//                if let bookmarksMenuItem = ArchiveMenuManager.shared?.bookmarksMenuItem {
+//                    bookmarksMenuItem.animateTextMessage(text: "✅ Bookmarked!", skipAnimation: true)
+//                }
             }
         }
     }

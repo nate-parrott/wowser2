@@ -185,6 +185,8 @@ public class BrowserStore: DataStore<BrowserState> {
             .sink { [weak self] ids in
                 self?.removeWebContentNotInValidIds()
             }.store(in: &subscriptions)
+        
+        setupAutoArchiving()
     }
     
     public override func processModelAfterLoad(model: inout BrowserState) {
