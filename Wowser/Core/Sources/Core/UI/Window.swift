@@ -37,6 +37,7 @@ struct WindowSnapshot: Equatable {
     var panes: [PaneSnapshot]
     var tabId: ID<Tab>?
     var profileID: ID<Profile>
+    var windowID: ID<WindowState>
     var sidebarLocked: Bool
     var swipeGestureOffset: Int?
     var hasToast: Bool
@@ -45,6 +46,7 @@ struct WindowSnapshot: Equatable {
     }
     
     init(state: BrowserState, id: ID<WindowState>) {
+        self.windowID = id
         guard let window = state.windows[id] else {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
             self.profileID = .defaultProfile

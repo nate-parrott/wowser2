@@ -26,7 +26,7 @@ public struct Sidebar: View {
 }
 
 // Helper struct to represent a tab group for the sidebar
-private struct TabGroup: Equatable, Identifiable {
+struct TabGroup: Equatable, Identifiable {
     var id: String
     var name: String?
     var tabIDs: [ID<Tab>]
@@ -143,23 +143,8 @@ private struct SidebarContent: View {
             }
             .padding(6)
             
-            // Favorite bookmarks/tabs section
-            FavoriteTabsView(
-                tabIDs: snapshot.favoriteTabIDs,
-                currentTabID: snapshot.currentTabID,
-                windowID: snapshot.windowID
-            )
-            .padding(.top, 5)
-            .padding(.bottom, 10)
-            
-//            Divider()
-            
-            // Regular tabs section with group headers
-            GroupedTabsView(
-                tabGroups: snapshot.regularTabGroups,
-                currentTabID: snapshot.currentTabID,
-                windowID: snapshot.windowID
-            )
+            // Swipeable profile content (favorites and tabs)
+            SidebarSwipeView(windowID: snapshot.windowID)
                         
             // Downloads section
             if snapshot.hasDownloads {
@@ -278,7 +263,7 @@ private enum TabListCell: Equatable, Identifiable {
 }
 
 // Grouped tabs section
-private struct GroupedTabsView: View {
+struct GroupedTabsView: View {
     let tabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
     let windowID: ID<WindowState>
