@@ -90,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
             DefaultsKeys.adblock.rawValue: true,
+            DefaultsKeys.cookieBannerBlock.rawValue: true,
             DefaultsKeys.autoDarkMode.rawValue: true,
             DefaultsKeys.animateNewTabs.rawValue: true,
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,

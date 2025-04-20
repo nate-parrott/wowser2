@@ -3,6 +3,7 @@ import Core
 
 struct SettingsView: View {
     @AppStorage(DefaultsKeys.adblock.rawValue) private var adblockEnabled = false
+    @AppStorage(DefaultsKeys.cookieBannerBlock.rawValue) private var cookieBannerBlockEnabled = false
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkModeEnabled = false
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
@@ -23,7 +24,8 @@ struct SettingsView: View {
             }
             Section("Browsing") {
                 Toggle("Block ads", isOn: $adblockEnabled)
-                    .help("Blocks ads on websites using built-in filter lists")
+                
+                Toggle("Block cookie banners", isOn: $cookieBannerBlockEnabled)
                 
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")

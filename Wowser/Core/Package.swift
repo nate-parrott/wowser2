@@ -28,6 +28,7 @@ let package = Package(
             dependencies: ["ChatToys", "DominantColors"],
             resources: [
                 .copy("Adblock/easylist.min.json"),
+                .copy("Adblock/easycookie.min.json"),
                 .process("Assets.xcassets"),
             ]
         ),

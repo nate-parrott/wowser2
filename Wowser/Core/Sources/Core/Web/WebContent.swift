@@ -31,7 +31,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     }
 
     // MARK: - Configuration
-    @Published var adblockEnabled = DefaultsKeys.adblock.boolValue(defaultValue: false)
+    @Published var blocklists = UserDefaults.standard.blocklistsActive
     var injectedCSS: String = "" {
         didSet(old) {
             if injectedCSS != old {
@@ -177,15 +177,14 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         #endif
         updateTransparency()
 
-        $adblockEnabled.flatMap { enabled -> AnyPublisher<WKContentRuleList?, Never> in
-            if enabled {
-                return AdblockManager.shared.$blocklist.eraseToAnyPublisher()
-            }
-            return Just(nil).eraseToAnyPublisher()
+        $blocklists.flatMap { blocklistsEnabled -> AnyPublisher<[WKContentRuleList], Never> in
+            return AdblockManager.shared.$blocklists.map {
+                $0?.filter({ blocklistsEnabled.contains($0.key) }).values.asArray ?? []
+            }.eraseToAnyPublisher()
         }
         .receive(on: DispatchQueue.main)
-        .sink { [weak self] list in
-            self?.adblockRuleList = list
+        .sink { [weak self] lists in
+            self?.adblockRuleLists = lists
         }
         .store(in: &subscriptions)
 
@@ -211,9 +210,8 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
                 guard let self = self else { return }
                 
                 // Update adblock setting if changed in UserDefaults
-                let adblockSetting = DefaultsKeys.adblock.boolValue(defaultValue: false)
-                if self.adblockEnabled != adblockSetting {
-                    self.adblockEnabled = adblockSetting
+                if self.blocklists != UserDefaults.standard.blocklistsActive {
+                    self.blocklists = UserDefaults.standard.blocklistsActive
                 }
                 
                 // Update autoDarkMode setting if changed in UserDefaults
@@ -269,16 +267,24 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         #endif
     }
 
-    private var adblockRuleList: WKContentRuleList? {
+    private var adblockRuleLists = [WKContentRuleList]() {
         didSet(old) {
             // TODO: is the userContentController shared between webviews?
-            guard adblockRuleList != old else { return }
-            if let old = old {
-                webview.configuration.userContentController.remove(old)
+            guard adblockRuleLists != old else { return }
+            let added = adblockRuleLists.asSet.subtracting(old)
+            let removed = old.asSet.subtracting(adblockRuleLists)
+            for list in removed {
+                webview.configuration.userContentController.remove(list)
             }
-            if let list = adblockRuleList {
+            for list in added {
                 webview.configuration.userContentController.add(list)
             }
+//            if let old = old {
+//                webview.configuration.userContentController.remove(old)
+//            }
+//            if let list = adblockRuleList {
+//                webview.configuration.userContentController.add(list)
+//            }
         }
     }
 
@@ -641,5 +647,18 @@ private enum DominantColorsError: Error {
 extension URL {
     fileprivate func nilIfExtensionIs(_ ext: String) -> URL? {
         pathExtension == ext ? nil : self
+    }
+}
+
+private extension UserDefaults {
+    var blocklistsActive: Set<Blocklist> {
+        var blocklists = Set<Blocklist>()
+        if DefaultsKeys.adblock.boolValue(defaultValue: false) {
+            blocklists.insert(.ads)
+        }
+        if DefaultsKeys.cookieBannerBlock.boolValue(defaultValue: false) {
+            blocklists.insert(.cookies)
+        }
+        return blocklists
     }
 }

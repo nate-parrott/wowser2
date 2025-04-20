@@ -2,6 +2,7 @@ import Foundation
 
 public enum DefaultsKeys: String {
     case adblock // bool
+    case cookieBannerBlock // bool
     case autoDarkMode
     case topbarLocked // bool
     case animateNewTabs // bool
