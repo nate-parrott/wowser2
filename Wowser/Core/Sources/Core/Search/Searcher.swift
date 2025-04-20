@@ -41,7 +41,7 @@ struct SearchResult: Equatable, Identifiable {
     var matchQuality: MatchQuality
     
     var id: String {
-        item.id.raw
+        item.dedupeKey
     }
     
     var score: Double {

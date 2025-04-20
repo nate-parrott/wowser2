@@ -11,7 +11,6 @@ public struct WrappedWebView: View {
     @State private var isFindInPageActive = false
     @State private var windowWantsWebviewFocus = false
     @Environment(\.windowID) private var windowID
-    
     public var body: some View {
         ZStack {
             // Fake view for onreceive
@@ -51,6 +50,7 @@ public struct WrappedWebView: View {
                     .accessibility(hidden: true)
             }
         }
+        .modifier(ByInjectingGeneratedPages(webContent: webContent))
         .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: isFindInPageActive)
     }
     
