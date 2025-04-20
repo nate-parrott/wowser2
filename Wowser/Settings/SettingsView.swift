@@ -13,6 +13,8 @@ struct SettingsView: View {
     
 
     
+    @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
+    
     var body: some View {
         Form {
             Section("Tabs") {
@@ -23,6 +25,15 @@ struct SettingsView: View {
                     .help("Automatically organize tabs into logical groups once per hour")
             }
             Section("Browsing") {
+                EnumPicker<SearchEngine>(title: "Search Engine", selection: $searchEngine) { engine in
+                    switch engine {
+                    case .google: return "Google"
+                    case .duckduckgo: return "DuckDuckGo"
+                    case .kagi: return "Kagi"
+                    case .ai: return "AI Search"
+                    }
+                }
+                
                 Toggle("Block ads", isOn: $adblockEnabled)
                 
                 Toggle("Block cookie banners", isOn: $cookieBannerBlockEnabled)

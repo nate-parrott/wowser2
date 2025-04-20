@@ -19,9 +19,9 @@ struct SearchableItem: Equatable {
     var titleMatchStr: NormalizedSearchableString?
     var dedupeKey: String {
         switch content {
-        case .searchWhatYouTyped(let string): return URL.googleSearch(string).historyKey
+        case .searchWhatYouTyped(let string): return SearchEngine.current.urlForQuery(string).historyKey
         case .urlYouTyped(let url): return url.historyKey
-        case .searchSuggestion(let string, _): return URL.googleSearch(string).historyKey
+        case .searchSuggestion(let string, _): return SearchEngine.current.urlForQuery(string).historyKey
         case .imFeelingLucky(let string): return "lucky:\(string)"
         case .historyItem(let historyItem): return historyItem.key
         case .chatbot(let query): return "chat:\(query)"

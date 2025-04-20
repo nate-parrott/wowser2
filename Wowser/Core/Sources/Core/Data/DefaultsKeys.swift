@@ -55,6 +55,37 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
     case google
     case duckduckgo
     case kagi
+    case ai
+    
+    static var current: SearchEngine {
+        if let k = UserDefaults.standard.value(forKey: DefaultsKeys.searchEngine.rawValue) as? String {
+            return SearchEngine(rawValue: k) ?? .google
+        }
+        return .google
+    }
+    
+    func urlForQuery(_ query: String) -> URL {
+        switch self {
+        case .google:
+            return .googleSearch(query)
+        case .duckduckgo:
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "duckduckgo.com"
+            components.path = "/"
+            components.queryItems = [URLQueryItem(name: "q", value: query)]
+            return components.url ?? .googleSearch(query)
+        case .kagi:
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "kagi.com"
+            components.path = "/search"
+            components.queryItems = [URLQueryItem(name: "q", value: query)]
+            return components.url ?? .googleSearch(query)
+        case .ai:
+            return GeneratedPageKey.answer(q: query).url
+        }
+    }
 }
 
 public enum Chatbot: String, CaseIterable, Equatable, Hashable, Codable {

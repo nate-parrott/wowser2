@@ -62,9 +62,9 @@ extension URL {
         }
         return URL(string: "https://" + string)
     }
-    public static func withSearchQuery(_ searchQuery: String) -> URL {
-        return withNaturalString(searchQuery) ?? googleSearch(searchQuery)
-    }
+//    public static func withSearchQuery(_ searchQuery: String) -> URL {
+//        return withNaturalString(searchQuery) ?? googleSearch(searchQuery)
+//    }
     public static func googleSearch(_ query: String) -> URL {
         var comps = URLComponents(string: "https://google.com/search")!
         comps.queryItems = [URLQueryItem(name: "q", value: query)]

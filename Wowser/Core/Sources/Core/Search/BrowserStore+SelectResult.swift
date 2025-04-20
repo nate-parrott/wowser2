@@ -83,10 +83,11 @@ extension BrowserStore {
             return
         }
         // Encode query for search URL
-        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-           let searchURL = URL(string: "https://www.google.com/search?q=\(encodedQuery)") {
-            loadURL(searchURL, windowID: windowID)
-        }
+        loadURL(SearchEngine.current.urlForQuery(query), windowID: windowID)
+//        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+//           let searchURL = URL(string: "https://www.google.com/search?q=\(encodedQuery)") {
+//            loadURL(searchURL, windowID: windowID)
+//        }
     }
     
     // Perform "I'm feeling lucky" search

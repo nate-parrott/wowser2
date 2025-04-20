@@ -84,6 +84,17 @@ struct TabSnapshot: Equatable {
             result.iconType = .empty
             result.displayName = ""
         }
+        
+        if let url, let genKey = GeneratedPageKey(url: url) {
+            switch genKey {
+            case .homepage:
+                result.iconType = .sfSymbol("leaf")
+                result.displayName = "Home"
+            case .answer(let q):
+                result.iconType = .sfSymbol("bubble")
+                result.displayName = q
+            }
+        }
 //        print("[URL] \(url); icon: \(result.iconType)")
         
         
