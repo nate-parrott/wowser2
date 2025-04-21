@@ -500,8 +500,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/TabStack3D.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "129"
-            endingLineNumber = "129"
+            startingLineNumber = "124"
+            endingLineNumber = "124"
             landmarkName = "swipeGestureOffsetChanged(offset:windowID:)"
             landmarkType = "7">
          </BreakpointContent>

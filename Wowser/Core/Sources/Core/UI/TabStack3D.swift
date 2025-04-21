@@ -15,8 +15,9 @@ struct TabStack3D: View {
                 let idx = cards.firstIndex(of: card) ?? 0
                 
                 render(card: card)
-                    .clipped()
-                    .rotation3DEffect(Angle(degrees: model.isActive3D ? -10 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, anchorZ: 0, perspective: 1)
+                    .clipShape(RoundedRectangle(cornerRadius: model.isActive3D ? 8 : 0))
+                    .shadow(color: Color.black.opacity(model.isActive3D ? 0.07 : 0), radius: 4, x: 0, y: 0)
+                    .rotation3DEffect(Angle(degrees: model.isActive3D ? -15 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, anchorZ: 0, perspective: 1)
                     .zIndex(Double(idx))
                     .scaleEffect(model.isActive3D ? 0.9 : 1)
                     .offset(y: yOffset(forIndexOffset: idx - selectedIdx))
@@ -38,25 +39,15 @@ struct TabStack3D: View {
         }
     }
     
-//    func cardTransition(beforeActiveCard: Bool) -> AnyTransition {
-////        .opacity
-//        let height = size?.height ?? 0
-//        let insertion: AnyTransition = .offset(y: -200).combined(with: .opacity)
-//        let removal: AnyTransition
-//        if beforeActiveCard {
-//            removal = .offset(y: -(size?.height ?? 0))
-//        }
-//        return .asymmetric(insertion: insertion, removal: removal)
-//    }
-    
     func yOffset(forIndexOffset offset: Int) -> CGFloat {
         let height = size?.height ?? 0
+        let baseOffset: CGFloat = min(100, height * 0.2)
         
         if model.isActive3D {
             if offset == 0 {
-                return 0
+                return baseOffset
             } else if offset < 0 {
-                return -20 * Double(abs(offset))
+                return -40 * Double(abs(offset)) + baseOffset
             } else {
                 return height - 100 + 50 * Double(offset - 1)
             }
@@ -86,6 +77,10 @@ struct TabStack3D: View {
                 WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
                     if let pane {
                         FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme)
+                            .overlay {
+                                TabStackCardOverlay(webContentId: pane.id)
+                                    .transition(.opacity)
+                            }
                     }
                 }
                 .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.niceDefault(duration: 0.2).delay(0.2))))
@@ -246,6 +241,30 @@ struct TabContentView: View {
             ForEach(snapshot.panes) { pane in
                 PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
                     .dropToCreateSplitViewTarget(paneId: pane.webContentId)
+            }
+        }
+    }
+}
+
+private struct TabStackCardOverlay: View {
+    var webContentId: ID<WebContent>
+    
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
+            if let pane {
+                ZStack(alignment: .top) {
+                    LinearGradient(colors: [Color.black.opacity(0.05), Color.black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+                    
+                    HStack(spacing: 8) {
+                        FaviconView(url: pane.info.url, faviconURL: pane.info.favicon, size: 16)
+                        Text(pane.info.title ?? pane.info.url?.absoluteString ?? "")
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(.thinMaterial)
+                }
             }
         }
     }

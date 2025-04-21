@@ -12,21 +12,17 @@ struct FakePaneView: View {
     @State private var size: CGSize = .zero
     
     var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
-                if let webContentId {
-                    FakePaneContent(webContentId: webContentId, toolbarColorScheme: toolbarColorScheme)
-                } else {
-                    Color.clear
-                }
+        VStack(spacing: 0) {
+            if topbarLocked {
+                Color.clear.frame(height: UIConstants.macHeaderHeight)
+                    .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
+                    .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
             }
-                .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
-                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
-//                .opacity(snapshot.searchActive ? 0.1 : 1)
-            
-            Color.clear.frame(height: UIConstants.macHeaderHeight)
-                .modifier(WithContentColorScheme(scheme: toolbarColorScheme))
-                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
+            if let webContentId {
+                FakePaneContent(webContentId: webContentId, toolbarColorScheme: toolbarColorScheme)
+            } else {
+                Color.clear
+            }
         }
         .overlay {
             if focused, !singlePane {
@@ -52,33 +48,37 @@ struct FakePaneContent: View {
                 }
                 .clipped()
             } else {
-                fallback
+                Color("Background", bundle: .module)
+                    .overlay {
+                        Image(systemName: "globe")
+                            .font(.largeTitle)
+                            .opacity(0.05)
+                    }
+//                fallback
             }
         }
     }
     
-    @ViewBuilder var fallback: some View {
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
-            ZStack {
-                if let pane {
-                    VStack(alignment: .leading) {
-                        HStack(spacing: 8) {
-                            FaviconView(url: pane.info.url, faviconURL: pane.info.favicon, size: 16)
-                            Text(pane.info.title ?? pane.info.url?.absoluteString ?? "")
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(1)
-                        }
-                        .padding(8)
-                        Spacer()
-                    }
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .modifier(WithContentColorScheme(scheme: toolbarColorScheme ?? pane?.info.colorScheme))
-        }
-
-    }
+//    @ViewBuilder var fallback: some View {
+//        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
+//            ZStack {
+//                if let pane {
+//                    VStack(alignment: .leading) {
+//                        HStack(spacing: 8) {
+//                            FaviconView(url: pane.info.url, faviconURL: pane.info.favicon, size: 16)
+//                            Text(pane.info.title ?? pane.info.url?.absoluteString ?? "")
+//                                .font(.system(size: 12, weight: .medium))
+//                                .lineLimit(1)
+//                        }
+//                        .padding(8)
+//                        Spacer()
+//                    }
+//                } else {
+//                    Color.blue
+//                }
+//            }
+//            .frame(maxWidth: .infinity, maxHeight: .infinity)
+//            .background(Color("Background", bundle: .module))
+//        }
+//    }
 }
-
