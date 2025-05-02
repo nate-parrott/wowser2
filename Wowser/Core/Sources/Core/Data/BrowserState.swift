@@ -131,6 +131,10 @@ public struct WindowState: Equatable, Codable {
         get { perProfileData[profile]?.downloads ?? [:] }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.downloads = newValue }
     }
+    public var lastClosedTabURL: URL? {
+        get { perProfileData[profile]?.lastClosedTabURL }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.lastClosedTabURL = newValue }
+    }
     
     public var lastActive: Date?
     public var searchOverlayActive = false
@@ -144,6 +148,7 @@ public struct WindowState: Equatable, Codable {
         public var currentTab: ID<Tab>?
         public var focusedOnProject: ID<Project>?
         public var downloads = [ID<Download>: Download]()
+        public var lastClosedTabURL: URL?
     }
     
     private mutating func ensurePerProfileDataForCurProfile() {
