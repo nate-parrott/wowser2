@@ -140,24 +140,68 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
             self.dynamicMenuItems.append(separator)
         }
         
-        // Add section title
-//        let titleItem = NSMenuItem(title: "Recently Archived", action: nil, keyEquivalent: "")
-//        titleItem.isEnabled = false
-//        self.historyMenu.addItem(titleItem)
-//        self.dynamicMenuItems.append(titleItem)
-        
         if recentItems.isEmpty {
             let emptyItem = NSMenuItem(title: "No Old Tabs", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             self.oldTabsMenu.addItem(emptyItem)
             self.dynamicMenuItems.append(emptyItem)
         } else {
+            // Group items by day
+            let calendar = Calendar.current
+            var itemsByDay: [Date: [ArchiveItem]] = [:]
+            
             for item in recentItems {
-                let menuItem = ArchiveMenuItem(archiveItem: item) { [weak self] in
-                    self?.openURL(item.url)
+                // Get the start of day for the item's date
+                let startOfDay = calendar.startOfDay(for: item.added)
+                if itemsByDay[startOfDay] == nil {
+                    itemsByDay[startOfDay] = []
                 }
-                self.oldTabsMenu.addItem(menuItem)
-                self.dynamicMenuItems.append(menuItem)
+                itemsByDay[startOfDay]?.append(item)
+            }
+            
+            // Sort days (newest first)
+            let sortedDays = itemsByDay.keys.sorted(by: >)
+            
+            // Add items by day with section headers
+            var isFirstDay = true
+            for day in sortedDays {
+                // Don't add separator before the first day
+                if !isFirstDay {
+                    // Add a separator between days
+                    let separator = NSMenuItem.separator()
+                    self.oldTabsMenu.addItem(separator)
+                    self.dynamicMenuItems.append(separator)
+                }
+                isFirstDay = false
+                
+                // Add day header
+                let formatter = DateFormatter()
+                
+                // Check if the day is today, yesterday, or another day
+                if calendar.isDateInToday(day) {
+                    formatter.dateFormat = "'Today'"
+                } else if calendar.isDateInYesterday(day) {
+                    formatter.dateFormat = "'Yesterday'"
+                } else {
+                    formatter.dateFormat = "EEEE, MMM d" // e.g. "Monday, May 1"
+                }
+                
+                let dateString = formatter.string(from: day)
+                let titleItem = NSMenuItem(title: dateString, action: nil, keyEquivalent: "")
+                titleItem.isEnabled = false
+                self.oldTabsMenu.addItem(titleItem)
+                self.dynamicMenuItems.append(titleItem)
+                
+                // Add items for this day
+                if let items = itemsByDay[day] {
+                    for item in items {
+                        let menuItem = ArchiveMenuItem(archiveItem: item) { [weak self] in
+                            self?.openURL(item.url)
+                        }
+                        self.oldTabsMenu.addItem(menuItem)
+                        self.dynamicMenuItems.append(menuItem)
+                    }
+                }
             }
         }
     }
