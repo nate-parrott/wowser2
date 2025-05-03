@@ -17,6 +17,7 @@ public enum LLMChoice: String, Equatable, Codable, CaseIterable {
     // Uses OpenAI API client w/ Ollama local url
     case ollama_gemma_3_1b // gemma3:1b
     case ollama_gemma_3_4b // gemma3:4b
+    case ollama_gemma_3_4b_qat // gemma3:4b:qat
     case ollama_gemma_3_12b // gemma3:12b
     case ollama_custom
     
@@ -113,24 +114,29 @@ enum LLMs {
             return nil
         case .ollama_gemma_3_1b:
             return ChatGPT(
-                credentials: OpenAICredentials(apiKey: "gemma3:1b"),
-                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "", tokenLimit: 1_000_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
+                credentials: OpenAICredentials(apiKey: ""),
+                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "gemma3:1b", tokenLimit: 32_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
             )
         case .ollama_gemma_3_4b:
             return ChatGPT(
-                credentials: OpenAICredentials(apiKey: "gemma3:4b"),
-                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "", tokenLimit: 1_000_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
+                credentials: OpenAICredentials(apiKey: ""),
+                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "gemma3:4b", tokenLimit: 128_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
+            )
+        case .ollama_gemma_3_4b_qat:
+            return ChatGPT(
+                credentials: OpenAICredentials(apiKey: ""),
+                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "gemma3:4b-it-qat", tokenLimit: 128_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
             )
         case .ollama_gemma_3_12b:
             return ChatGPT(
-                credentials: OpenAICredentials(apiKey: "gemma3:12b"),
-                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "", tokenLimit: 1_000_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
+                credentials: OpenAICredentials(apiKey: ""),
+                options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "gemma3:12b", tokenLimit: 128_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
             )
         case .ollama_custom:
             if let model = DefaultsKeys.ollamaCustomModel.stringValue().nilIfEmpty {
                 return ChatGPT(
-                    credentials: OpenAICredentials(apiKey: model),
-                    options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "", tokenLimit: 1_000_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
+                    credentials: OpenAICredentials(apiKey: ""),
+                    options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: model, tokenLimit: 128_000)), jsonMode: json, baseURL: .ollamaOpenAIChatEndpoint)
                 )
             }
             return nil

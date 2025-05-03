@@ -129,46 +129,47 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
         }
         
         completionHandler(destinationURL)
+        // TODO: Can we read from disk
     }
     
-    public func download(_ download: WKDownload, didReceive response: URLResponse) {
-        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-        
-        BrowserStore.shared.modify { state in
-            guard let window = state.windows[windowID],
-                  var downloadInfo = window.downloads[downloadID] else { return }
-            
-            // Update estimated size
-            downloadInfo.estimatedSize = response.expectedContentLength
-            state.windows[windowID]?.downloads[downloadID] = downloadInfo
-        }
-    }
-    
-    public func download(_ download: WKDownload, didReceiveData totalBytesReceived: Int64, totalBytesExpected: Int64) {
-        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-        
-        let now = Date()
-        let lastUpdate = lastProgressUpdateTime[downloadID] ?? Date(timeIntervalSince1970: 0)
-        let timeElapsed = now.timeIntervalSince(lastUpdate)
-        let progress = totalBytesExpected > 0 ? Double(totalBytesReceived) / Double(totalBytesExpected) : 0
-        
-        // Only update the progress if enough time has elapsed or if it's the first update or if progress is 100%
-        if timeElapsed >= progressUpdateThreshold || lastUpdate.timeIntervalSince1970 == 0 || progress >= 1.0 {
-            lastProgressUpdateTime[downloadID] = now
-            
-            BrowserStore.shared.modify { state in
-                guard let window = state.windows[windowID],
-                      var downloadInfo = window.downloads[downloadID] else { return }
-                
-                // Update progress and size info
-                downloadInfo.progress = progress
-                downloadInfo.currentSize = totalBytesReceived
-                downloadInfo.estimatedSize = totalBytesExpected
-                
-                state.windows[windowID]?.downloads[downloadID] = downloadInfo
-            }
-        }
-    }
+//    public func download(_ download: WKDownload, didReceive response: URLResponse) {
+//        guard let (windowID, downloadID) = activeDownloads[download] else { return }
+//        
+//        BrowserStore.shared.modify { state in
+//            guard let window = state.windows[windowID],
+//                  var downloadInfo = window.downloads[downloadID] else { return }
+//            
+//            // Update estimated size
+//            downloadInfo.estimatedSize = response.expectedContentLength
+//            state.windows[windowID]?.downloads[downloadID] = downloadInfo
+//        }
+//    }
+//    
+//    public func download(_ download: WKDownload, didReceiveData totalBytesReceived: Int64, totalBytesExpected: Int64) {
+//        guard let (windowID, downloadID) = activeDownloads[download] else { return }
+//        
+//        let now = Date()
+//        let lastUpdate = lastProgressUpdateTime[downloadID] ?? Date(timeIntervalSince1970: 0)
+//        let timeElapsed = now.timeIntervalSince(lastUpdate)
+//        let progress = totalBytesExpected > 0 ? Double(totalBytesReceived) / Double(totalBytesExpected) : 0
+//        
+//        // Only update the progress if enough time has elapsed or if it's the first update or if progress is 100%
+//        if timeElapsed >= progressUpdateThreshold || lastUpdate.timeIntervalSince1970 == 0 || progress >= 1.0 {
+//            lastProgressUpdateTime[downloadID] = now
+//            
+//            BrowserStore.shared.modify { state in
+//                guard let window = state.windows[windowID],
+//                      var downloadInfo = window.downloads[downloadID] else { return }
+//                
+//                // Update progress and size info
+//                downloadInfo.progress = progress
+//                downloadInfo.currentSize = totalBytesReceived
+//                downloadInfo.estimatedSize = totalBytesExpected
+//                
+//                state.windows[windowID]?.downloads[downloadID] = downloadInfo
+//            }
+//        }
+//    }
     
     public func downloadDidFinish(_ download: WKDownload) {
         guard let (windowID, downloadID) = activeDownloads[download] else { return }

@@ -102,6 +102,7 @@ struct AISettings: View {
                 
                 case .ollama_gemma_3_1b: return "Ollama - Gemma 3 1B"
                 case .ollama_gemma_3_4b: return "Ollama - Gemma 3 4B"
+                case .ollama_gemma_3_4b_qat: return "Ollama - Gemma 3 4B Quantized"
                 case .ollama_gemma_3_12b: return "Ollama - Gemma 3 12B"
                 case .ollama_custom: return "Ollama - Custom"
                 

@@ -80,9 +80,9 @@ private struct DownloadRow: View {
                     .truncationMode(.middle)
                 
                 if download.status == .inProgress {
-                    ProgressView(value: download.progress)
-                        .progressViewStyle(.linear)
-                        .frame(height: 4)
+//                    ProgressView(value: download.progress)
+//                        .progressViewStyle(.linear)
+//                        .frame(height: 4)
                 } else if download.status == .failed, let error = download.error {
                     Text(error)
                         .font(.system(size: 10))
@@ -133,6 +133,12 @@ private struct DownloadRow: View {
         switch download.status {
         case .inProgress:
             Image(systemName: "arrow.down.circle")
+                .opacity(0)
+                .overlay {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.5)
+                }
         case .completed:
             Image(systemName: "doc")
         case .failed:
