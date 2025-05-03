@@ -3,6 +3,7 @@ import WebKit
 import Combine
 import SwiftUI
 import DominantColors
+import Reeeed
 
 #if os(macOS)
 import AppKit
@@ -17,7 +18,7 @@ public protocol WebContentDelegate: AnyObject {
     func webContentDidBecomeFirstResponder(_ webContent: WebContent)
 }
 
-public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, ObservableObject {
+public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     weak var delegate: WebContentDelegate?
     
     let id: ID<WebContent>
@@ -32,7 +33,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
 
     // MARK: - Configuration
     @Published var blocklists = UserDefaults.standard.blocklistsActive
-    var injectedCSS: String = "" {
+    public var injectedCSS: String = "" {
         didSet(old) {
             if injectedCSS != old {
                 updateInjectedCode()
@@ -40,14 +41,14 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         }
     }
 
-    var injectedJS: String = "" {
+    public var injectedJS: String = "" {
         didSet(old) {
             if injectedJS != old {
                 updateInjectedCode()
             }
         }
     }
-
+    
     #if os(iOS)
     var scrollEnabled: Bool {
         get { webview.scrollView.isScrollEnabled }
@@ -77,6 +78,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         public var favicon: URL?
         public var ogImage: URL?
         public var isSecure = false
+        public var readerReady = false // If self.wantsReader = true, then we'll try to make the reader ready
     }
 
     @Published private(set) public var info = Info() {
@@ -414,96 +416,6 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         waitingForRepopulationAfterProcessTerminate = true
     }
 
-    // MARK: - WKUIDelegate
-
-    public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-//        if let delegate {
-//            return delegate.webContent(self, createWebViewWith: configuration, for: navigationAction, windowFeatures: windowFeatures)
-//        }
-
-        if let delegate {
-            switch delegate.webContent(self, decidePolicyFor: navigationAction) {
-            case .cancel, .download:
-                return nil
-            case .allow: () // Fall thru and allow loading in same tab
-            default: return nil // Deny for unknown
-            }
-        }
-        
-        let newWebContent = WebContent(id: .assign(), profileUUID: profileUUID, config: configuration)
-        if let url = navigationAction.request.url {
-            newWebContent.populateWithInitialURL(url)
-        }
-        
-        #if os(macOS)
-        let commandPressed = NSEvent.modifierFlags.contains(.command)
-        #else
-        let commandPressed = false
-        #endif
-        delegate?.webContent(self, didSpawnNewWebContent: newWebContent, shouldActivate: !commandPressed)
-        
-        return newWebContent.webview
-    }
-    
-    public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor () -> Void) {
-        Task {
-            await Alerts.showAppAlert(title: frame.request.url?.host ?? "JavaScript", message: message, baseView: webview)
-            completionHandler()
-        }
-    }
-    
-    public func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor (String?) -> Void) {
-        Task {
-            let result = await Alerts.showAppPrompt(
-                title: frame.request.url?.host ?? "JavaScript",
-                message: prompt,
-                textPlaceholder: defaultText ?? "",
-                submitTitle: "OK",
-                cancelTitle: "Cancel",
-                baseView: webview
-            )
-            completionHandler(result)
-        }
-    }
-    
-    public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
-        return await Alerts.showAppConfirmationDialog(
-            title: frame.request.url?.host ?? "JavaScript",
-            message: message,
-            yesTitle: "OK",
-            noTitle: "Cancel",
-            baseView: webview
-        )
-    }
-    
-    #if os(macOS)
-    public func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo) async -> [URL]? {
-        let openPanel = NSOpenPanel()
-        openPanel.canChooseFiles = true
-        openPanel.canChooseDirectories = parameters.allowsDirectories
-        openPanel.allowsMultipleSelection = parameters.allowsMultipleSelection
-        
-        guard let window = webview.window else { return nil }
-        
-        let response = await openPanel.beginSheetModal(for: window)
-        return response == .OK ? openPanel.urls : nil
-    }
-    #endif
-    
-    public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping @MainActor (WKPermissionDecision) -> Void) {
-        Task {
-            let mediaType = type == .microphone ? "microphone" : type == .camera ? "camera" : "camera and microphone"
-            let confirmed = await Alerts.showAppConfirmationDialog(
-                title: "Media Access Request",
-                message: "Allow \(origin.host) to access your \(mediaType)?",
-                yesTitle: "Allow",
-                noTitle: "Deny",
-                baseView: webview
-            )
-            decisionHandler(confirmed ? .grant : .deny)
-        }
-    }
-
     // MARK: - Metadata
     private var _mdRefreshScheduled = false
     private func needsMetadataRefresh() {
@@ -526,14 +438,22 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         self.info = info
         
         Task {
+            let docReadyWithURL: URL?
             do {
                 let extracted = try await extractWebContentData()
+                docReadyWithURL = extracted.isReady ? extracted.jsURL : nil
                 DispatchQueue.main.async {
                     self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
                     self.info.ogImage = extracted.ogImage
                 }
             } catch {
+                docReadyWithURL = nil
                 print("[🌐❌ Webview metadata extraction error] \(error)")
+            }
+            do {
+                try await updateFullContentExtractionIfNecessary(docReadyWithURL: docReadyWithURL)
+            } catch {
+                print("[🌐❌ Full content extraction error] \(error)")
             }
         }
         
@@ -563,6 +483,17 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         updateInjectedCode()
     }
+    
+    // MARK: Full content extraction
+    var fullContentExtractionMode: FullContentExtractionMode? {
+        didSet {
+            if fullContentExtractionMode != oldValue {
+                needsMetadataRefresh()
+            }
+        }
+    }
+    
+    @Published var fullContentExtractionStatus: FullContentExtractionStatus = .none
 
     // MARK: - CSS Injection
     private func updateInjectedCode() {
@@ -595,53 +526,6 @@ if (css) {
 """
         webview.evaluateJavaScript((cssJS + "\n" + injectedJS).wrappedInSelfCallingJSFunction, completionHandler: nil)
     }
-}
-
-// MARK: - Web Page Dominant Color Extraction
-private extension DispatchQueue {
-    static let pageColorQueue = DispatchQueue(label: "com.wowser.pageColorQueue", qos: .userInitiated)
-}
-
-private extension WKWebView {
-    /// Captures the top portion of the web page and extracts the dominant color
-    func extractTopDominantColor() async -> HSBA? {
-        // Capture only the top portion (2 rows of pixels)
-        let height: CGFloat = 2
-        let captureRect = CGRect(x: 0, y: 0, width: bounds.width, height: height)
-        
-        let config = WKSnapshotConfiguration()
-        config.rect = captureRect
-        
-        do {
-            let snapshot = try await takeSnapshot(configuration: config).cgImage(forProposedRect: nil, context: nil, hints: nil)
-            
-            return await withCheckedContinuation { continuation in
-                DispatchQueue.pageColorQueue.async {
-                    do {
-                        guard let dominantColors = try snapshot?.dominantColors() else {
-                            throw DominantColorsError.cantCaptureImage
-                        }
-                        if let primaryColor = dominantColors.first {
-                            let hsba = NSColor(cgColor: primaryColor)?.hsba
-                            continuation.resume(returning: hsba)
-                        } else {
-                            continuation.resume(returning: nil)
-                        }
-                    } catch {
-                        print("Error extracting dominant color: \(error)")
-                        continuation.resume(returning: nil)
-                    }
-                }
-            }
-        } catch {
-            print("Error taking snapshot: \(error)")
-            return nil
-        }
-    }
-}
-
-private enum DominantColorsError: Error {
-    case cantCaptureImage
 }
 
 extension URL {
