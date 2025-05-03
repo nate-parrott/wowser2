@@ -262,8 +262,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "400"
             endingLineNumber = "400"
-            landmarkName = "webContent(_:infoDidChange:previous:)"
-            landmarkType = "7">
+            landmarkName = "BrowserStore"
+            landmarkType = "21">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -276,8 +276,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "301"
-            endingLineNumber = "301"
+            startingLineNumber = "305"
+            endingLineNumber = "305"
             landmarkName = "goForward()"
             landmarkType = "7">
          </BreakpointContent>
@@ -292,8 +292,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "193"
-            endingLineNumber = "193"
+            startingLineNumber = "197"
+            endingLineNumber = "197"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -582,7 +582,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "312"
             endingLineNumber = "312"
-            landmarkName = "webContent(_:decidePolicyFor:)"
+            landmarkName = "createTab(withURL:in:activate:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -612,8 +612,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "406"
-            endingLineNumber = "406"
+            startingLineNumber = "431"
+            endingLineNumber = "431"
             landmarkName = "webView(_:navigationAction:didBecome:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -628,8 +628,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "392"
-            endingLineNumber = "392"
+            startingLineNumber = "417"
+            endingLineNumber = "417"
             landmarkName = "webView(_:decidePolicyFor:decisionHandler:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -644,25 +644,9 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "411"
-            endingLineNumber = "411"
+            startingLineNumber = "436"
+            endingLineNumber = "436"
             landmarkName = "webView(_:navigationResponse:didBecome:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "3E66D798-CD7A-4080-9F24-289E8DD71D01"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "372"
-            endingLineNumber = "372"
-            landmarkName = "webView(_:decidePolicyFor:preferences:decisionHandler:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -868,8 +852,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "183"
-            endingLineNumber = "183"
+            startingLineNumber = "187"
+            endingLineNumber = "187"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
