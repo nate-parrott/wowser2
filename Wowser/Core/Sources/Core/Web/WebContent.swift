@@ -302,6 +302,34 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
         webview.reload()
     }
     
+    // Zoom constants
+    private let zoomIncrement: CGFloat = 0.1
+    private let defaultZoom: CGFloat = 1.0
+    private let minZoom: CGFloat = 0.5
+    private let maxZoom: CGFloat = 3.0
+    
+    public func zoomIn() {
+        #if os(macOS)
+        let currentMagnification = webview.magnification
+        let newMagnification = min(currentMagnification + zoomIncrement, maxZoom)
+        webview.magnification = newMagnification
+        #endif
+    }
+    
+    public func zoomOut() {
+        #if os(macOS)
+        let currentMagnification = webview.magnification
+        let newMagnification = max(currentMagnification - zoomIncrement, minZoom)
+        webview.magnification = newMagnification
+        #endif
+    }
+    
+    public func resetZoom() {
+        #if os(macOS)
+        webview.magnification = defaultZoom
+        #endif
+    }
+    
     // func configure(_ block: (WKWebView) -> Void) {
     //     block(webview)
     // }
