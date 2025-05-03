@@ -142,6 +142,20 @@ extension BrowserViewController {
         }
     }
     
+    /// Save the current page (Save As)
+    @IBAction func saveCurrentPage(_ sender: Any?) {
+        guard let webContent = getCurrentWebContent(),
+              let url = webContent.info.url,
+              let windowID = self.windowID else { return }
+        
+        // Create a URL request for the current page
+        let request = URLRequest(url: url)
+        
+        // Create a download task
+        webContent.webview.downloadUsingRequest(request, windowID: windowID)
+    }
+    
+    
     // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -152,6 +166,12 @@ extension BrowserViewController {
             return getCurrentWebContent()?.info.canGoForward ?? false
         case #selector(reload), #selector(copyCurrentURL):
             return getCurrentWebContent() != nil
+        case #selector(saveCurrentPage(_:)):
+            // Only enable Save As menu item if there's a valid URL in the current web content
+            if let webContent = getCurrentWebContent(), webContent.info.url != nil {
+                return true
+            }
+            return false
         case #selector(goToPreviousTab):
             // Only enable if there's a window ID and there's a previous tab to go to
             if let windowID = self.windowID {

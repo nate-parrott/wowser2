@@ -109,7 +109,8 @@ private struct DownloadRow: View {
             .buttonStyle(CircleButtonStyle())
             .opacity(isHovered ? 1 : 0)
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
         .frame(height: 30)
         .background(
             RoundedRectangle(cornerRadius: 6)

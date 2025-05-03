@@ -1,7 +1,7 @@
 import WebKit
 import QuartzCore
 
-class WebContentWebView: WKWebView {
+public class WebContentWebView: WKWebView {
     var onDarkModeChanged: ((Bool) -> Void)?
     var onBecomeFirstResponder: (() -> Void)?
     
@@ -83,11 +83,11 @@ class WebContentWebView: WKWebView {
         }
     }
     
-    override var canBecomeFirstResponder: Bool {
+    public override var canBecomeFirstResponder: Bool {
         return true
     }
     
-    override func becomeFirstResponder() -> Bool {
+    public override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
         if result {
             onBecomeFirstResponder?()
@@ -97,14 +97,14 @@ class WebContentWebView: WKWebView {
     #endif
     
     #if os(macOS)
-    override func layout() {
+    public override func layout() {
         super.layout()
         wantsLayer = true
         darkMode = NSAppearance.currentDrawing().name == .darkAqua
     }
     
     // TODO: this only works when we focus the text view
-    override func becomeFirstResponder() -> Bool {
+    public override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
         if result {
             onBecomeFirstResponder?()
