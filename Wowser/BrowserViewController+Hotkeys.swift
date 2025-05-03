@@ -41,6 +41,23 @@ extension BrowserViewController {
         }
     }
     
+    @IBAction func reopenLastClosedTab(_ sender: Any?) {
+        guard let windowID = self.windowID else { return }
+        
+        BrowserStore.shared.modify { state in
+            if let lastClosedTabURL = state.windows[windowID]?.lastClosedTabURL {
+                // Create a new tab with the last closed tab URL
+                let tabID = state.openTab(url: lastClosedTabURL, activate: true, windowID: windowID).id
+                
+                // Clear the stored URL after reopening
+                state.windows[windowID]?.lastClosedTabURL = nil
+                
+                // Show toast notification
+                state.addToast(message: "Reopened Last Tab", icon: "arrow.uturn.backward", in: windowID)
+            }
+        }
+    }
+    
     /// Helper method to switch tabs by shifting the index in the visible tabs array
     /// - Parameter delta: The amount to shift the index (negative to go up, positive to go down)
     private func shiftVisibleTabIndex(by delta: Int) {
@@ -181,6 +198,10 @@ extension BrowserViewController {
             // Only enable Save As menu item if there's a valid URL in the current web content
             if let webContent = getCurrentWebContent(), webContent.info.url != nil {
                 return true
+        case #selector(reopenLastClosedTab):
+            // Only enable if there's a window ID and there's a last closed tab URL
+            if let windowID = self.windowID {
+                return BrowserStore.shared.model.windows[windowID]?.lastClosedTabURL != nil
             }
             return false
         case #selector(goToPreviousTab):
