@@ -22,7 +22,7 @@ public class WebContent: NSObject, WKNavigationDelegate, WKUIDelegate, Observabl
     
     let id: ID<WebContent>
     let profileUUID: UUID
-    let webview: WebContentWebView
+    public let webview: WebContentWebView
     private var observers = [NSKeyValueObservation]()
     private var subscriptions = Set<AnyCancellable>()
 

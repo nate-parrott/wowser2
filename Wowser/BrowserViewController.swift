@@ -180,34 +180,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             state.windows[windowID]?.searchOverlayActive = false
         }
     }
-    
-    /// Save the current page (Save As)
-    @IBAction func saveCurrentPage(_ sender: Any?) {
-        guard let webContent = getCurrentWebContent(),
-              let url = webContent.info.url,
-              let windowID = self.windowID else { return }
-        
-        // Create a URL request for the current page
-        let request = URLRequest(url: url)
-        
-        // Create a download task
-        webContent.webview.downloadUsingRequest(request, windowID: windowID)
-    }
-    
-    // MARK: - Menu Item Validation
-    
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(saveCurrentPage(_:)) {
-            // Only enable Save As menu item if there's a valid URL in the current web content
-            if let webContent = getCurrentWebContent(), webContent.info.url != nil {
-                return true
-            }
-            return false
-        }
-        
-        return true
-    }
-    
+
     override func viewWillLayout() {
         super.viewWillLayout()
         swipeGestureContainer.frame = view.bounds

@@ -3,8 +3,8 @@ import Foundation
 import AppKit
 
 // MARK: - Context Menu
-extension WebContent: WKUIDelegate {
-    #if os(macOS)
+extension WebContent {
+    #if os(iOS)
     public func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (NSMenu?) -> Void) {
         let menu = NSMenu()
         
@@ -76,16 +76,16 @@ extension WebContentWebView {
         load(URLRequest(url: url))
     }
     
-    @objc func openLinkInNewTabFromContextMenu(_ sender: NSMenuItem) {
-        guard let url = sender.representedObject as? URL else { return }
-        
-        // Creating a new window that will spawn a new tab
-        let configuration = WKWebViewConfiguration()
-        let request = URLRequest(url: url)
-        
-        // Use the WKUIDelegate to handle this new window/tab creation
-        _ = self.createWebView(with: configuration, for: .init(request: request, initiatedByFrame: .init(request: request)), windowFeatures: WKWindowFeatures())
-    }
+//    @objc func openLinkInNewTabFromContextMenu(_ sender: NSMenuItem) {
+//        guard let url = sender.representedObject as? URL else { return }
+//        
+//        // Creating a new window that will spawn a new tab
+//        let configuration = WKWebViewConfiguration()
+//        let request = URLRequest(url: url)
+//        
+//        // Use the WKUIDelegate to handle this new window/tab creation
+//        _ = self.createWebView(with: configuration, for: .init(request: request, initiatedByFrame: .init(request: request)), windowFeatures: WKWindowFeatures())
+//    }
     
     @objc func downloadLinkFromContextMenu(_ sender: NSMenuItem) {
         guard let dict = sender.representedObject as? [String: Any],
