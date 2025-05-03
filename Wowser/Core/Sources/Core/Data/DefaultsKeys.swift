@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 public enum DefaultsKeys: String {
     case adblock // bool
@@ -48,6 +49,23 @@ public extension DefaultsKeys {
     
     func setString(_ value: String) {
         UserDefaults.standard.set(value, forKey: rawValue)
+    }
+    
+    func publisher() -> AnyPublisher<Any, Never> {
+        let notificationPublisher = NotificationCenter.default.publisher(
+            for: UserDefaults.didChangeNotification
+        ).compactMap { _ in
+            UserDefaults.standard.object(forKey: self.rawValue)
+        }
+        
+        let currentValue = Just(UserDefaults.standard.object(forKey: self.rawValue))
+            .compactMap { $0 }
+        
+        return currentValue.append(notificationPublisher).eraseToAnyPublisher()
+    }
+    
+    func boolPublisher(defaultVal: Bool = false) -> AnyPublisher<Bool, Never> {
+        publisher().map({ $0 as? Bool ?? defaultVal }).removeDuplicates().eraseToAnyPublisher()
     }
 }
 
