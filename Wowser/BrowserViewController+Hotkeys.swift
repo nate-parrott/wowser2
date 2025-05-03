@@ -155,9 +155,6 @@ extension BrowserViewController {
         webContent.webview.downloadUsingRequest(request, windowID: windowID)
     }
     
-    
-    // MARK: - Menu Validation
-    
     @IBAction func zoomIn(_ sender: Any?) {
         getCurrentWebContent()?.zoomIn()
     }
@@ -169,6 +166,8 @@ extension BrowserViewController {
     @IBAction func resetZoom(_ sender: Any?) {
         getCurrentWebContent()?.resetZoom()
     }
+    
+    // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {

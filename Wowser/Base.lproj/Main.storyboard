@@ -394,12 +394,13 @@
                                                         </connections>
                                                     </menuItem>
                                                     <menuItem isSeparatorItem="YES" id="6oL-El-Fpa"/>
-                                                    <menuItem title="Bigger" tag="3" keyEquivalent="+" id="RTw-rp-ZfT">
+                                                    <menuItem title="Bigger" tag="3" id="RTw-rp-ZfT">
+                                                        <modifierMask key="keyEquivalentModifierMask"/>
                                                         <connections>
                                                             <action selector="modifyFont:" target="YLy-65-1bz" id="Lqr-Dw-Q6t"/>
                                                         </connections>
                                                     </menuItem>
-                                                    <menuItem title="Smaller" tag="4" keyEquivalent="-" id="xZv-si-f1a">
+                                                    <menuItem title="Smaller" tag="4" keyEquivalent="s" id="xZv-si-f1a">
                                                         <connections>
                                                             <action selector="modifyFont:" target="YLy-65-1bz" id="mah-DV-UrO"/>
                                                         </connections>
@@ -703,7 +704,7 @@
                                                 <action selector="runToolbarCustomizationPalette:" target="Ady-hI-5gd" id="pQI-g3-MTW"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem isSeparatorItem="YES" id="hB3-LF-h0Y"/>
+                                        <menuItem isSeparatorItem="YES" id="Ds9-fj-XtB"/>
                                         <menuItem title="Show Sidebar" keyEquivalent="s" id="kIP-vf-haE">
                                             <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
                                             <connections>
@@ -739,6 +740,22 @@
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="arrangeInFront:" target="Ady-hI-5gd" id="DRN-fu-gQh"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="y8r-EF-tmU"/>
+                                        <menuItem title="Zoom In" keyEquivalent="+" id="gcz-dB-szK">
+                                            <connections>
+                                                <action selector="zoomIn:" target="Ady-hI-5gd" id="eUN-lp-XSu"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Zoom Out" keyEquivalent="-" id="dx4-Qw-njv">
+                                            <connections>
+                                                <action selector="zoomOut:" target="Ady-hI-5gd" id="MoN-0S-wNm"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Actual Size" keyEquivalent="0" id="Aok-ZS-s6k">
+                                            <connections>
+                                                <action selector="resetZoom:" target="Ady-hI-5gd" id="pPe-J5-RqX"/>
                                             </connections>
                                         </menuItem>
                                     </items>
