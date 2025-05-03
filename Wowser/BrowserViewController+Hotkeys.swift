@@ -198,6 +198,8 @@ extension BrowserViewController {
             // Only enable Save As menu item if there's a valid URL in the current web content
             if let webContent = getCurrentWebContent(), webContent.info.url != nil {
                 return true
+            }
+            return false
         case #selector(reopenLastClosedTab):
             // Only enable if there's a window ID and there's a last closed tab URL
             if let windowID = self.windowID {
