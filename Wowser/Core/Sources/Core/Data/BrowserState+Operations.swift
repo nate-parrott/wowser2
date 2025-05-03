@@ -243,6 +243,11 @@ extension BrowserState {
         
         let isCurrentTab = self.windows[winId]?.currentTab == tabId
         
+        // Store the URL before closing the tab
+        if tab.panes.count == 1, let url = tab.panes.first?.info.url {
+            windows[winId]?.lastClosedTabURL = url
+        }
+        
         func reselect() {
             let selectNext = tabToSelectAfterClosing(tabId: tabId)
             activate(tabId: selectNext, in: winId)
