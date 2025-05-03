@@ -12,25 +12,25 @@ extension WebContent {
     /// Increases the zoom level of the web content
     public func zoomIn() {
         #if os(macOS)
-        let currentMagnification = webview.magnification
+        let currentMagnification = webview.pageZoom
         let newMagnification = min(currentMagnification + WebContent.zoomIncrement, WebContent.maxZoom)
-        webview.magnification = newMagnification
+        webview.pageZoom = newMagnification
         #endif
     }
     
     /// Decreases the zoom level of the web content
     public func zoomOut() {
         #if os(macOS)
-        let currentMagnification = webview.magnification
+        let currentMagnification = webview.pageZoom
         let newMagnification = max(currentMagnification - WebContent.zoomIncrement, WebContent.minZoom)
-        webview.magnification = newMagnification
+        webview.pageZoom = newMagnification
         #endif
     }
     
     /// Resets the zoom level to the default value
     public func resetZoom() {
         #if os(macOS)
-        webview.magnification = WebContent.defaultZoom
+        webview.pageZoom = WebContent.defaultZoom
         #endif
     }
 }
