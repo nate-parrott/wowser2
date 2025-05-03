@@ -144,13 +144,25 @@ extension BrowserViewController {
     
     // MARK: - Menu Validation
     
+    @IBAction func zoomIn(_ sender: Any?) {
+        getCurrentWebContent()?.zoomIn()
+    }
+    
+    @IBAction func zoomOut(_ sender: Any?) {
+        getCurrentWebContent()?.zoomOut()
+    }
+    
+    @IBAction func resetZoom(_ sender: Any?) {
+        getCurrentWebContent()?.resetZoom()
+    }
+    
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(goBack):
             return getCurrentWebContent()?.info.canGoBack ?? false
         case #selector(goForward):
             return getCurrentWebContent()?.info.canGoForward ?? false
-        case #selector(reload), #selector(copyCurrentURL):
+        case #selector(reload), #selector(copyCurrentURL), #selector(zoomIn), #selector(zoomOut), #selector(resetZoom):
             return getCurrentWebContent() != nil
         case #selector(goToPreviousTab):
             // Only enable if there's a window ID and there's a previous tab to go to
