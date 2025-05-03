@@ -11,6 +11,8 @@ public struct WrappedWebView: View {
     @State private var isFindInPageActive = false
     @State private var windowWantsWebviewFocus = false
     @Environment(\.windowID) private var windowID
+    @State private var wantsReader = false
+    
     public var body: some View {
         ZStack {
             // Fake view for onreceive
@@ -18,6 +20,12 @@ public struct WrappedWebView: View {
                 Color.clear.onReceive(BrowserStore.shared.uiPublisher.map({ $0.shouldFocusMainWebContent(forWindowID: windowID) }).removeDuplicates(), perform: { self.windowWantsWebviewFocus = $0 })
                     .id(windowID)
             }
+            
+            // Fake view for onreceive
+            Color.clear.onReceive(CleanModeStore.shared.cleanModeSnapshotForPane(id: webContent.id).removeDuplicates(), perform: {
+                cleanModeOptionsChanged($0)
+            })
+            .id(webContent.id)
             
             // The base WebView
             WebView(webContent: webContent, shrunk: shrunk)
@@ -65,6 +73,11 @@ public struct WrappedWebView: View {
         } else {
             isFindInPageActive.toggle()
         }
+    }
+    
+    private func cleanModeOptionsChanged(_ options: CleanModeSnapshotForPane) {
+        webContent.injectedCSS = options.wantsCSS ?? ""
+        webContent.fullContentExtractionMode = options.wantsReader ? .reader : .none
     }
 }
 

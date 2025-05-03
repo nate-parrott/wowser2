@@ -67,6 +67,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     // MARK: - API
     public struct Info: Equatable, Codable {
         public var url: URL?
+        public var oldOnscreenURL: URL? // During nav, `url` may show a not-yet-committed url. If this field is set, we're in this state, and you can use this prop to get the existing committed url.
         public var title: String?
         public var canGoBack = false
         public var canGoForward = false
@@ -78,7 +79,10 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var favicon: URL?
         public var ogImage: URL?
         public var isSecure = false
-        public var readerReady = false // If self.wantsReader = true, then we'll try to make the reader ready
+        
+        public var committedURL: URL? {
+            oldOnscreenURL ?? url
+        }
     }
 
     @Published private(set) public var info = Info() {
@@ -352,7 +356,12 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     }
 
     // MARK: - WKNavigationDelegate
+    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
+        self.info.oldOnscreenURL = webView.url
+    }
+    
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        info.oldOnscreenURL = nil
         needsMetadataRefresh()
     }
 
@@ -369,12 +378,23 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     }
 
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
+        func willAllowNav() {
+            if navigationAction.targetFrame?.isMainFrame ?? false {
+                self.info.oldOnscreenURL = webView.url
+            }
+        }
+        
         if silenced {
+            willAllowNav()
             decisionHandler(.allow, preferences)
             return
         }
         
         if navigationAction.shouldPerformDownload {
+            if silenced {
+                decisionHandler(.cancel, preferences)
+                return
+            }
             decisionHandler(.download, preferences)
             return
         }
@@ -382,9 +402,14 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         if navigationAction.targetFrame?.isMainFrame ?? true,
             let delegate {
             let decision = delegate.webContent(self, decidePolicyFor: navigationAction)
+            if decision == .allow {
+                willAllowNav()
+            }
             decisionHandler(decision, preferences)
             return
         }
+        
+        willAllowNav()
         decisionHandler(.allow, preferences)
     }
 

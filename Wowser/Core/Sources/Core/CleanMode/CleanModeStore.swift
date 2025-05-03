@@ -25,6 +25,7 @@ extension CleanModeState {
     static var defaultHostSettings: [String: CleanModeConfig] = {
         var dict = [String: CleanModeConfig]()
         dict["cnn.com"] = CleanModeConfig(autoReaderRegexes: ["/.{5,}$"])
+        dict["google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "* { font-family: 'Comic Sans MS' !important; }")
         return dict
     }()
 }
@@ -34,7 +35,7 @@ class CleanModeStore: DataStore<CleanModeState> {
     
     func cleanModeSnapshotForPane(id: ID<WebContent>) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
         let adblockOn = DefaultsKeys.adblock.boolPublisher()
-        let url = BrowserStore.shared.uiPublisher.map({ $0.pane(forId: id)?.info.url })
+        let url = BrowserStore.shared.uiPublisher.map({ $0.pane(forId: id)?.info.committedURL })
         return Publishers.CombineLatest3(adblockOn, uiPublisher, url)
             .map { tuple -> CleanModeSnapshotForPane in
                 let (adblockOn, cleanModeState, url) = tuple
