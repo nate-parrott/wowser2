@@ -36,7 +36,7 @@ struct PaneView: View {
                 selectedResultIndex: $selectedResultIndex,
                 colorScheme: toolbarColorScheme
             )
-                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 5, x: 0, y: 0)
+                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 2.5, x: 0, y: 0)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
