@@ -79,7 +79,8 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var favicon: URL?
         public var ogImage: URL?
         public var isSecure = false
-        public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and fale
+        public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and false
+        public var recipeDetected: Bool? // Always being checked
         
         public var committedURL: URL? {
             oldOnscreenURL ?? url
@@ -473,6 +474,8 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
                 DispatchQueue.main.async {
                     self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
                     self.info.ogImage = extracted.ogImage
+                    self.info.recipeDetected = extracted.isRecipe?.nilIfFalse
+                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
                 }
             } catch {
                 docReadyWithURL = nil
@@ -516,6 +519,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     var fullContentExtractionMode: FullContentExtractionMode? {
         didSet {
             if fullContentExtractionMode != oldValue {
+                fullContentExtractionStatus = .none
                 needsMetadataRefresh()
             }
         }

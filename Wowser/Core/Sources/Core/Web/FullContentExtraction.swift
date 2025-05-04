@@ -11,6 +11,7 @@ enum FullContentExtractionStatus: Equatable, Codable {
     case inProgress(URL)
     case nothingToExtract(URL)
     case readerContent(URL, ReadableDoc)
+    case recipeContent(URL, Recipe)
     
     var url: URL? {
         switch self {
@@ -22,12 +23,21 @@ enum FullContentExtractionStatus: Equatable, Codable {
             return uRL
         case .readerContent(let url, _):
             return url
+        case .recipeContent(let url, _):
+            return url
         }
     }
     
     var readerContent: ReadableDoc? {
         if case .readerContent(_, let extractedContent) = self {
             return extractedContent
+        }
+        return nil
+    }
+    
+    var recipeContent: Recipe? {
+        if case .recipeContent(_, let recipe) = self {
+            return recipe
         }
         return nil
     }
@@ -45,10 +55,6 @@ extension WebContent {
             return
         }
         
-        switch extractionMode {
-        case .reader: () // no op right now; case is present to make sure we handle if we add more modes
-        }
-        
         // if url has changed, reset state
         if docReadyWithURL.historyKey != fullContentExtractionStatus.url?.historyKey {
             fullContentExtractionStatus = .none
@@ -57,13 +63,26 @@ extension WebContent {
         @MainActor
         func refreshNow() async {
             self.fullContentExtractionStatus = .inProgress(docReadyWithURL)
+            let inProgressState = self.fullContentExtractionStatus
             // Refresh now
             do {
-                let (contentURL, content) = try await refreshExtractedReaderModeNow()
-                if self.fullContentExtractionStatus.url?.historyKey != contentURL.historyKey {
-                    return
+                switch extractionMode {
+                case .reader:
+                    let (contentURL, content) = try await refreshExtractedReaderModeNow()
+                    // Ensure url hasn't changed in the meantime
+                    if self.fullContentExtractionStatus == inProgressState, inProgressState.url?.historyKey == contentURL.historyKey {
+                        self.fullContentExtractionStatus = .readerContent(contentURL, content)
+                    }
+//                case .recipe:
+//                    if let (contentURL, recipe) = try await refreshExtractedRecipeNow(),
+//                       self.fullContentExtractionStatus == inProgressState,
+//                       inProgressState.url?.historyKey == contentURL.historyKey
+//                    {
+//                        self.fullContentExtractionStatus = .recipeContent(contentURL, recipe)
+//                    } else {
+//                        self.fullContentExtractionStatus = .nothingToExtract(docReadyWithURL)
+//                    }
                 }
-                self.fullContentExtractionStatus = .readerContent(contentURL, content)
             } catch {
                 // TODO: dont log; this is normal
                 print("Unable to extract content: \(error)")
@@ -76,7 +95,7 @@ extension WebContent {
         
         switch fullContentExtractionStatus {
         case .none: await refreshNow()
-        case .inProgress, .readerContent, .nothingToExtract: () // we know url is unchanged, so do nothing
+        case .inProgress, .readerContent, .nothingToExtract, .recipeContent: () // we know url is unchanged, so do nothing
         }
     }
 
@@ -84,6 +103,13 @@ extension WebContent {
         struct Output: Codable {
             var url: URL
             var html: String
+        }
+        do {
+            if let (url, recipe) = try await tryToExtractRecipe(), let readableDoc = recipe.asReadableDoc {
+                return (url, readableDoc)
+            }
+        } catch {
+            print("[Recipe extraction error]: \(error)")
         }
         let output = try await webview.evaluateJS("({ url: location.href, html: document.documentElement.innerHTML })", resultType: Output.self)
         let extracted = try await Reeeed.extractReadableDoc(url: output.url, html: output.html)

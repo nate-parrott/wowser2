@@ -92,12 +92,17 @@ class CleanModeStore: DataStore<CleanModeState> {
         struct TabData: Equatable {
             var url: URL?
             var readerAvail: Bool
+            var recipeDetected: Bool
         }
         let tabData: AnyPublisher<TabData, Never> = BrowserStore.shared.uiPublisher.map({
             if let pane = $0.pane(forId: id) {
-                return TabData(url: pane.info.committedURL, readerAvail: pane.info.readerAvailable ?? false)
+                return TabData(
+                    url: pane.info.committedURL,
+                    readerAvail: pane.info.readerAvailable ?? false,
+                    recipeDetected: pane.info.recipeDetected ?? false
+                )
             }
-            return TabData(readerAvail: false)
+            return TabData(readerAvail: false, recipeDetected: false)
         }).eraseToAnyPublisher()
         return Publishers.CombineLatest3(adblockOn, uiPublisher, tabData)
             .map { tuple -> CleanModeSnapshotForPane in
@@ -109,7 +114,9 @@ class CleanModeStore: DataStore<CleanModeState> {
                 
                 let host = url.hostWithoutWWW
                 let hostSettings: CleanModeConfig = cleanModeState.hostSettings[host] ?? CleanModeState.defaultHostSettings[host] ?? .init(autoReaderRegexes: [])
-                let wantsReader = hostSettings.readerDisabled ? false : (hostSettings.autoReader(forURL: url))
+                let wantsReader = !hostSettings.readerDisabled && (
+                    tabData.recipeDetected || hostSettings.autoReader(forURL: url)
+                )
                 
                 return CleanModeSnapshotForPane(
                     wantsReader: wantsReader,

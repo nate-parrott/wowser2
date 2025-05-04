@@ -6,7 +6,7 @@ public struct ReadableDoc: Equatable, Codable {
     public var insertHeroImage: Bool
     public var metadata: SiteMetadata
     public var date: Date?
-
+    
     public init?(extracted: ExtractedContent, insertHeroImage: Bool? /* autodetect if nil */, metadata: SiteMetadata, date: Date? = nil) {
         guard let html = extracted.content else {
             return nil
