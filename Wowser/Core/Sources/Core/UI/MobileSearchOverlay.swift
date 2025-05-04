@@ -1,9 +1,8 @@
 import SwiftUI
 import Combine
 
-/// A mobile-optimized search overlay with launcher-style interface
-/// Displays a search bar and search results in a fullscreen overlay
-public struct MobileSearchOverlay: View {
+/// A mobile-optimized search overlay for iOS devices
+struct MobileSearchOverlay: View {
     let windowID: ID<WindowState>
     @Binding var isPresented: Bool
     
@@ -12,35 +11,26 @@ public struct MobileSearchOverlay: View {
     
     private let searcher = Searcher()
     
-    public init(windowID: ID<WindowState>, isPresented: Binding<Bool>) {
+    init(windowID: ID<WindowState>, isPresented: Binding<Bool>) {
         self.windowID = windowID
         self._isPresented = isPresented
     }
     
-    public var body: some View {
+    var body: some View {
         ZStack {
-            // Blurred background
-            if #available(iOS 15.0, *) {
-                Color.black.opacity(0.15)
-                    .background(.ultraThinMaterial)
-                    .edgesIgnoringSafeArea(.all)
-                    .onTapGesture {
-                        dismissOverlay()
-                    }
-            } else {
-                Color.black.opacity(0.4)
-                    .edgesIgnoringSafeArea(.all)
-                    .onTapGesture {
-                        dismissOverlay()
-                    }
-            }
+            // Semi-transparent background
+            Color.black.opacity(0.4)
+                .edgesIgnoringSafeArea(.all)
+                .onTapGesture {
+                    dismissOverlay()
+                }
             
             VStack(spacing: 0) {
                 // Search header section
                 searchHeaderSection
                 
-                // Search results with launcher-style UI
-                searchResultsGrid
+                // Search results
+                searchResultsList
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -68,11 +58,8 @@ public struct MobileSearchOverlay: View {
             }
             .padding(.top, 16)
             .padding(.horizontal, 16)
-            
-            // Provider selection
-            providerSelector
-                .padding(.bottom, 8)
         }
+        .padding(.bottom, 8)
         .background(Color(UIColor.systemBackground))
     }
     
@@ -106,91 +93,59 @@ public struct MobileSearchOverlay: View {
         .accentColor(.accentColor)
     }
     
-    private var providerSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(SearchProviderOption.allCases, id: \.self) { provider in
-                    providerButton(provider)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-    }
+    // MARK: - Search Results
     
-    private func providerButton(_ provider: SearchProviderOption) -> some View {
-        Button {
-            searcher.searchProvider = provider.searchProvider
-            // Re-search with current term
-            searcher.search(searchText)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: provider.iconName)
-                    .font(.system(size: 14))
-                Text(provider.displayName)
-                    .font(.system(size: 14))
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                Capsule()
-                    .fill(searcher.searchProvider == provider.searchProvider ? 
-                          Color.accentColor.opacity(0.15) : Color(UIColor.systemGray6))
-            )
-            .foregroundColor(searcher.searchProvider == provider.searchProvider ? 
-                            .accentColor : .primary)
-        }
-    }
-    
-    // MARK: - Search Results Grid
-    
-    private var searchResultsGrid: some View {
+    private var searchResultsList: some View {
         ScrollView {
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 20) {
-                // Search results as grid items
-                ForEach(Array(searcher.results.enumerated()), id: \.element.id) { index, result in
-                    searchResultGridItem(result: result, isSelected: index == selectedResultIndex)
+            VStack(spacing: 0) {
+                ForEach(Array(searcher.results.enumerated()), id: \\.element.id) { index, result in
+                    searchResultRow(result: result, isSelected: index == selectedResultIndex)
                         .id(index)
                 }
             }
             .padding()
         }
-        .background(Color(UIColor.systemBackground).opacity(0.95))
+        .background(Color(UIColor.systemBackground))
     }
     
-    private func searchResultGridItem(result: SearchResult, isSelected: Bool) -> some View {
+    private func searchResultRow(result: SearchResult, isSelected: Bool) -> some View {
         Button {
-            if let windowID = windowID {
-                BrowserStore.shared.select(result: result, windowID: windowID)
-            }
+            BrowserStore.shared.select(result: result, windowID: windowID)
             dismissOverlay()
         } label: {
-            VStack(spacing: 8) {
+            HStack(spacing: 12) {
                 // Icon
-                SearchIcon(item: result.item, size: 32, selected: isSelected)
-                    .padding(16)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(UIColor.systemGray6))
-                    )
+                SearchIcon(item: result.item, size: 24, selected: isSelected)
+                    .padding(8)
                 
                 // Label
-                Text(resultDisplayTitle(result))
-                    .font(.system(size: 14))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 100)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleForResult(result))
+                        .font(.system(size: 16))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    if let subtitle = subtitleForResult(result) {
+                        Text(subtitle)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                
+                Spacer()
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            .cornerRadius(8)
         }
         .buttonStyle(PlainButtonStyle())
     }
     
-    private func resultDisplayTitle(_ result: SearchResult) -> String {
+    // MARK: - Helper Methods
+    
+    private func titleForResult(_ result: SearchResult) -> String {
         switch result.item.content {
         case .searchWhatYouTyped(let query):
             return "Search for \"\(query)\""
@@ -209,45 +164,20 @@ public struct MobileSearchOverlay: View {
         }
     }
     
-    // MARK: - Helper Methods
+    private func subtitleForResult(_ result: SearchResult) -> String? {
+        switch result.item.content {
+        case .urlYouTyped(let url):
+            return url.absoluteString
+        case .historyItem(let item):
+            return item.url.absoluteString
+        case .tab:
+            return "Switch to Tab"
+        default:
+            return nil
+        }
+    }
     
     private func dismissOverlay() {
         isPresented = false
-    }
-}
-
-// MARK: - Search Provider Options
-
-private enum SearchProviderOption: String, CaseIterable {
-    case google
-    case duckduckgo
-    case bing
-    case history
-    
-    var displayName: String {
-        switch self {
-        case .google: return "Google"
-        case .duckduckgo: return "DuckDuckGo"
-        case .bing: return "Bing"
-        case .history: return "History"
-        }
-    }
-    
-    var iconName: String {
-        switch self {
-        case .google: return "globe"
-        case .duckduckgo: return "duck"
-        case .bing: return "b.circle"
-        case .history: return "clock"
-        }
-    }
-    
-    var searchProvider: SearchProvider {
-        switch self {
-        case .google: return .google
-        case .duckduckgo: return .duckduckgo
-        case .bing: return .bing
-        case .history: return .history
-        }
     }
 }
