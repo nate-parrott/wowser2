@@ -244,8 +244,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/ToolbarView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "130"
-            endingLineNumber = "130"
+            startingLineNumber = "136"
+            endingLineNumber = "136"
             landmarkName = "body"
             landmarkType = "24">
          </BreakpointContent>
@@ -276,8 +276,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "305"
-            endingLineNumber = "305"
+            startingLineNumber = "308"
+            endingLineNumber = "308"
             landmarkName = "goForward()"
             landmarkType = "7">
          </BreakpointContent>
@@ -292,8 +292,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "197"
-            endingLineNumber = "197"
+            startingLineNumber = "200"
+            endingLineNumber = "200"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -612,8 +612,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "431"
-            endingLineNumber = "431"
+            startingLineNumber = "434"
+            endingLineNumber = "434"
             landmarkName = "webView(_:navigationAction:didBecome:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -628,8 +628,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "417"
-            endingLineNumber = "417"
+            startingLineNumber = "420"
+            endingLineNumber = "420"
             landmarkName = "webView(_:decidePolicyFor:decisionHandler:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -644,8 +644,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "436"
-            endingLineNumber = "436"
+            startingLineNumber = "439"
+            endingLineNumber = "439"
             landmarkName = "webView(_:navigationResponse:didBecome:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -852,8 +852,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "187"
-            endingLineNumber = "187"
+            startingLineNumber = "190"
+            endingLineNumber = "190"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>

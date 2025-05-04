@@ -79,6 +79,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var favicon: URL?
         public var ogImage: URL?
         public var isSecure = false
+        public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and fale
         
         public var committedURL: URL? {
             oldOnscreenURL ?? url
@@ -87,7 +88,9 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
 
     @Published private(set) public var info = Info() {
         didSet {
-            delegate?.webContent(self, infoDidChange: info, previous: oldValue)
+            if info != oldValue {
+                delegate?.webContent(self, infoDidChange: info, previous: oldValue)
+            }
         }
     }
 
@@ -518,7 +521,11 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         }
     }
     
-    @Published var fullContentExtractionStatus: FullContentExtractionStatus = .none
+    @Published var fullContentExtractionStatus: FullContentExtractionStatus = .none {
+        didSet {
+            info.readerAvailable = fullContentExtractionStatus.readerContent == nil ? nil : true
+        }
+    }
 
     // MARK: - CSS Injection
     private func updateInjectedCode() {
