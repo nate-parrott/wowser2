@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 //CleanModeStatusButton(webContentID: webContentID)
@@ -15,14 +16,14 @@ struct CleanModeStatusButton: View {
     }
 }
 
-private enum CleanModeButtonStatus: Equatable {
+public enum CleanModeButtonStatus: Equatable {
     case readerOn
     case cleanOn
     case cleanOff
     case readerMayBeAvail
     case readerUnavail
     
-    var style: (title: String, active: Bool) {
+    public var style: (title: String, active: Bool) {
         switch self {
         case .readerOn:
             return ("Clean", true)
@@ -37,14 +38,14 @@ private enum CleanModeButtonStatus: Equatable {
         }
     }
     
-    var disabled: Bool {
+    public var disabled: Bool {
         switch self {
         case .readerOn, .cleanOn, .cleanOff, .readerMayBeAvail: return false
         case .readerUnavail: return true
         }
     }
     
-    func toggle(paneID: ID<WebContent>) {
+    public func toggle(paneID: ID<WebContent>) {
         guard let info = BrowserStore.shared.model.pane(forId: paneID)?.info else { return }
         guard let url = info.committedURL else { return }
         switch self {
@@ -64,9 +65,16 @@ private enum CleanModeButtonStatus: Equatable {
             () // no op
         }
     }
+    
+    public static func current(forWindowID id: ID<WindowState>) -> AnyPublisher<CleanModeButtonStatus, Never> {
+        return CleanModeStore.shared.cleanModeSnapshotForFocusedPane(windowID: id)
+            .map(\.buttonStatus)
+            .removeDuplicates()
+            .eraseToAnyPublisher()
+    }
 }
 
-private extension CleanModeSnapshotForPane {
+extension CleanModeSnapshotForPane {
     var buttonStatus: CleanModeButtonStatus {
         if !hasURL {
             return .readerUnavail

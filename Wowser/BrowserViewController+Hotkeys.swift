@@ -184,10 +184,20 @@ extension BrowserViewController {
         getCurrentWebContent()?.resetZoom()
     }
     
+    @IBAction func toggleCleanMode(_ sender: Any?) {
+        if let windowID, let pane = BrowserStore.shared.model.currentPane(forWindow: windowID) {
+            cleanModeButtonStatus.toggle(paneID: pane.id)
+        }
+    }
+    
     // MARK: - Menu Validation
     
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(toggleCleanMode):
+//            menuItem.isEnabled = !cleanModeButtonStatus.disabled
+            menuItem.state = cleanModeButtonStatus.style.active ? .on : .off
+            return !cleanModeButtonStatus.disabled
         case #selector(goBack):
             return getCurrentWebContent()?.info.canGoBack ?? false
         case #selector(goForward):

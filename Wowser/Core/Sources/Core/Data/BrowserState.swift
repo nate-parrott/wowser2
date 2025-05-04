@@ -447,6 +447,13 @@ extension BrowserState {
         return nil
     }
     
+    public func currentPane(forWindow id: ID<WindowState>) -> Pane? {
+        if let tabId = windows[id]?.currentTab, let tab = tabs[tabId], let pane = tab.panes[tab.focusedPaneIdx] {
+            return pane
+        }
+        return nil
+    }
+    
     mutating func modifyPaneAndTab(forWebContentId id: ID<WebContent>, block: (inout Pane, inout Tab) -> Void) {
         if let tabId = paneToTabMapping[id], var tab = tabs[tabId], var pane = tab.panes.first(where: { $0.id == id }) {
             block(&pane, &tab)
