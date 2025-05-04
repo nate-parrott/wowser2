@@ -25,15 +25,15 @@ private enum CleanModeButtonStatus: Equatable {
     var style: (title: String, active: Bool) {
         switch self {
         case .readerOn:
-            return ("Reader", true)
+            return ("Clean", true)
         case .cleanOn:
             return ("Clean", true)
         case .cleanOff:
             return ("Clean", false)
         case .readerMayBeAvail:
-            return ("Reader", false)
+            return ("Clean", false)
         case .readerUnavail:
-            return ("Reader", false)
+            return ("Clean", false)
         }
     }
     
@@ -68,6 +68,9 @@ private enum CleanModeButtonStatus: Equatable {
 
 private extension CleanModeSnapshotForPane {
     var buttonStatus: CleanModeButtonStatus {
+        if !hasURL {
+            return .readerUnavail
+        }
         if wantsReader && readerReady {
             return .readerOn
         }

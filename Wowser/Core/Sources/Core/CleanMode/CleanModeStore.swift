@@ -92,7 +92,7 @@ class CleanModeStore: DataStore<CleanModeState> {
                 let (adblockOn, cleanModeState, tabData) = tuple
                 
                 guard let url = tabData.url else {
-                    return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn)
+                    return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn, hasURL: false)
                 }
                 
                 let host = url.hostWithoutWWW
@@ -104,7 +104,8 @@ class CleanModeStore: DataStore<CleanModeState> {
                     readerReady: tabData.readerAvail,
                     wantsCSS: hostSettings.stylingDisabled ? nil : hostSettings.injectCSS,
                     cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil,
-                    adblockEnabled: adblockOn
+                    adblockEnabled: adblockOn,
+                    hasURL: true
                 )
             }
             .removeDuplicates()
@@ -118,4 +119,5 @@ struct CleanModeSnapshotForPane: Equatable {
     var wantsCSS: String?
     var cssAvail: Bool
     var adblockEnabled: Bool
+    var hasURL: Bool
 }
