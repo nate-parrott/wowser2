@@ -21,6 +21,8 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     private let swipeGestureContainer = SwipeGestureContainer()
     private var escapeKeyMonitor: Any?
     private var windowControlsHacker: MacWindowControlsHacker?
+    private var subscriptions = Set<AnyCancellable>()
+    private(set) var cleanModeButtonStatus = CleanModeButtonStatus.readerUnavail
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -89,6 +91,12 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
             
             // Set up auto-organize observer
             setupAutoOrganizeObserver()
+            
+            CleanModeButtonStatus.current(forWindowID: id)
+                .sink { [weak self] status in
+                    self?.cleanModeButtonStatus = status
+                }
+                .store(in: &subscriptions)
         }
     }
     

@@ -142,6 +142,12 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="aJh-i4-bef"/>
+                                        <menuItem title="Clean Mode" keyEquivalent="k" id="uAN-6J-YYb">
+                                            <connections>
+                                                <action selector="toggleCleanMode:" target="Ady-hI-5gd" id="oyy-qI-fxB"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="8qi-Fc-4x8"/>
                                         <menuItem title="Page Setup…" keyEquivalent="P" id="qIS-W8-SiK">
                                             <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
                                             <connections>

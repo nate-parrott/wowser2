@@ -75,7 +75,19 @@ extension CleanModeState {
 class CleanModeStore: DataStore<CleanModeState> {
     static let shared = CleanModeStore(persistenceKey: "CleanModeStore", defaultModel: .init(), queue: .main)
     
-    func cleanModeSnapshotForPane(id: ID<WebContent>) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
+    func cleanModeSnapshotForFocusedPane(windowID: ID<WindowState>) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
+        BrowserStore.shared.uiPublisher.map({ $0.currentPane(forWindow: windowID)?.id }).removeDuplicates()
+            .map({ CleanModeStore.shared.cleanModeSnapshotForPane(id: $0) })
+            .switchToLatest()
+            .removeDuplicates()
+            .eraseToAnyPublisher()
+    }
+    
+    func cleanModeSnapshotForPane(id: ID<WebContent>?) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
+        guard let id else {
+            return Just(CleanModeSnapshotForPane(wantsReader: false, readerReady: false, cssAvail: false, adblockEnabled: false, hasURL: false)).eraseToAnyPublisher()
+        }
+        
         let adblockOn = DefaultsKeys.adblock.boolPublisher()
         struct TabData: Equatable {
             var url: URL?
