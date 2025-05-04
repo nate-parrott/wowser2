@@ -5,6 +5,7 @@ struct CleanModeConfig: Equatable, Codable {
     var autoReaderRegexes: [String] // Apply auto-reader mode to paths that match this prefix
     var injectCSS: String?
     var readerDisabled = false
+    var stylingDisabled = false
     
     func autoReader(forURL url: URL) -> Bool {
         let path = url.path().nilIfEmpty ?? "/"
@@ -63,6 +64,12 @@ extension CleanModeState {
             }
         }
     }
+    
+    mutating func setStylingEnabled(_ enable: Bool, onURL url: URL) {
+        updateSettings(host: url.hostWithoutWWW) { config in
+            config.stylingDisabled = !enable
+        }
+    }
 }
 
 class CleanModeStore: DataStore<CleanModeState> {
@@ -70,20 +77,35 @@ class CleanModeStore: DataStore<CleanModeState> {
     
     func cleanModeSnapshotForPane(id: ID<WebContent>) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
         let adblockOn = DefaultsKeys.adblock.boolPublisher()
-        let url = BrowserStore.shared.uiPublisher.map({ $0.pane(forId: id)?.info.committedURL })
-        return Publishers.CombineLatest3(adblockOn, uiPublisher, url)
+        struct TabData: Equatable {
+            var url: URL?
+            var readerAvail: Bool
+        }
+        let tabData: AnyPublisher<TabData, Never> = BrowserStore.shared.uiPublisher.map({
+            if let pane = $0.pane(forId: id) {
+                return TabData(url: pane.info.committedURL, readerAvail: pane.info.readerAvailable ?? false)
+            }
+            return TabData(readerAvail: false)
+        }).eraseToAnyPublisher()
+        return Publishers.CombineLatest3(adblockOn, uiPublisher, tabData)
             .map { tuple -> CleanModeSnapshotForPane in
-                let (adblockOn, cleanModeState, url) = tuple
+                let (adblockOn, cleanModeState, tabData) = tuple
                 
-                guard let url else {
-                    return CleanModeSnapshotForPane(wantsReader: false, adblockEnabled: adblockOn)
+                guard let url = tabData.url else {
+                    return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn)
                 }
                 
                 let host = url.hostWithoutWWW
                 let hostSettings: CleanModeConfig = cleanModeState.hostSettings[host] ?? CleanModeState.defaultHostSettings[host] ?? .init(autoReaderRegexes: [])
                 let wantsReader = hostSettings.readerDisabled ? false : (hostSettings.autoReader(forURL: url))
                 
-                return CleanModeSnapshotForPane(wantsReader: wantsReader, wantsCSS: hostSettings.injectCSS, adblockEnabled: adblockOn)
+                return CleanModeSnapshotForPane(
+                    wantsReader: wantsReader,
+                    readerReady: tabData.readerAvail,
+                    wantsCSS: hostSettings.stylingDisabled ? nil : hostSettings.injectCSS,
+                    cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil,
+                    adblockEnabled: adblockOn
+                )
             }
             .removeDuplicates()
             .eraseToAnyPublisher()
@@ -92,6 +114,8 @@ class CleanModeStore: DataStore<CleanModeState> {
 
 struct CleanModeSnapshotForPane: Equatable {
     var wantsReader: Bool
+    var readerReady: Bool
     var wantsCSS: String?
+    var cssAvail: Bool
     var adblockEnabled: Bool
 }

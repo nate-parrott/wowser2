@@ -93,6 +93,12 @@ public struct ToolbarView: View {
                 
                 // Trailing buttons container
                 HStack(spacing: 0) {
+                    if let webContentID {
+                        CleanModeStatusButton(webContentID: webContentID)
+                            .tint(colorScheme?.foreground.color ?? Color.primary)
+                            .padding(.trailing)
+                    }
+                    
                     // Back button
                     Button(action: goBack) {
                         Image(systemName: "chevron.backward")
@@ -115,7 +121,7 @@ public struct ToolbarView: View {
                             .imageScale(.medium)
                     }
                     .buttonStyle(ToolbarButtonStyle())
-                    
+                                        
                     Button(action: toggleBookmark) {
                         Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                             .imageScale(.medium)
