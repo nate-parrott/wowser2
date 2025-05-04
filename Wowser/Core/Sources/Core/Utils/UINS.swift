@@ -28,3 +28,13 @@ extension UINSView {
         #endif
     }
 }
+
+extension UINSColor {
+    var swiftUI: Color {
+        #if os(iOS)
+        return Color(uiColor: self)
+        #else
+        return Color(nsColor: self)
+        #endif
+    }
+}

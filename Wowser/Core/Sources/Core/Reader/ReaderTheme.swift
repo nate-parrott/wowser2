@@ -262,58 +262,58 @@ struct ReaderThemePref: Equatable, Codable {
 
     func color(forKey key: ColorKey) -> UINSColor {
         switch flavor {
-        case .normal:
+//        case .normal:
+//            switch key {
+//            case .foreground:
+//                return UINSColor(named: "Foreground", bundle: .module)!
+//            case .foreground2:
+//                return UINSColor(named: "Foreground2", bundle: .module)!
+//            case .background:
+//                return UINSColor(named: "Background", bundle: .module)!
+//            case .background2:
+//                return UINSColor(named: "Background2", bundle: .module)!
+//            case .link:
+//                return UINSColor(named: "AccentRed", bundle: .module)!
+//            }
+        case .warm, .normal, .cool, .highContrast:
             switch key {
             case .foreground:
-                return UINSColor(named: "Foreground")!
+                return UINSColor(named: "SoftFG", bundle: .module)!
             case .foreground2:
-                return UINSColor(named: "Foreground2")!
+                return UINSColor(named: "SoftFG2", bundle: .module)!
             case .background:
-                return UINSColor(named: "Background")!
+                return UINSColor(named: "SoftBG", bundle: .module)!
             case .background2:
-                return UINSColor(named: "Background2")!
+                return UINSColor(named: "SoftBG2", bundle: .module)!
             case .link:
-                return UINSColor(named: "AccentRed")!
+                return UINSColor(named: "SoftLink", bundle: .module)!
             }
-        case .warm:
-            switch key {
-            case .foreground:
-                return UINSColor(named: "SoftFG")!
-            case .foreground2:
-                return UINSColor(named: "SoftFG2")!
-            case .background:
-                return UINSColor(named: "SoftBG")!
-            case .background2:
-                return UINSColor(named: "SoftBG2")!
-            case .link:
-                return UINSColor(named: "SoftLink")!
-            }
-        case .cool:
-            switch key {
-            case .foreground:
-                return UINSColor(named: "CoolFG")!
-            case .foreground2:
-                return UINSColor(named: "CoolFG2")!
-            case .background:
-                return UINSColor(named: "CoolBG")!
-            case .background2:
-                return UINSColor(named: "CoolBG2")!
-            case .link:
-                return UINSColor(named: "CoolLink")!
-            }
-        case .highContrast:
-            switch key {
-            case .foreground:
-                return UINSColor(named: "HiCFG")!
-            case .foreground2:
-                return UINSColor(named: "HiCFG2")!
-            case .background:
-                return UINSColor(named: "HiCBG")!
-            case .background2:
-                return UINSColor(named: "HiCBG2")!
-            case .link:
-                return UINSColor(named: "HiCLink")!
-            }
+//        case .cool:
+//            switch key {
+//            case .foreground:
+//                return UINSColor(named: "CoolFG", bundle: .module)!
+//            case .foreground2:
+//                return UINSColor(named: "CoolFG2", bundle: .module)!
+//            case .background:
+//                return UINSColor(named: "CoolBG", bundle: .module)!
+//            case .background2:
+//                return UINSColor(named: "CoolBG2", bundle: .module)!
+//            case .link:
+//                return UINSColor(named: "CoolLink", bundle: .module)!
+//            }
+//        case .highContrast:
+//            switch key {
+//            case .foreground:
+//                return UINSColor(named: "HiCFG", bundle: .module)!
+//            case .foreground2:
+//                return UINSColor(named: "HiCFG2", bundle: .module)!
+//            case .background:
+//                return UINSColor(named: "HiCBG", bundle: .module)!
+//            case .background2:
+//                return UINSColor(named: "HiCBG2", bundle: .module)!
+//            case .link:
+//                return UINSColor(named: "HiCLink", bundle: .module)!
+//            }
         }
     }
 

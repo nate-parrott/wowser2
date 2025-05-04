@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import Combine
+import Reeeed
 
 /// A wrapper around WebView that provides additional functionality like find-in-page
 public struct WrappedWebView: View {
@@ -11,21 +12,12 @@ public struct WrappedWebView: View {
     @State private var isFindInPageActive = false
     @State private var windowWantsWebviewFocus = false
     @Environment(\.windowID) private var windowID
-    @State private var wantsReader = false
+    
+    @State private var extractedReaderContent: ReadableDoc?
     
     public var body: some View {
         ZStack {
-            // Fake view for onreceive
-            if let windowID {
-                Color.clear.onReceive(BrowserStore.shared.uiPublisher.map({ $0.shouldFocusMainWebContent(forWindowID: windowID) }).removeDuplicates(), perform: { self.windowWantsWebviewFocus = $0 })
-                    .id(windowID)
-            }
-            
-            // Fake view for onreceive
-            Color.clear.onReceive(CleanModeStore.shared.cleanModeSnapshotForPane(id: webContent.id).removeDuplicates(), perform: {
-                cleanModeOptionsChanged($0)
-            })
-            .id(webContent.id)
+            receivers
             
             // The base WebView
             WebView(webContent: webContent, shrunk: shrunk)
@@ -36,34 +28,44 @@ public struct WrappedWebView: View {
                         }
                     }
                 })
+                .onAppearOrChange(of: extractedReaderContent != nil, perform: { reader in
+                    webContent.silenced = reader
+                })
                 .id(webContent)
             
-            // Find in page overlay
-            if isFindInPageActive {
-                FindInPageView(
-                    webView: webContent.webview,
-                    onClose: { isFindInPageActive = false }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding()
-                .transition(.move(edge: .top))
-            }
-            
-            // Hidden find button for keyboard shortcut
-            if isFocused {
-                Button("", action: findInPage)
-                    .keyboardShortcut("f", modifiers: .command)
-                    .opacity(0)
-                    .frame(width: 0, height: 0)
-                    .accessibility(hidden: true)
+            if let extractedReaderContent {
+                ReaderOverlay(readableDoc: extractedReaderContent, isFocusedPane: isFocused, windowWantsWebviewFocus: windowWantsWebviewFocus, mainWebContent: webContent)
+                    .id(webContent.id)
+                    .transition(.opacity)
+            } else {
+                // Find in page overlay
+                if isFindInPageActive, extractedReaderContent == nil {
+                    FindInPageView(
+                        webView: webContent.webview,
+                        onClose: { isFindInPageActive = false }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding()
+                    .transition(.move(edge: .top))
+                }
+                
+                // Hidden find button for keyboard shortcut
+                if isFocused, extractedReaderContent == nil {
+                    Button("", action: findInPage)
+                        .keyboardShortcut("f", modifiers: .command)
+                        .opacity(0)
+                        .frame(width: 0, height: 0)
+                        .accessibility(hidden: true)
+                }
             }
         }
+        .animation(.niceDefault(duration: 0.15), value: extractedReaderContent != nil)
         .modifier(ByInjectingGeneratedPages(webContent: webContent))
         .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: isFindInPageActive)
     }
     
     private var focusWebview: Bool {
-        isFocused && !isFindInPageActive && windowWantsWebviewFocus
+        isFocused && !isFindInPageActive && windowWantsWebviewFocus && extractedReaderContent == nil
     }
     
     private func findInPage() {
@@ -78,6 +80,20 @@ public struct WrappedWebView: View {
     private func cleanModeOptionsChanged(_ options: CleanModeSnapshotForPane) {
         webContent.injectedCSS = options.wantsCSS ?? ""
         webContent.fullContentExtractionMode = options.wantsReader ? .reader : .none
+    }
+    
+    @ViewBuilder private var receivers: some View {
+        // Fake view for onreceive
+        if let windowID {
+            Color.clear.onReceive(BrowserStore.shared.uiPublisher.map({ $0.shouldFocusMainWebContent(forWindowID: windowID) }).removeDuplicates(), perform: { self.windowWantsWebviewFocus = $0 })
+                .id(windowID)
+        }
+        
+        Color.clear.onReceive(CleanModeStore.shared.cleanModeSnapshotForPane(id: webContent.id).removeDuplicates(), perform: {
+            cleanModeOptionsChanged($0)
+        })
+        .onReceive(webContent.$fullContentExtractionStatus.map { $0.readerContent }.removeDuplicates(), perform: { self.extractedReaderContent = $0 })
+        .id(webContent.id)
     }
 }
 
