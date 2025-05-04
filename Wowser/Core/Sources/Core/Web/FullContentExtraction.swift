@@ -10,7 +10,7 @@ enum FullContentExtractionStatus: Equatable, Codable {
     case none
     case inProgress(URL)
     case nothingToExtract(URL)
-    case readerContent(URL, ExtractedContent)
+    case readerContent(URL, ReadableDoc)
     
     var url: URL? {
         switch self {
@@ -25,7 +25,7 @@ enum FullContentExtractionStatus: Equatable, Codable {
         }
     }
     
-    var readerContent: ExtractedContent? {
+    var readerContent: ReadableDoc? {
         if case .readerContent(_, let extractedContent) = self {
             return extractedContent
         }
@@ -43,6 +43,10 @@ extension WebContent {
                 self.fullContentExtractionStatus = .none
             }
             return
+        }
+        
+        switch extractionMode {
+        case .reader: () // no op right now; case is present to make sure we handle if we add more modes
         }
         
         // if url has changed, reset state
@@ -75,19 +79,14 @@ extension WebContent {
         case .inProgress, .readerContent, .nothingToExtract: () // we know url is unchanged, so do nothing
         }
     }
-//    
-//    private func isPageStatusReady() -> Bool {
-//        // TODO: us JS to check if loadstate
-//    }
-    
-    private func refreshExtractedReaderModeNow() async throws -> (URL, ExtractedContent) {
-        // TODO
+
+    private func refreshExtractedReaderModeNow() async throws -> (URL, ReadableDoc) {
         struct Output: Codable {
             var url: URL
             var html: String
         }
-        let output = try await webview.evaluateJS("{ url: location.href, html: document.documentElement.innerHTML }", resultType: Output.self)
-        let extracted = try await Reeeed.extractArticleContent(url: output.url, html: output.html)
+        let output = try await webview.evaluateJS("({ url: location.href, html: document.documentElement.innerHTML })", resultType: Output.self)
+        let extracted = try await Reeeed.extractReadableDoc(url: output.url, html: output.html)
         return (output.url, extracted)
     }
 }

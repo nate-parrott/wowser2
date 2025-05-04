@@ -70,7 +70,7 @@ public enum Reeeed {
             throw ExtractionError.DataIsNotString
         }
         let baseURL = response.url ?? url
-        let content = try await Reeeed.extractArticleContent(url: baseURL, html: html)
+        let content = try await Reeeed.extractArticleContent(url: baseURL, html: html, extractor: extractor)
         let extractedMetadata = try? await SiteMetadata.extractMetadata(fromHTML: html, baseURL: baseURL)
         guard let doc =  ReadableDoc(
             extracted: content,
@@ -81,8 +81,19 @@ public enum Reeeed {
             throw ExtractionError.MissingExtractionData
         }
         return doc
-
-//        let styledHTML = Reeeed.wrapHTMLInReaderStyling(html: extractedHTML, title: content.title ?? extractedMetadata?.title ?? "", baseURL: baseURL, author: content.author, heroImage: extractedMetadata?.heroImage, includeExitReaderButton: true, theme: theme, date: content.datePublished)
-//        return .init(metadata: extractedMetadata, extracted: content, styledHTML: styledHTML, baseURL: baseURL)
+    }
+    
+    public static func extractReadableDoc(url: URL, html: String, extractor: Extractor = .mercury) async throws -> ReadableDoc {
+        let content = try await Reeeed.extractArticleContent(url: url, html: html, extractor: extractor)
+        let extractedMetadata = try? await SiteMetadata.extractMetadata(fromHTML: html, baseURL: url)
+        guard let doc =  ReadableDoc(
+            extracted: content,
+            insertHeroImage: nil,
+            metadata: extractedMetadata ?? SiteMetadata(url: url),
+            date: content.datePublished)
+        else {
+            throw ExtractionError.MissingExtractionData
+        }
+        return doc
     }
 }
