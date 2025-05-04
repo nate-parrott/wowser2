@@ -316,6 +316,8 @@ struct ReaderThemePref: Equatable, Codable {
 //            }
         }
     }
+    
+    var extraTopMarginPx: CGFloat = 0
 
     var asTheme: ReaderTheme {
         var theme = ReaderTheme()
@@ -325,6 +327,14 @@ struct ReaderThemePref: Equatable, Codable {
                 font-family: \(font.asFamily), sans-serif;
             }
         """)
+        
+        if extraTopMarginPx != 0 {
+            cssLines.append("""
+                body {
+                    margin-top: \(extraTopMarginPx)px !important;
+                }
+            """)
+        }
 
         cssLines.append("""
         h1, h2, h3, h4, h5, h6 {

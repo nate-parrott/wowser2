@@ -2,7 +2,6 @@ import Foundation
 import SwiftSoup
 import Fuzi
 
-
 extension ReadableDoc {
     public func html(includeExitReaderButton: Bool, theme: ReaderTheme = .init()) -> String {
         let escapedTitle = Entities.escape(title?.byStrippingSiteNameFromPageTitle ?? "")

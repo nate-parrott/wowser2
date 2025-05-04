@@ -276,8 +276,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "308"
-            endingLineNumber = "308"
+            startingLineNumber = "309"
+            endingLineNumber = "309"
             landmarkName = "goForward()"
             landmarkType = "7">
          </BreakpointContent>
@@ -292,8 +292,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "200"
-            endingLineNumber = "200"
+            startingLineNumber = "201"
+            endingLineNumber = "201"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -612,8 +612,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "434"
-            endingLineNumber = "434"
+            startingLineNumber = "435"
+            endingLineNumber = "435"
             landmarkName = "webView(_:navigationAction:didBecome:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -628,8 +628,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "420"
-            endingLineNumber = "420"
+            startingLineNumber = "421"
+            endingLineNumber = "421"
             landmarkName = "webView(_:decidePolicyFor:decisionHandler:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -644,8 +644,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "439"
-            endingLineNumber = "439"
+            startingLineNumber = "440"
+            endingLineNumber = "440"
             landmarkName = "webView(_:navigationResponse:didBecome:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -852,8 +852,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/WebContent.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "190"
-            endingLineNumber = "190"
+            startingLineNumber = "191"
+            endingLineNumber = "191"
             landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -964,24 +964,8 @@
             filePath = "Wowser/Core/Sources/Core/Web/FullContentExtraction.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "89"
-            endingLineNumber = "89"
-            landmarkName = "refreshExtractedReaderModeNow()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "6489BC70-3909-4A6C-A132-828489E7AD5B"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Wowser/Core/Sources/Core/Web/FullContentExtraction.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "88"
-            endingLineNumber = "88"
+            startingLineNumber = "115"
+            endingLineNumber = "115"
             landmarkName = "refreshExtractedReaderModeNow()"
             landmarkType = "7">
          </BreakpointContent>

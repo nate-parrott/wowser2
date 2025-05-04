@@ -6,6 +6,7 @@ struct WebContentExtractedData: Equatable, Codable {
     var ogImage: URL?
     var readyState: String?
     var jsURL: URL?
+    var isRecipe: Bool?
     
     var isReady: Bool {
         readyState == "interactive" || readyState == "complete"
@@ -31,6 +32,8 @@ extension WebContent {
         if (ogImageMeta && ogImageMeta.content) {
             result.ogImage = new URL(ogImageMeta.content, window.location.href).toString();
         }
+        
+        result.isRecipe = \(RecipeExtraction.recipeCheckExpression)
         
         return result;
         """.wrappedInSelfCallingJSFunction, resultType: WebContentExtractedData.self)
