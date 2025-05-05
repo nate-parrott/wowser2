@@ -38,40 +38,49 @@ private struct SidebarSwipeContent: View {
     @Binding var selectedProfileID: String?
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 0) {
-                ForEach(snapshot.profileIDs, id: \.raw) { profileID in
-                    ProfilePageView(
-                        windowID: windowID,
-                        profileID: profileID
-                    )
-                    .frame(width: UIConstants.sidebarWidth)
-                    .id(profileID.raw)
+        VStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(snapshot.profileIDs, id: \.raw) { profileID in
+                        ProfilePageView(
+                            windowID: windowID,
+                            profileID: profileID
+                        )
+                        .frame(width: UIConstants.sidebarWidth)
+                        .id(profileID.raw)
+                    }
+                    
+                    NewProfileView(windowID: windowID)
+                        .frame(width: UIConstants.sidebarWidth)
+                        .id("new-profile")
                 }
-                
-                NewProfileView(windowID: windowID)
-                    .frame(width: UIConstants.sidebarWidth)
-                    .id("new-profile")
             }
-        }
-        .scrollTargetLayout()
-        .scrollTargetBehavior(.viewAligned)
+            .scrollTargetLayout()
+            .scrollTargetBehavior(.viewAligned)
 //            .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $selectedProfileID)
-        .onAppear {
-            // Initialize the selectedProfileID to the current profile when view appears
-            selectedProfileID = snapshot.currentProfileID.raw
-        }
-        .onChange(of: selectedProfileID) { oldValue, newValue in
-            if let idString = newValue, idString != "new-profile", idString != snapshot.currentProfileID.raw {
-                // When user swipes to a different profile, update the current profile
-                switchToProfile(ID<Profile>(raw: idString))
+            .scrollPosition(id: $selectedProfileID)
+            .onAppear {
+                // Initialize the selectedProfileID to the current profile when view appears
+                selectedProfileID = snapshot.currentProfileID.raw
             }
-        }
-        .onChange(of: snapshot.currentProfileID) { oldValue, newValue in
-            // When the current profile changes in the store, update the selected profile ID
-            if selectedProfileID != newValue.raw {
-                selectedProfileID = newValue.raw
+            .onChange(of: selectedProfileID) { oldValue, newValue in
+                if let idString = newValue, idString != "new-profile", idString != snapshot.currentProfileID.raw {
+                    // When user swipes to a different profile, update the current profile
+                    switchToProfile(ID<Profile>(raw: idString))
+                }
+            }
+            .onChange(of: snapshot.currentProfileID) { oldValue, newValue in
+                // When the current profile changes in the store, update the selected profile ID
+                if selectedProfileID != newValue.raw {
+                    selectedProfileID = newValue.raw
+                }
+            }
+            
+            // Add the paging dots below the carousel
+            if snapshot.profileIDs.count > 1 {
+                ProfilePagingDots(windowID: windowID)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
             }
         }
     }
