@@ -165,6 +165,8 @@ public struct Profile: Equatable, Codable {
     public var manualFavorites = [ID<Tab>]()
     public var autoFavorites = [ID<Tab>]()
     public var removedFavoriteDomains = Set<String>() // url.hostWithoutWWW
+    public var emoji: String? // Identifier emoji for the profile
+    public var title: String? // Custom title for the profile
 }
 
 public struct Project: Equatable, Codable {
