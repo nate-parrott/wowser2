@@ -71,19 +71,23 @@ private struct ProfileDotView: View {
             // Switch to this profile when clicked
             switchToProfile()
         }) {
-            if let emoji = profile?.emoji, !emoji.isEmpty {
-                // Display the emoji if it's been set
-                Text(emoji)
-                    .font(.system(size: 14))
-                    .opacity(isSelected ? 1.0 : 0.6)
-                    .frame(width: 24, height: 24)
-                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .clipShape(Circle())
-            } else {
-                // Default dot indicator
+            ZStack {
+                // Background circle for consistent sizing
                 Circle()
-                    .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
-                    .frame(width: 8, height: 8)
+                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .frame(width: 24, height: 24)
+                
+                if let emoji = profile?.emoji, !emoji.isEmpty {
+                    // Display the emoji if it's been set
+                    Text(emoji)
+                        .font(.system(size: 14))
+                        .opacity(isSelected ? 1.0 : 0.6)
+                } else {
+                    // Default dot indicator
+                    Circle()
+                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -154,6 +158,18 @@ private struct ProfileDotView: View {
             }) {
                 Text("Clear Custom Profile")
             }
+            
+            Divider()
+            
+            // Only show Delete Profile if we have more than one profile
+            if canDeleteProfile() {
+                Button(action: {
+                    deleteProfile()
+                }) {
+                    Text("Delete Profile")
+                        .foregroundColor(.red)
+                }
+            }
         }
     }
     
@@ -172,6 +188,48 @@ private struct ProfileDotView: View {
     private func setProfileTitle(_ title: String?) {
         BrowserStore.shared.modify { state in
             state.profiles[profileID]?.title = title
+        }
+    }
+    
+    private func canDeleteProfile() -> Bool {
+        // Check if we have more than one profile (we never want to delete the last profile)
+        let profileCount = BrowserStore.shared.model.profiles.count
+        return profileCount > 1
+    }
+    
+    private func deleteProfile() {
+        // We need to:
+        // 1. Close all tabs in this profile
+        // 2. Switch to another profile if this is the current one
+        // 3. Remove the profile
+        BrowserStore.shared.modify { state in
+            // Find all tabs that belong to this profile
+            let windowsUsingThisProfile = state.windows.values.filter { $0.profile == profileID }
+            for window in windowsUsingThisProfile {
+                // Get all tabs in this window for this profile
+                let tabsToClose = window.perProfileData[profileID]?.tabs ?? []
+                
+                // Remove the tabs from state
+                for tabID in tabsToClose {
+                    state._removeTab_unsafe_doesntCloseWebContent(tabId: tabID)
+                }
+                
+                // If this is the current profile in the window, switch to another profile
+                if window.profile == profileID {
+                    // Find another profile to switch to
+                    let anotherProfile = state.profiles.values
+                        .first(where: { $0.id != profileID })?.id ?? .defaultProfile
+                    
+                    // Switch to the other profile
+                    state.windows[window.id]?.profile = anotherProfile
+                }
+                
+                // Clear per-profile data
+                state.windows[window.id]?.perProfileData.removeValue(forKey: profileID)
+            }
+            
+            // Remove the profile itself
+            state.profiles.removeValue(forKey: profileID)
         }
     }
 }
