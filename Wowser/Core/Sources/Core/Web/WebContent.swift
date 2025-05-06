@@ -475,7 +475,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
                     self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
                     self.info.ogImage = extracted.ogImage
                     self.info.recipeDetected = extracted.isRecipe?.nilIfFalse
-                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
+//                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
                 }
             } catch {
                 docReadyWithURL = nil
