@@ -1,0 +1,55 @@
+import Foundation
+import ChatToys
+
+struct WebResearchTool: Tool {
+    var functions: [LLMFunction] {
+        [Self.fn.asLLMFunction]
+    }
+    
+    static let fn = TypedFunction<Args>(name: "web_search", description: "Performs a web search and returns the text content of the first few results.", type: Args.self)
+    
+    struct Args: FunctionArgs {
+        var query: String
+        
+        static var schema: [String: LLMFunction.JsonSchema] {
+            [
+                "query": .string(description: "Highly-specific web search query")
+            ]
+        }
+    }
+    
+    func handleCallIfApplicable(_ call: LLMMessage.FunctionCall, context: ToolContext) async throws -> TaggedLLMMessage.FunctionResponse? {
+        if let args = Self.fn.checkMatch(call: call) {
+            do {
+                await context.log(.webSearch(args.query))
+                
+                let results = try await GoogleSearchEngine().search(query: args.query).results
+                let content = try await WebContext.from(results: results, query: args.query, timeout: 4, resultCount: 7, charLimit: 15_000).asXML
+                
+//                let llm = try ChatGPT(
+//                    credentials: .init(apiKey: LLMs.openrouterKey()),
+//                    options: .init(
+//                        temp: 0.7,
+//                        model: .custom("perplexity/llama-3.1-sonar-large-128k-online", 128_000),
+//                        baseURL: .openRouterOpenAIChatEndpoint
+//                    )
+//                )
+//                
+//                let messages = [
+//                    LLMMessage(role: .system, content: "You are a web research assistant. Provide accurate, factual information based on the user's query. Focus on specific details, code examples, and API definitions. Be concise and precise."),
+//                    LLMMessage(role: .user, content: args.prompt)
+//                ]
+//                
+//                var result = ""
+//                for try await partial in llm.completeStreaming(prompt: messages) {
+//                    result = partial.content
+//                }
+                
+                return call.response(items: [.text(content)])
+            } catch {
+                return call.response(text: "Web research failed: \(error)")
+            }
+        }
+        return nil
+    }
+}
