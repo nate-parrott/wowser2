@@ -10,12 +10,21 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
     @AppStorage(DefaultsKeys.autoOrganizeTabs.rawValue) private var autoOrganizeTabsEnabled = false
     @AppStorage(DefaultsKeys.autoArchiveTabs.rawValue) private var autoArchiveTabsEnabled = false
-    
-
+    @AppStorage(DefaultsKeys.cleanModeForRecipes.rawValue) private var cleanModeForRecipesEnabled = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     
     var body: some View {
+        TabView {
+            Tab(content: { main }, label: { Text("General") })
+            Tab(content: { AISettings() }, label: { Text("AI") })
+            Tab(content: { DebugSettings() }, label: { Text("Internal") })
+        }
+        .formStyle(.grouped)
+        .frame(minWidth: 500)
+    }
+    
+    @ViewBuilder private var main: some View {
         Form {
             Section("Tabs") {
                 Toggle("Move old tabs to 'Old Tabs' every night", isOn: $autoArchiveTabsEnabled)
@@ -23,6 +32,11 @@ struct SettingsView: View {
                 
                 Toggle("Auto-organize tabs hourly", isOn: $autoOrganizeTabsEnabled)
                     .help("Automatically organize tabs into logical groups once per hour")
+            }
+            Section("Clean Mode") {
+                Toggle("Hide ads", isOn: $adblockEnabled)
+                Toggle("Hide cookie banners", isOn: $cookieBannerBlockEnabled)
+                Toggle("Clean mode for recipes", isOn: $cleanModeForRecipesEnabled)
             }
             Section("Browsing") {
                 EnumPicker<SearchEngine>(title: "Search Engine", selection: $searchEngine) { engine in
@@ -33,14 +47,7 @@ struct SettingsView: View {
                     case .ai: return "AI Search"
                     }
                 }
-                
-                Toggle("Block ads", isOn: $adblockEnabled)
-                
-                Toggle("Block cookie banners", isOn: $cookieBannerBlockEnabled)
-                
-                Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
-                    .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
-                
+                                
                 Toggle("Animate new tabs", isOn: $animateNewTabsEnabled)
                     .help("Show animation when new tabs are loaded")
                 
@@ -49,15 +56,10 @@ struct SettingsView: View {
             
             Section("Appearance") {
                 Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
+                Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
+                    .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
             }
-            
-            AISettings()
-            
-            DebugSettings()
         }
-        .formStyle(.grouped)
-        .padding()
-        .frame(minWidth: 500)
     }
 }
 

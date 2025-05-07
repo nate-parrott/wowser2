@@ -96,6 +96,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
+            DefaultsKeys.cleanModeForRecipes.rawValue: true,
+            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news."
         ])
         
         GlobalHacks.hacks = MacHacks()
