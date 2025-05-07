@@ -35,10 +35,11 @@ public class GeneratedPageStore: DataStore<GeneratedPageState> {
     }
     
     // Ensure a generated page exists
-    public func ensureGeneratedPageLoaded(for key: GeneratedPageKey) {
+    public func ensureGeneratedPageLoaded(for key: GeneratedPageKey, forceRefresh: Bool = false) {
         modify { state in
             // If page doesn't exist or has expired, generate it
-            if state.pages[key] == nil || state.pages[key]?.expiration.timeIntervalSinceNow ?? 0 < 0 {
+            if state.pages[key] == nil || state.pages[key]?.expiration.timeIntervalSinceNow ?? 0 < 0 || forceRefresh {
+                let lastHTML = state.pages[key]?.html
                 // Create placeholder while we generate
                 let now = Date()
                 let expiration = now.addingTimeInterval(14 * 60 * 60) // 14 hour expiration
@@ -55,7 +56,7 @@ public class GeneratedPageStore: DataStore<GeneratedPageState> {
                 
                 self.queue.queue.async {
                     // Start generation in background
-                    self.startGenerationTask(for: key)
+                    self.startGenerationTask(for: key, lastHTML: lastHTML)
                 }
             } else {
                 // Update last accessed time
@@ -64,11 +65,11 @@ public class GeneratedPageStore: DataStore<GeneratedPageState> {
         }
     }
     
-    private func startGenerationTask(for key: GeneratedPageKey) {
+    private func startGenerationTask(for key: GeneratedPageKey, lastHTML: String?) {
         Task {
             do {
                 // Get the content stream for this key
-                let contentStream = PageGenerator.generateContent(for: key)
+                let contentStream = PageGenerator.generateContent(for: key, lastHTML: lastHTML)
                 
                 // Process the stream of updates
                 for try await update in contentStream {
