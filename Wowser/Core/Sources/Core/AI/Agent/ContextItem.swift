@@ -91,6 +91,7 @@ enum ContextItem: Equatable, Codable {
     case textFile(filename: String, content: String)
     struct PageContent: Equatable, Codable {
         var text: String
+        var image: LLMMessage.Image?
         var loadComplete: Bool
     }
     
@@ -116,7 +117,7 @@ enum ContextItem: Equatable, Codable {
             if let content {
                 result += "\n\n" + content.text
             }
-            return (result, nil)
+            return (result, content?.image)
         case .proactiveContext(let title, let text):
             return ("<additional-context note='may or may not be relevant; use if helpful'>\n\(text)\n</additional-context>", nil)
         case .largePaste(let content):
