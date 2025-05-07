@@ -3,11 +3,13 @@ import ChatToys
 import WebKit
 
 struct ReadURLsTool: Tool {
+    var visual: Bool
+    
     var functions: [LLMFunction] {
         [Self.fn.asLLMFunction]
     }
     
-    static let fn = TypedFunction<Args>(name: "read_urls", description: "Fetches and returns the raw content of reference URLs. Only use when code comments or instructions explicitly identify reference URLs that should be viewed.", type: Args.self)
+    static let fn = TypedFunction<Args>(name: "read_urls", description: "Fetches and returns the raw content of reference URLs.", type: Args.self)
     
     struct Args: FunctionArgs {
         var urls: [String]
@@ -29,7 +31,7 @@ struct ReadURLsTool: Tool {
                     return "Invalid URL: \(urlString)"
                 }
                 
-                let fetcher = await PageContentFetcher(url: url, profileID: context.profileId)
+                let fetcher = await PageContentFetcher(url: url, profileID: context.profileId, visual: visual)
                 var lastContent: ContextItem.PageContent?
                 
                 do {

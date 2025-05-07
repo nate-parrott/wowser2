@@ -7,10 +7,12 @@ class PageContentFetcher {
     private let url: URL
     private var webView: WKWebView?
     private let profileID: ID<Profile>?
+    private let visual: Bool // includes page content as image, in addition to text
     
-    init(url: URL, profileID: ID<Profile>?) {
+    init(url: URL, profileID: ID<Profile>?, visual: Bool) {
         self.url = url
         self.profileID = profileID
+        self.visual = visual
     }
     
     private func ensureWebview() async -> WKWebView {
@@ -49,10 +51,15 @@ class PageContentFetcher {
                     // Get page text
                     if let text = try? await webView.markdown() {
                         let truncated = String(text.prefix(30_000))
-                        if complete {
+//                        if complete {
 //                            print("FETCHED: \(truncated)")
+//                        }
+                        if visual {
+                            let image = try await webView.takeSnapshot(configuration: WKSnapshotConfiguration()).asLLMImage(detail: .auto, maxSize: 1024)
+                            continuation.yield(ContextItem.PageContent(text: truncated, image: image, loadComplete: complete))
+                        } else {
+                            continuation.yield(ContextItem.PageContent(text: truncated, loadComplete: complete))
                         }
-                        continuation.yield(ContextItem.PageContent(text: truncated, loadComplete: complete))
                     }
                     
                     if complete {
@@ -64,5 +71,6 @@ class PageContentFetcher {
                 continuation.finish()
             }
         }
+
     }
 }
