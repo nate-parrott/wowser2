@@ -10,7 +10,10 @@ public enum DefaultsKeys: String {
     case preserveWindowsAcrossRestarts // bool
     case autoOrganizeTabs // bool
     case autoArchiveTabs
+    case cleanModeForRecipes
     case lastAutoArchiveDate // Date
+    
+    case homepagePrompt // string
     
     case llmChoice // LLMChoice
     case ollamaCustomModel // string

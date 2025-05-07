@@ -89,6 +89,7 @@ class CleanModeStore: DataStore<CleanModeState> {
         }
         
         let adblockOn = DefaultsKeys.adblock.boolPublisher()
+        let recipeCleanEnabled = DefaultsKeys.cleanModeForRecipes.boolPublisher()
         struct TabData: Equatable {
             var url: URL?
             var readerAvail: Bool
@@ -104,9 +105,10 @@ class CleanModeStore: DataStore<CleanModeState> {
             }
             return TabData(readerAvail: false, recipeDetected: false)
         }).eraseToAnyPublisher()
-        return Publishers.CombineLatest3(adblockOn, uiPublisher, tabData)
+        
+        return Publishers.CombineLatest4(adblockOn, recipeCleanEnabled, uiPublisher, tabData)
             .map { tuple -> CleanModeSnapshotForPane in
-                let (adblockOn, cleanModeState, tabData) = tuple
+                let (adblockOn, recipeCleanEnabled, cleanModeState, tabData) = tuple
                 
                 guard let url = tabData.url else {
                     return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn, hasURL: false)
@@ -114,8 +116,9 @@ class CleanModeStore: DataStore<CleanModeState> {
                 
                 let host = url.hostWithoutWWW
                 let hostSettings: CleanModeConfig = cleanModeState.hostSettings[host] ?? CleanModeState.defaultHostSettings[host] ?? .init(autoReaderRegexes: [])
+                let autoRecipe = recipeCleanEnabled && tabData.recipeDetected
                 let wantsReader = !hostSettings.readerDisabled && (
-                    tabData.recipeDetected || hostSettings.autoReader(forURL: url)
+                    autoRecipe || hostSettings.autoReader(forURL: url)
                 )
                 
                 return CleanModeSnapshotForPane(
