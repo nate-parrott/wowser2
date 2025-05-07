@@ -262,8 +262,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "400"
             endingLineNumber = "400"
-            landmarkName = "BrowserStore"
-            landmarkType = "21">
+            landmarkName = "webContentWantsToClose(_:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -1015,6 +1015,98 @@
             startingLineNumber = "87"
             endingLineNumber = "87"
             landmarkName = "webContent(_:decidePolicyFor:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0293ED5C-5169-45F9-8844-983428DBC637"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "70"
+            endingLineNumber = "70"
+            landmarkName = "generateHomepage(continuation:lastHTML:profileId:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "38F07492-F64B-4016-8BE1-7926067799B5"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "69"
+            endingLineNumber = "69"
+            landmarkName = "generateHomepage(continuation:lastHTML:profileId:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "38F07492-F64B-4016-8BE1-7926067799B5 - 1846454d8fd61aeb"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for static Core.PageGenerator.generateHomepage(continuation: Swift.AsyncThrowingStream&lt;Core.ContentUpdate, Swift.Error&gt;.Continuation, lastHTML: Swift.Optional&lt;Swift.String&gt;, profileId: Core.ID&lt;Core.Profile&gt;) async throws -&gt; ()"
+                  moduleName = "Wowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/nparrott/Documents/SW/Wowser/Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "69"
+                  endingLineNumber = "69">
+               </Location>
+               <Location
+                  uuid = "38F07492-F64B-4016-8BE1-7926067799B5 - 8d35bf59c7829397"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(5) suspend resume partial function for static Core.PageGenerator.generateHomepage(continuation: Swift.AsyncThrowingStream&lt;Core.ContentUpdate, Swift.Error&gt;.Continuation, lastHTML: Swift.Optional&lt;Swift.String&gt;, profileId: Core.ID&lt;Core.Profile&gt;) async throws -&gt; ()"
+                  moduleName = "Wowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/nparrott/Documents/SW/Wowser/Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "69"
+                  endingLineNumber = "69">
+               </Location>
+               <Location
+                  uuid = "38F07492-F64B-4016-8BE1-7926067799B5 - dea1c6946c8b6c32"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (Core.TaggedLLMMessage) -&gt; ChatToys.LLMMessage in static Core.PageGenerator.generateHomepage(continuation: Swift.AsyncThrowingStream&lt;Core.ContentUpdate, Swift.Error&gt;.Continuation, lastHTML: Swift.Optional&lt;Swift.String&gt;, profileId: Core.ID&lt;Core.Profile&gt;) async throws -&gt; ()"
+                  moduleName = "Wowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/nparrott/Documents/SW/Wowser/Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "69"
+                  endingLineNumber = "69">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B5B8ECFA-D0FA-411E-9B54-3B98AF12AF67"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Wowser/Core/Sources/Core/AI/GeneratedPages/GeneratedPageGen.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "74"
+            endingLineNumber = "74"
+            landmarkName = "generateHomepage(continuation:lastHTML:profileId:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

@@ -33,6 +33,13 @@ enum LLMs {
         throw AIError.noModelChosen
     }
     
+    static func currentOrThrow_fnCalling() throws -> any FunctionCallingLLM {
+        if let cur = current_fnCalling() {
+            return cur
+        }
+        throw AIError.noModelChosen
+    }
+    
     static func current(json: Bool) -> (any ChatLLM)? {
         guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue()) else {
             return nil
@@ -159,6 +166,11 @@ enum LLMs {
             }
             return nil
         }
+    }
+    
+    static func current_fnCalling() -> (any FunctionCallingLLM)? {
+        guard let model = self.current(json: false) else { return nil }
+        return model as? FunctionCallingLLM
     }
 }
 

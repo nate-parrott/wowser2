@@ -548,6 +548,19 @@ extension BrowserState {
         }
     }
     
+    mutating func insertTab(_ tab: Tab, intoProfileFavoritesAtIndex idx: Int, profile: ID<Profile>) {
+        var tab = tab
+        for i in tab.panes.asArray.indices {
+            let info = tab.panes[i]?.info
+            tab.panes[i]?.baseInfo = info
+        }
+        tabs[tab.id] = tab
+        for pane in tab.panes {
+            paneToTabMapping[pane.id] = tab.id
+        }
+        profiles[profile]!.manualFavorites.insert(tab.id, at: idx)
+    }
+    
     var validLiveWebContentIds: Set<ID<WebContent>> {
         return tabs.values.flatMap { tab -> [ID<WebContent>] in
             // Was this tab last active in a living window?

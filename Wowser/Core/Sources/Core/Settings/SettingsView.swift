@@ -1,7 +1,6 @@
 import SwiftUI
-import Core
 
-struct SettingsView: View {
+public struct SettingsView: View {
     @AppStorage(DefaultsKeys.adblock.rawValue) private var adblockEnabled = false
     @AppStorage(DefaultsKeys.cookieBannerBlock.rawValue) private var cookieBannerBlockEnabled = false
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkModeEnabled = false
@@ -14,11 +13,23 @@ struct SettingsView: View {
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     
-    var body: some View {
-        TabView {
-            Tab(content: { main }, label: { Text("General") })
-            Tab(content: { AISettings() }, label: { Text("AI") })
-            Tab(content: { DebugSettings() }, label: { Text("Internal") })
+    public init() {
+        
+    }
+    
+    public var body: some View {
+        Group {
+            if #available(macOS 15.0, *) {
+                TabView {
+                    SwiftUI.Tab(content: { main }, label: { Text("General") })
+                    SwiftUI.Tab(content: { HomepageSettings() }, label: { Text("Homepage") })
+                    SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
+                    SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
+                }
+            } else {
+                Color.red
+                EmptyView()
+            }
         }
         .formStyle(.grouped)
         .frame(minWidth: 500)
@@ -88,33 +99,35 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
     
     var body: some View {
-        Section("AI Models") {
-            EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { model in
-                switch model {
-                case .openrouter_gemini_2_flash: return "OpenRouter - Gemini 2 Flash"
-                case .openrouter_gpt_4o: return "OpenRouter - GPT-4o"
-                case .openrouter_gpt_4o_mini: return "OpenRouter - GPT-4o Mini"
-                case .openrouter_llama_33_70b: return "OpenRouter - Llama 3.3 70B"
-                case .openrouter_haiku_35: return "OpenRouter - Claude 3.5 Haiku"
-                case .openrouter_custom: return "OpenRouter - Custom"
-                
-                case .openai_gpt4o_mini: return "OpenAI - GPT-4o Mini"
-                case .openai_gpt4o: return "OpenAI - GPT-4o"
-                case .openai_custom: return "OpenAI - Custom"
-                
-                case .ollama_gemma_3_1b: return "Ollama - Gemma 3 1B"
-                case .ollama_gemma_3_4b: return "Ollama - Gemma 3 4B"
-                case .ollama_gemma_3_4b_qat: return "Ollama - Gemma 3 4B Quantized"
-                case .ollama_gemma_3_12b: return "Ollama - Gemma 3 12B"
-                case .ollama_custom: return "Ollama - Custom"
-                
-                case .anthropic_haiku_35: return "Anthropic - Claude 3.5 Haiku"
-                case .anthropic_custom: return "Anthropic - Custom"
+        Form {
+            Section("AI Models") {
+                EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { model in
+                    switch model {
+                    case .openrouter_gemini_2_flash: return "OpenRouter - Gemini 2 Flash"
+                    case .openrouter_gpt_4o: return "OpenRouter - GPT-4o"
+                    case .openrouter_gpt_4o_mini: return "OpenRouter - GPT-4o Mini"
+                    case .openrouter_llama_33_70b: return "OpenRouter - Llama 3.3 70B"
+                    case .openrouter_haiku_35: return "OpenRouter - Claude 3.5 Haiku"
+                    case .openrouter_custom: return "OpenRouter - Custom"
+                        
+                    case .openai_gpt4o_mini: return "OpenAI - GPT-4o Mini"
+                    case .openai_gpt4o: return "OpenAI - GPT-4o"
+                    case .openai_custom: return "OpenAI - Custom"
+                        
+                    case .ollama_gemma_3_1b: return "Ollama - Gemma 3 1B"
+                    case .ollama_gemma_3_4b: return "Ollama - Gemma 3 4B"
+                    case .ollama_gemma_3_4b_qat: return "Ollama - Gemma 3 4B Quantized"
+                    case .ollama_gemma_3_12b: return "Ollama - Gemma 3 12B"
+                    case .ollama_custom: return "Ollama - Custom"
+                        
+                    case .anthropic_haiku_35: return "Anthropic - Claude 3.5 Haiku"
+                    case .anthropic_custom: return "Anthropic - Custom"
+                    }
                 }
+                
+                showApiKeyFields()
+                showCustomModelFields()
             }
-            
-            showApiKeyFields()
-            showCustomModelFields()
         }
     }
     
