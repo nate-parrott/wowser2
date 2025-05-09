@@ -88,10 +88,10 @@ struct TabSnapshot: Equatable {
         if let url, let genKey = GeneratedPageKey(url: url) {
             switch genKey {
             case .homepage:
-                result.iconType = .sfSymbol("leaf")
+                result.iconType = .sfSymbol("house")
                 result.displayName = "Home"
             case .answer(let q):
-                result.iconType = .sfSymbol("bubble")
+                result.iconType = .sfSymbol("message")
                 result.displayName = q
             }
         }
@@ -182,4 +182,3 @@ private struct CloseTabButton: View {
         .buttonStyle(CircleButtonStyle())
     }
 }
-
