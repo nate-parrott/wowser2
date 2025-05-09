@@ -140,6 +140,61 @@ struct FavoriteTabsView: View {
     }
 }
 
+// FavoriteSnapshot represents the visual appearance data for a favorite tab
+struct FavoriteSnapshot: Equatable {
+    var tabID: ID<Tab>
+    var displayName: String
+    var iconType: TabSnapshot.IconType
+    var url: URL?
+    var canReset: Bool
+    
+    // Factory method to create a snapshot from a tab
+    static func from(tab: Tab, isSelected: Bool) -> FavoriteSnapshot {
+        let pane = tab.panes.first
+        let url = pane?.info.url
+        
+        let canReset = isSelected && 
+            pane?.baseInfo != nil && 
+            pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
+        
+        let snapshot = FavoriteSnapshot(
+            tabID: tab.id,
+            displayName: getTabTitle(tab: tab),
+            iconType: .favicon(tab.panes.first?.info.favicon),
+            url: url,
+            canReset: canReset
+        )
+        
+        // Apply the same appearance transformations as TabSnapshot
+        return snapshot.preprocessAppearance()
+    }
+    
+    // Apply transformations to customize appearance - reusing logic from TabSnapshot
+    private func preprocessAppearance() -> FavoriteSnapshot {
+        var result = self
+        
+        // Handle Google search pages
+        if let url = self.url, let searchQuery = url.parsedAsGoogleSearchQuery {
+            result.displayName = searchQuery
+            result.iconType = .sfSymbol("magnifyingglass")
+        }
+        
+        // Handle special URLs like generated pages
+        if let url = self.url, let genKey = GeneratedPageKey(url: url) {
+            switch genKey {
+            case .homepage:
+                result.iconType = .sfSymbol("house")
+                result.displayName = "Home"
+            case .answer(let q):
+                result.iconType = .sfSymbol("message")
+                result.displayName = q
+            }
+        }
+        
+        return result
+    }
+}
+
 // Individual favorite cell that looks up its own data by ID
 struct FavoriteCell: View {
     let tabID: ID<Tab>
@@ -151,51 +206,67 @@ struct FavoriteCell: View {
         // Look up the data from BrowserStore
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { tab in
             if let tab = tab ?? nil {
-                let title = getTabTitle(tab: tab)
-                let pane = tab.panes.first
+                // Create a snapshot with consistent appearance
+                let snapshot = FavoriteSnapshot.from(tab: tab, isSelected: isSelected)
                 
-                // Check if reset is available (only when selected and baseInfo URL differs from current URL)
-                let canReset = isSelected && 
-                    pane?.baseInfo != nil && 
-                    pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
+                // Icon view based on the snapshot's icon type
+                let iconView: some View = Group {
+                    switch snapshot.iconType {
+                    case .favicon(let faviconURL):
+                        FaviconView(
+                            url: snapshot.url,
+                            faviconURL: faviconURL,
+                            size: 24
+                        )
+                        
+                    case .sfSymbol(let symbolName):
+                        Image(systemName: symbolName)
+                            .foregroundColor(.accentColor)
+                            .font(.system(size: 14))
+                            .frame(width: 24, height: 24)
+                            
+                    case .empty:
+                        Circle()
+                            .fill(.primary)
+                            .opacity(0.1)
+                            .frame(width: 24, height: 24)
+                    }
+                }
                 
-                FaviconView(
-                    url: pane?.baseInfo?.url ?? pane?.info.url,
-                    faviconURL: pane?.info.favicon
-                )
-                    .frame(width: 24, height: 24)
+                // Wrap the icon view with reset badge if needed
+                iconView
                     .overlay(alignment: .trailing) {
-                        if canReset {
+                        if snapshot.canReset {
                             ResetBadge()
                         }
                     }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 8)
-                .background {
-                    Capsule()
-                        .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
-                }
-                .contentShape(Capsule())
-                .onTapGesture {
-                    if canReset && isHovered {
-                        // Reset to base URL
-                        resetTabToBaseURL(tabID: tabID, windowID: windowID)
-                    } else {
-                        selectTab(tabID: tabID, windowID: windowID)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
                     }
-                }
-                .onHover { hovering in
-                    isHovered = hovering
-                }
-                .onDrag {
-                    // WARNING: onDrag appears to leak the hosting view when clicked
-                    // Create a drag item with the tab ID as text
-                    NSItemProvider(object: tabID.raw as NSString)
-                }
-                .contextMenu {
-                    TabContextMenu(tabID: tabID, isFavorite: true)
-                }
-                .help(canReset && isHovered ? "Reset to original URL" : title)
+                    .contentShape(Capsule())
+                    .onTapGesture {
+                        if snapshot.canReset && isHovered {
+                            // Reset to base URL
+                            resetTabToBaseURL(tabID: tabID, windowID: windowID)
+                        } else {
+                            selectTab(tabID: tabID, windowID: windowID)
+                        }
+                    }
+                    .onHover { hovering in
+                        isHovered = hovering
+                    }
+                    .onDrag {
+                        // WARNING: onDrag appears to leak the hosting view when clicked
+                        // Create a drag item with the tab ID as text
+                        NSItemProvider(object: tabID.raw as NSString)
+                    }
+                    .contextMenu {
+                        TabContextMenu(tabID: tabID, isFavorite: true)
+                    }
+                    .help(snapshot.canReset && isHovered ? "Reset to original URL" : snapshot.displayName)
             }
         }
         .id(tabID)

@@ -48,6 +48,29 @@ public struct ToolbarViewSnapshot: Equatable {
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
         self.isEmptyPage = paneData.info.isEmptyPage
     }
+    
+    /// Gets the display text for the URL bar based on the URL and focus state
+    func getDisplayText(isFocused: Bool) -> String {
+        guard let url = self.url else { return "" }
+        
+        // Handle GeneratedPageKey URLs
+        if let genKey = GeneratedPageKey(url: url) {
+            switch genKey {
+            case .homepage:
+                return isFocused ? "" : "Home"
+            case .answer(let q):
+                return isFocused ? "" : q
+            }
+        }
+        
+        // Handle Google search queries - show query in both states
+        if let searchQuery = url.parsedAsGoogleSearchQuery {
+            return searchQuery
+        }
+        
+        // Default behavior for regular URLs
+        return isFocused ? url.absoluteString : url.hostWithoutWWW
+    }
 }
 
 /// A toolbar view that contains navigation controls and the omnibox
@@ -83,7 +106,7 @@ public struct ToolbarView: View {
                     
                     Omnibox(
                         focusDate: focusDate,
-                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
+                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.getDisplayText(isFocused: false)),
                         selectedResultIndex: $selectedResultIndex,
                         searcher: searcher,
                         fgColor: colorScheme?.foreground,
@@ -172,9 +195,20 @@ public struct ToolbarView: View {
     // MARK: - Actions
     
     private func activateSearchOverlay() {
-        if let webContentID {
-            searchText = browserStore.model.tabInfo(forWebContentId: webContentID)?.url?.absoluteString ?? ""
+        if let webContentID, let url = browserStore.model.tabInfo(forWebContentId: webContentID)?.url {
+            // Set search text to different values based on URL type
+            if let genKey = GeneratedPageKey(url: url) {
+                // For generated pages, we want to show empty string when focused
+                searchText = ""
+            } else if let searchQuery = url.parsedAsGoogleSearchQuery {
+                // For search queries, show the query
+                searchText = searchQuery
+            } else {
+                // For regular URLs, show the full URL
+                searchText = url.absoluteString
+            }
         }
+        
         browserStore.modify { state in
             if let windowID = windowID {
                 state.windows[windowID]?.searchOverlayActive = true
