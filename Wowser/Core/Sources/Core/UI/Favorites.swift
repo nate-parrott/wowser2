@@ -153,49 +153,97 @@ struct FavoriteCell: View {
             if let tab = tab ?? nil {
                 let title = getTabTitle(tab: tab)
                 let pane = tab.panes.first
+                let url = pane?.info.url
                 
                 // Check if reset is available (only when selected and baseInfo URL differs from current URL)
                 let canReset = isSelected && 
                     pane?.baseInfo != nil && 
                     pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
                 
-                FaviconView(
-                    url: pane?.baseInfo?.url ?? pane?.info.url,
-                    faviconURL: pane?.info.favicon
-                )
-                    .frame(width: 24, height: 24)
+                // Determine icon type based on URL
+                let iconView: AnyView
+                if let url = url {
+                    // Check for special URL types and apply appropriate icons
+                    if let genKey = GeneratedPageKey(url: url) {
+                        switch genKey {
+                        case .homepage:
+                            iconView = AnyView(
+                                Image(systemName: "house")
+                                    .foregroundColor(.accentColor)
+                                    .font(.system(size: 14))
+                                    .frame(width: 24, height: 24)
+                            )
+                        case .answer:
+                            iconView = AnyView(
+                                Image(systemName: "message")
+                                    .foregroundColor(.accentColor)
+                                    .font(.system(size: 14))
+                                    .frame(width: 24, height: 24)
+                            )
+                        }
+                    } else if let _ = url.parsedAsGoogleSearchQuery {
+                        // For Google search results
+                        iconView = AnyView(
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.accentColor)
+                                .font(.system(size: 14))
+                                .frame(width: 24, height: 24)
+                        )
+                    } else {
+                        // Default to regular favicon
+                        iconView = AnyView(
+                            FaviconView(
+                                url: pane?.baseInfo?.url ?? url,
+                                faviconURL: pane?.info.favicon,
+                                size: 24
+                            )
+                        )
+                    }
+                } else {
+                    // Fallback if no URL
+                    iconView = AnyView(
+                        FaviconView(
+                            url: nil,
+                            faviconURL: nil,
+                            size: 24
+                        )
+                    )
+                }
+                
+                // Wrap the icon view with reset badge if needed
+                iconView
                     .overlay(alignment: .trailing) {
                         if canReset {
                             ResetBadge()
                         }
                     }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 8)
-                .background {
-                    Capsule()
-                        .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
-                }
-                .contentShape(Capsule())
-                .onTapGesture {
-                    if canReset && isHovered {
-                        // Reset to base URL
-                        resetTabToBaseURL(tabID: tabID, windowID: windowID)
-                    } else {
-                        selectTab(tabID: tabID, windowID: windowID)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
                     }
-                }
-                .onHover { hovering in
-                    isHovered = hovering
-                }
-                .onDrag {
-                    // WARNING: onDrag appears to leak the hosting view when clicked
-                    // Create a drag item with the tab ID as text
-                    NSItemProvider(object: tabID.raw as NSString)
-                }
-                .contextMenu {
-                    TabContextMenu(tabID: tabID, isFavorite: true)
-                }
-                .help(canReset && isHovered ? "Reset to original URL" : title)
+                    .contentShape(Capsule())
+                    .onTapGesture {
+                        if canReset && isHovered {
+                            // Reset to base URL
+                            resetTabToBaseURL(tabID: tabID, windowID: windowID)
+                        } else {
+                            selectTab(tabID: tabID, windowID: windowID)
+                        }
+                    }
+                    .onHover { hovering in
+                        isHovered = hovering
+                    }
+                    .onDrag {
+                        // WARNING: onDrag appears to leak the hosting view when clicked
+                        // Create a drag item with the tab ID as text
+                        NSItemProvider(object: tabID.raw as NSString)
+                    }
+                    .contextMenu {
+                        TabContextMenu(tabID: tabID, isFavorite: true)
+                    }
+                    .help(canReset && isHovered ? "Reset to original URL" : title)
             }
         }
         .id(tabID)
