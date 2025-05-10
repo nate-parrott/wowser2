@@ -62,7 +62,7 @@ extension Pane {
                 appearance.urlFieldTextSelected = ""
                 appearance.urlFieldTextDeselected = "Home"
             case .answer(let q):
-                appearance.icon = .sfSymbol("bubble")
+                appearance.icon = .sfSymbol("magnifyingglass")
                 appearance.title = q
                 appearance.urlFieldTextSelected = q
                 appearance.urlFieldTextDeselected = q

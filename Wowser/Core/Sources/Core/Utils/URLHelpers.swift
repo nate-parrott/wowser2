@@ -158,6 +158,13 @@ extension URL {
     public var inferredFaviconURL: URL {
         return URL(string: "/favicon.ico", relativeTo: self)!
     }
+    
+    var googleFaviconURL: URL? {
+        if let host {
+            return URL(string: "https://www.google.com/s2/favicons?domain=\(host)&sz=64")
+        }
+        return nil
+    }
 
     public func hasRootHost(_ host: String) -> Bool {
         let hw = hostWithoutWWW

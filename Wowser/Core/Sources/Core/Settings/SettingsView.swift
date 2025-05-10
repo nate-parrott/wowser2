@@ -55,7 +55,7 @@ public struct SettingsView: View {
                     case .google: return "Google"
                     case .duckduckgo: return "DuckDuckGo"
                     case .kagi: return "Kagi"
-                    case .ai: return "AI Search"
+                    case .clean: return "Clean Search"
                     }
                 }
                                 

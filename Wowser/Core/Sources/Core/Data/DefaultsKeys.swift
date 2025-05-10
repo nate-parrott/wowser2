@@ -76,7 +76,7 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
     case google
     case duckduckgo
     case kagi
-    case ai
+    case clean
     
     static var current: SearchEngine {
         if let k = UserDefaults.standard.value(forKey: DefaultsKeys.searchEngine.rawValue) as? String {
@@ -103,7 +103,7 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
             components.path = "/search"
             components.queryItems = [URLQueryItem(name: "q", value: query)]
             return components.url ?? .googleSearch(query)
-        case .ai:
+        case .clean:
             return GeneratedPageKey.answer(q: query).url
         }
     }
