@@ -116,39 +116,57 @@ public enum PageGenerator {
     }
     
     private static func generateAnswer(query: String, continuation: AsyncThrowingStream<ContentUpdate, Error>.Continuation) async throws {
-        let gifs = RetroGifs.shared.allShortURLs.joined(separator: ", ")
-        let prompt = """
-        You will be generating HTML web pages in a browser.
+        let results = try await GoogleSearchEngine().search(query: query).results
+        let resultItems: [String] = results.map { item in
+            return """
+            <li>
+                <a href="\(item.url)">
+                    <div class="url">
+                        <img src="\(item.url.googleFaviconURL ?? item.url.inferredFaviconURL)" />
+                        <span>\(item.url.stripped.truncateTailWithEllipsis(chars: 80))</span>
+                    </div>
+                    <h3>\(item.title)</h3>
+                    \(item.snippet?.nilIfEmpty != nil ? "<p>\(item.snippet ?? "")</p>" : "")
+                </a>
+            </li>
+            """
+        }
         
-        HTML PAGES SHOULD:
-        - Use simple, concise HTML
-        - Contain links, tables, headers, hrs, divs, form, marquee, bold and i tags.
-        - ONLY use <img> tags to refer to GIFs in this list: \(gifs)
-        - Forms may be included if relevant. All forms should have a descriptive `action` parameter that ends in `.php`
-        - Be short (only a few paragraphs at most)
-        - Specify fun, relevant fonts and colors using inline HTML <font> tags and style elements. NO <style> tags in <head>.
-          - Any font available on iOS may be used.
-        - Have colors, fonts and styles which help to establish the world described in the description.
-        - Make sure to use a reasonable content max width and line height
-
-        First, here is a description of the alternate universe that the server should pretend it exists within. This world description should dictate inform the content, tone and visual aesthetic of the output HTML.
-        <world-description>
-        Pretend it is an alternate-reality version of 1996 where:
-        - Websites have fun, colorful retro designs, and project a warm and optimistic tone.
-        - Constantly refer to the internet as the 'information superhighway,' and use words like 'e-meet,' 'portal', and 'global village.'
-        - Are friendly, eager and happy to help.
-        Then, when prompted with a URL, you are to output a valid HTML page that could plausibly represent the requested URL. Output the HTML and only the HTML.
-        </world-description>
-        
-        Generate an HTML page that answers the user's question:
-        <question>
-        \(query)
-        </question>
-        It should serve to excite, inspire and link to exciting, useful sitres.
-        It is \(Date.llmDateTime)
-        Now, output your response in HTML ONLY as a rich webpage. No non-html commentary. Do not break character. Here:   
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset='utf-8' />
+        <title>\(query.escapedForHTML)</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; max-width: 700px; margin: 0 auto; padding: 40px; }
+            #results { list-style: none; padding: 0; }
+            a {
+                color: inherit;
+                text-decoration: inherit;
+            }
+            .url { display: flex; align-items: center; }
+            .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
+            .url span { opacity: 0.66; font-size: small; } 
+            h3 { color: blue; } 
+            p { opacity: 0.66; }
+            #results > li > a > * { margin-top: 0; margin-bottom: 8px; }
+            #results > li { margin-bottom: 2em; }
+        </style>
+        </head>
+        <body>
+            <main>
+                <ul id="results">
+                    \(resultItems.joined(separator: "\n"))
+                </ul>
+            </main>
+            <script>
+            </script>
+        </body>
+        </html>
         """
-        try await generatePage(prompt: prompt, estimatedCharLen: 3000, continuation: continuation)
+        continuation.yield(ContentUpdate(html: html, progress: 1))
+        continuation.finish()
     }
 }
 

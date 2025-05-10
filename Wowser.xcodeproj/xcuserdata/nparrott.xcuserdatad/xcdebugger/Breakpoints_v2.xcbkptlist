@@ -516,8 +516,8 @@
             filePath = "Wowser/Core/Sources/Core/Utils/URLHelpers.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "197"
-            endingLineNumber = "197"
+            startingLineNumber = "204"
+            endingLineNumber = "204"
             landmarkName = "parsedAsDuckDuckGoLuckyQuery"
             landmarkType = "24">
          </BreakpointContent>
@@ -532,8 +532,8 @@
             filePath = "Wowser/Core/Sources/Core/Utils/URLHelpers.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "195"
-            endingLineNumber = "195"
+            startingLineNumber = "202"
+            endingLineNumber = "202"
             landmarkName = "parsedAsDuckDuckGoLuckyQuery"
             landmarkType = "24">
          </BreakpointContent>
