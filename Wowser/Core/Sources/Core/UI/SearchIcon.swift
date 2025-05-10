@@ -10,10 +10,10 @@ struct SearchIcon: View {
         Group {
             switch item.content {
             case .urlYouTyped(let url):
-                FaviconView(url: url, size: size)
+                FaviconView(faviconURL: url.inferredFaviconURL, size: size)
                 
             case .historyItem(let historyItem):
-                FaviconView(url: historyItem.url, size: size)
+                FaviconView(faviconURL: historyItem.url.inferredFaviconURL, size: size)
                 
             case .searchWhatYouTyped:
                 Image(systemName: "magnifyingglass")
@@ -31,7 +31,7 @@ struct SearchIcon: View {
 //                    .foregroundColor(.blue)
                 
             case .tab(_, let info):
-                FaviconView(url: info.url, faviconURL: info.favicon, size: size)
+                FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
                     .overlay(alignment: .leading) {
                         SwitchToTabBadge(selected: selected)
                     }

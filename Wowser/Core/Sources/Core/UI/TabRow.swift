@@ -23,7 +23,7 @@ struct RegularTabRow: View {
                     isHovered: isHovered,
                     windowID: windowID
                 )
-                .help(snapshot.displayName)
+                .help(snapshot.appearance.title)
                 .contentShape(Rectangle())
                 .onHover { hovering in
                     isHovered = hovering
@@ -47,60 +47,11 @@ struct TabSnapshot: Equatable {
     }
     
     var tabID: ID<Tab>
-    var displayName: String
-    var iconType: IconType
-    var url: URL?
+    var appearance: TabAppearance
     
     // Factory method to create a snapshot from a tab
     static func from(tab: Tab) -> TabSnapshot {
-        let snapshot = TabSnapshot(
-            tabID: tab.id,
-            displayName: getTabTitle(tab: tab),
-            iconType: .favicon(tab.panes.first?.info.favicon),
-            url: tab.panes.first?.info.url
-        )
-        
-        // Apply various appearance transformations
-        return snapshot.preprocessTabAppearance()
-    }
-    
-    // Apply various transformations to customize tab appearance
-    private func preprocessTabAppearance() -> TabSnapshot {
-        var result = self
-        
-        // Handle Google search pages
-        if let url = self.url, let searchQuery = url.parsedAsGoogleSearchQuery {
-            result.displayName = searchQuery
-            result.iconType = .sfSymbol("magnifyingglass")
-        }
-        
-        // Handle DuckDuckGo "I'm feeling lucky" pages
-        if let url = self.url, url.parsedAsDuckDuckGoLuckyQuery != nil {
-            result.displayName = ""
-            result.iconType = .empty
-        }
-        
-        if let url, url.hasRootHost("duckduckgo.com"), url.path == "/l" {
-            result.iconType = .empty
-            result.displayName = ""
-        }
-        
-        if let url, let genKey = GeneratedPageKey(url: url) {
-            switch genKey {
-            case .homepage:
-                result.iconType = .sfSymbol("leaf")
-                result.displayName = "Home"
-            case .answer(let q):
-                result.iconType = .sfSymbol("bubble")
-                result.displayName = q
-            }
-        }
-//        print("[URL] \(url); icon: \(result.iconType)")
-        
-        
-        // Add more preprocessing rules here
-        
-        return result
+        TabSnapshot(tabID: tab.id, appearance: tab.appearance())
     }
 }
 
@@ -124,11 +75,11 @@ private struct RegularTabButton: View {
     @ViewBuilder private var content: some View {
         HStack(spacing: 8) {
             // Icon based on the type in the snapshot
-            iconView
+            TabIconView(icon: snapshot.appearance.icon)
             
             // Title with truncation
             VStack(alignment: .leading, spacing: 0) {
-                Text(snapshot.displayName)
+                Text(snapshot.appearance.title)
                     .truncationMode(.tail)
                     .lineLimit(1)
             }
@@ -144,25 +95,6 @@ private struct RegularTabButton: View {
         .padding(.trailing, 4)
         .frame(height: 30)
         .contentShape(Rectangle())
-    }
-    
-    @ViewBuilder private var iconView: some View {
-        switch snapshot.iconType {
-        case .favicon(let faviconURL):
-            FaviconView(url: snapshot.url, faviconURL: faviconURL)
-            
-        case .sfSymbol(let symbolName):
-            Image(systemName: symbolName)
-                .foregroundColor(.accentColor)
-                .font(.system(size: 12))
-                .frame(width: 16, height: 16)
-            
-        case .empty:
-            Circle()
-                .fill(.primary)
-                .opacity(0.1)
-                .frame(width: 16, height: 16)
-        }
     }
 }
 
