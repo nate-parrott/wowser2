@@ -76,29 +76,9 @@ public struct ToolbarView: View {
                         EmptyView()
                     }
                 }
-                // Security indicator and Omnibox (search/URL input field)
-                HStack(spacing: -2) {
-                    LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
-                        .padding(.leading, 6)
-                    
-                    Omnibox(
-                        focusDate: focusDate,
-                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
-                        selectedResultIndex: $selectedResultIndex,
-                        searcher: searcher,
-                        fgColor: colorScheme?.foreground,
-                        onFocus: activateSearchOverlay
-                    )
-                }
                 
-                // Trailing buttons container
+                // Leading nav controls
                 HStack(spacing: 0) {
-                    if let webContentID {
-                        CleanModeStatusButton(webContentID: webContentID)
-                            .tint(colorScheme?.foreground.color ?? Color.primary)
-                            .padding(.trailing)
-                    }
-                    
                     // Back button
                     Button(action: goBack) {
                         Image(systemName: "chevron.backward")
@@ -121,6 +101,30 @@ public struct ToolbarView: View {
                             .imageScale(.medium)
                     }
                     .buttonStyle(ToolbarButtonStyle())
+                }
+                
+                // Security indicator and Omnibox (search/URL input field)
+                HStack(spacing: -2) {
+                    LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
+                        .padding(.leading, 6)
+                    
+                    Omnibox(
+                        focusDate: focusDate,
+                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
+                        selectedResultIndex: $selectedResultIndex,
+                        searcher: searcher,
+                        fgColor: colorScheme?.foreground,
+                        onFocus: activateSearchOverlay
+                    )
+                }
+                
+                // Trailing buttons container
+                HStack(spacing: 0) {
+                    if let webContentID {
+                        CleanModeStatusButton(webContentID: webContentID)
+                            .tint(colorScheme?.foreground.color ?? Color.primary)
+                            .padding(.trailing)
+                    }
                                         
                     Button(action: toggleBookmark) {
                         Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
@@ -276,8 +280,10 @@ private struct LeadingIcon: View {
                     .opacity(0.1)
             }
         }
+        .font(.system(size: 12, weight: .medium))
         .help(isSecure != nil ? (isSecure! ? "Site is secure" : "Site is not entirely secure") : "")
         .accessibilityHidden(isSecure == nil)
         .buttonStyle(ToolbarButtonStyle())
+        .padding(.trailing, -8)
     }
 }
