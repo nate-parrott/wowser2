@@ -151,7 +151,7 @@ struct FavoriteCell: View {
         // Look up the data from BrowserStore
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { tab in
             if let tab = tab ?? nil {
-                let title = getTabTitle(tab: tab)
+                let appearance = tab.appearance()
                 let pane = tab.panes.first
                 
                 // Check if reset is available (only when selected and baseInfo URL differs from current URL)
@@ -159,10 +159,7 @@ struct FavoriteCell: View {
                     pane?.baseInfo != nil && 
                     pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
                 
-                FaviconView(
-                    url: pane?.baseInfo?.url ?? pane?.info.url,
-                    faviconURL: pane?.info.favicon
-                )
+                TabIconView(icon: appearance.icon)
                     .frame(width: 24, height: 24)
                     .overlay(alignment: .trailing) {
                         if canReset {
@@ -195,7 +192,7 @@ struct FavoriteCell: View {
                 .contextMenu {
                     TabContextMenu(tabID: tabID, isFavorite: true)
                 }
-                .help(canReset && isHovered ? "Reset to original URL" : title)
+                .help(canReset && isHovered ? "Reset to original URL" : appearance.title)
             }
         }
         .id(tabID)
@@ -281,12 +278,12 @@ func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {
     }
 }
 
-// Helper function to extract tab metadata
-func getTabTitle(tab: Tab) -> String {
-    return tab.panes.first?.info.title?.nilIfEmpty ??
-           tab.panes.first?.info.url?.host ??
-           "New Tab"
-}
+//// Helper function to extract tab metadata
+//func getTabTitle(tab: Tab) -> String {
+//    return tab.panes.first?.info.title?.nilIfEmpty ??
+//           tab.panes.first?.info.url?.host ??
+//           "New Tab"
+//}
 
 private struct ResetBadge: View {
     var body: some View {

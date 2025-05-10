@@ -3,7 +3,7 @@ import SwiftUI
 /// A snapshot containing minimal data needed for the toolbar
 public struct ToolbarViewSnapshot: Equatable {
     var url: URL?
-    var title: String?
+    var tabAppearance: TabAppearance
     var isLoading: Bool
     var canGoBack: Bool
     var canGoForward: Bool
@@ -21,7 +21,7 @@ public struct ToolbarViewSnapshot: Equatable {
               let tab = state.tabs[tabId],
               let paneData = tab.panes.first(where: { $0.id == webContentId }) else {
             self.url = nil
-            self.title = nil
+            self.tabAppearance = .empty
             self.isLoading = false
             self.canGoBack = false
             self.canGoForward = false
@@ -30,12 +30,12 @@ public struct ToolbarViewSnapshot: Equatable {
 //            self.isBookmarked = false
             self.hasMultiplePanes = false
             self.makeRoomForTrafficLights = false
-            self.isEmptyPage = false
+            self.isEmptyPage = true
             return
         }
         
         self.url = paneData.info.url
-        self.title = paneData.info.title
+        self.tabAppearance = paneData.tabAppearance()
         self.isLoading = paneData.info.isLoading
         self.canGoBack = paneData.info.canGoBack
         self.canGoForward = paneData.info.canGoForward
@@ -110,7 +110,7 @@ public struct ToolbarView: View {
                     
                     Omnibox(
                         focusDate: focusDate,
-                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.url?.hostWithoutWWW ?? ""),
+                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
                         selectedResultIndex: $selectedResultIndex,
                         searcher: searcher,
                         fgColor: colorScheme?.foreground,
@@ -177,7 +177,7 @@ public struct ToolbarView: View {
     
     private func activateSearchOverlay() {
         if let webContentID {
-            searchText = browserStore.model.tabInfo(forWebContentId: webContentID)?.url?.absoluteString ?? ""
+            searchText = browserStore.model.pane(forId: webContentID)?.tabAppearance().urlFieldTextSelected ?? "" // .url?.absoluteString ?? ""
         }
         browserStore.modify { state in
             if let windowID = windowID {

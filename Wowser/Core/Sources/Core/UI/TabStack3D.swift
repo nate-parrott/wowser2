@@ -252,12 +252,13 @@ private struct TabStackCardOverlay: View {
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
             if let pane {
+                let appearance = pane.tabAppearance()
                 ZStack(alignment: .top) {
                     LinearGradient(colors: [Color.black.opacity(0.05), Color.black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
                     
                     HStack(spacing: 8) {
-                        FaviconView(url: pane.info.url, faviconURL: pane.info.favicon, size: 16)
-                        Text(pane.info.title ?? pane.info.url?.absoluteString ?? "")
+                        TabIconView(icon: appearance.icon)
+                        Text(appearance.title)
                             .font(.system(size: 12, weight: .medium))
                             .lineLimit(1)
                     }
