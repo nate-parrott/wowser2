@@ -11,8 +11,9 @@ struct SearchableItem: Equatable {
         case historyItem(HistoryItem)
         case chatbot(String)
         case tab(ID<Tab>, WebContent.Info)
+        case customAction(String, String) // action name, parameter
     }
-    
+
     var id: ID<SearchableItem>
     var content: Content
     var urlMatchStrings: [NormalizedSearchableString] = []
@@ -26,6 +27,7 @@ struct SearchableItem: Equatable {
         case .historyItem(let historyItem): return historyItem.key
         case .chatbot(let query): return "chat:\(query)"
         case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
+        case .customAction(let name, let param): return "action:\(name):\(param)"
         }
     }
 }
@@ -92,6 +94,18 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
+        case .customAction:
+            // Actions get high priority scores
+            switch matchQuality {
+            case .prefixMatchURL:
+                return 35
+            case .prefixMatchTitle:
+                return 40  // Prioritize over tabs for prefix matches
+            case .substringMatchTitle:
+                return 15
+            case .none:
+                return 0
+            }
         }
     }
 }
@@ -115,7 +129,7 @@ struct NormalizedSearchableString: Equatable {
 }
 
 extension CharacterSet {
-    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"“”'‘’"))
+    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"\"'''"))
 }
 
 @MainActor class Searcher: ObservableObject {
@@ -228,6 +242,24 @@ extension CharacterSet {
 //            results.append(.chatbot(query))
 //        }
         results.append(.searchYouTyped(query))
+        
+        // Add matching actions
+        let model = BrowserStore.shared.model
+        let actionMatches = model.matchingActions(query: query)
+            .compactMap { $0.match(query: normQuery) }
+            .sorted(by: { $0.score > $1.score })
+        
+        // Insert actions at their score-appropriate positions
+        for actionMatch in actionMatches {
+            // If we have a prefix match in title, prioritize it to the top
+            if actionMatch.matchQuality == .prefixMatchTitle {
+                results.insert(actionMatch, at: 0)
+            } else if let insertBefore = results.firstIndex(where: { actionMatch.score > $0.score }) {
+                results.insert(actionMatch, at: insertBefore)
+            } else {
+                results.append(actionMatch)
+            }
+        }
         
         // Check for matching tab in current window (fast, synchronous)
         if let tabMatch = tabMatch(query: normQuery) {
@@ -369,17 +401,21 @@ private extension SearchResult {
     static func urlYouTyped(_ url: URL) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "typed:\(url.historyKey)"), content: .urlYouTyped(url)), matchQuality: .prefixMatchURL)
     }
-    
+
     static func searchYouTyped(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "typed:\(query)"), content: .searchWhatYouTyped(query)), matchQuality: .prefixMatchTitle)
     }
-    
+
     static func chatbot(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "chat:\(query)"), content: .chatbot(query)), matchQuality: .prefixMatchTitle)
     }
-    
+
     static func navItem(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "nav:\(query)"), content: .imFeelingLucky(query)), matchQuality: .prefixMatchTitle)
+    }
+
+    static func customAction(name: String, parameter: String) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "action:\(name):\(parameter)"), content: .customAction(name, parameter)), matchQuality: .prefixMatchTitle)
     }
 }
 
@@ -392,6 +428,8 @@ extension SearchResult {
             return Color.purple
         case .tab:
             return Color.gray
+        case .customAction:
+            return Color.orange
         case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
             return Color.blue
         }
