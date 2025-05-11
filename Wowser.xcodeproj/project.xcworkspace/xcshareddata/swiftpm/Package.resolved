@@ -1,4 +1,5 @@
 {
+  "originHash" : "7c519cc485a3f89dcf610a1513400b7e1a8c7b2b0c3d44830e796b67a0220635",
   "pins" : [
     {
       "identity" : "anycodable",
@@ -37,6 +38,15 @@
       }
     },
     {
+      "identity" : "ink",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/johnsundell/ink.git",
+      "state" : {
+        "revision" : "bcc9f219900a62c4210e6db726035d7f03ae757b",
+        "version" : "0.6.0"
+      }
+    },
+    {
       "identity" : "motion",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/b3ll/Motion.git",
@@ -64,5 +74,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
