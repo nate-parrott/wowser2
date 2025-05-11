@@ -164,7 +164,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
 }
 
 function reduceCandidateCount(cands: Candidate[]): Candidate[] {
-    const maxMatchCount = 60;
+    const maxMatchCount = 2000;
     const keepCandidates = 40;
     const buckets = 10;
     const greatestMatchCount = cands.reduce((max, cand) => Math.max(max, cand.matchCount), 0);
@@ -260,7 +260,7 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
     // 2. Add nth-child or last-child if applicable
     const addPositionalCandidate = (term: Term): void => {
         const newCandidate: Candidate = {
-            terms: [...candidate.terms],
+            terms: [term, ...candidate.terms.slice(1)],
             topMatch: candidate.topMatch,
             score: candidate.score + 2, // Positional selectors are good
             matchCount: -1,
@@ -358,10 +358,10 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
 
 function printCandidates(candidates: Candidate[]): void {
     // print count and selector, in order of count
-    const sortedCandidates = candidates.sort((a, b) => b.matchCount - a.matchCount);
+    const sortedCandidates = candidates.sort((a, b) => a.matchCount - b.matchCount);
     sortedCandidates.forEach(candidate => {
         const selector = candidateToString(candidate);
-        console.log(`Selector: ${selector}, Match Count: ${candidate.matchCount}, Score: ${candidate.score}`);
+        console.log(`[${candidate.matchCount}] ${selector}`);
     });
 }
 
@@ -382,13 +382,17 @@ export function generateSelectorList(element: HTMLElement): string[] {
     const expandedIds: {[id: string]: true} = {};
 
     for (let i = 0; i < iterationCount; i++) {
-        const nextPool: Candidate[] = [...pool];
+        let nextPool: Candidate[] = [...pool];
         for (const candidate of pool) {
             const id = candidateToString(candidate);
             if (expandedIds[id]) { continue; }
             expandedIds[id] = true;
             const expansions = expandCandidate(candidate, seen, element); // will be unseen
             nextPool.push(...expansions);
+        }
+        const isFinal = i === iterationCount - 1;
+        if (isFinal) {
+            nextPool = nextPool.filter(c => c.matchCount <= 100);
         }
         pool = reduceCandidateCount(nextPool);
         if (DEBUG) {
