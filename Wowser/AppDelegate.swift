@@ -97,8 +97,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
+            DefaultsKeys.autoOrganizeTabs.rawValue: true,
             DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news."
         ])
+        
+        #if os(macOS)
+        UserDefaults.standard.setValue(0, forKey: "__WebInspectorPageGroupLevel1__.WebKit2InspectorStartsAttached")
+        #endif
         
         GlobalHacks.hacks = MacHacks()
         

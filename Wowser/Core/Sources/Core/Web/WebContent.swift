@@ -131,12 +131,12 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         }
         webview = .init(frame: .zero, configuration: config)
         webview.allowsBackForwardNavigationGestures = true
-        if #available(iOS 16.4, macOS 13.3, *) {
-            webview.isInspectable = true
-        }
+//        if #available(iOS 16.4, macOS 13.3, *) {
+//            webview.isInspectable = true
+//        }
         #if os(macOS)
         webview.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
-//        webview.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        webview.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #else
         webview.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
         #endif
