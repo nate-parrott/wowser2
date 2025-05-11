@@ -1,3 +1,5 @@
+import { generateSelectorList } from "./selectorGen";
+
 // Picker mode types
 export enum PickerMode {
   IDLE = 'idle',
@@ -163,6 +165,8 @@ export class PickerDebugUI {
     const rect = element.getBoundingClientRect();
     this.updateHighlightBox(rect);
     this.setMode(PickerMode.PICKED);
+    // Get selectors
+    generateSelectorList(element as HTMLElement);
   }
   
   private updateHighlightBox(rect: DOMRect): void {
