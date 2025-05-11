@@ -11,7 +11,7 @@ struct SearchableItem: Equatable {
         case historyItem(HistoryItem)
         case chatbot(String)
         case tab(ID<Tab>, WebContent.Info)
-        case customAction(String, String) // action name, parameter
+        case searchAction(SearchAction)
     }
 
     var id: ID<SearchableItem>
@@ -27,7 +27,7 @@ struct SearchableItem: Equatable {
         case .historyItem(let historyItem): return historyItem.key
         case .chatbot(let query): return "chat:\(query)"
         case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
-        case .customAction(let name, let param): return "action:\(name):\(param)"
+        case .searchAction(let action): return "action:\(action.title)"
         }
     }
 }
@@ -94,7 +94,7 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
-        case .customAction:
+        case .searchAction:
             // Actions get high priority scores
             switch matchQuality {
             case .prefixMatchURL:
@@ -129,7 +129,7 @@ struct NormalizedSearchableString: Equatable {
 }
 
 extension CharacterSet {
-    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"\"'''"))
+    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"""'''"))
 }
 
 @MainActor class Searcher: ObservableObject {
@@ -242,13 +242,13 @@ extension CharacterSet {
 //            results.append(.chatbot(query))
 //        }
         results.append(.searchYouTyped(query))
-        
+
         // Add matching actions
         let model = BrowserStore.shared.model
         let actionMatches = model.matchingActions(query: query)
             .compactMap { $0.match(query: normQuery) }
             .sorted(by: { $0.score > $1.score })
-        
+
         // Insert actions at their score-appropriate positions
         for actionMatch in actionMatches {
             // If we have a prefix match in title, prioritize it to the top
@@ -341,7 +341,13 @@ extension CharacterSet {
         let historyMatches = await historyMatches_
         let searchSuggestions = (try? await searchSuggestions_) ?? []
         
-        let newResults = (historyMatches + searchSuggestions)
+        // Add matching actions
+        let model = BrowserStore.shared.model
+        let actionMatches = model.matchingActions(query: query)
+            .compactMap { $0.match(query: q) }
+            .sorted(by: { $0.score > $1.score })
+        
+        let newResults = (historyMatches + searchSuggestions + actionMatches)
             .sorted(by: { $0.score > $1.score })
             .prefix(n)
         var results = fastPath
@@ -413,9 +419,9 @@ private extension SearchResult {
     static func navItem(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "nav:\(query)"), content: .imFeelingLucky(query)), matchQuality: .prefixMatchTitle)
     }
-
-    static func customAction(name: String, parameter: String) -> SearchResult {
-        return .init(item: SearchableItem(id: .init(raw: "action:\(name):\(parameter)"), content: .customAction(name, parameter)), matchQuality: .prefixMatchTitle)
+    
+    static func customAction(action: SearchAction) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "action:\(action.title)"), content: .searchAction(action)), matchQuality: .prefixMatchTitle)
     }
 }
 
@@ -428,7 +434,7 @@ extension SearchResult {
             return Color.purple
         case .tab:
             return Color.gray
-        case .customAction:
+        case .searchAction:
             return Color.orange
         case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
             return Color.blue
