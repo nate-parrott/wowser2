@@ -1,15 +1,31 @@
 import Foundation
 import SwiftUI
 
-/// Types of actions available in the search overlay
-public enum ActionType: CaseIterable {
+/// Types of search actions available in the search overlay
+public enum SearchAction: CaseIterable {
     case clearAllTabs
     case organizeTabs
-    case newNotionDoc
-    case newGoogleDoc
-    case newGoogleSheet
-    case newGoogleSlide
-    case newFigmaFile
+    case openURL(URL)
+    
+    // Predefined URL cases
+    static let newNotionDoc = openURL(URL(string: "https://notion.new")!)
+    static let newGoogleDoc = openURL(URL(string: "https://doc.new")!)
+    static let newGoogleSheet = openURL(URL(string: "https://sheet.new")!)
+    static let newGoogleSlide = openURL(URL(string: "https://slide.new")!)
+    static let newFigmaFile = openURL(URL(string: "https://figma.new")!)
+    
+    // All available actions including predefined URL cases
+    public static var allCases: [SearchAction] {
+        return [
+            .clearAllTabs,
+            .organizeTabs,
+            .newNotionDoc,
+            .newGoogleDoc,
+            .newGoogleSheet, 
+            .newGoogleSlide,
+            .newFigmaFile
+        ]
+    }
     
     var title: String {
         switch self {
@@ -17,66 +33,40 @@ public enum ActionType: CaseIterable {
             return "Clear All Tabs"
         case .organizeTabs:
             return "Organize Tabs"
-        case .newNotionDoc:
-            return "New Notion Document"
-        case .newGoogleDoc:
-            return "New Google Document"
-        case .newGoogleSheet:
-            return "New Google Sheet"
-        case .newGoogleSlide:
-            return "New Google Slide"
-        case .newFigmaFile:
-            return "New Figma File"
+        case .openURL(let url):
+            // Handle specific predefined URLs
+            if self == SearchAction.newNotionDoc {
+                return "New Notion Document"
+            } else if self == SearchAction.newGoogleDoc {
+                return "New Google Document"
+            } else if self == SearchAction.newGoogleSheet {
+                return "New Google Sheet"
+            } else if self == SearchAction.newGoogleSlide {
+                return "New Google Slide"
+            } else if self == SearchAction.newFigmaFile {
+                return "New Figma File"
+            } else {
+                return "Open \(url.host ?? url.absoluteString)"
+            }
         }
     }
     
-    var parameter: String {
-        switch self {
-        case .clearAllTabs, .organizeTabs:
-            return ""
-        case .newNotionDoc:
-            return "notion.new"
-        case .newGoogleDoc:
-            return "doc.new"
-        case .newGoogleSheet:
-            return "sheet.new"
-        case .newGoogleSlide:
-            return "slide.new"
-        case .newFigmaFile:
-            return "figma.new"
-        }
-    }
-    
+    // Keywords are empty for now as requested
     var keywords: [String] {
-        switch self {
-        case .clearAllTabs:
-            return ["clear", "close", "tabs", "all tabs", "remove", "delete"]
-        case .organizeTabs:
-            return ["organize", "tabs", "group", "sort", "arrange"]
-        case .newNotionDoc:
-            return ["notion", "new", "document", "create", "doc"]
-        case .newGoogleDoc:
-            return ["google", "new", "document", "create", "doc"]
-        case .newGoogleSheet:
-            return ["google", "new", "sheet", "spreadsheet", "excel"]
-        case .newGoogleSlide:
-            return ["google", "new", "slide", "presentation", "powerpoint"]
-        case .newFigmaFile:
-            return ["figma", "new", "design", "file", "create"]
-        }
+        return []
     }
 }
 
 // Extension to provide array of available action items for search
 extension BrowserState {
     func availableActions() -> [SearchableItem] {
-        return ActionType.allCases.map { action in
+        return SearchAction.allCases.map { action in
             let id = ID<SearchableItem>(raw: "action:\(action.title)")
             let titleStr = NormalizedSearchableString(text: action.title)
             
             return SearchableItem(
                 id: id,
-                content: .customAction(action.title, action.parameter),
+                content: .searchAction(action),
                 titleMatchStr: titleStr
             )
         }
@@ -85,13 +75,10 @@ extension BrowserState {
     func matchingActions(query: String) -> [SearchableItem] {
         let normalizedQuery = query.lowercased()
         
-        return ActionType.allCases
+        return SearchAction.allCases
             .filter { action in
-                // Check if query matches action title or keywords
-                action.title.lowercased().contains(normalizedQuery) ||
-                action.keywords.contains { keyword in
-                    keyword.lowercased().contains(normalizedQuery)
-                }
+                // Check if query matches action title
+                action.title.lowercased().contains(normalizedQuery)
             }
             .map { action in
                 let id = ID<SearchableItem>(raw: "action:\(action.title)")
@@ -99,7 +86,7 @@ extension BrowserState {
                 
                 return SearchableItem(
                     id: id,
-                    content: .customAction(action.title, action.parameter),
+                    content: .searchAction(action),
                     titleMatchStr: titleStr
                 )
             }
@@ -108,14 +95,7 @@ extension BrowserState {
 
 // Extension to handle performing actions
 extension BrowserStore {
-    func performAction(actionName: String, parameter: String, windowID: ID<WindowState>) {
-        // Find which action matches the name
-        guard let action = ActionType.allCases.first(where: { $0.title == actionName }) else {
-            print("Unknown action: \(actionName)")
-            return
-        }
-        
-        // Perform the appropriate action
+    func performAction(action: SearchAction, windowID: ID<WindowState>) {
         switch action {
         case .clearAllTabs:
             clearAllTabs(windowID: windowID)
@@ -123,11 +103,8 @@ extension BrowserStore {
         case .organizeTabs:
             autoOrganizeTabs(in: windowID)
             
-        case .newNotionDoc, .newGoogleDoc, .newGoogleSheet, .newGoogleSlide, .newFigmaFile:
-            // For new document actions, we open the corresponding URL
-            if let url = URL(string: "https://\(parameter)") {
-                loadURL(url, windowID: windowID)
-            }
+        case .openURL(let url):
+            loadURL(url, windowID: windowID)
         }
     }
     
