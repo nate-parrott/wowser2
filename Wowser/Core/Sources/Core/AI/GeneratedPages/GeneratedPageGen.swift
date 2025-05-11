@@ -113,61 +113,7 @@ public enum PageGenerator {
         if let lastGen {
             continuation.yield(lastGen)
         }
-    }
-    
-    private static func generateAnswer(query: String, continuation: AsyncThrowingStream<ContentUpdate, Error>.Continuation) async throws {
-        let results = try await GoogleSearchEngine().search(query: query).results
-        let resultItems: [String] = results.map { item in
-            return """
-            <li>
-                <a href="\(item.url)">
-                    <div class="url">
-                        <img src="\(item.url.googleFaviconURL ?? item.url.inferredFaviconURL)" />
-                        <span>\(item.url.stripped.truncateTailWithEllipsis(chars: 80))</span>
-                    </div>
-                    <h3>\(item.title)</h3>
-                    \(item.snippet?.nilIfEmpty != nil ? "<p>\(item.snippet ?? "")</p>" : "")
-                </a>
-            </li>
-            """
-        }
-        
-        let html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset='utf-8' />
-        <title>\(query.escapedForHTML)</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; max-width: 700px; margin: 0 auto; padding: 40px; }
-            #results { list-style: none; padding: 0; }
-            a {
-                color: inherit;
-                text-decoration: inherit;
-            }
-            .url { display: flex; align-items: center; }
-            .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
-            .url span { opacity: 0.66; font-size: small; } 
-            h3 { color: blue; } 
-            p { opacity: 0.66; }
-            #results > li > a > * { margin-top: 0; margin-bottom: 8px; }
-            #results > li { margin-bottom: 2em; }
-        </style>
-        </head>
-        <body>
-            <main>
-                <ul id="results">
-                    \(resultItems.joined(separator: "\n"))
-                </ul>
-            </main>
-            <script>
-            </script>
-        </body>
-        </html>
-        """
-        continuation.yield(ContentUpdate(html: html, progress: 1))
-        continuation.finish()
-    }
+    }    
 }
 
 extension Date {

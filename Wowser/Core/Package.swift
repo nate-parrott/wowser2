@@ -21,13 +21,14 @@ let package = Package(
         .package(name: "Reeeed", path: "../../reeeed"),
         .package(url: "https://github.com/DenDmitriev/DominantColors.git", .upToNextMajor(from: "1.2.0")),
         .package(url: "https://github.com/b3ll/Motion.git", branch: "main"),
+        .package(url: "https://github.com/johnsundell/ink.git", from: "0.1.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "Core",
-            dependencies: ["ChatToys", "DominantColors", "Reeeed", "Motion"],
+            dependencies: ["ChatToys", "DominantColors", "Reeeed", "Motion", .product(name: "Ink", package: "ink")],
             resources: [
                 .copy("Adblock/easylist.min.json"),
                 .copy("Adblock/easycookie.min.json"),

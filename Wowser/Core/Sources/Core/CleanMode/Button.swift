@@ -76,6 +76,9 @@ public enum CleanModeButtonStatus: Equatable {
 
 extension CleanModeSnapshotForPane {
     var buttonStatus: CleanModeButtonStatus {
+        if disableCleanMode {
+            return .readerUnavail
+        }
         if !hasURL {
             return .readerUnavail
         }

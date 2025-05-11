@@ -127,7 +127,8 @@ class CleanModeStore: DataStore<CleanModeState> {
                     wantsCSS: hostSettings.stylingDisabled ? nil : hostSettings.injectCSS,
                     cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil,
                     adblockEnabled: adblockOn,
-                    hasURL: true
+                    hasURL: true,
+                    disableCleanMode: GeneratedPageKey(url: url) != nil // disable for internal pages
                 )
             }
             .removeDuplicates()
@@ -142,4 +143,5 @@ struct CleanModeSnapshotForPane: Equatable {
     var cssAvail: Bool
     var adblockEnabled: Bool
     var hasURL: Bool
+    var disableCleanMode: Bool = false // e.g. for internal pages
 }
