@@ -43,6 +43,10 @@ extension BrowserStore {
                     state.activate(tabId: tabId, in: windowID)
                 }
             }
+            
+        case .searchAction(let action):
+            // Handle search action
+            performAction(action: action, windowID: windowID)
         }
     }
     
@@ -120,5 +124,4 @@ extension BrowserStore {
         // Fallback to search
         performSearch(trimmed, windowID: windowID)
     }
-
 }
