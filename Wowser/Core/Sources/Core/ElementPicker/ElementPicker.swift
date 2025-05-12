@@ -257,7 +257,12 @@ struct ElementPickerOverlay: View {
                         HoveredElementPreview(point: mousePosition, webContent: webContent)
                             .allowsHitTesting(false)
 
-                    case .refining(_, _, _):
+                    case .refining(let pt, _, _):
+                        // Render selected item dot
+                        Circle().fill(Color.yellow).frame(both: 6)
+                            .frame(both: 1)
+                            .position(x: pt.x, y: pt.y)
+                        
                         // Show the current selector highlight
                         if let selectedCandidate {
                             SelectorPreview(selector: selectedCandidate.selector, webContent: webContent)
@@ -265,6 +270,7 @@ struct ElementPickerOverlay: View {
                         }
                     }
                 }
+                .allowsHitTesting(false)
                 
                 statusPill
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -298,11 +304,16 @@ struct ElementPickerOverlay: View {
                 Text("Tap to pick or drag to refine")
                     .font(.system(size: 14, weight: .medium))
             case .refining(_, _, _):
-                if let selectedCandidate {
-                    Text(selectedCandidate.selector)
-                        .lineLimit(2)
-                        .font(.system(size: 14, design: .monospaced))
-                        .multilineTextAlignment(.center)
+                VStack {
+                    Text("Drag outward to select more items")
+                        .font(.system(size: 12, weight: .bold))
+                    
+                    if let selectedCandidate {
+                        Text(selectedCandidate.selector)
+                            .lineLimit(2)
+                            .font(.system(size: 12, design: .monospaced))
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
         }
