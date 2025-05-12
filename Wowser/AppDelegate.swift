@@ -93,7 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.cookieBannerBlock.rawValue: true,
             DefaultsKeys.autoDarkMode.rawValue: true,
             DefaultsKeys.animateNewTabs.rawValue: true,
-            DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
+            DefaultsKeys.searchEngine.rawValue: SearchEngine.clean.rawValue,
             DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
