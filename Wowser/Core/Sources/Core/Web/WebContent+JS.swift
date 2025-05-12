@@ -16,7 +16,7 @@ extension WKWebView {
             throw JSEvalError.noResult
         }
         return try await DispatchQueue.global().performAsyncThrowing {
-            let jsonData = try JSONSerialization.data(withJSONObject: obj)
+            let jsonData = try JSONSerialization.data(withJSONObject: obj, options: [.fragmentsAllowed])
             return try JSONDecoder().decode(resultType, from: jsonData)
         }
     }

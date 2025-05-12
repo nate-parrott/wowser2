@@ -113,7 +113,7 @@ public struct Toast: Equatable, Codable, Identifiable {
 public struct WindowState: Equatable, Codable {
     public var id: ID<WindowState>
     public var profile: ID<Profile>
-    
+
     // Per-profile data passthru
     public var tabs: [ID<Tab>] {
         get { perProfileData[profile]?.tabs ?? [] }
@@ -135,12 +135,13 @@ public struct WindowState: Equatable, Codable {
         get { perProfileData[profile]?.lastClosedTabURL }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.lastClosedTabURL = newValue }
     }
-    
+
     public var lastActive: Date?
     public var searchOverlayActive = false
-    public var toasts = [Toast]()    
+    public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
+    public var pickingSelectorInPaneId: ID<WebContent>?
     public var perProfileData = [ID<Profile>: PerProfileData]()
     
     public struct PerProfileData: Equatable, Codable {

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "webpack",
     "start": "node dist/index.js",
-    "dev": "webpack --watch"
+    "dev": "webpack --watch",
+    "bundle": "webpack --mode production && cp dist/bundle.js ../Wowser/Core/Sources/Core/ElementPicker/elementPicker.js"
   },
   "devDependencies": {
     "ts-loader": "^9.5.2",
