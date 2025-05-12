@@ -73,11 +73,8 @@ function matchCount(terms: Term[]): number {
 }
 
 function scoreForAttr(name: string): number {
-    if (name === 'role' || name === 'aria-role') {
+    if (name === 'role' || name === 'aria-role' || name === 'aria-label') {
         return 5;
-    }
-    if (name === 'aria-label') {
-        return 3;
     }
     return 1;
 }
@@ -87,17 +84,45 @@ const TERM_PENALTY = -1; // subtract 1 from score per additional term
 function baseCandidates(element: HTMLElement): Candidate[] {
     const candidates: Candidate[] = [];
 
+    function addCandidate(terms: Term[], score: number): void {
+        candidates.push({
+            terms,
+            topMatch: element,
+            score,
+            matchCount: matchCount(terms),
+        });
+    }
+
+    if (element.tagName === 'BODY') {
+        // Only one candidate for body
+        const bodyTerm: Term = {
+            tag: 'body'
+        };
+        addCandidate([bodyTerm], 1);
+        return candidates;
+    }
+
     // Tag candidate
     if (element.tagName) {
         const tagTerm: Term = {
             tag: element.tagName.toLowerCase()
         };
-        candidates.push({
-            terms: [tagTerm],
-            topMatch: element,
-            score: 1,
-            matchCount: matchCount([tagTerm]),
-        });
+        addCandidate([tagTerm], 1);
+
+        const siblingCount = element.parentElement?.children.length || 0;
+        const nth = Array.from(element.parentElement?.children || []).indexOf(element);
+        if (nth !== -1) {
+            // Push a nth-child option
+            addCandidate([{...tagTerm, nthChild: nth + 1}], 2);
+            if (nth === siblingCount - 1) {
+                // Push a last-child option
+                const lastChildTerm: Term = {
+                    ...tagTerm,
+                    lastChild: true
+                };
+                addCandidate([lastChildTerm], 3);
+            }
+        }
     }
 
     // ID candidate (usually unique and preferred)
@@ -105,12 +130,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
         const idTerm: Term = {
             id: element.id
         };
-        candidates.push({
-            terms: [idTerm],
-            topMatch: element,
-            score: 10, // Higher score for ID selectors
-            matchCount: matchCount([idTerm]),
-        });
+        addCandidate([idTerm], 10);
     }
 
     // Class candidates (add one candidate per class)
@@ -119,12 +139,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
             const classTerm: Term = {
                 className: className
             };
-            candidates.push({
-                terms: [classTerm],
-                topMatch: element,
-                score: 3 + scoreForClassName(className),
-                matchCount: matchCount([classTerm]),
-            });
+            addCandidate([classTerm], 2 + scoreForClassName(className));
         });
     }
 
@@ -137,12 +152,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
                 const attrTerm: Term = {
                     hasAttr: attr.name
                 };
-                candidates.push({
-                    terms: [attrTerm],
-                    topMatch: element,
-                    score: scoreForAttr(attr.name),
-                    matchCount: matchCount([attrTerm]),
-                });
+                addCandidate([attrTerm], scoreForAttr(attr.name));
 
                 // Create a term with specific attribute value if it exists
                 if (attr.value) {
@@ -150,12 +160,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
                         hasAttr: attr.name,
                         attrVal: attr.value
                     };
-                    candidates.push({
-                        terms: [attrValTerm],
-                        topMatch: element,
-                        score: scoreForAttr(attr.name) + 1, // Extra point for value specificity
-                        matchCount: matchCount([attrValTerm]),
-                    });
+                    addCandidate([attrValTerm], scoreForAttr(attr.name) + 1); // Extra point for value specificity
                 }
             });
     }
@@ -164,11 +169,9 @@ function baseCandidates(element: HTMLElement): Candidate[] {
 }
 
 function reduceCandidateCount(cands: Candidate[]): Candidate[] {
-    const maxMatchCount = 2000;
+    const maxMatchCount = 4000;
     const keepCandidates = 40;
     const buckets = 10;
-    const greatestMatchCount = cands.reduce((max, cand) => Math.max(max, cand.matchCount), 0);
-    const bucketInterval = Math.ceil(greatestMatchCount / buckets);
 
     // Step 1: Filter out candidates with too many matches
     cands = cands.filter(x => x.matchCount <= maxMatchCount);
@@ -176,30 +179,34 @@ function reduceCandidateCount(cands: Candidate[]): Candidate[] {
         return cands;
     }
 
-    // Step 2: Group candidates into buckets based on their match count
+    // Step 2: Find the max log value
+    const maxLogValue = Math.log2(Math.max(...cands.map(c => Math.max(1, c.matchCount))));
+    const bucketInterval = maxLogValue / buckets;
+
+    // Step 3: Create buckets
     const bucketsArray: Candidate[][] = Array(buckets).fill(null).map(() => []);
 
+    // Step 4: Assign candidates to buckets based on log2 of match count
     cands.forEach(candidate => {
-        // Calculate which bucket this candidate belongs to
-        const bucketIndex = Math.min(buckets - 1, Math.floor(candidate.matchCount / bucketInterval));
+        const logValue = Math.log2(Math.max(1, candidate.matchCount));
+        const bucketIndex = Math.min(buckets - 1, Math.floor(logValue / bucketInterval));
         bucketsArray[bucketIndex].push(candidate);
     });
 
-    // Step 3: Sort each bucket by score (higher scores first)
+    // Step 5: Sort each bucket by score
     bucketsArray.forEach(bucket => {
         bucket.sort((a, b) => b.score - a.score);
     });
 
-    // Step 4: Calculate how many candidates to keep from each bucket
+    // Step 6: Take an equal number from each non-empty bucket
     const itemsPerBucket = Math.ceil(keepCandidates / buckets);
 
-    // Step 5: Select top candidates from each bucket
     const result: Candidate[] = [];
     bucketsArray.forEach(bucket => {
         result.push(...bucket.slice(0, itemsPerBucket));
     });
 
-    // Step 6: If we have too many candidates, sort by score and only keep the top ones
+    // Step 7: If we have too many, sort by score and trim
     if (result.length > keepCandidates) {
         result.sort((a, b) => b.score - a.score);
         return result.slice(0, keepCandidates);
@@ -236,7 +243,7 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
             const newCandidate: Candidate = {
                 terms: [...parentCandidate.terms, ...candidate.terms],
                 topMatch: currentParent,
-                score: candidate.score + parentCandidate.score + TERM_PENALTY, // penalty for additional term
+                score: (candidate.score + parentCandidate.score + TERM_PENALTY) / 2, // penalty for additional term
                 matchCount: -1,
             };
             if (i === 0) {
@@ -256,102 +263,6 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
             }
         }
     }
-
-    // 2. Add nth-child or last-child if applicable
-    const addPositionalCandidate = (term: Term): void => {
-        const newCandidate: Candidate = {
-            terms: [term, ...candidate.terms.slice(1)],
-            topMatch: candidate.topMatch,
-            score: candidate.score + 2, // Positional selectors are good
-            matchCount: -1,
-        };
-
-        newCandidate.matchCount = matchCount(newCandidate.terms);
-
-        const selector = candidateToString(newCandidate);
-        if (!seenSelectorsToSkip[selector]) {
-            seenSelectorsToSkip[selector] = true;
-            result.push(newCandidate);
-        }
-        if (DEBUG) {
-            assertCandidateMatches(selector, origElement);
-        }
-    };
-
-    // Add nth-child if the element has siblings
-    if (currentElement.parentElement) {
-        const siblings = Array.from(currentElement.parentElement.children);
-        const index = siblings.indexOf(currentElement);
-
-        if (index !== -1) {
-            // Add nth-child (1-based index)
-            const nthChildTerm: Term = {
-                ...candidate.terms[0],
-                nthChild: index + 1
-            };
-            addPositionalCandidate(nthChildTerm);
-
-            // Add last-child if it's the last child
-            if (index === siblings.length - 1) {
-                const lastChildTerm: Term = {
-                    ...candidate.terms[0],
-                    lastChild: true
-                };
-                addPositionalCandidate(lastChildTerm);
-            }
-        }
-    }
-
-    // // 3. Walk down into children (up to 2 levels)
-    // const addChildCandidates = (element: HTMLElement, depth: number, maxDepth: number,
-    //                            parentTerms: Term[] = []): void => {
-    //     if (depth > maxDepth) return;
-
-    //     // Process children
-    //     for (let i = 0; i < element.children.length; i++) {
-    //         const child = element.children[i] as HTMLElement;
-
-    //         // Get basic candidates for this child
-    //         const childCandidates = baseCandidates(child);
-
-    //         for (const childCandidate of childCandidates) {
-    //             // Create a child term with direct descendant marker
-    //             const childTerm: Term = {
-    //                 ...childCandidate.term,
-    //                 directChild: true
-    //             };
-
-    //             // Create the new candidate combining the current path with this child
-    //             const newParentTerms = [...candidate.parentTerms, candidate.term, ...parentTerms];
-    //             const newCandidate: Candidate = {
-    //                 term: childTerm,
-    //                 parentTerms: newParentTerms,
-    //                 topMatch: candidate.topMatch,
-    //                 score: candidate.score + childCandidate.score + TERM_PENALTY * 2, // higher penalty for going down
-    //                 matchCount: matchCount([...newParentTerms, childTerm]),
-    //                 expandedYet: false
-    //             };
-
-    //             const selector = candidateToString(newCandidate);
-    //             if (!seenSelectorsToSkip[selector]) {
-    //                 seenSelectorsToSkip[selector] = true;
-    //                 result.push(newCandidate);
-    //             }
-    //         }
-
-    //         // Recurse for deeper levels
-    //         if (depth < maxDepth) {
-    //             const newParentTerm: Term = {
-    //                 tag: child.tagName.toLowerCase(),
-    //                 directChild: true
-    //             };
-    //             addChildCandidates(child, depth + 1, maxDepth, [...parentTerms, newParentTerm]);
-    //         }
-    //     }
-    // };
-
-    // // Start walking down from the current element (max depth 2)
-    // addChildCandidates(currentElement, 1, 2);
 
     return result;
 }
