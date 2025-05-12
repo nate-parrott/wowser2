@@ -5,23 +5,23 @@ extension BrowserStore {
         switch result.item.content {
         case .urlYouTyped(let url):
             loadURL(url, windowID: windowID)
-
+            
         case .searchWhatYouTyped(let query):
             performSearch(query, windowID: windowID)
-
+            
         case .searchSuggestion(let query, _):
             performSearch(query, windowID: windowID)
-
+            
         case .chatbot(let query):
             performSearch(query, windowID: windowID, chatbot: true)
-
+            
         case .imFeelingLucky(let query):
             // Implement "I'm feeling lucky" functionality
             performImFeelingLucky(query, windowID: windowID)
-
+            
         case .historyItem(let historyItem):
             loadURL(historyItem.url, windowID: windowID)
-
+            
         case .tab(let tabId, _):
             // Activate the existing tab and close current tab if it's empty
             modify { state in
@@ -31,10 +31,10 @@ extension BrowserStore {
                    currentTab.panes.count == 1,
                    let currentPane = currentTab.panes[currentTab.focusedPaneIdx],
                    currentPane.info.isEmptyPage {
-
+                    
                     // First activate the target tab
                     state.activate(tabId: tabId, in: windowID)
-
+                    
                     DispatchQueue.main.async {
                         self.close(webContentId: currentPane.id, removeIfPinned: false)
                     }
@@ -43,10 +43,10 @@ extension BrowserStore {
                     state.activate(tabId: tabId, in: windowID)
                 }
             }
-
-        case .customAction(let actionName, let parameter):
-            // Handle custom action here
-            performCustomAction(actionName: actionName, parameter: parameter, windowID: windowID)
+            
+        case .searchAction(let action):
+            // Handle search action
+            performAction(action: action, windowID: windowID)
         }
     }
     
@@ -105,13 +105,13 @@ extension BrowserStore {
     private func loadQueryOrSearch(_ query: String, windowID: ID<WindowState>) {
         // Simple URL detection heuristic
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-
+        
         if trimmed.contains(" ") {
             // Contains spaces, treat as search
             performSearch(trimmed, windowID: windowID)
             return
         }
-
+        
         if trimmed.contains(".") {
             // May be a URL, try to load directly
             let urlString = trimmed.hasPrefix("http") ? trimmed : "https://\(trimmed)"
@@ -120,49 +120,8 @@ extension BrowserStore {
                 return
             }
         }
-
+        
         // Fallback to search
         performSearch(trimmed, windowID: windowID)
-    }
-
-    // Process custom actions
-    private func performCustomAction(actionName: String, parameter: String, windowID: ID<WindowState>) {
-        // Look for a matching action type
-        if let actionType = ActionType.allCases.first(where: { $0.title == actionName }) {
-            // Call the action handler from SearchableItem+Actions
-            performAction(actionName: actionName, parameter: parameter, windowID: windowID)
-            return
-        }
-        
-        // Legacy sample actions - kept for backward compatibility
-        switch actionName {
-        case "Open New Tab":
-            // Create a new tab
-            let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init())])
-            modify { state in
-                let location = state.insertionIndex(window: windowID, spawningTabId: nil)
-                state.insertTab(tab, location: location, inWindow: windowID)
-                state.activate(tabId: tab.id, in: windowID)
-            }
-
-        case "Archive Tab":
-            // Archive the current tab
-            modify { state in
-                if let currentTabId = state.windows[windowID]?.currentTab {
-                    // Here you would call your archiving logic
-                    print("Would archive tab: \(currentTabId)")
-                }
-            }
-
-        case "Navigate URL":
-            // Navigate to a specific URL from the parameter
-            if let url = URL(string: parameter) {
-                loadURL(url, windowID: windowID)
-            }
-
-        default:
-            // Log unhandled actions for debugging
-            print("Unhandled custom action: \(actionName) with parameter: \(parameter)")
-        }
     }
 }
