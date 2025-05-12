@@ -41,6 +41,19 @@ extension CleanModeState {
         var dict = [String: CleanModeConfig]()
         dict["cnn.com"] = CleanModeConfig(autoReaderRegexes: ["/.{5,}$"])
         dict["google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "* { font-family: 'Comic Sans MS' !important; }")
+        dict["medium.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: """
+        #credential_picker_container { display: none !important }
+        div[style^='top']:has(button) { display: none !important; }
+        """)
+        dict["x.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: """
+        [aria-label='Verified account'] { display: none !important; }
+        [aria-label='Timeline: Trending now'] { display: none !important; }
+        [data-testid='super-upsell-UpsellCardRenderProperties'] { display: none !important; }
+        button[aria-label='Grok actions'] { display: none !important; }
+        [aria-label='Primary'] [aria-label='Grok'] { display: none !important; }
+        [aria-label='Primary'] [aria-label='Premium'] { display: none !important; }
+        [data-testid='GrokDrawer'] { display: none !important; }
+        """)
         return dict
     }()
     
