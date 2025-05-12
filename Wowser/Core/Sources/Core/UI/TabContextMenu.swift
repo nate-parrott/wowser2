@@ -16,7 +16,14 @@ public struct TabContextMenu: View {
                     }) {
                         Text("Copy Link")
                     }
-                    
+
+                    // Pick CSS Selector option
+                    Button(action: {
+                        startPickingSelector(tabID: tabID)
+                    }) {
+                        Text("Pick CSS Selector")
+                    }
+
                     if isFavorite {
                         // Remove from favorites option
                         Button(action: {
@@ -70,4 +77,23 @@ public func closeTab(tabID: ID<Tab>) {
           let paneID = tab.panes.first?.id else { return }
     // Then close via BrowserStore's API
     BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
+}
+
+// Helper function to start CSS selector picker
+public func startPickingSelector(tabID: ID<Tab>) {
+    // Get the tab data from the store
+    let state = BrowserStore.shared.model
+    guard let tab = state.tabs[tabID] else { return }
+
+    // Use the focused pane or first pane if none focused
+    let focusedPaneIdx = min(tab.focusedPaneIdx, tab.panes.count - 1)
+    guard let pane = tab.panes[focusedPaneIdx] else { return }
+
+    // Find which window this tab is in
+    guard let window = state.windowContaining(tabId: tabID) else { return }
+
+    // Set the picking selector mode for the window
+    BrowserStore.shared.modify { state in
+        state.windows[window.id]?.pickingSelectorInPaneId = pane.id
+    }
 }

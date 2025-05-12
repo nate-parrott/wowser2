@@ -31,6 +31,7 @@ struct WindowSnapshot: Equatable {
         var searchActive: Bool
         var emptyPage: Bool
         var colorScheme: ContentColorScheme?
+        var isPickingSelector: Bool
     }
     
     // Must have at least one, even if empty
@@ -48,7 +49,7 @@ struct WindowSnapshot: Equatable {
     init(state: BrowserState, id: ID<WindowState>) {
         self.windowID = id
         guard let window = state.windows[id] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true, isPickingSelector: false)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
             self.hasToast = false
@@ -60,7 +61,7 @@ struct WindowSnapshot: Equatable {
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true, isPickingSelector: false)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
@@ -71,7 +72,8 @@ struct WindowSnapshot: Equatable {
                 focused: focused,
                 searchActive: focused && window.searchOverlayActive,
                 emptyPage: pane.info.isEmptyPage,
-                colorScheme: pane.info.colorScheme)
+                colorScheme: pane.info.colorScheme,
+                isPickingSelector: window.pickingSelectorInPaneId == pane.id)
         })
     }
 }

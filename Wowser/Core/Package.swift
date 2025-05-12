@@ -32,6 +32,7 @@ let package = Package(
             resources: [
                 .copy("Adblock/easylist.min.json"),
                 .copy("Adblock/easycookie.min.json"),
+                .copy("ElementPicker/elementPicker.js"),
                 .process("Assets.xcassets"),
             ]
         ),
