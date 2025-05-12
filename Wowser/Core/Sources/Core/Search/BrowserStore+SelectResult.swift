@@ -45,8 +45,7 @@ extension BrowserStore {
             }
             
         case .searchAction(let action):
-            // Handle search action
-            performAction(action: action, windowID: windowID)
+            performSearchAction(action: action, windowID: windowID)
         }
     }
     

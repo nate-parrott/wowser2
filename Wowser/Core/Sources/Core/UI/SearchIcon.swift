@@ -30,6 +30,9 @@ struct SearchIcon: View {
                 Image(systemName: "arrow.forward.circle.fill")
 //                    .foregroundColor(.blue)
                 
+            case .searchAction:
+                Image(systemName: "arrow.right.circle.fill")
+                
             case .tab(_, let info):
                 FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
                     .overlay(alignment: .leading) {

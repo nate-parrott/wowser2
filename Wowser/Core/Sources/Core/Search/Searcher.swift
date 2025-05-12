@@ -98,11 +98,11 @@ struct SearchResult: Equatable, Identifiable {
             // Actions get high priority scores
             switch matchQuality {
             case .prefixMatchURL:
-                return 35
+                return 1 // not expected
             case .prefixMatchTitle:
-                return 40  // Prioritize over tabs for prefix matches
+                return 15  // Prioritize over tabs for prefix matches
             case .substringMatchTitle:
-                return 15
+                return 1
             case .none:
                 return 0
             }
@@ -129,7 +129,7 @@ struct NormalizedSearchableString: Equatable {
 }
 
 extension CharacterSet {
-    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"""'''"))
+    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"“”'‘’"))
 }
 
 @MainActor class Searcher: ObservableObject {
@@ -245,7 +245,7 @@ extension CharacterSet {
 
         // Add matching actions
         let model = BrowserStore.shared.model
-        let actionMatches = model.matchingActions(query: query)
+        let actionMatches = model.matchingActions(query: normQuery)
             .compactMap { $0.match(query: normQuery) }
             .sorted(by: { $0.score > $1.score })
 
@@ -343,7 +343,7 @@ extension CharacterSet {
         
         // Add matching actions
         let model = BrowserStore.shared.model
-        let actionMatches = model.matchingActions(query: query)
+        let actionMatches = model.matchingActions(query: q)
             .compactMap { $0.match(query: q) }
             .sorted(by: { $0.score > $1.score })
         
@@ -366,41 +366,7 @@ extension CharacterSet {
                 .prefix(limit)
                 .asArray
         }
-    }
-    
-//    private func generatedResults(query: String) -> [SearchableItem] {
-//        guard !query.isEmpty else { return [] }
-//        
-//        var items = [SearchableItem]()
-//        
-//        // Create a search-what-you-typed result
-//        let searchItem = SearchableItem(
-//            id: .init(raw: "search:\(query)"),
-//            content: .searchWhatYouTyped,
-//            titleMatchStr: NormalizedSearchableString(text: "Search for: \(query)")
-//        )
-//        items.append(searchItem)
-//        
-//        // Create a URL-you-typed result if the query might be a URL
-//        if let url = URL.withNaturalString(query) {
-//            let urlItem = SearchableItem(
-//                id: .init(raw: "url:\(query)"),
-//                content: .urlYouTyped,
-//                urlMatchStrings: url.searchStrings
-//            )
-//            items.append(urlItem)
-//        }
-//        
-//        // Create an I'm Feeling Lucky result
-//        let luckyItem = SearchableItem(
-//            id: .init(raw: "lucky:\(query)"),
-//            content: .imFeelingLucky,
-//            titleMatchStr: NormalizedSearchableString(text: "I'm Feeling Lucky: \(query)")
-//        )
-//        items.append(luckyItem)
-//        
-//        return items
-//    }
+    }    
 }
 
 private extension SearchResult {

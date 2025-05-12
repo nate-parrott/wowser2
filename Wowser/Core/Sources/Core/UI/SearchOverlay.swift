@@ -130,6 +130,8 @@ private struct SearchResultRow: View {
             return query
         case .tab(_, let info):
             return info.title ?? info.url?.stripped ?? "Tab"
+        case .searchAction(let action):
+            return action.title
         }
     }
     
@@ -149,6 +151,8 @@ private struct SearchResultRow: View {
             return item.url.displayString
         case .tab(_, _):
             return "Switch to Tab"
+        case .searchAction:
+            return "Action"
         }
     }
 }
