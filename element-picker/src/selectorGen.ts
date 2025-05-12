@@ -1,4 +1,4 @@
-import { scoreForClassName } from "./gibberish";
+import { scoreForAttr, scoreForClassName, scoreForTag, SCORING } from "./scoring";
 
 // Our candidates have at most 3 terms
 interface Candidate {
@@ -72,15 +72,6 @@ function matchCount(terms: Term[]): number {
     return document.querySelectorAll(sel).length;
 }
 
-function scoreForAttr(name: string): number {
-    if (name === 'role' || name === 'aria-role' || name === 'aria-label') {
-        return 5;
-    }
-    return 1;
-}
-
-const TERM_PENALTY = -1; // subtract 1 from score per additional term
-
 function baseCandidates(element: HTMLElement): Candidate[] {
     const candidates: Candidate[] = [];
 
@@ -88,7 +79,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
         candidates.push({
             terms,
             topMatch: element,
-            score,
+            score: score + SCORING.TERM_PENALITY, // include it here so don't need to include elsewhere
             matchCount: matchCount(terms),
         });
     }
@@ -98,29 +89,31 @@ function baseCandidates(element: HTMLElement): Candidate[] {
         const bodyTerm: Term = {
             tag: 'body'
         };
-        addCandidate([bodyTerm], 1);
+        addCandidate([bodyTerm], scoreForTag('body'));
         return candidates;
     }
 
     // Tag candidate
     if (element.tagName) {
+        const tag = element.tagName.toLowerCase();
         const tagTerm: Term = {
-            tag: element.tagName.toLowerCase()
+            tag
         };
         addCandidate([tagTerm], 1);
 
+        // Also attach nth-child. Apply term penalty for this since it's effectively an additional term
         const siblingCount = element.parentElement?.children.length || 0;
         const nth = Array.from(element.parentElement?.children || []).indexOf(element);
         if (nth !== -1) {
             // Push a nth-child option
-            addCandidate([{...tagTerm, nthChild: nth + 1}], 2);
+            addCandidate([{...tagTerm, nthChild: nth + 1}], SCORING.NTH_CHILD + SCORING.TERM_PENALITY + scoreForTag(tag));
             if (nth === siblingCount - 1) {
                 // Push a last-child option
                 const lastChildTerm: Term = {
                     ...tagTerm,
                     lastChild: true
                 };
-                addCandidate([lastChildTerm], 3);
+                addCandidate([lastChildTerm], SCORING.NTH_CHILD + SCORING.TERM_PENALITY + scoreForTag(tag));
             }
         }
     }
@@ -130,7 +123,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
         const idTerm: Term = {
             id: element.id
         };
-        addCandidate([idTerm], 10);
+        addCandidate([idTerm], SCORING.ID);
     }
 
     // Class candidates (add one candidate per class)
@@ -139,7 +132,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
             const classTerm: Term = {
                 className: className
             };
-            addCandidate([classTerm], 2 + scoreForClassName(className));
+            addCandidate([classTerm], SCORING.TERM_PENALITY + scoreForClassName(className));
         });
     }
 
@@ -152,7 +145,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
                 const attrTerm: Term = {
                     hasAttr: attr.name
                 };
-                addCandidate([attrTerm], scoreForAttr(attr.name));
+                addCandidate([attrTerm], scoreForAttr(attr.name, false));
 
                 // Create a term with specific attribute value if it exists
                 if (attr.value) {
@@ -160,7 +153,7 @@ function baseCandidates(element: HTMLElement): Candidate[] {
                         hasAttr: attr.name,
                         attrVal: attr.value
                     };
-                    addCandidate([attrValTerm], scoreForAttr(attr.name) + 1); // Extra point for value specificity
+                    addCandidate([attrValTerm], scoreForAttr(attr.name, true)); // Extra point for value specificity
                 }
             });
     }
@@ -168,9 +161,8 @@ function baseCandidates(element: HTMLElement): Candidate[] {
     return candidates;
 }
 
-function reduceCandidateCount(cands: Candidate[]): Candidate[] {
+function reduceCandidateCount(cands: Candidate[], keepCandidates: number): Candidate[] {
     const maxMatchCount = 4000;
-    const keepCandidates = 40;
     const buckets = 10;
 
     // Step 1: Filter out candidates with too many matches
@@ -218,6 +210,11 @@ function reduceCandidateCount(cands: Candidate[]): Candidate[] {
 const DEBUG = true;
 
 function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string]: true}, origElement: HTMLElement): Candidate[] {
+    if (candidate.terms.filter(x => !!x.id).length > 0) {
+        // Don't expand candidates with IDs
+        return [];
+    }
+
     const result: Candidate[] = [];
     const currentElement = candidate.topMatch as HTMLElement;
 
@@ -239,11 +236,12 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
 
         // Create new candidates by combining parent with current candidate
         for (const parentCandidate of parentCandidates) {
+            if (parentCandidate.terms[0].tag === 'body' && i !== 0) { continue } // Do not process non-direct-child body parent tags
             // Mark as a direct child if it's the immediate parent
             const newCandidate: Candidate = {
                 terms: [...parentCandidate.terms, ...candidate.terms],
                 topMatch: currentParent,
-                score: (candidate.score + parentCandidate.score + TERM_PENALTY) / 2, // penalty for additional term
+                score: candidate.score + parentCandidate.score, // penalty for additional term
                 matchCount: -1,
             };
             if (i === 0) {
@@ -279,7 +277,7 @@ function printCandidates(candidates: Candidate[]): void {
 export function generateSelectorList(element: HTMLElement): string[] {
     const iterationCount = 3;
     
-    let pool = reduceCandidateCount(baseCandidates(element));
+    let pool = reduceCandidateCount(baseCandidates(element), 40);
     if (DEBUG) {
         console.log("BASE CANDIDATES:");
         printCandidates(pool);
@@ -304,13 +302,15 @@ export function generateSelectorList(element: HTMLElement): string[] {
         const isFinal = i === iterationCount - 1;
         if (isFinal) {
             nextPool = nextPool.filter(c => c.matchCount <= 100);
+            nextPool = removeCandidatesMatchingParentsOfElement(nextPool, element);
         }
-        pool = reduceCandidateCount(nextPool);
+        pool = reduceCandidateCount(nextPool, isFinal ? 20 : 40);
         if (DEBUG) {
             console.log(`EXPANDED CANDIDATES (iteration ${i + 1}):`);
             printCandidates(pool);
         }
     }
+    pool = sortByMatchCountThenScore(pool);
     return pool.map(x => candidateToString(x));
 }
 
@@ -321,4 +321,35 @@ function assertCandidateMatches(selector: string, origElement: HTMLElement): voi
         // throw
         throw new Error(`Selector ${selector} does not match the original element.`);
     }
+}
+
+function sortByMatchCountThenScore(candidates: Candidate[]): Candidate[] {
+    // Sort matchcount (lowest first) then score (highest first)
+    return candidates.sort((a, b) => {
+        if (a.matchCount === b.matchCount) {
+            return b.score - a.score; // higher score first
+        }
+        return a.matchCount - b.matchCount; // lower match count first
+    });
+}
+
+function removeCandidatesMatchingParentsOfElement(candidates: Candidate[], element: HTMLElement): Candidate[] {
+    const parents = getParents(element);
+    return candidates.filter(candidate => {
+        const matches = document.querySelectorAll(candidateToString(candidate));
+        return !Array.from(matches).some((el: Element) => {
+            return parents.some(parent => parent === el);
+        }
+        );
+    });
+}
+
+function getParents(element: HTMLElement): HTMLElement[] {
+    const parents: HTMLElement[] = [];
+    let parent = element.parentElement;
+    while (parent) {
+        parents.push(parent);
+        parent = parent.parentElement;
+    }
+    return parents;
 }
