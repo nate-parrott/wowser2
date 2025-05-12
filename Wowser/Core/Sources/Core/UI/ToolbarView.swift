@@ -233,6 +233,7 @@ struct ToolbarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(enabled ? 1 : 0.33)
+            .font(.system(size: 13, weight: .medium))
             .frame(width: 30, height: 30)
             .background {
                 if hovered && enabled {
