@@ -58,27 +58,4 @@ struct FakePaneContent: View {
             }
         }
     }
-    
-//    @ViewBuilder var fallback: some View {
-//        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
-//            ZStack {
-//                if let pane {
-//                    VStack(alignment: .leading) {
-//                        HStack(spacing: 8) {
-//                            FaviconView(url: pane.info.url, faviconURL: pane.info.favicon, size: 16)
-//                            Text(pane.info.title ?? pane.info.url?.absoluteString ?? "")
-//                                .font(.system(size: 12, weight: .medium))
-//                                .lineLimit(1)
-//                        }
-//                        .padding(8)
-//                        Spacer()
-//                    }
-//                } else {
-//                    Color.blue
-//                }
-//            }
-//            .frame(maxWidth: .infinity, maxHeight: .infinity)
-//            .background(Color("Background", bundle: .module))
-//        }
-//    }
 }
