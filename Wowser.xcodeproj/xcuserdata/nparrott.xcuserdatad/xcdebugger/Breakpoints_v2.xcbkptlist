@@ -180,10 +180,10 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "141"
-            endingLineNumber = "141"
-            landmarkName = "init()"
-            landmarkType = "7">
+            startingLineNumber = "142"
+            endingLineNumber = "142"
+            landmarkName = "Searcher"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -196,8 +196,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "143"
-            endingLineNumber = "143"
+            startingLineNumber = "144"
+            endingLineNumber = "144"
             landmarkName = "init(windowID:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -212,8 +212,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "140"
-            endingLineNumber = "140"
+            startingLineNumber = "141"
+            endingLineNumber = "141"
             landmarkName = "init()"
             landmarkType = "7">
          </BreakpointContent>
@@ -228,8 +228,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "244"
-            endingLineNumber = "244"
+            startingLineNumber = "245"
+            endingLineNumber = "245"
             landmarkName = "fastPathSearch(query:prevResults:)"
             landmarkType = "7">
          </BreakpointContent>
