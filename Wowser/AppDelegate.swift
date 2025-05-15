@@ -98,6 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
+            DefaultsKeys.enableGoDirectQueries.rawValue: true,
             DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news."
         ])
         
