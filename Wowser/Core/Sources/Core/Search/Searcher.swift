@@ -129,7 +129,7 @@ struct NormalizedSearchableString: Equatable {
 }
 
 extension CharacterSet {
-    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"“”'‘’"))
+    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"""'''"))
 }
 
 @MainActor class Searcher: ObservableObject {
@@ -234,7 +234,8 @@ extension CharacterSet {
             results.append(.urlYouTyped(url))
         }
         
-        if classification == .nav {
+        // Add "I'm feeling lucky" result only if the setting is enabled
+        if classification == .nav && DefaultsKeys.enableGoDirectQueries.boolValue(defaultValue: true) {
             results.append(.navItem(query))
         }
         

@@ -27,6 +27,8 @@ public enum DefaultsKeys: String {
     
     case searchEngine // SearchEngine
     case Chatbot // Chatbot
+    
+    case enableGoDirectQueries // bool
 }
 
 public extension DefaultsKeys {
