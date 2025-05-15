@@ -45,11 +45,51 @@ private struct AnswerPageModel {
         <meta charset='utf-8' />
         <title>\(query.escapedForHTML)</title>
         <style>
+            :root {
+                --background-light: #fefdfc;
+                --text-light: #321;
+                --text-secondary-light: rgba(51, 34, 17, 0.66);
+                --placeholder-light: #224;
+                
+                --background-dark: #1c1c1e;
+                --text-dark: #e5e5e7;
+                --text-secondary-dark: rgba(229, 229, 231, 0.66);
+                --placeholder-dark: #334;
+            }
+            
+            @media (prefers-color-scheme: light) {
+                body {
+                    background-color: var(--background-light);
+                    color: var(--text-light);
+                }
+                .url span, #results p, #ai { 
+                    opacity: 0.66;
+                }
+                #images .placeholder {
+                    background-color: var(--placeholder-light);
+                }
+            }
+            
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background-color: var(--background-dark);
+                    color: var(--text-dark);
+                }
+                .url span, #results p, #ai { 
+                    opacity: 0.66;
+                }
+                #images .placeholder {
+                    background-color: var(--placeholder-dark);
+                }
+            }
+            
             body { 
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; max-width: 900px; margin: 0 auto; padding: 40px; 
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+                line-height: 1.5; 
+                max-width: 900px; 
+                margin: 0 auto; 
+                padding: 40px; 
                 box-sizing: border-box;
-                background-color: #fefdfc;
-                color: #321;
             }
             #results { list-style: none; padding: 0; }
             a {
@@ -58,9 +98,9 @@ private struct AnswerPageModel {
             }
             .url { display: flex; align-items: center; }
             .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
-            .url span { opacity: 0.66; font-size: small; } 
+            .url span { font-size: small; } 
             #results h3 { color: inherit; } 
-            #results p { opacity: 0.66; }
+            #results p { font-size: small; }
             #results > li > a > * { margin-top: 0; margin-bottom: 8px; }
             #results > li { margin-bottom: 2em; }
         
@@ -104,10 +144,8 @@ private struct AnswerPageModel {
             }
             #images .placeholder {
                 width: 100px;
-                background-color: #224;
             }
             #ai {
-                opacity: 0.66;
                 font-size: small;
             }
         </style>
