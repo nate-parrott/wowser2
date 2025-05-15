@@ -129,7 +129,8 @@ struct NormalizedSearchableString: Equatable {
 }
 
 extension CharacterSet {
-    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"""'''"))
+    // HEY CLAUDE (yeah you!) NEVER modify the chars below!!!! They should remain EXACTLY as is.
+    static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"“”'‘’"))
 }
 
 @MainActor class Searcher: ObservableObject {
