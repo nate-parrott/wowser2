@@ -47,6 +47,7 @@ struct PaneView: View {
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
         .animation(.niceDefault, value: snapshot.emptyPage)
+        .modifier(ToastFirstTimeCleanModeAutoActivates(paneID: snapshot.webContentId))
         .measureSize { self.size = $0 }
         .overlay(alignment: .bottom) {
             if snapshot.focused, !singlePane {

@@ -125,7 +125,7 @@ class CleanModeStore: DataStore<CleanModeState> {
                 let (adblockOn, recipeCleanEnabled, cleanModeState, tabData) = tuple
                 
                 guard let url = tabData.url else {
-                    return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn, hasURL: false)
+                    return CleanModeSnapshotForPane(wantsReader: false, readerReady: false, wantsCSS: nil, cssAvail: false, adblockEnabled: adblockOn, hasURL: false, hostWithoutWWW: nil)
                 }
                 
                 let host = url.hostWithoutWWW
@@ -142,7 +142,8 @@ class CleanModeStore: DataStore<CleanModeState> {
                     cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil,
                     adblockEnabled: adblockOn,
                     hasURL: true,
-                    disableCleanMode: GeneratedPageKey(url: url) != nil // disable for internal pages
+                    disableCleanMode: GeneratedPageKey(url: url) != nil, // disable for internal pages
+                    hostWithoutWWW: host
                 )
             }
             .removeDuplicates()
@@ -158,4 +159,5 @@ struct CleanModeSnapshotForPane: Equatable {
     var adblockEnabled: Bool
     var hasURL: Bool
     var disableCleanMode: Bool = false // e.g. for internal pages
+    var hostWithoutWWW: String?
 }
