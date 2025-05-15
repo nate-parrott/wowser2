@@ -29,6 +29,7 @@ public enum DefaultsKeys: String {
     case Chatbot // Chatbot
     
     case enableGoDirectQueries // bool
+    case lastShownWelcomePageForPageVersion
 }
 
 public extension DefaultsKeys {
@@ -42,6 +43,14 @@ public extension DefaultsKeys {
     
     func dateValue() -> Date? {
         return UserDefaults.standard.object(forKey: rawValue) as? Date
+    }
+    
+    func intValue() -> Int {
+        return UserDefaults.standard.integer(forKey: rawValue)
+    }
+    
+    func setInt(_ int: Int) {
+        UserDefaults.standard.setValue(int, forKey: rawValue)
     }
     
     func setDate(_ date: Date) {

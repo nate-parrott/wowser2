@@ -133,6 +133,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }.store(in: &subscriptions)
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
+        
+        // show welcome?
+        let appVer = 1
+        if appVer > DefaultsKeys.lastAutoArchiveDate.intValue() {
+            DefaultsKeys.lastAutoArchiveDate.setInt(appVer)
+            openURL(URL(string: "https://www.notion.so/nate223/Welcome-to-Tangerine-1f48cbaf64db80eeb4c3f443a4f85c82?pvs=4")!)
+        }
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
