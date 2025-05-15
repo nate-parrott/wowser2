@@ -143,6 +143,7 @@ public struct WindowState: Equatable, Codable {
     public var swipeGestureOffset: Int?
     public var pickingSelectorInPaneId: ID<WebContent>?
     public var perProfileData = [ID<Profile>: PerProfileData]()
+    public var tabsOpened = 0
     
     public struct PerProfileData: Equatable, Codable {
         public var tabs: [ID<Tab>]
@@ -389,6 +390,7 @@ extension BrowserStore: WebContentDelegate {
                 state.insertTab(newTab, location: .ordinaryTabs(0), inWindow: win.id)
             }
             
+            
             if shouldActivate, let winId = winID {
                 state.activate(tabId: newTab.id, in: winId)
             }
@@ -535,6 +537,10 @@ extension BrowserState {
     }
     
     mutating func insertTab(_ tab: Tab, location: SidebarLocation, inWindow window: ID<WindowState>) {
+        if tabs[tab.id] == nil {
+            // this is new; let's increment the counter
+            windows[window]?.tabsOpened += 1
+        }
         tabs[tab.id] = tab
         for pane in tab.panes {
             paneToTabMapping[pane.id] = tab.id

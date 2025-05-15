@@ -228,7 +228,10 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     }
     
     private var autoOrgSettingObserver: AnyCancellable?
+    // Two triggers: 3600s, or 10 tabs opened
     private var autoOrgTicker: AnyCancellable? // only set up if the setting is on
+    private var autoOrgManyTabsOpenedTicker: AnyCancellable? // only set up if the setting is on
+    
     private var autoOrganizeEnabled: Bool = false {
         didSet {
             if autoOrganizeEnabled != oldValue {
@@ -239,12 +242,22 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
                         .sink { [weak self] _ in
                             self?.organizeTabs()
                         }
-                    // Run organization immediately
-//                    self.organizeTabs()
+                    
+                    if let windowId = self.windowID {
+                        autoOrgManyTabsOpenedTicker = BrowserStore.shared.uiPublisher.map { floor(Double($0.windows[windowId]?.tabsOpened ?? 0) / 10) }
+                            .removeDuplicates()
+                            .dropFirst()
+                            .sink(receiveValue: { [weak self] _ in
+                                self?.organizeTabs()
+                            })
+                    }
                 } else {
                     // Tear down store observation
                     autoOrgTicker?.cancel()
                     autoOrgTicker = nil
+                    
+                    autoOrgManyTabsOpenedTicker?.cancel()
+                    autoOrgManyTabsOpenedTicker = nil
                 }
             }
         }

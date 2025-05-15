@@ -39,6 +39,7 @@ struct CleanModeState: Equatable, Codable {
 extension CleanModeState {
     static var defaultHostSettings: [String: CleanModeConfig] = {
         var dict = [String: CleanModeConfig]()
+        dict["mail.google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "iframe[name=callout] { display: none !important; }")
         dict["cnn.com"] = CleanModeConfig(autoReaderRegexes: ["/.{5,}$"])
         dict["google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "* { font-family: 'Comic Sans MS' !important; }")
         dict["medium.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: """
