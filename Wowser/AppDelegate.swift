@@ -99,7 +99,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
             DefaultsKeys.enableGoDirectQueries.rawValue: true,
-            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news."
+            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
+            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt4o_mini.rawValue,
+            DefaultsKeys.openAIKey.rawValue: "[REMOVED-OPENAI-KEY]"
         ])
         
         #if os(macOS)

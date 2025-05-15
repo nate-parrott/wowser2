@@ -28,18 +28,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		357E5AED2D7E3510009CD80F /* Wowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		357E5AED2D7E3510009CD80F /* Tangerine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tangerine.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		357E5AFE2D7E3511009CD80F /* WowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		357E5B082D7E3511009CD80F /* WowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */ = {
+		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
+			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -47,7 +47,7 @@
 		357E5AEF2D7E3510009CD80F /* Wowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */,
+				35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */,
 			);
 			path = Wowser;
 			sourceTree = "<group>";
@@ -104,7 +104,7 @@
 		357E5AEE2D7E3510009CD80F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				357E5AED2D7E3510009CD80F /* Wowser.app */,
+				357E5AED2D7E3510009CD80F /* Tangerine.app */,
 				357E5AFE2D7E3511009CD80F /* WowserTests.xctest */,
 				357E5B082D7E3511009CD80F /* WowserUITests.xctest */,
 			);
@@ -121,9 +121,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		357E5AEC2D7E3510009CD80F /* Wowser */ = {
+		357E5AEC2D7E3510009CD80F /* Tangerine */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Wowser" */;
+			buildConfigurationList = 357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Tangerine" */;
 			buildPhases = (
 				357E5AE92D7E3510009CD80F /* Sources */,
 				357E5AEA2D7E3510009CD80F /* Frameworks */,
@@ -137,12 +137,12 @@
 			fileSystemSynchronizedGroups = (
 				357E5AEF2D7E3510009CD80F /* Wowser */,
 			);
-			name = Wowser;
+			name = Tangerine;
 			packageProductDependencies = (
 				357E5C512D7E362E009CD80F /* Core */,
 			);
 			productName = Wowser;
-			productReference = 357E5AED2D7E3510009CD80F /* Wowser.app */;
+			productReference = 357E5AED2D7E3510009CD80F /* Tangerine.app */;
 			productType = "com.apple.product-type.application";
 		};
 		357E5AFD2D7E3511009CD80F /* WowserTests */ = {
@@ -231,7 +231,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				357E5AEC2D7E3510009CD80F /* Wowser */,
+				357E5AEC2D7E3510009CD80F /* Tangerine */,
 				357E5AFD2D7E3511009CD80F /* WowserTests */,
 				357E5B072D7E3511009CD80F /* WowserUITests */,
 			);
@@ -289,12 +289,12 @@
 /* Begin PBXTargetDependency section */
 		357E5B002D7E3511009CD80F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
+			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
 			targetProxy = 357E5AFF2D7E3511009CD80F /* PBXContainerItemProxy */;
 		};
 		357E5B0A2D7E3511009CD80F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
+			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
 			targetProxy = 357E5B092D7E3511009CD80F /* PBXContainerItemProxy */;
 		};
 		357E5C4F2D7E3629009CD80F /* PBXTargetDependency */ = {
@@ -577,7 +577,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Wowser" */ = {
+		357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Tangerine" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				357E5B132D7E3511009CD80F /* Debug */,
