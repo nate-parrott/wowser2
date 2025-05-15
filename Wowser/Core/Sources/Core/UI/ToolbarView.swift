@@ -60,6 +60,7 @@ public struct ToolbarView: View {
     @Binding var selectedResultIndex: Int
     
     var colorScheme: ContentColorScheme?
+    var emptyPage: Bool
     
     @Environment(\.windowID) private var windowID
     @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
@@ -69,6 +70,10 @@ public struct ToolbarView: View {
     @State private var isBookmarked: Bool = false
     
     public var body: some View {
+        let topRadius: CGFloat = emptyPage ? 10 : 0
+        let bottomRadius: CGFloat = searchText == "" ? topRadius : 0
+        let clipShape = UnevenRoundedRectangle(topLeadingRadius: topRadius, bottomLeadingRadius: bottomRadius, bottomTrailingRadius: bottomRadius, topTrailingRadius: topRadius, style: .continuous)
+        
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
             HStack(spacing: 4) {
                 if snapshot.makeRoomForTrafficLights {
@@ -78,29 +83,8 @@ public struct ToolbarView: View {
                 }
                 
                 // Leading nav controls
-                HStack(spacing: 0) {
-                    // Back button
-                    Button(action: goBack) {
-                        Image(systemName: "chevron.backward")
-                            .imageScale(.medium)
-                    }
-                    .buttonStyle(ToolbarButtonStyle())
-                    .disabled(!snapshot.canGoBack)
-                    
-                    // Forward button
-                    Button(action: goForward) {
-                        Image(systemName: "chevron.forward")
-                            .imageScale(.medium)
-                    }
-                    .buttonStyle(ToolbarButtonStyle())
-                    .disabled(!snapshot.canGoForward)
-                    
-                    // Reload button
-                    Button(action: reload) {
-                        Image(systemName: snapshot.isLoading ? "xmark" : "arrow.clockwise")
-                            .imageScale(.medium)
-                    }
-                    .buttonStyle(ToolbarButtonStyle())
+                if !emptyPage {
+                    navControls(snapshot: snapshot)
                 }
                 
                 // Security indicator and Omnibox (search/URL input field)
@@ -119,58 +103,92 @@ public struct ToolbarView: View {
                 }
                 
                 // Trailing buttons container
-                HStack(spacing: 0) {
-                    if let webContentID {
-                        CleanModeStatusButton(webContentID: webContentID)
-                            .tint(colorScheme?.foreground.color ?? Color.primary)
-                            .padding(.trailing)
-                    }
-                                        
-                    Button(action: toggleBookmark) {
-                        Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                            .imageScale(.medium)
-                            .help(isBookmarked ? "Remove Bookmark" : "Add Bookmark")
-                    }
-                    .buttonStyle(ToolbarButtonStyle())
-                    .disabled(snapshot.url == nil)
-                    .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
-                    
-                    // Close pane button (only visible in split view)
-                    if snapshot.hasMultiplePanes {
-                        Button(action: closeCurrentPane) {
-                            Image(systemName: "xmark")
+                if !emptyPage {
+                    HStack(spacing: 0) {
+                        if let webContentID {
+                            CleanModeStatusButton(webContentID: webContentID)
+                                .tint(colorScheme?.foreground.color ?? Color.primary)
+                                .padding(.trailing)
+                        }
+                                            
+                        Button(action: toggleBookmark) {
+                            Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                                 .imageScale(.medium)
+                                .help(isBookmarked ? "Remove Bookmark" : "Add Bookmark")
                         }
                         .buttonStyle(ToolbarButtonStyle())
-                        .help("Close pane")
+                        .disabled(snapshot.url == nil)
+                        .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
+                        
+                        // Close pane button (only visible in split view)
+                        if snapshot.hasMultiplePanes {
+                            Button(action: closeCurrentPane) {
+                                Image(systemName: "xmark")
+                                    .imageScale(.medium)
+                            }
+                            .buttonStyle(ToolbarButtonStyle())
+                            .help("Close pane")
+                        }
                     }
+                    .padding(.trailing, 8)
                 }
-                .contentShape(Rectangle())
-                .contextMenu {
-                    Button(action: {
-                        copyURLToClipboard(url: snapshot.url)
-                    }) {
-                        Text("Copy URL")
-                    }
-                    
-                    Toggle(isOn: $topbarLocked) {
-                        Text("Lock Toolbar")
-                    }
-                }
-                .padding(.trailing, 8)
             }
             .frame(height: UIConstants.macHeaderHeight)
-//            .overlay(alignment: .bottom) {
-//                (fgColor?.color ?? Color.primary).frame(height: 1).opacity(0.1)
-//            }
+            .contentShape(Rectangle())
+            .contextMenu {
+                Button(action: {
+                    copyURLToClipboard(url: snapshot.url)
+                }) {
+                    Text("Copy URL")
+                }
+                
+                Toggle(isOn: $topbarLocked) {
+                    Text("Lock Toolbar")
+                }
+            }
         }
         .onAppearOrChange(of: searchFocused, perform: { focused in
             focusDate = focused ? Date() : nil
         })
         .modifier(WithContentColorScheme(scheme: colorScheme))
+        .clipShape(clipShape)
+        .overlay {
+            if emptyPage {
+                clipShape.strokeBorder(Color.primary)
+                    .padding(-1)
+                    .opacity(0.1)
+            }
+        }
         .compositingGroup()
         .animation(.niceDefault, value: colorScheme)
         .id(webContentID)
+    }
+    
+    @ViewBuilder private func navControls(snapshot: ToolbarViewSnapshot) -> some View {
+        HStack(spacing: 0) {
+            // Back button
+            Button(action: goBack) {
+                Image(systemName: "chevron.backward")
+                    .imageScale(.medium)
+            }
+            .buttonStyle(ToolbarButtonStyle())
+            .disabled(!snapshot.canGoBack)
+            
+            // Forward button
+            Button(action: goForward) {
+                Image(systemName: "chevron.forward")
+                    .imageScale(.medium)
+            }
+            .buttonStyle(ToolbarButtonStyle())
+            .disabled(!snapshot.canGoForward)
+            
+            // Reload button
+            Button(action: reload) {
+                Image(systemName: snapshot.isLoading ? "xmark" : "arrow.clockwise")
+                    .imageScale(.medium)
+            }
+            .buttonStyle(ToolbarButtonStyle())
+        }
     }
     
     // MARK: - Actions

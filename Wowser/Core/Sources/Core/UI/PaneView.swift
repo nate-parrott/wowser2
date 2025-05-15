@@ -17,6 +17,8 @@ struct PaneView: View {
     @State private var size: CGSize = .zero
     
     var body: some View {
+        let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? 40 : 0
+        
         ZStack(alignment: .top) {
             content
                 .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
@@ -26,6 +28,7 @@ struct PaneView: View {
             if snapshot.searchActive {
                 SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
                     .padding(.top, UIConstants.macHeaderHeight)
+                    .padding([.horizontal, .top], emptyPageSearchPadding)
             }
             
             ToolbarView(
@@ -34,12 +37,16 @@ struct PaneView: View {
                 searcher: searcher,
                 searchText: $searchText,
                 selectedResultIndex: $selectedResultIndex,
-                colorScheme: toolbarColorScheme
+                colorScheme: toolbarColorScheme,
+                emptyPage: snapshot.emptyPage
             )
-                .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: 2.5, x: 0, y: 0)
+            .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 2.5, x: 0, y: 0)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
+                .padding([.horizontal, .top], emptyPageSearchPadding)
+                .id(snapshot.emptyPage)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
         }
+        .animation(.niceDefault, value: snapshot.emptyPage)
         .measureSize { self.size = $0 }
         .overlay(alignment: .bottom) {
             if snapshot.focused, !singlePane {

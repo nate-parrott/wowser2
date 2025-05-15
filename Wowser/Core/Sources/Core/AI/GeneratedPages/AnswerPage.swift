@@ -48,6 +48,8 @@ private struct AnswerPageModel {
             body { 
                 font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; max-width: 900px; margin: 0 auto; padding: 40px; 
                 box-sizing: border-box;
+                background-color: #fefdfc;
+                color: #321;
             }
             #results { list-style: none; padding: 0; }
             a {
@@ -57,7 +59,7 @@ private struct AnswerPageModel {
             .url { display: flex; align-items: center; }
             .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
             .url span { opacity: 0.66; font-size: small; } 
-            #results h3 { color: blue; } 
+            #results h3 { color: inherit; } 
             #results p { opacity: 0.66; }
             #results > li > a > * { margin-top: 0; margin-bottom: 8px; }
             #results > li { margin-bottom: 2em; }
