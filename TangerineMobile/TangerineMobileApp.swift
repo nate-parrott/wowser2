@@ -39,7 +39,9 @@ struct TangerineMobileApp: App {
 
 struct Content: View {
     @State private var windowID: ID<WindowState>?
-    
+    @State private var lastBackgroundDate: Date?
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         ZStack {
             if let windowID {
@@ -49,7 +51,21 @@ struct Content: View {
         .onAppear {
             if windowID == nil {
                 windowID = BrowserStore.shared.model.newWindow().id
-//                windowID = WindowIDVendor.shared.vendNextWindowID()
+                if let windowID {
+                    BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
+                }
+            }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                let now = Date()
+                if lastBackgroundDate == nil || now.timeIntervalSince(lastBackgroundDate!) > 5 {
+                    if let windowID {
+                        BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
+                    }
+                }
+            } else if newPhase == .background {
+                lastBackgroundDate = Date()
             }
         }
     }
