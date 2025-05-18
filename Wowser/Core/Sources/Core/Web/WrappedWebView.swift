@@ -75,12 +75,16 @@ public struct WrappedWebView: View {
     }
     
     private func findInPage() {
+        #if os(macOS)
         if isFindInPageActive {
             let selector = #selector(NSResponder.selectAll(_:))
             NSApp.sendAction(selector, to: nil, from: self)
         } else {
             isFindInPageActive.toggle()
         }
+        #else
+        isFindInPageActive.toggle()
+        #endif
     }
     
     private func cleanModeOptionsChanged(_ options: CleanModeSnapshotForPane) {

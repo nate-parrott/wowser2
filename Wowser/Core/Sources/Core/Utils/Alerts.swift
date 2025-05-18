@@ -126,6 +126,7 @@ enum Alerts {
         cancelTitle: String,
         baseView: UINSView? = nil
     ) async -> String? {
+        #if os(macOS)
         guard let mainWin = baseView?.window ?? windowForAlerts else { return nil }
 
         let alert = NSAlert()
@@ -150,5 +151,31 @@ enum Alerts {
                 }
             }
         }
+        #else
+        guard let viewController = (baseView?.findViewController() ?? viewControllerForAlerts()) else { return nil }
+        
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        
+        alert.addTextField { textField in
+            textField.placeholder = textPlaceholder
+        }
+        
+        return await withCheckedContinuation { continuation in
+            let submitAction = UIAlertAction(title: submitTitle, style: .default) { _ in
+                let text = alert.textFields?.first?.text
+                continuation.resume(returning: text)
+            }
+            alert.addAction(submitAction)
+            
+            let cancelAction = UIAlertAction(title: cancelTitle, style: .cancel) { _ in
+                continuation.resume(returning: nil)
+            }
+            alert.addAction(cancelAction)
+            
+            DispatchQueue.main.async {
+                viewController.present(alert, animated: true)
+            }
+        }
+        #endif
     }
 }

@@ -42,7 +42,7 @@ struct FakePaneContent: View {
         WithThumbnail(id: webContentId) { image in
             if let image {
                 Color.clear.overlay(alignment: .topLeading) {
-                    Image(nsImage: image)
+                    image.swiftUI
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 }

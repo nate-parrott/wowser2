@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 extension NSMenuItem {
@@ -128,3 +129,5 @@ extension NSMenuItem {
         self.setAssociatedObject(animationTask, forKey: NSMenuItem.animationTaskKey)
     }
 }
+
+#endif

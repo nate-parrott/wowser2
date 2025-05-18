@@ -20,7 +20,7 @@ public struct SettingsView: View {
     
     public var body: some View {
         Group {
-            if #available(macOS 15.0, *) {
+            if #available(macOS 15.0, iOS 18.0, *) {
                 TabView {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
                     SwiftUI.Tab(content: { HomepageSettings() }, label: { Text("Homepage") })

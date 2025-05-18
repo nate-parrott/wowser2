@@ -19,7 +19,7 @@ struct FindInPageView: View {
                 text: $searchText,
                 options: InputTextFieldOptions(
                     placeholder: "Find in page",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: UINSFont.systemFont(ofSize: 15),
                     insets: CGSize(width: 5, height: 5)
                 ),
                 focusDate: focusDate,

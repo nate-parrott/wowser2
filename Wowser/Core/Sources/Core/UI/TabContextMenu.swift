@@ -62,11 +62,15 @@ public func removeFromFavorites(tabID: ID<Tab>) {
 
 // Copy URL to clipboard
 public func copyURLToClipboard(url: URL?) {
-    if let urlString = url?.absoluteString {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(urlString, forType: .string)
-    }
+    guard let urlString = url?.absoluteString else { return }
+    
+    #if os(macOS)
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString(urlString, forType: .string)
+    #else
+    UIPasteboard.general.string = urlString
+    #endif
 }
 
 // Helper function to close a tab

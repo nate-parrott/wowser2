@@ -175,7 +175,9 @@ private struct EmptyTabView: View {
             .font(.title)
             .foregroundColor(.secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(macOS)
         .background(Color(.windowBackgroundColor))
+        #endif
     }
     
     private func createNewTab(windowID: ID<WindowState>) {

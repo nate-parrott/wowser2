@@ -10,6 +10,26 @@ import Core
 
 @main
 struct TangerineMobileApp: App {
+    init() {
+        UserDefaults.standard.register(defaults: [
+            DefaultsKeys.adblock.rawValue: true,
+            DefaultsKeys.cookieBannerBlock.rawValue: true,
+            DefaultsKeys.autoDarkMode.rawValue: true,
+            DefaultsKeys.animateNewTabs.rawValue: true,
+            DefaultsKeys.searchEngine.rawValue: SearchEngine.clean.rawValue,
+            DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
+            DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
+            DefaultsKeys.cleanModeForRecipes.rawValue: true,
+            DefaultsKeys.autoOrganizeTabs.rawValue: true,
+            DefaultsKeys.enableGoDirectQueries.rawValue: true,
+            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
+            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt4o_mini.rawValue,
+            DefaultsKeys.openAIKey.rawValue: "sk-proj-PVPPFJSAOSYKTWunzRmeT3BlbkFJjJkZI9m76alRrbnL7R1s"
+        ])
+        
+        Preheat.preheat()
+    }
+    
     var body: some Scene {
         WindowGroup {
             Content()

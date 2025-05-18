@@ -9,6 +9,9 @@ private extension DispatchQueue {
 extension WKWebView {
     /// Captures the top portion of the web page and extracts the dominant color
     func extractTopDominantColor() async -> HSBA? {
+        #if os(iOS)
+        return nil
+        #else
         // Capture only the top portion (2 rows of pixels)
         let height: CGFloat = 2
         let captureRect = CGRect(x: 0, y: 0, width: bounds.width, height: height)
@@ -41,6 +44,7 @@ extension WKWebView {
             print("Error taking snapshot: \(error)")
             return nil
         }
+        #endif
     }
 }
 
