@@ -824,36 +824,6 @@
             endingLineNumber = "207"
             landmarkName = "download(_:didFailWithError:resumeData:)"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "001DDB3A-15BB-4BAB-864D-3989EFE4B236 - 91715d6758486282"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Core.DownloadManager.download(_: __C.WKDownload, didFailWithError: Swift.Error, resumeData: Swift.Optional&lt;Foundation.Data&gt;) -&gt; ()"
-                  moduleName = "TangerineMobile.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/nparrott/Documents/SW/Wowser/Wowser/Core/Sources/Core/Downloads/DownloadManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "207"
-                  endingLineNumber = "207">
-               </Location>
-               <Location
-                  uuid = "001DDB3A-15BB-4BAB-864D-3989EFE4B236 - 4f3bf0ccfa63f52c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Core.DownloadManager.download(_: __C.WKDownload, didFailWithError: Swift.Error, resumeData: Swift.Optional&lt;Foundation.Data&gt;) -&gt; ()"
-                  moduleName = "Tangerine.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/nparrott/Documents/SW/Wowser/Wowser/Core/Sources/Core/Downloads/DownloadManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "207"
-                  endingLineNumber = "207">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
