@@ -158,3 +158,51 @@ extension BrowserStore {
         }
     }
 }
+
+// MARK: - SearchableItem UI Extensions
+
+extension SearchableItem {
+    /// Gets the user-friendly title for display in search results
+    public var title: String {
+        switch content {
+        case .searchWhatYouTyped(let query):
+            return query
+        case .urlYouTyped(let url):
+            return url.displayString
+        case .searchSuggestion(let query, _):
+            return query
+        case .imFeelingLucky(let query):
+            return query
+        case .historyItem(let item):
+            return item.title ?? item.url.displayString
+        case .chatbot(let query):
+            return query
+        case .tab(_, let info):
+            return info.title ?? info.url?.stripped ?? "Tab"
+        case .searchAction(let action):
+            return action.title
+        }
+    }
+    
+    /// Gets the user-friendly subtitle for display in search results
+    public var subtitle: String? {
+        switch content {
+        case .searchWhatYouTyped:
+            return nil
+        case .urlYouTyped(let url):
+            return url.absoluteString
+        case .searchSuggestion:
+            return nil
+        case .imFeelingLucky:
+            return "Direct to Website"
+        case .chatbot:
+            return "Chat"
+        case .historyItem(let item):
+            return item.url.displayString
+        case .tab(_, _):
+            return "Switch to Tab"
+        case .searchAction:
+            return "Action"
+        }
+    }
+}

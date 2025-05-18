@@ -1,7 +1,7 @@
+#if os(macOS)
 import AppKit
 import SwiftUI
 
-#if os(macOS)
 public class ArchiveMenuManager: NSObject, NSMenuDelegate {
     let oldTabsMenu: NSMenu
     let oldTabsMenuItem: NSMenuItem

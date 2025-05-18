@@ -12,11 +12,13 @@ import AppKit
 public typealias UINSView = NSView
 public typealias UINSColor = NSColor
 public typealias UINSImage = NSImage
+public typealias UINSFont = NSFont
 #else
 import UIKit
 public typealias UINSView = UIView
 public typealias UINSColor = UIColor
 public typealias UINSImage = UIImage
+public typealias UINSFont = UIFont
 #endif
 
 extension UINSView {

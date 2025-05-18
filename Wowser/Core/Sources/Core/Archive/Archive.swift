@@ -1,6 +1,5 @@
 import ChatToys
 import SwiftUI
-import AppKit
 
 public struct ArchiveItem: Identifiable, Codable, Equatable {
     public var id: String {

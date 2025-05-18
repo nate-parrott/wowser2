@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 // TabContextMenu - reusable context menu for tabs
 public struct TabContextMenu: View {

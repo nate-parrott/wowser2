@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 public class CallbackMenuItem: NSMenuItem {
@@ -13,3 +14,4 @@ public class CallbackMenuItem: NSMenuItem {
         callback?()
     }
 }
+#endif

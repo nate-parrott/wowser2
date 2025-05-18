@@ -1,8 +1,8 @@
-import AppKit
 import QuartzCore
 import SwiftUI
 
 #if os(macOS)
+import AppKit
 extension NSColor {
     func withAlphaComponentSafe(_ alpha: CGFloat) -> NSColor {
         NSColor(name: nil) { _ in
