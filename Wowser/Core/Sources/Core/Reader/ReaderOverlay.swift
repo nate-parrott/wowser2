@@ -18,6 +18,8 @@ struct ReaderOverlay: View {
     var body: some View {
         ZStack {
             ReaderThemePref().color(forKey: .background).swiftUI
+            
+            Color.red
                         
             WebView(webContent: webContent)
                 .onAppearOrChange(of: focusWebview, perform: { focus in
@@ -50,7 +52,8 @@ struct ReaderOverlay: View {
         }
         .onAppearOrChange(of: readableDoc) { content in
             let html = readableDoc.html(includeExitReaderButton: false, theme: ReaderThemePref().asTheme)
-            print("HTML: \(html)")
+//            print("HTML: \(html)")
+            webContent.transparent = true
             webContent.populateWithInitialHTML(html, baseURL: content.url)
 //            webContent.load(html: html, baseURL: content.url)
             webContent.delegate = webContentNavDelegate
