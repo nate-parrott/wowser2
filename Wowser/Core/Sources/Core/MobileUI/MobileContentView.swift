@@ -23,14 +23,16 @@ private struct _MobileContentView: View {
     var body: some View {
         ZStack {
             webContent
-            
+
             SearchOrb().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .padding(30)
-            
+
             if snapshot.searchActive {
                 MobileSearchOverlay()
             }
         }
+        .background(snapshot.windowBgColor?.color)
+        .ignoresSafeArea()
     }
     
     @ViewBuilder private var webContent: some View {
@@ -59,6 +61,7 @@ private struct MobileContentSnapshot: Equatable {
     var currentPane: ID<WebContent>?
     var isEmptyPage: Bool = true
     var profileID: ID<Profile>
+    var windowBgColor: HSBA?
 //    var windowSnapshot: WindowSnapshot
     
     init(state: BrowserState, windowID: ID<WindowState>) {
@@ -71,6 +74,7 @@ private struct MobileContentSnapshot: Equatable {
         self.currentPane = paneData?.id
         searchActive = window.searchOverlayActive
         self.isEmptyPage = paneData?.info.isEmptyPage ?? false
+        self.windowBgColor = paneData?.info.underPageBackgroundColor
     }
 }
 
