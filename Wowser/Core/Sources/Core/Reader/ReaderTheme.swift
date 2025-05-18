@@ -100,7 +100,7 @@ struct ReaderThemePref: Equatable, Codable {
             }
         }
     }
-    var headerFont: HeaderFont = .iowan
+    var headerFont: HeaderFont = .helvetica
 
     enum Font: String, Equatable, Codable, CaseIterable {
         case modern
@@ -262,32 +262,32 @@ struct ReaderThemePref: Equatable, Codable {
 
     func color(forKey key: ColorKey) -> UINSColor {
         switch flavor {
-//        case .normal:
-//            switch key {
-//            case .foreground:
-//                return UINSColor(named: "Foreground", bundle: .module)!
-//            case .foreground2:
-//                return UINSColor(named: "Foreground2", bundle: .module)!
-//            case .background:
-//                return UINSColor(named: "Background", bundle: .module)!
-//            case .background2:
-//                return UINSColor(named: "Background2", bundle: .module)!
-//            case .link:
-//                return UINSColor(named: "AccentRed", bundle: .module)!
-//            }
         case .warm, .normal, .cool, .highContrast:
             switch key {
             case .foreground:
-                return UINSColor(named: "SoftFG", bundle: .module)!
+                return UINSColor(named: "ReaderForeground", bundle: .module)!
             case .foreground2:
-                return UINSColor(named: "SoftFG2", bundle: .module)!
+                return UINSColor(named: "ReaderForeground2", bundle: .module)!
             case .background:
-                return UINSColor(named: "SoftBG", bundle: .module)!
+                return UINSColor(named: "ReaderBackground", bundle: .module)!
             case .background2:
-                return UINSColor(named: "SoftBG2", bundle: .module)!
+                return UINSColor(named: "ReaderBackground2", bundle: .module)!
             case .link:
-                return UINSColor(named: "SoftLink", bundle: .module)!
+                return UINSColor(named: "ReaderLink", bundle: .module)!
             }
+//        case .warm, .normal, .cool, .highContrast:
+//            switch key {
+//            case .foreground:
+//                return UINSColor(named: "SoftFG", bundle: .module)!
+//            case .foreground2:
+//                return UINSColor(named: "SoftFG2", bundle: .module)!
+//            case .background:
+//                return UINSColor(named: "SoftBG", bundle: .module)!
+//            case .background2:
+//                return UINSColor(named: "SoftBG2", bundle: .module)!
+//            case .link:
+//                return UINSColor(named: "SoftLink", bundle: .module)!
+//            }
 //        case .cool:
 //            switch key {
 //            case .foreground:
@@ -350,6 +350,13 @@ struct ReaderThemePref: Equatable, Codable {
 
         cssLines.append("body { font-size: \(size.emSize)em; }")
         cssLines.append("#__content { line-height: \(lineSpacing.cssValue); }")
+        
+        cssLines.append("#__footer { display: none !important; } ")
+        cssLines.append("""
+        @media screen and (min-width: 650px) {
+            #__content { font-size: 1.1em !important; }
+        }
+        """)
 
         theme.foreground = color(forKey: .foreground)
         theme.foreground2 = color(forKey: .foreground2)

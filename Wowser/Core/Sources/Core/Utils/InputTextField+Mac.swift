@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import SwiftUI
+import Combine
 
 public struct InputTextField: NSViewRepresentable {
     @Binding var text: String
