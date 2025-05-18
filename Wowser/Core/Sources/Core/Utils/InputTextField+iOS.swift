@@ -207,25 +207,25 @@ class _InputTextFieldView: UIView, UITextViewDelegate {
     }
     
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-        // Check for paste operations
-        if !text.isEmpty {
-            // First check large pastes
-            if let threshold = options.largePasteThreshold,
-               text.count > threshold {
-                if let pb = UIPasteboard.general.string, text == pb {
-                    onEvent?(.largePaste(text))
-                    return false
-                }
-            }
-            
-            // Then check for URLs in shorter pastes
-            if let pb = UIPasteboard.general.string,
-               text == pb,
-               isProbablyURL(text),
-               let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                onEvent?(.didPasteURL(url))
-            }
-        }
+//        // Check for paste operations
+//        if !text.isEmpty {
+//            // First check large pastes
+//            if let threshold = options.largePasteThreshold,
+//               text.count > threshold {
+//                if let pb = UIPasteboard.general.string, text == pb {
+//                    onEvent?(.largePaste(text))
+//                    return false
+//                }
+//            }
+//            
+//            // Then check for URLs in shorter pastes
+//            if let pb = UIPasteboard.general.string,
+//               text == pb,
+//               isProbablyURL(text),
+//               let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+//                onEvent?(.didPasteURL(url))
+//            }
+//        }
         
         // Handle special keys
         if text == "\n" {
