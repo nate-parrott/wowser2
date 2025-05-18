@@ -105,54 +105,11 @@ private struct SearchResultRow: View {
     }
     
     private var titleSubtitle: (String?, String?) {
-        let title = self.title
-        let subtitle = self.subtitle
+        let title = result.item.title
+        let subtitle = result.item.subtitle
         if title == "" {
             return (subtitle, nil)
         }
         return (title, subtitle)
-    }
-    
-    // Computed properties to extract user-friendly data from the SearchResult
-    private var title: String {
-        switch result.item.content {
-        case .searchWhatYouTyped(let query):
-            return query
-        case .urlYouTyped(let url):
-            return url.displayString
-        case .searchSuggestion(let query, _):
-            return query
-        case .imFeelingLucky(let query):
-            return query
-        case .historyItem(let item):
-            return item.title ?? item.url.displayString
-        case .chatbot(let query):
-            return query
-        case .tab(_, let info):
-            return info.title ?? info.url?.stripped ?? "Tab"
-        case .searchAction(let action):
-            return action.title
-        }
-    }
-    
-    private var subtitle: String? {
-        switch result.item.content {
-        case .searchWhatYouTyped:
-            return nil
-        case .urlYouTyped(let url):
-            return url.absoluteString
-        case .searchSuggestion:
-            return nil
-        case .imFeelingLucky:
-            return "Direct to Website"
-        case .chatbot:
-            return "Chat"
-        case .historyItem(let item):
-            return item.url.displayString
-        case .tab(_, _):
-            return "Switch to Tab"
-        case .searchAction:
-            return "Action"
-        }
     }
 }

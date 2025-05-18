@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import AppKit
 
 public class ArchiveMenuItem: NSMenuItem {
@@ -90,3 +92,5 @@ extension NSImage {
         return NSImage(named: "MenuPlaceholderIcon")!
     }()
 }
+
+#endif

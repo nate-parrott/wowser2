@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 // Favorites grid snapshot to compute the layout
 struct FavoritesGridSnapshot: Equatable {
@@ -231,32 +230,6 @@ struct PlaceholderFavoriteCell: View {
     }
 }
 
-//struct EmptyStateDropTarget: View {
-//    var text: String
-//    @Environment(\.profileID) private var profileID
-//    
-//    var body: some View {
-//        Text(text)
-//            .multilineTextAlignment(.center)
-//            .font(.caption)
-//            .padding(6)
-//            .foregroundStyle(.secondary)
-//            .lineLimit(nil)
-//            .frame(maxWidth: .infinity)
-//            .frame(height: 40)
-//            .background {
-//                RoundedRectangle(cornerRadius: 8, style: .continuous)
-//                    .fill(Color.primary)
-//                    .opacity(0.1)
-//            }
-//            .sidebarDropTarget { _, _ in 
-//                // When dropping in empty favorites section, it's always at the end of manual favorites
-//                guard let profileID = profileID else { return nil }
-//                return .favorites(profile: profileID, before: nil)
-//            }
-//    }
-//}
-
 // Helper functions
 func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
     BrowserStore.shared.modify { state in 
@@ -277,13 +250,6 @@ func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {
         }
     }
 }
-
-//// Helper function to extract tab metadata
-//func getTabTitle(tab: Tab) -> String {
-//    return tab.panes.first?.info.title?.nilIfEmpty ??
-//           tab.panes.first?.info.url?.host ??
-//           "New Tab"
-//}
 
 private struct ResetBadge: View {
     var body: some View {
