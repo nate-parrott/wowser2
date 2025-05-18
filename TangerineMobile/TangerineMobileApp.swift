@@ -1,10 +1,3 @@
-//
-//  TangerineMobileApp.swift
-//  TangerineMobile
-//
-//  Created by Nate Parrott on 5/17/25.
-//
-
 import SwiftUI
 import Core
 
@@ -31,38 +24,39 @@ struct TangerineMobileApp: App {
     }
     
     var body: some Scene {
-        WindowGroup {
-            Content()
+//        WindowGroup {
+//            Content()
+//        }
+        WindowGroup(for: ID<WindowState>.self) { $windowID in
+            Content(windowID: windowID)
+        } defaultValue: {
+            BrowserStore.shared.model.newWindow().id
         }
     }
 }
 
 struct Content: View {
-    @State private var windowID: ID<WindowState>?
+    var windowID: ID<WindowState>
     @State private var lastBackgroundDate: Date?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
-            if let windowID {
-                MobileContentView(windowID: windowID)
-            }
+            MobileContentView(windowID: windowID)
         }
-        .onAppear {
-            if windowID == nil {
-                windowID = BrowserStore.shared.model.newWindow().id
-                if let windowID {
-                    BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
-                }
-            }
-        }
+//        .onAppear {
+//            if windowID == nil {
+//                windowID = BrowserStore.shared.model.newWindow().id
+//                if let windowID {
+//                    BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
+//                }
+//            }
+//        }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
                 let now = Date()
                 if lastBackgroundDate == nil || now.timeIntervalSince(lastBackgroundDate!) > UIConstants.mobileKeyboardReopenAfterIdleTime {
-                    if let windowID {
-                        BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
-                    }
+                    BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
                 }
             } else if newPhase == .background {
                 lastBackgroundDate = Date()
