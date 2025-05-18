@@ -59,7 +59,7 @@ struct Content: View {
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
                 let now = Date()
-                if lastBackgroundDate == nil || now.timeIntervalSince(lastBackgroundDate!) > 5 {
+                if lastBackgroundDate == nil || now.timeIntervalSince(lastBackgroundDate!) > UIConstants.mobileKeyboardReopenAfterIdleTime {
                     if let windowID {
                         BrowserStore.shared.model.windows[windowID]?.searchOverlayActive = true
                     }
