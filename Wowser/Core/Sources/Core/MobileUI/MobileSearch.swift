@@ -9,7 +9,7 @@ struct MobileSearchOverlay: View {
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     var body: some View {
-        Color.white.opacity(0.01)
+        Color.black.opacity(0.5)
             .edgesIgnoringSafeArea(.all)
             .onTapGesture {
                 dismissOverlay()
@@ -27,6 +27,7 @@ struct MobileSearchOverlay: View {
         }
         .onAppear {
             focusDate = Date()
+            searcher.n = 4
         }
         .onAppearOrChange(of: profileID) { profileID in
             searcher.profileID = profileID
@@ -38,9 +39,10 @@ struct MobileSearchOverlay: View {
             searcher.query = newValue
             selectedResultIndex = 0 // Reset selection when query changes
         }
-        .frame(width: 280)
+        .frame(maxWidth: 320)
         .frame(height: 300, alignment: .top)
         .padding(.bottom, 220) // TODO: use KB height
+        .padding(30)
     }
     
     @ViewBuilder private var inputField: some View {
@@ -49,8 +51,8 @@ struct MobileSearchOverlay: View {
             text: $searchText,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
-                font: .systemFont(ofSize: 14, weight: .regular),
-                insets: CGSize(width: 16, height: 16),
+                font: .systemFont(ofSize: 18, weight: .regular),
+                insets: CGSize(width: 18, height: 18),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
                 lineLimit: 1
@@ -58,7 +60,7 @@ struct MobileSearchOverlay: View {
             focusDate: focusDate,
             onEvent: handleTextFieldEvent
         )
-        .frame(height: 46)
+        .frame(height: 54)
     }
     
     // Handle text field events
@@ -120,6 +122,8 @@ struct MobileSearchOverlay: View {
                 .id(index)
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.bottom, searcher.results.count > 0 ? 6 : 0)
     }
 }
 
@@ -135,23 +139,23 @@ private struct MobileSearchResultRow: View {
         Button(action: onSelect) {
             HStack(spacing: 8) {
                 // Icon
-                SearchIcon(item: result.item, size: 20, selected: isSelected)
+                SearchIcon(item: result.item, size: 18, selected: isSelected)
                 
                 if let title {
                     Text(title + "  ")
-                        .font(.system(size: 13))
+                        .font(.system(size: 18))
                         .layoutPriority(2)
                 }
                 
                 Text(subtitle ?? "")
-                    .font(.system(size: 12))
+                    .font(.system(size: 18))
                     .layoutPriority(1)
                     .opacity(0.5)
                 
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 12)
             .contentShape(Rectangle())
             .lineLimit(1)
         }
