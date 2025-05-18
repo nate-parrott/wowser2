@@ -37,6 +37,7 @@
 		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Core,
 				Info.plist,
 			);
 			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
@@ -429,14 +430,16 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Wowser/Wowser.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tangerine;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -467,14 +470,16 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Wowser/Wowser.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tangerine;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
