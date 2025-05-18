@@ -43,7 +43,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		35081F062DD97078007561FA /* TangerineMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TangerineMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		35081F062DD97078007561FA /* Tangerine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tangerine.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		35081F152DD9707A007561FA /* TangerineMobileTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TangerineMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		35081F1F2DD9707A007561FA /* TangerineMobileUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TangerineMobileUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		357E5AED2D7E3510009CD80F /* Tangerine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tangerine.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +52,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		35081F492DD9A235007561FA /* Exceptions for "TangerineMobile" folder in "TangerineMobile" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 35081F052DD97078007561FA /* TangerineMobile */;
+		};
 		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -65,6 +72,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		35081F072DD97078007561FA /* TangerineMobile */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				35081F492DD9A235007561FA /* Exceptions for "TangerineMobile" folder in "TangerineMobile" target */,
+			);
 			path = TangerineMobile;
 			sourceTree = "<group>";
 		};
@@ -166,7 +176,7 @@
 				357E5AED2D7E3510009CD80F /* Tangerine.app */,
 				357E5AFE2D7E3511009CD80F /* WowserTests.xctest */,
 				357E5B082D7E3511009CD80F /* WowserUITests.xctest */,
-				35081F062DD97078007561FA /* TangerineMobile.app */,
+				35081F062DD97078007561FA /* Tangerine.app */,
 				35081F152DD9707A007561FA /* TangerineMobileTests.xctest */,
 				35081F1F2DD9707A007561FA /* TangerineMobileUITests.xctest */,
 			);
@@ -204,7 +214,7 @@
 				35081F322DD970A4007561FA /* Core */,
 			);
 			productName = TangerineMobile;
-			productReference = 35081F062DD97078007561FA /* TangerineMobile.app */;
+			productReference = 35081F062DD97078007561FA /* Tangerine.app */;
 			productType = "com.apple.product-type.application";
 		};
 		35081F142DD9707A007561FA /* TangerineMobileTests */ = {
@@ -517,6 +527,11 @@
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TangerineMobile/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can use the camera with permission.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can use your location with permission.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can use the microphone with permission.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Websites can access your motion data with permission.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -529,7 +544,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobile;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Tangerine;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -551,6 +566,11 @@
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TangerineMobile/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can use the camera with permission.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can use your location with permission.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can use the microphone with permission.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Websites can access your motion data with permission.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -563,7 +583,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobile;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Tangerine;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

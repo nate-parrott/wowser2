@@ -7,6 +7,7 @@ struct SearchIcon: View {
     var selected = false
     
     public var body: some View {
+        let iconOpacity: CGFloat = selected ? 1 : 0.4
         Group {
             switch item.content {
             case .urlYouTyped(let url):
@@ -17,21 +18,26 @@ struct SearchIcon: View {
                 
             case .searchWhatYouTyped:
                 Image(systemName: "magnifyingglass")
+                    .opacity(iconOpacity)
 //                    .foregroundColor(.blue)
                 
             case .chatbot:
                 Image(systemName: "questionmark.bubble")
+                    .opacity(iconOpacity)
                 
             case .searchSuggestion:
                 Image(systemName: "magnifyingglass")
+                    .opacity(iconOpacity)
 //                    .foregroundColor(.blue)
                 
             case .imFeelingLucky:
                 Image(systemName: "arrow.forward.circle.fill")
+                    .opacity(iconOpacity)
 //                    .foregroundColor(.blue)
                 
             case .searchAction:
                 Image(systemName: "arrow.right.circle.fill")
+                    .opacity(iconOpacity)
                 
             case .tab(_, let info):
                 FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
