@@ -24,15 +24,20 @@ private struct _MobileContentView: View {
         ZStack {
             webContent
 
-            SearchOrb().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            SearchOrb()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .padding(30)
 
             if snapshot.searchActive {
                 MobileSearchOverlay()
             }
         }
-        .background(snapshot.windowBgColor?.color)
-        .ignoresSafeArea()
+        .background {
+            Group {
+                snapshot.windowBgColor?.color
+            }
+            .ignoresSafeArea()
+        }
     }
     
     @ViewBuilder private var webContent: some View {
@@ -42,6 +47,7 @@ private struct _MobileContentView: View {
                 .overlay(alignment: .top) {
                     loader.padding(6)
                 }
+                .edgesIgnoringSafeArea(.bottom)
         } else {
             Color.clear
         }
