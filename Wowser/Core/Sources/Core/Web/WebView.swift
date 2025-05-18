@@ -38,7 +38,21 @@ struct WebViewRepresentable: NSViewRepresentable {
 }
 
 #else
-// TODO
+struct WebViewRepresentable: UIViewRepresentable {
+    var webContent: WebContent
+    var shrunk: Bool
+    
+    func makeUIView(context: Context) -> WebviewContainer {
+        let container = WebviewContainer()
+        container.webview = webContent.webview
+        container.shrunk = shrunk
+        return container
+    }
+    
+    func updateUIView(_ uiView: WebviewContainer, context: Context) {
+        uiView.shrunk = shrunk
+    }
+}
 #endif
 
 // When `elementFullscreen` is enabled, the WKWebview may occasionally take itself out of the view hierarchy to go fullscreen.
@@ -46,7 +60,7 @@ struct WebViewRepresentable: NSViewRepresentable {
 // We should avoid adding the WKWebView directly to the view hierarchy, because SwiftUI might try to re-mount the view.
 // So instead, we put it in a container.
 
-private class WebviewContainer: UINSView {
+class WebviewContainer: UINSView {
     var webview: WebContentWebView? {
         didSet {
             if webview !== oldValue {

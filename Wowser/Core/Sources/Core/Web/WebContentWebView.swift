@@ -5,17 +5,6 @@ public class WebContentWebView: WKWebView {
     var onDarkModeChanged: ((Bool) -> Void)?
     var onBecomeFirstResponder: (() -> Void)?
     
-    func updateFrameEvenWhileShrunk(_ frame: CGRect) {
-        if let layer {
-            let t = layer.transform
-            layer.transform = .init()
-            self.frame = frame
-            layer.transform = t
-        } else {
-            self.frame = frame
-        }
-    }
-    
     var shrunk: Bool = false {
         didSet {
             if shrunk != oldValue {
@@ -38,7 +27,7 @@ public class WebContentWebView: WKWebView {
                     let endTransform = CATransform3DIdentity
                     
                     // Apply initial transform
-                    layer?.transform = startTransform
+                    crossPlatformLayer.transform = startTransform
                     
                     // Create animation with niceDefault timing curve
                     let animation = CABasicAnimation(keyPath: "transform")
@@ -50,8 +39,8 @@ public class WebContentWebView: WKWebView {
                     animation.isRemovedOnCompletion = true
                     
                     // Apply animation
-                    layer?.add(animation, forKey: "showTransform")
-                    layer?.transform = endTransform
+                    crossPlatformLayer.add(animation, forKey: "showTransform")
+                    crossPlatformLayer.transform = endTransform
                 } else {
                     // Create a transform that scales about the center point
                     let bounds = self.bounds
@@ -68,14 +57,14 @@ public class WebContentWebView: WKWebView {
                     transform = CATransform3DTranslate(transform, -centerX, -centerY, 0)
                     
                     // Set immediately when hiding
-                    layer?.transform = transform
+                    crossPlatformLayer.transform = transform
                 }
             }
         }
     }
 
     #if os(iOS)
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection){

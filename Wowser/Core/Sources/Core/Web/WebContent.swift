@@ -114,7 +114,9 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         if #available(macOS 14.0, *) {
             config.preferences.inactiveSchedulingPolicy = .throttle
             // https://stackoverflow.com/questions/78758812/wkwebview-oauth-popup-misses-window-opener-in-ios-17-5
+            #if os(macOS)
             GlobalHacks.hacks!.fixPreferences(config.preferences)
+            #endif
 //            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
         }
         if #available(macOS 14.0, *) {
@@ -269,7 +271,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         if transparent {
             webview.backgroundColor = nil
         } else if autoDarkMode {
-            webview.backgroundColor = UIColor(named: "PureBackground")!
+            webview.backgroundColor = UIColor(named: "PureBackground", bundle: .module)!
         } else {
             webview.backgroundColor = UIColor.white
         }

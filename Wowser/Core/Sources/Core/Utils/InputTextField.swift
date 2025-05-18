@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import Combine
 
 public enum TextFieldEvent {
@@ -30,7 +29,7 @@ public struct InputTextFieldOptions: Equatable {
     var selectAllOnFocus: Bool = false
     var lineLimit: Int? = nil
     
-    var effectivePlaceholderColor: NSColor {
+    var effectivePlaceholderColor: UINSColor {
         return placeholderColor ?? color.withAlphaComponentSafe(0.5)
     }
 
@@ -45,7 +44,7 @@ public struct InputTextFieldOptions: Equatable {
                 font: UINSFont = UINSFont.systemFont(ofSize: 14),
                 color: UINSColor = UINSColor.textColor,
                 insets: CGSize = CGSize(width: 0, height: 0), 
-                placeholderColor: NSColor? = nil, 
+                placeholderColor: UINSColor? = nil, 
                 requireCmdEnter: Bool = false, 
                 wantsUpDownArrowEvents: Bool = true, 
                 largePasteThreshold: Int? = nil, 

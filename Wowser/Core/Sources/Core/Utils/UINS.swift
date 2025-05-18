@@ -29,6 +29,17 @@ extension UINSView {
         return effectiveAppearance.name == .darkAqua ? .dark : .light
         #endif
     }
+    
+    var crossPlatformLayer: CALayer! {
+        #if os(macOS)
+        if !wantsLayer {
+            wantsLayer = true
+        }
+        return layer
+        #else
+        return layer
+        #endif
+    }
 }
 
 extension UINSColor {
@@ -37,6 +48,30 @@ extension UINSColor {
         return Color(uiColor: self)
         #else
         return Color(nsColor: self)
+        #endif
+    }
+}
+
+#if os(iOS)
+
+extension UIColor {
+    public static var textColor: UIColor {
+        label
+    }
+    
+    convenience init?(named: String, bundle: Bundle) {
+        self.init(named: named, in: bundle, compatibleWith: nil)
+    }
+}
+
+#endif
+
+extension UINSImage {
+    var swiftUI: Image {
+        #if os(iOS)
+        return Image(uiImage: self)
+        #else
+        return Image(nsImage: self)
         #endif
     }
 }

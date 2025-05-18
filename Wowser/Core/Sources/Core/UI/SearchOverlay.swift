@@ -59,7 +59,6 @@ public struct SearchResultsOverlay: View {
         .padding(10)
     }
     
-    // Dismiss the search overlay
     private func dismissOverlay() {
         BrowserStore.shared.modify { state in
             if let windowID = windowID {
