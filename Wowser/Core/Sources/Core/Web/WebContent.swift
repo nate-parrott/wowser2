@@ -76,6 +76,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var inferredDarkMode = false
         public var autoDarkModeApplied = false
         public var topColor: HSBA?
+        public var underPageBackgroundColor: HSBA?
         public var favicon: URL?
         public var ogImage: URL?
         public var isSecure = false
@@ -177,10 +178,11 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         }))
 
         observers.append(webview.observe(\.underPageBackgroundColor, options: [.new], changeHandler: { [weak self] _, val in
-            self?.refreshAutoDarkMode()
-//            if let self {
-//                self.info.topColor = self.webview.underPageBackgroundColor.hsba
-//            }
+            guard let self else { return }
+            self.refreshAutoDarkMode()
+            var updatedInfo = self.info
+            updatedInfo.underPageBackgroundColor = val.newValue?.hsba
+            self.info = updatedInfo
         }))
 
 
@@ -466,6 +468,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         info.title = webview.title
         info.isSecure = webview.hasOnlySecureContent
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
+        info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba
         self.info = info
         
         Task {
@@ -514,6 +517,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     private func refreshAutoDarkMode() {
         guard autoDarkMode else { return }
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
+        info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba
         updateInjectedCode()
     }
     
