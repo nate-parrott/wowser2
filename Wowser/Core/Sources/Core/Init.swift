@@ -5,6 +5,9 @@ public enum Preheat {
     public static func preheat() {
         _ = ArchiveStore.shared // Force initial load on main
         OmniboxClassifierLabel.preheat()
+        Task {
+            _ = await ThumbnailCache.shared
+        }
 //        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 //            DispatchQueue.global().async {
 //                OmniboxClassifierLabel.preheat()
