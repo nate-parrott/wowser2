@@ -278,6 +278,13 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
             webview.backgroundColor = UIColor.white
         }
         webview.isOpaque = !transparent
+        #else
+        // TODO
+//        let secretSelector = NSSelectorFromString("setDrawsFish:".replacingOccurrences(of: "Fish", with: "Background"))
+//        let secretProp = "drawsFish".replacingOccurrences(of: "Fish", with: "Background")
+//        if webview.responds(to: secretSelector) {
+//            webview.setValue(!transparent, forKey: secretProp)
+//        }
         #endif
     }
 
