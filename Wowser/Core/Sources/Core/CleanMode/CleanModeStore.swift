@@ -41,7 +41,7 @@ extension CleanModeState {
         var dict = [String: CleanModeConfig]()
         dict["mail.google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "iframe[name=callout] { display: none !important; }")
         dict["cnn.com"] = CleanModeConfig(autoReaderRegexes: ["/.{5,}$"])
-        dict["google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "* { font-family: 'Comic Sans MS' !important; }")
+//        dict["google.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: "* { font-family: 'Comic Sans MS' !important; }")
         dict["medium.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: """
         #credential_picker_container { display: none !important }
         div[style^='top']:has(button) { display: none !important; }
@@ -88,6 +88,12 @@ extension CleanModeState {
 
 class CleanModeStore: DataStore<CleanModeState> {
     static let shared = CleanModeStore(persistenceKey: "CleanModeStore", defaultModel: .init(), queue: .main)
+    
+    func resetToDefault() {
+        modify { state in
+            state.hostSettings = CleanModeState.defaultHostSettings
+        }
+    }
     
     func cleanModeSnapshotForFocusedPane(windowID: ID<WindowState>) -> AnyPublisher<CleanModeSnapshotForPane, Never> {
         BrowserStore.shared.uiPublisher.map({ $0.currentPane(forWindow: windowID)?.id }).removeDuplicates()

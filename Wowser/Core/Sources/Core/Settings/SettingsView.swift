@@ -186,9 +186,18 @@ extension Binding where Value == Bool {
 
 struct DebugSettings: View {
     var body: some View {
-        Section("Debug") {
-            Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
-                Text("Clear AI tags")
+        Form {
+            Section("Debug") {
+                Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
+                    Text("Clear AI tags")
+                }
+            }
+            
+            Section("Advanced") {
+                Button(action: { CleanModeStore.shared.resetToDefault() }) {
+                    Text("Reset clean mode store")
+                }
+                .help("Resets all clean mode settings to default values")
             }
         }
     }
