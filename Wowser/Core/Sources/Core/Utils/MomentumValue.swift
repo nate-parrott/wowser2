@@ -123,7 +123,7 @@ public class MomentumValue: ObservableObject {
     public func expectedLandingPosition(velocity: CGFloat? = nil) -> CGFloat {
         let decayAnim = DecayAnimation(initialValue: value * scale, decayConstant: decay.decayConstant)
         decayAnim.resolvingEpsilon = decay.resolvingEpsilon
-        decayAnim.velocity = velocity ?? self.velocity
+        decayAnim.velocity = (velocity ?? self.velocity) * scale
         var values = [AnyObject]()
         var keyTimes = [NSNumber]()
         _ = decayAnim.populateKeyframeAnimationData(dt: 1.0 / 30, values: &values, keyTimes: &keyTimes)
