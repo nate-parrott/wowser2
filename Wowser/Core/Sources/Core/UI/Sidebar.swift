@@ -6,6 +6,7 @@ public struct Sidebar: View {
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     private let browserStore = BrowserStore.shared
+    var width: CGFloat? = UIConstants.sidebarWidth
         
     public var body: some View {
         // Use the snapshot pattern to observe only necessary data
@@ -20,6 +21,7 @@ public struct Sidebar: View {
             )
         } main: { snapshot in
             SidebarContent(snapshot: snapshot, floating: floating)
+                .frame(width: width)
         }
     }
 }
@@ -156,7 +158,6 @@ private struct SidebarContent: View {
             SidebarBottomButtons(windowID: snapshot.windowID)
                 .padding(.bottom, 8)
         }
-        .frame(width: UIConstants.sidebarWidth)
         .contextMenu {
             ProfilePicker(
                 currentProfileID: snapshot.profileID,

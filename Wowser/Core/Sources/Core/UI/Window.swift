@@ -196,7 +196,7 @@ public struct BrowserWindow_Previews: PreviewProvider {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func withFloatingSidebarContainer() -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)

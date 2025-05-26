@@ -36,6 +36,7 @@ private struct SidebarSwipeContent: View {
     let snapshot: SidebarSwipeSnapshot
     let windowID: ID<WindowState>
     @Binding var selectedProfileID: String?
+    @State private var width = UIConstants.sidebarWidth
     
     var body: some View {
         VStack(spacing: 0) {
@@ -46,12 +47,12 @@ private struct SidebarSwipeContent: View {
                             windowID: windowID,
                             profileID: profileID
                         )
-                        .frame(width: UIConstants.sidebarWidth)
+                        .frame(width: width)
                         .id(profileID.raw)
                     }
                     
                     NewProfileView(windowID: windowID)
-                        .frame(width: UIConstants.sidebarWidth)
+                        .frame(width: width)
                         .id("new-profile")
                 }
             }
@@ -75,6 +76,7 @@ private struct SidebarSwipeContent: View {
                     selectedProfileID = newValue.raw
                 }
             }
+            .measureSize({ width = $0.width })
             
             // Add the paging dots below the carousel
             if snapshot.profileIDs.count > 1 {

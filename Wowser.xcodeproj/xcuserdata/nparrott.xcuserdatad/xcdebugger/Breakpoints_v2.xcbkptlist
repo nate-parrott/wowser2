@@ -628,8 +628,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/SwipeableProfileSidebar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "96"
-            endingLineNumber = "96"
+            startingLineNumber = "98"
+            endingLineNumber = "98"
             landmarkName = "ProfilePageView"
             landmarkType = "14">
          </BreakpointContent>
@@ -644,8 +644,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/SwipeableProfileSidebar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "79"
-            endingLineNumber = "79"
+            startingLineNumber = "81"
+            endingLineNumber = "81"
             landmarkName = "body"
             landmarkType = "24">
          </BreakpointContent>
@@ -660,8 +660,8 @@
             filePath = "Wowser/Core/Sources/Core/UI/SwipeableProfileSidebar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "84"
-            endingLineNumber = "84"
+            startingLineNumber = "86"
+            endingLineNumber = "86"
             landmarkName = "body"
             landmarkType = "24">
          </BreakpointContent>

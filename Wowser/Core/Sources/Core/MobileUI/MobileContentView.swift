@@ -21,10 +21,22 @@ private struct _MobileContentView: View {
     @Environment(\.windowID) private var windowID
     @StateObject private var orbUnitX = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
     @StateObject private var orbUnitY = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
+    @State private var size = CGSize(width: 100, height: 100)
     
     var body: some View {
         ZStack {
             webContent
+            
+            // sidebar dismisser
+            Color.black.opacity(remapClamped(x: orbUnitY.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
+                .onTapGesture {
+                    orbUnitY.animate(toValue: 1, velocity: 0)
+                }
+            
+            Sidebar(floating: true, width: nil)
+                .withFloatingSidebarContainer()
+                .offset(y: remap(x: orbUnitY.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: size.height + 50))
+                .padding(.horizontal, 10)
 
             SearchOrb(xPos: orbUnitX, yPos: orbUnitY)
             
@@ -32,6 +44,7 @@ private struct _MobileContentView: View {
                 MobileSearchOverlay()
             }
         }
+        .measureSize({ self.size = $0 })
         .background {
             Group {
                 snapshot.windowBgColor?.color
