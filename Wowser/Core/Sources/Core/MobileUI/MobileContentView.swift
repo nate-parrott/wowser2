@@ -43,11 +43,14 @@ private struct _MobileContentView: View {
     @ViewBuilder private var webContent: some View {
         let focused = !snapshot.searchActive
         if let paneID = snapshot.currentPane, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
-            WrappedWebView(webContent: webContent, isFocused: focused, shrunk: snapshot.isEmptyPage)
-                .overlay(alignment: .top) {
-                    loader.padding(6)
-                }
-                .edgesIgnoringSafeArea(.bottom)
+            DragToGoBackView(webContent: webContent) {
+                WrappedWebView(webContent: webContent, isFocused: focused, shrunk: snapshot.isEmptyPage)
+                    .edgesIgnoringSafeArea(.bottom)
+            }
+            .edgesIgnoringSafeArea(.all)
+            .overlay(alignment: .top) {
+                loader.padding(6)
+            }
         } else {
             Color.clear
         }
