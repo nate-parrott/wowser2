@@ -1,4 +1,8 @@
+#if os(iOS)
 import UIKit
+#endif
+
+import Foundation
 
 class Haptics {
     static let shared = Haptics()

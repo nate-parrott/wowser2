@@ -55,6 +55,14 @@ extension CleanModeState {
         [aria-label='Primary'] [aria-label='Premium'] { display: none !important; }
         [data-testid='GrokDrawer'] { display: none !important; }
         """)
+        dict["stackoverflow.com"] = CleanModeConfig(autoReaderRegexes: [], injectCSS: """
+        #credential_picker_container,
+        #left-sidebar >.js-sticky-leftnav,
+        #content [role="complementary"]
+        {
+            display: none !important;
+        }            
+        """)
         return dict
     }()
     

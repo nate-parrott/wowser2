@@ -99,7 +99,7 @@ private struct AnswerPageModel {
             }
             .url { display: flex; align-items: center; }
             .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
-            .url span { font-size: small; } 
+            .url span { font-size: small; width: 0; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } 
             #results h3 { color: inherit; } 
             #results p { font-size: small; }
             #results > li > a > * { margin-top: 0; margin-bottom: 8px; }

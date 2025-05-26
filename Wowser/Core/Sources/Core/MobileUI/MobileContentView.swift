@@ -50,6 +50,7 @@ private struct _MobileContentView: View {
     @ViewBuilder private var webContent: some View {
         let focused = !snapshot.searchActive
         if let paneID = snapshot.currentPane, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
+            #if os(iOS)
             DragToGoBackView(webContent: webContent) {
                 WrappedWebView(webContent: webContent, isFocused: focused, shrunk: snapshot.isEmptyPage)
                     .edgesIgnoringSafeArea(.bottom)
@@ -58,6 +59,9 @@ private struct _MobileContentView: View {
             .overlay(alignment: .top) {
                 loader.padding(6)
             }
+            #else
+            EmptyView()
+            #endif
         } else {
             Color.clear
         }
