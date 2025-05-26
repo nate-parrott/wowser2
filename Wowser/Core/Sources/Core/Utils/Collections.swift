@@ -34,8 +34,11 @@ extension Sequence {
             return el
         }
     }
+    
+    func sorted<K: Comparable>(key: (Element) -> K) -> [Element] {
+        sorted(by: { key($0) < key($1) })
+    }
 }
-
 
 public extension Array {
     func get(_ idx: Int) -> Element? {
