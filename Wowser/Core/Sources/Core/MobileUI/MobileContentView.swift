@@ -28,8 +28,12 @@ private struct _MobileContentView: View {
             webContent
 
             SearchOrb(xPos: orbUnitX, yPos: orbUnitY)
+                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             
             MobileSidebarOverlay(viewSize: size, orbYPos: orbUnitY)
+                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             
             if snapshot.searchActive {
                 GeometryReader { geo in
@@ -42,7 +46,11 @@ private struct _MobileContentView: View {
                 }
             }
         }
-        .measureSize({ self.size = $0 })
+        .background {
+            Color.clear
+                .measureSize({ self.size = $0 })
+                .edgesIgnoringSafeArea(.all)
+        }
         .background {
             Group {
                 snapshot.windowBgColor?.color
@@ -96,24 +104,6 @@ private struct MobileSidebarOverlay: View {
     var viewSize: CGSize
     @ObservedObject var orbYPos: MomentumValue // controls presentation of sidebar
     
-//    var body: some View {
-//        // sidebar dismisser
-//        Color.black.opacity(remapClamped(x: orbYPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
-//            .onTapGesture {
-//                orbYPos.animate(toValue: 1, velocity: 0)
-//            }
-//            .edgesIgnoringSafeArea(.all)
-//
-//        Sidebar(floating: true, width: nil)
-//        .withFloatingSidebarContainer()
-//        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 0, rangeEnd: viewSize.height + 50))
-//        .padding(50)
-//    }
-
-    
-//    var viewSize: CGSize
-//    @ObservedObject var orbYPos: MomentumValue // controls presentation of sidebar
-//    
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     
@@ -132,9 +122,9 @@ private struct MobileSidebarOverlay: View {
                     .environment(\.windowID, windowID)
                     .environment(\.profileID, profileID)
                     .overlay {
-                        if case .overscrolled(let offset, _) = state {
-                            Color.clear.onChange(of: offset.y) { yOffset in
-                                orbYPos.value = offset.y / offsetRange
+                        if case .overscrolled(let values) = state, values.isDragging {
+                            Color.clear.onChange(of: values.realOffset.y) { yOffset in
+                                orbYPos.value = values.realOffset.y / offsetRange
                             }
                         }
                     }
@@ -144,22 +134,22 @@ private struct MobileSidebarOverlay: View {
             #endif
         }
         .withFloatingSidebarContainer()
-        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))
-        .padding(.horizontal, 20)
+        .offset(y: orbYPos.rubberBandedValue * viewSize.height)
+//        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))
+        .padding(.top, 80)
     }
     
     private var offsetRange: CGFloat {
-        viewSize.height + 50 - 70
+        viewSize.height
     }
     
     func didReleaseDrag(_ state: OverscrollState) {
-        // TODO: use velocity
-        if case .overscrolled(let offset, _) = state {
-            let dismissRatio = offset.y / offsetRange
-            if dismissRatio > 0.3 {
-                orbYPos.animate(toValue: 1, velocity: 0)
+        if case .overscrolled(let values) = state {
+            let dismissRatio = values.realOffset.y / offsetRange
+            if abs(orbYPos.velocity) > 1 {
+                orbYPos.animate(toValue: orbYPos.velocity < 0 ? 0 : 1, velocity: orbYPos.velocity)
             } else {
-                orbYPos.animate(toValue: 0, velocity: 0)
+                orbYPos.animate(toValue: dismissRatio > 0.5 ? 1 : 0, velocity: orbYPos.velocity)
             }
         }
     }
@@ -192,15 +182,18 @@ struct SearchOrb: View {
     @ObservedObject var yPos: MomentumValue
     @Environment(\.windowID) private var windowID
     
-    var orbSize: CGFloat = 70
+    var orbSize: CGFloat = 80
     @State private var size = CGSize(width: 100, height: 100)
     @State private var unitPosAtStartOfDrag: UnitPoint?
     @State private var dragCanBeTap = false
     
     var body: some View {
+        let dragging = unitPosAtStartOfDrag != nil
         Color.clear.overlay {
-            SearchOrbInner(dragInProgress: unitPosAtStartOfDrag != nil)
+//            SearchOrbInner(dragInProgress: unitPosAtStartOfDrag != nil)
+            DraggableFruit(dragVector: dragVector, distFromFloor: (1 - yPos.rubberBandedValue) * size.height, grabbed: dragging)
                 .frame(both: orbSize)
+                .opacity(remapClamped(x: yPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 1, rangeEnd: 0)) // fade out as it gets super high
                 .gesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .global)
                     .onChanged(dragged(_:))
@@ -209,6 +202,13 @@ struct SearchOrb: View {
                 .position(unitToRealPosition(posRubberBanded))
         }
         .measureSize({ self.size = $0 })
+    }
+    
+    var dragVector: CGPoint {
+        CGPoint(
+            x: (xPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1),
+            y: (yPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1),
+        )
     }
     
     var pos: UnitPoint {

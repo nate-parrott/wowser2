@@ -46,4 +46,8 @@ extension CGFloat {
         // TODO: can be done more efficiently
         vals.sorted(key: { abs($0 - self) }).first ?? self
     }
+    
+    func clamp(minVal: CGFloat = 0, maxVal: CGFloat = 1) -> CGFloat {
+        Swift.max(minVal, Swift.min(maxVal, self))
+    }
 }

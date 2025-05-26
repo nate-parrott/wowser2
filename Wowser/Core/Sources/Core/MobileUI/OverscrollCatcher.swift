@@ -7,7 +7,15 @@ struct OverscrollCatcherOptions: Equatable {
 
 enum OverscrollState: Equatable {
     case atRest
-    case overscrolled(offset: CGPoint /* positive if we swipe right/down */, draggingAtPos: CGPoint?)
+    case overscrolled(Values)
+    
+    struct Values: Equatable {
+        var rubberBandedOffset: CGPoint
+        var realOffset: CGPoint
+        var touchPos: CGPoint
+        var velocity: CGPoint // real, not rubber-banded
+        var isDragging: Bool
+    }
 }
 
 #if os(iOS)
@@ -101,7 +109,8 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
     // MARK: - UIScrollViewDelegate
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        self.state = .overscrolled(offset: curOffset, draggingAtPos: scrollView.isDragging ? scrollView.panGestureRecognizer.location(in: scrollView) : nil)
+//        self.state = .overscrolled(offset: curOffset, draggingAtPos: scrollView.isDragging ? scrollView.panGestureRecognizer.location(in: scrollView) : nil)
+        self.state = .overscrolled(.init(rubberBandedOffset: curOffset, realOffset: nonRubberBandedOffset, touchPos: scrollView.panGestureRecognizer.location(in: scrollView), velocity: velocity, isDragging: scrollView.isDragging))
         self.view.setNeedsLayout()
     }
     
@@ -119,35 +128,46 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
         }
     }
     
+    // We negate overscroll but not velocity or drag translation
     private var curOffset: CGPoint {
         return CGPoint(
             x: -scrollView.contentOffset.x * (options.horizontal ? 1 : 0),
             y:  -scrollView.contentOffset.y * (options.vertical ? 1 : 0)
         )
     }
-}
-
-struct OverscrollPreview: View {
-    var body: some View {
-        OverscrollCatcher(options: .init()) { state in
-            Color.red
-                .overlay {
-                    if case .overscrolled(let offset, let draggingAtPos) = state, let draggingAtPos {
-                        let committed = abs(offset.x) > 50
-                        let back = offset.x > 0
-                        let icon: String = back ? (committed ? "arrow.backward.circle.fill" : "arrow.backward") :
-                        (committed ? "arrow.forward.circle.fill" : "arrow.forward")
-                        BackForwardGestureIndicator(offset: offset, fingerPos: draggingAtPos, icon: icon, lockedIn: committed)
-                            .onChange(of: committed) { newValue in
-                                if newValue {
-                                    Haptics.shared.performSelectionHaptic()
-                                }
-                            }
-                    }
-                }
-        }
+    
+    private var nonRubberBandedOffset: CGPoint {
+        let offset = scrollView.panGestureRecognizer.translation(in: nil)
+        return offset
+    }
+    
+    private var velocity: CGPoint {
+        let offset = scrollView.panGestureRecognizer.velocity(in: nil)
+        return offset
     }
 }
+
+//struct OverscrollPreview: View {
+//    var body: some View {
+//        OverscrollCatcher(options: .init()) { state in
+//            Color.red
+//                .overlay {
+//                    if case .overscrolled(let values) = state, values.isDragging {
+//                        let committed = abs(values.rubberBandedOffset offset.x) > 50
+//                        let back = offset.x > 0
+//                        let icon: String = back ? (committed ? "arrow.backward.circle.fill" : "arrow.backward") :
+//                        (committed ? "arrow.forward.circle.fill" : "arrow.forward")
+//                        BackForwardGestureIndicator(offset: offset, fingerPos: draggingAtPos, icon: icon, lockedIn: committed)
+//                            .onChange(of: committed) { newValue in
+//                                if newValue {
+//                                    Haptics.shared.performSelectionHaptic()
+//                                }
+//                            }
+//                    }
+//                }
+//        }
+//    }
+//}
 
 struct DragToGoBackView<T: View>: View {
     var webContent: WebContent
@@ -163,12 +183,12 @@ struct DragToGoBackView<T: View>: View {
                 .environment(\.windowID, windowID)
                 .environment(\.profileID, profileID)
                 .overlay {
-                    if case .overscrolled(let offset, let draggingAtPos) = state, let draggingAtPos {
-                        let committed = abs(offset.x) > threshold
-                        let back = offset.x > 0
+                    if case .overscrolled(let values) = state, values.isDragging {
+                        let committed = abs(values.rubberBandedOffset.x) > threshold
+                        let back = values.rubberBandedOffset.x > 0
                         let icon: String = back ? (committed ? "arrow.backward.circle.fill" : "arrow.backward") :
                         (committed ? "arrow.forward.circle.fill" : "arrow.forward")
-                        BackForwardGestureIndicator(offset: offset, fingerPos: draggingAtPos, icon: icon, lockedIn: committed)
+                        BackForwardGestureIndicator(offset: values.rubberBandedOffset, fingerPos: values.touchPos, icon: icon, lockedIn: committed)
                             .onChange(of: committed) { newValue in
                                 if newValue {
                                     Haptics.shared.performSelectionHaptic()
@@ -181,10 +201,10 @@ struct DragToGoBackView<T: View>: View {
     }
     
     private func released(state: OverscrollState) {
-        guard case .overscrolled(let offset, _) = state, abs(offset.x) > threshold else {
+        guard case .overscrolled(let values) = state, abs(values.rubberBandedOffset.x) > threshold else {
             return
         }
-        if offset.x > 0 {
+        if values.rubberBandedOffset.x > 0 {
             // go back
             webContent.goBack()
         } else {
@@ -229,8 +249,8 @@ struct BackForwardGestureIndicator: View {
     }
 }
 
-#Preview {
-    OverscrollPreview()
-}
+//#Preview {
+//    OverscrollPreview()
+//}
 
 #endif
