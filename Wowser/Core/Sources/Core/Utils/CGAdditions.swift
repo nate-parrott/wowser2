@@ -40,3 +40,10 @@ extension CGRect {
         .init(x: midX, y: midY)
     }
 }
+
+extension CGFloat {
+    func roundToNearest(_ vals: [CGFloat]) -> CGFloat {
+        // TODO: can be done more efficiently
+        vals.sorted(key: { abs($0 - self) }).first ?? self
+    }
+}
