@@ -93,6 +93,8 @@ private struct WindowContent: View {
     @State private var sidebarHovered = false
     
     var body: some View {
+        let justWebpage = !snapshot.sidebarLocked && !topbarLocked
+        
         HStack(spacing: 0) {
             if snapshot.sidebarLocked {
                 Sidebar(floating: false)
@@ -108,6 +110,7 @@ private struct WindowContent: View {
             .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: snapshot.hasToast)
 //            .edgesIgnoringSafeArea(.all)
         }
+        .modifier(JustWebpageScrimModifier(active: justWebpage))
         .overlay(alignment: .leading) {
             if !snapshot.sidebarLocked {
                 Sidebar(floating: true)
@@ -154,6 +157,17 @@ private struct WindowContent: View {
         if self.sidebarHovered != sidebarHovered {
             self.sidebarHovered = sidebarHovered
         }
+    }
+}
+
+private struct JustWebpageScrimModifier: ViewModifier {
+    var active = true
+    
+    func body(content: Content) -> some View {
+        content
+            .clipShape(RoundedRectangle(cornerRadius: active ? 6 : 0))
+            .shadow(color: Color.black.opacity(active ? 0.1 : 0), radius: 3, x: 0, y: 1)
+            .padding(active ? 10 : 0)
     }
 }
 
