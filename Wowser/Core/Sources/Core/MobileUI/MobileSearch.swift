@@ -10,10 +10,10 @@ struct MobileSearchOverlay: View {
     @Environment(\.profileID) private var profileID
     var body: some View {
         Color.black.opacity(0.5)
-            .edgesIgnoringSafeArea(.all)
             .onTapGesture {
                 dismissOverlay()
             }
+            .edgesIgnoringSafeArea(.all)
         
         VStack {
             inputField
@@ -43,6 +43,8 @@ struct MobileSearchOverlay: View {
         .frame(height: 300, alignment: .top)
         .padding(.bottom, 220) // TODO: use KB height
         .padding(30)
+        .edgesIgnoringSafeArea(.all)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
     
     @ViewBuilder private var inputField: some View {
