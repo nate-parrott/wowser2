@@ -114,7 +114,7 @@ struct MobileSearchOverlay: View {
                     isSelected: index == selectedResultIndex,
                     onSelect: {
                         if let windowID {
-                            BrowserStore.shared.select(result: result, windowID: windowID)
+                            BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
                         }
                         dismissOverlay()
                     }

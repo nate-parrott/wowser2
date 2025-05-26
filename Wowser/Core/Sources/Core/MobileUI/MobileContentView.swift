@@ -32,11 +32,12 @@ private struct _MobileContentView: View {
                 .onTapGesture {
                     orbUnitY.animate(toValue: 1, velocity: 0)
                 }
+                .edgesIgnoringSafeArea(.all)
             
             Sidebar(floating: true, width: nil)
                 .withFloatingSidebarContainer()
                 .offset(y: remap(x: orbUnitY.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: size.height + 50))
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 20)
 
             SearchOrb(xPos: orbUnitX, yPos: orbUnitY)
             
