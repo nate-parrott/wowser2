@@ -29,6 +29,8 @@ struct WithSnapshotMain<S: Equatable & Codable, V: View, Snapshot: Equatable>: V
         ZStack {
             main(val ?? snapshot(store.model))
         }
-        .onReceive(store.uiPublisher.map(snapshot).removeDuplicates().dropFirst(), perform: { self.val = $0 })
+        // If val is nil, we'll fetch the latest snapshot from the store sync.
+        // Then we might receive an OLDER value from uiPublisher, so we dropFirst.
+        .onReceive(store.uiPublisher.map(snapshot).removeDuplicates().dropFirst(val == nil ? 1 : 0), perform: { self.val = $0 })
     }
 }
