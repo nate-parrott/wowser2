@@ -2,6 +2,12 @@ import Foundation
 
 extension BrowserStore {
     func select(result: SearchResult, windowID: ID<WindowState>, forceNewTab: Bool = false) {
+        // Dont force new tab if current tab is empty
+        var forceNewTab = forceNewTab
+        if model.currentPane(forWindow: windowID)?.info.isEmptyPage ?? false {
+            forceNewTab = false
+        }
+        
         switch result.item.content {
         case .urlYouTyped(let url):
             loadURL(url, windowID: windowID, forceNewTab: forceNewTab)

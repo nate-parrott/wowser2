@@ -299,6 +299,7 @@ struct GroupedTabsView: View {
                 .frame(maxWidth: .infinity)
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
             }
+            .scrollBounceBehavior(.basedOnSize)
             // Background drop target for the entire area
             .sidebarDropTarget { point, bounds in
                 // Drop at the end of the window's regular tabs
