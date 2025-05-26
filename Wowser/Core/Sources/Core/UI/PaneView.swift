@@ -40,7 +40,14 @@ struct PaneView: View {
                 colorScheme: toolbarColorScheme,
                 emptyPage: snapshot.emptyPage
             )
-            .shadow(color: Color.black.opacity(topbarVisible ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 2.5, x: 0, y: 0)
+            .overlay(alignment: .bottom) {
+                if !snapshot.emptyPage {
+                    (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
+                        .frame(height: 1)
+                }
+            }
+//            .blur(radius: !topbarVisible ? 5 : 0)
+            .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
                 .padding([.horizontal, .top], emptyPageSearchPadding)
                 .id(snapshot.emptyPage)

@@ -18,6 +18,7 @@ public struct SearchResultsOverlay: View {
     private var mainOverlayView: some View {
         ZStack(alignment: .topLeading) {
             Color.white.opacity(0.01)
+                .opacity(0.01)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     dismissOverlay()

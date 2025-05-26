@@ -246,8 +246,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "402"
             endingLineNumber = "402"
-            landmarkName = "BrowserStore"
-            landmarkType = "21">
+            landmarkName = "webContentWantsToClose(_:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
