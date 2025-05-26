@@ -68,7 +68,7 @@ struct MobileSearchOverlay: View {
         switch event {
         case .key(.enter):
             if let windowID, let result = searcher.results.get(selectedResultIndex) {
-                BrowserStore.shared.select(result: result, windowID: windowID)
+                BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
             }
             dismissOverlay()
             
