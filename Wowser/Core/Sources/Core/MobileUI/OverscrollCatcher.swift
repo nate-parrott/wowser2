@@ -35,6 +35,7 @@ struct OverscrollCatcher<T: View>: UIViewControllerRepresentable {
         uiViewController.didChangeState = { [weak uiViewController] state in
             uiViewController?.swiftuiView = fn(state)
         }
+        uiViewController.swiftuiView = fn(uiViewController.state)
     }
 }
 
