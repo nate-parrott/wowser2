@@ -32,7 +32,14 @@ private struct _MobileContentView: View {
             MobileSidebarOverlay(viewSize: size, orbYPos: orbUnitY)
             
             if snapshot.searchActive {
-                MobileSearchOverlay()
+                GeometryReader { geo in
+                    MobileSearchOverlay()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // somehow both are necessary to prevent keyboard from pushing the UI up
+                    // honestly i have no idea how this safe area shit works...
+                        .edgesIgnoringSafeArea(.all)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                }
             }
         }
         .measureSize({ self.size = $0 })
@@ -118,17 +125,23 @@ private struct MobileSidebarOverlay: View {
             }
             .edgesIgnoringSafeArea(.all)
         
-        OverscrollCatcher(options: .init(vertical: true, horizontal: false), didReleaseDrag: didReleaseDrag(_:)) { state in
-            Sidebar(floating: true, width: nil)
-                .environment(\.windowID, windowID)
-                .environment(\.profileID, profileID)
-                .overlay {
-                    if case .overscrolled(let offset, _) = state {
-                        Color.clear.onChange(of: offset.y) { yOffset in
-                            orbYPos.value = offset.y / offsetRange
+        Group {
+            #if os(iOS)
+            OverscrollCatcher(options: .init(vertical: true, horizontal: false), didReleaseDrag: didReleaseDrag(_:)) { state in
+                Sidebar(floating: true, width: nil)
+                    .environment(\.windowID, windowID)
+                    .environment(\.profileID, profileID)
+                    .overlay {
+                        if case .overscrolled(let offset, _) = state {
+                            Color.clear.onChange(of: offset.y) { yOffset in
+                                orbYPos.value = offset.y / offsetRange
+                            }
                         }
                     }
-                }
+            }
+            #else
+            EmptyView()
+            #endif
         }
         .withFloatingSidebarContainer()
         .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))

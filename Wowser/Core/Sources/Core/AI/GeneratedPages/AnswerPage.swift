@@ -47,9 +47,9 @@ private struct AnswerPageModel {
         <title>\(query.escapedForHTML)</title>
         <style>
             :root {
-                --background-light: #fefdfc;
-                --text-light: #321;
-                --text-secondary-light: rgba(51, 34, 17, 0.66);
+                --background-light: #fff;
+                --text-light: #0500200;
+                --text-secondary-light: rgba(31, 14, 8, 0.66);
                 --placeholder-light: #224;
                 
                 --background-dark: #1c1c1e;
@@ -64,7 +64,7 @@ private struct AnswerPageModel {
                     color: var(--text-light);
                 }
                 .url span, #results p, #ai { 
-                    opacity: 0.66;
+                    opacity: 0.5;
                 }
                 #images .placeholder {
                     background-color: var(--placeholder-light);
@@ -77,7 +77,7 @@ private struct AnswerPageModel {
                     color: var(--text-dark);
                 }
                 .url span, #results p, #ai { 
-                    opacity: 0.66;
+                    opacity: 0.5;
                 }
                 #images .placeholder {
                     background-color: var(--placeholder-dark);
@@ -86,11 +86,16 @@ private struct AnswerPageModel {
             
             body { 
                 font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
-                line-height: 1.5; 
+                line-height: 1.5;
                 max-width: 900px; 
                 margin: 0 auto; 
                 padding: 40px; 
                 box-sizing: border-box;
+            }
+            @media screen and (max-width: 500px) {
+                body {
+                    padding: 24px;
+                }
             }
             #results { list-style: none; padding: 0; }
             a {
@@ -99,9 +104,9 @@ private struct AnswerPageModel {
             }
             .url { display: flex; align-items: center; }
             .url img { width: 16px; height: 16px; object-fit: contain; margin-right: 0.5em; }
-            .url span { font-size: small; width: 0; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } 
-            #results h3 { color: inherit; } 
-            #results p { font-size: small; }
+            .url span { font-size: small; width: 0; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; } 
+            #results h3 { color: inherit; font-size: 1.4em; line-height: 1.2; } 
+            #results p { font-size: small; font-weight: 500; }
             #results > li > a > * { margin-top: 0; margin-bottom: 8px; }
             #results > li { margin-bottom: 2em; }
         

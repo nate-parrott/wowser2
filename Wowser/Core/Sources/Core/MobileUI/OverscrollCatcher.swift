@@ -1,8 +1,5 @@
 import SwiftUI
 
-#if os(iOS)
-import UIKit
-
 struct OverscrollCatcherOptions: Equatable {
     var vertical: Bool = false
     var horizontal: Bool = true
@@ -12,6 +9,9 @@ enum OverscrollState: Equatable {
     case atRest
     case overscrolled(offset: CGPoint /* positive if we swipe right/down */, draggingAtPos: CGPoint?)
 }
+
+#if os(iOS)
+import UIKit
 
 struct OverscrollCatcher<T: View>: UIViewControllerRepresentable {
     var options: OverscrollCatcherOptions
