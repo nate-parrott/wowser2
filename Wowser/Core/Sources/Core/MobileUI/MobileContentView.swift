@@ -26,20 +26,10 @@ private struct _MobileContentView: View {
     var body: some View {
         ZStack {
             webContent
-            
-            // sidebar dismisser
-            Color.black.opacity(remapClamped(x: orbUnitY.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
-                .onTapGesture {
-                    orbUnitY.animate(toValue: 1, velocity: 0)
-                }
-                .edgesIgnoringSafeArea(.all)
-            
-            Sidebar(floating: true, width: nil)
-                .withFloatingSidebarContainer()
-                .offset(y: remap(x: orbUnitY.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: size.height + 50))
-                .padding(.horizontal, 20)
 
             SearchOrb(xPos: orbUnitX, yPos: orbUnitY)
+            
+            MobileSidebarOverlay(viewSize: size, orbYPos: orbUnitY)
             
             if snapshot.searchActive {
                 MobileSearchOverlay()
@@ -89,6 +79,73 @@ private struct _MobileContentView: View {
         orbUnitX.value = 1
         orbUnitY.value = 1
     }
+}
+
+private struct MobileSidebarOverlay: View {
+    var viewSize: CGSize
+    @ObservedObject var orbYPos: MomentumValue // controls presentation of sidebar
+    var body: some View {
+        // sidebar dismisser
+        Color.black.opacity(remapClamped(x: orbYPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
+            .onTapGesture {
+                orbYPos.animate(toValue: 1, velocity: 0)
+            }
+            .edgesIgnoringSafeArea(.all)
+
+        Sidebar(floating: true, width: nil)
+        .withFloatingSidebarContainer()
+        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 0, rangeEnd: viewSize.height + 50))
+        .padding(50)
+    }
+
+    
+    
+//    var viewSize: CGSize
+//    @ObservedObject var orbYPos: MomentumValue // controls presentation of sidebar
+//    
+//    @Environment(\.windowID) private var windowID
+//    @Environment(\.profileID) private var profileID
+//    
+//    var body: some View {
+//        // sidebar dismisser
+//        Color.black.opacity(remapClamped(x: orbYPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
+//            .onTapGesture {
+//                orbYPos.animate(toValue: 1, velocity: 0)
+//            }
+//            .edgesIgnoringSafeArea(.all)
+//        
+//        OverscrollCatcher(options: .init(vertical: true, horizontal: false), didReleaseDrag: didReleaseDrag(_:)) { state in
+//            Sidebar(floating: true, width: nil)
+//                .environment(\.windowID, windowID)
+//                .environment(\.profileID, profileID)
+//                .overlay {
+//                    if case .overscrolled(let offset, _) = state {
+//                        Color.clear.onChange(of: offset.y) { yOffset in
+//                            orbYPos.value = offset.y / offsetRange
+//                        }
+//                    }
+//                }
+//        }
+//        .withFloatingSidebarContainer()
+//        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))
+//        .padding(.horizontal, 20)
+//    }
+//    
+//    private var offsetRange: CGFloat {
+//        viewSize.height + 50 - 70
+//    }
+//    
+//    func didReleaseDrag(_ state: OverscrollState) {
+//        // TODO: use velocity
+//        if case .overscrolled(let offset, _) = state {
+//            let dismissRatio = offset.y / offsetRange
+//            if dismissRatio > 0.3 {
+//                orbYPos.animate(toValue: 1, velocity: 0)
+//            } else {
+//                orbYPos.animate(toValue: 0, velocity: 0)
+//            }
+//        }
+//    }
 }
 
 private struct MobileContentSnapshot: Equatable {
@@ -193,7 +250,7 @@ struct SearchOrb: View {
     
     var dragBounds: CGRect {
         CGRect(x: 0, y: 0, width: size.width, height: size.height)
-            .insetBy(dx: orbSize, dy: orbSize)
+            .insetBy(dx: orbSize / 2 + 20, dy: orbSize / 2 + 20)
     }
 }
 
