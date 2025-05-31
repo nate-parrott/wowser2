@@ -40,7 +40,7 @@ public struct WrappedWebView: View {
             if let extractedReaderContent {
                 ReaderOverlay(readableDoc: extractedReaderContent, isFocusedPane: isFocused, windowWantsWebviewFocus: windowWantsWebviewFocus, mainWebContent: webContent)
                     .id(webContent.id)
-                    .transition(.opacity)
+//                    .transition(.asymmetric(insertion: .wipeAway.animation(.niceDefault.delay(0.5)), removal: .opacity))
             }
         }
         .animation(.niceDefault(duration: 0.3), value: extractedReaderContent != nil)

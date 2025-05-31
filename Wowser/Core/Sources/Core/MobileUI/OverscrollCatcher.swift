@@ -231,7 +231,7 @@ struct BackForwardGestureIndicator: View {
             .frame(both: 60)
             .background(alignment: offset.x > 0 ? .leading : .trailing) {
                 Capsule(style: .continuous)
-                    .fill(Color.black)
+                    .fill(Color.accentColor)
                     .frame(width: 60 + abs(offset.x), height: 60)
             }
             .position(origPoint)

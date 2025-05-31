@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MobileSearchOverlay: View {
+    var transitionOut: Bool
     @State var searchText: String = ""
     @State var selectedResultIndex: Int = 0
     @StateObject var searcher = Searcher()
@@ -9,7 +10,7 @@ struct MobileSearchOverlay: View {
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     var body: some View {
-        Color.black.opacity(0.5)
+        Color.black.opacity(transitionOut ? 0 : 0.5)
             .onTapGesture {
                 dismissOverlay()
             }
@@ -40,6 +41,9 @@ struct MobileSearchOverlay: View {
             selectedResultIndex = 0 // Reset selection when query changes
         }
         .frame(maxWidth: 320)
+        .compositingGroup()
+        .scaleEffect(transitionOut ? 0.5 : 1)
+        .opacity(transitionOut ? 0 : 1)
         .frame(height: 300, alignment: .top)
         .padding(.bottom, 220) // TODO: use KB height
         .padding(30)

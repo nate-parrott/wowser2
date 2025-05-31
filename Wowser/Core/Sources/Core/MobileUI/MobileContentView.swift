@@ -35,16 +35,10 @@ private struct _MobileContentView: View {
                 .edgesIgnoringSafeArea(.all)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             
-            if snapshot.searchActive {
-                GeometryReader { geo in
-                    MobileSearchOverlay()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // somehow both are necessary to prevent keyboard from pushing the UI up
-                    // honestly i have no idea how this safe area shit works...
-                        .edgesIgnoringSafeArea(.all)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
-                }
-            }
+            searchOverlay
+//            if snapshot.searchActive {
+//                 
+//            }
         }
         .background {
             Color.clear
@@ -59,6 +53,20 @@ private struct _MobileContentView: View {
         }
         .onAppear {
             setupOrbPos()
+        }
+    }
+    
+    @ViewBuilder private var searchOverlay: some View {
+        GeometryReader { geo in
+            ManualTransitionView(models: snapshot.searchActive ? [ID<String>(raw: "x")] : []) { (model, phase) in
+                MobileSearchOverlay(transitionOut: phase != .inserted)
+                    .animation(.spring(duration: 0.25, bounce: 0.15, blendDuration: 0.1), value: phase)
+            }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // somehow both are necessary to prevent keyboard from pushing the UI up
+            // honestly i have no idea how this safe area shit works...
+                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
         }
     }
     
@@ -118,6 +126,7 @@ private struct MobileSidebarOverlay: View {
         Group {
             #if os(iOS)
             OverscrollCatcher(options: .init(vertical: true, horizontal: false), didReleaseDrag: didReleaseDrag(_:)) { state in
+//                LinearGradient(colors: [Color.white, Color(Color(hex: 0xfdfeff))], startPoint: .top, endPoint: .bottom)
                 Sidebar(floating: true, width: nil)
                     .environment(\.windowID, windowID)
                     .environment(\.profileID, profileID)
@@ -182,7 +191,7 @@ struct SearchOrb: View {
     @ObservedObject var yPos: MomentumValue
     @Environment(\.windowID) private var windowID
     
-    var orbSize: CGFloat = 80
+    var orbSize: CGFloat = 100
     @State private var size = CGSize(width: 100, height: 100)
     @State private var unitPosAtStartOfDrag: UnitPoint?
     @State private var dragCanBeTap = false
@@ -207,7 +216,7 @@ struct SearchOrb: View {
     var dragVector: CGPoint {
         CGPoint(
             x: (xPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1),
-            y: (yPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1),
+            y: (yPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1)
         )
     }
     

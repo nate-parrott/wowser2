@@ -18,9 +18,7 @@ struct ReaderOverlay: View {
     var body: some View {
         ZStack {
             ReaderThemePref().color(forKey: .background).swiftUI
-            
-            Color.red
-                        
+                                    
             WebView(webContent: webContent)
                 .onAppearOrChange(of: focusWebview, perform: { focus in
                     if focus {
