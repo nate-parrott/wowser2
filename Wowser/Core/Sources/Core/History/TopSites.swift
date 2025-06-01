@@ -12,7 +12,9 @@ class TopSitesFetcher: ObservableObject {
                 if let profileID {
                     Queue.historyQueue.queue.async {
                         let historyStore = profileID.historyStore_historyQueueOnly
+                        let initial = historyStore.model.topSites(n: 5)
                         DispatchQueue.main.async {
+                            self.topSites = initial
                             historyStore.topSites(n: 5)
                                 .receive(on: DispatchQueue.main)
                                 .sink { [weak self] sites in
@@ -27,21 +29,27 @@ class TopSitesFetcher: ObservableObject {
     }
 }
 
+private extension HistoryState {
+    func topSites(n: Int) -> [TopSiteItem] {
+        let topItems = historyTopHitCandidates.prefix(n)
+        let otherItems = HistoryStore.baseHistoryItems
+        let scored = (topItems + otherItems).sorted(key: { $0.score }).reversed()
+        return scored.prefix(n).map({ TopSiteItem(title: $0.title ?? $0.url.hostWithoutWWW, url: $0.url) }).asArray
+    }
+}
+
 extension HistoryStore {
     func topSites(n: Int) -> AnyPublisher<[TopSiteItem], Never> {
         return uiPublisher
             .throttle(for: .seconds(5), scheduler: DispatchQueue.main, latest: true)
             .map { state -> [TopSiteItem] in
-                let topItems = state.historyTopHitCandidates.prefix(n)
-                let otherItems = Self.baseHistoryItems
-                let scored = (topItems + otherItems).sorted(key: { $0.score }).reversed()
-                return scored.prefix(n).map({ TopSiteItem(title: $0.title ?? $0.url.hostWithoutWWW, url: $0.url) }).asArray
+                state.topSites(n: n)
             }
             .removeDuplicates()
             .eraseToAnyPublisher()
     }
     
-    static private let baseHistoryItems: [HistoryItem] = {
+    static fileprivate let baseHistoryItems: [HistoryItem] = {
         let wiki = URL(string: "https://en.wikipedia.org")!
         let youtube = URL(string: "https://youtube.com")!
         let nyt = URL(string: "https://nytimes.com")!

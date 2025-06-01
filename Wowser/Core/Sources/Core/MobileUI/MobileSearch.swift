@@ -58,8 +58,8 @@ struct MobileSearchOverlay: View {
             text: $searchText,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
-                font: .systemFont(ofSize: 18, weight: .regular),
-                insets: CGSize(width: 18, height: 18),
+                font: .systemFont(ofSize: 16, weight: .regular),
+                insets: CGSize(width: 20, height: 18),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
                 lineLimit: 1
@@ -153,23 +153,23 @@ private struct MobileSearchResultRow: View {
         Button(action: onSelect) {
             HStack(spacing: 8) {
                 // Icon
-                SearchIcon(item: result.item, size: 18, selected: isSelected)
+                SearchIcon(item: result.item, size: 16, selected: isSelected)
                 
                 if let title {
                     Text(title + "  ")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                         .layoutPriority(2)
                 }
                 
-                Text(subtitle ?? "")
-                    .font(.system(size: 18))
-                    .layoutPriority(1)
-                    .opacity(0.5)
+//                Text(subtitle ?? "")
+//                    .font(.system(size: 17))
+//                    .layoutPriority(1)
+//                    .opacity(0.5)
                 
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 14)
             .contentShape(Rectangle())
             .lineLimit(1)
         }
