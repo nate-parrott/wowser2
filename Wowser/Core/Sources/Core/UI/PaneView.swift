@@ -116,17 +116,26 @@ struct PaneView: View {
     }
 
     @ViewBuilder private var content: some View {
-        ZStack {
-            if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-                WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
-                    .overlay(alignment: .top) {
-                        loader.padding(6)
-                    }
-                    .overlay {
-                        elementPicker
-                    }
-            } else {
-                Color.clear
+        VStack(spacing: 0) {
+            // Search toolbar appears at the top when applicable
+            SearchToolbarIfNeeded(
+                webContentId: snapshot.webContentId,
+                colorScheme: toolbarColorScheme
+            )
+            
+            // Main web content
+            ZStack {
+                if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
+                    WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
+                        .overlay(alignment: .top) {
+                            loader.padding(6)
+                        }
+                        .overlay {
+                            elementPicker
+                        }
+                } else {
+                    Color.clear
+                }
             }
         }
     }

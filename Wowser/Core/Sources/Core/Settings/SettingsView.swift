@@ -11,6 +11,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.autoArchiveTabs.rawValue) private var autoArchiveTabsEnabled = false
     @AppStorage(DefaultsKeys.cleanModeForRecipes.rawValue) private var cleanModeForRecipesEnabled = false
     @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = true
+    @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     
@@ -57,11 +58,15 @@ public struct SettingsView: View {
                     case .duckduckgo: return "DuckDuckGo"
                     case .kagi: return "Kagi"
                     case .clean: return "Clean Search"
+                    case .images: return "Clean Image Search"
                     }
                 }
                 
                 Toggle("Enable 'go direct' for navigational queries", isOn: $enableGoDirectQueries)
                     .help("When enabled, queries that appear to be navigational will show an 'I'm feeling lucky' result that takes you directly to the first search result")
+                
+                Toggle("Show search toolbar on search pages", isOn: $searchToolbarEnabled)
+                    .help("Shows a toolbar with search options when viewing search results")
                                 
                 Toggle("Animate new tabs", isOn: $animateNewTabsEnabled)
                     .help("Show animation when new tabs are loaded")

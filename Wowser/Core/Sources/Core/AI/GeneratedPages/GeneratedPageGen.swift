@@ -12,8 +12,10 @@ public enum PageGenerator {
                     case .homepage:
                         // TODO: multi-profile
                         try await generateHomepage(continuation: continuation, lastHTML: lastHTML, profileId: .defaultProfile)
-                    case .answer(let query):
-                        try await generateAnswer(query: query, continuation: continuation)
+                    case .webSearch(let query, let page):
+                        try await generateAnswer(query: query, page: page, continuation: continuation)
+                    case .imageSearch(let query, let page):
+                        try await generateImageSearch(query: query, page: page, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -97,6 +99,7 @@ public enum PageGenerator {
         continuation.yield(with: .success(.init(html: html, progress: 1.0)))
 //        try await generatePage(prompt: prompt, estimatedCharLen: 3000, continuation: continuation)
     }
+    
     
     private static func generatePage(prompt: String, estimatedCharLen: Int, continuation: AsyncThrowingStream<ContentUpdate, Error>.Continuation) async throws {
         var lastGen: ContentUpdate?

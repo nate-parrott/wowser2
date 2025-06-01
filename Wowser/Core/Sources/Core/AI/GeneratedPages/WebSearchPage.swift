@@ -2,8 +2,9 @@ import Ink
 import Foundation
 import ChatToys
 
-private struct AnswerPageModel {
+private struct WebSearchPageModel {
     var query: String
+    var page: Int = 0
     var includeSidebar = true
     var searchResults: [WebSearchResult]?
     var imageResults: [ImageSearchResult]?
@@ -37,6 +38,21 @@ private struct AnswerPageModel {
         while imageResultItems.count < 5 {
             imageResultItems.append("<a class='imageResult placeholder'></a>")
         }
+        
+        // Pagination links
+        let paginationHTML: String = {
+            var links: [String] = []
+            
+            if page > 0 {
+                let prevKey = GeneratedPageKey.webSearch(q: query, page: page - 1)
+                links.append("<a href=\"\(prevKey.url.absoluteString)\">← Previous</a>")
+            }
+            
+            let nextKey = GeneratedPageKey.webSearch(q: query, page: page + 1)
+            links.append("<a href=\"\(nextKey.url.absoluteString)\">Next →</a>")
+            
+            return links.isEmpty ? "" : "<div class='pagination'>\(links.joined(separator: " | "))</div>"
+        }()
         
         let html = """
         <!DOCTYPE html>
@@ -154,12 +170,21 @@ private struct AnswerPageModel {
             #ai {
                 font-size: small;
             }
+            .pagination {
+                font-size: small;
+            }
+            .pagination a {
+                color: inherit;
+                text-decoration: underline;
+                margin-right: 1em;
+            }
         </style>
         </head>
         <body>
             <main>
                 <ul id="results">
                     \(resultItems.joined(separator: "\n"))
+                    <li>\(paginationHTML)</li>
                 </ul>
                 <aside style="display: \(includeSidebar ? "block" : "none")">
                     <div id="images">
@@ -176,10 +201,10 @@ private struct AnswerPageModel {
 }
 
 extension PageGenerator {
-    static func generateAnswer(query: String, continuation: AsyncThrowingStream<ContentUpdate, Error>.Continuation, includeAI: Bool = false) async throws {
-        var model = AnswerPageModel(query: query)
+    static func generateAnswer(query: String, page: Int = 0, continuation: AsyncThrowingStream<ContentUpdate, Error>.Continuation, includeAI: Bool = false) async throws {
+        var model = WebSearchPageModel(query: query, page: page)
         model.includeSidebar = includeAI
-        async let results_ = try await GoogleSearchEngine().search(query: query).results
+        async let results_ = try await GoogleSearchEngine().search(query: query, page: page).results
         
         if !includeAI {
             model.searchResults = try await results_
@@ -187,11 +212,11 @@ extension PageGenerator {
             return
         }
         
-        async let imageResults_ = try await GoogleImageSearchEngine().searchImages(query: query)
+//        async let imageResults_ = try await GoogleImageSearchEngine().searchImages(query: query, page: page)
         model.searchResults = try await results_
         let aiAnswerStream = aiAnswer(query: query, results: model.searchResults!)
         continuation.yield(ContentUpdate(html: model.html(), progress: 0.5))
-        model.imageResults = try? await imageResults_
+//        model.imageResults = try? await imageResults_
         continuation.yield(ContentUpdate(html: model.html(), progress: 0.7))
         
         for try await ai in aiAnswerStream.throttle(for: 1) {
