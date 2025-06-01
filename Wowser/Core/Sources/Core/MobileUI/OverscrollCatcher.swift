@@ -23,6 +23,7 @@ import UIKit
 
 struct OverscrollCatcher<T: View>: UIViewControllerRepresentable {
     var options: OverscrollCatcherOptions
+    var stateDidChange: ((OverscrollState) -> Void)?
     var didReleaseDrag: ((OverscrollState) -> Void)?
     @ViewBuilder var fn: (OverscrollState) -> T
     
@@ -33,6 +34,7 @@ struct OverscrollCatcher<T: View>: UIViewControllerRepresentable {
         vc.didReleaseDrag = didReleaseDrag
         vc.didChangeState = { [weak vc] state in
             vc?.swiftuiView = fn(state)
+            stateDidChange?(state)
         }
         return vc
     }
@@ -42,6 +44,7 @@ struct OverscrollCatcher<T: View>: UIViewControllerRepresentable {
         uiViewController.didReleaseDrag = didReleaseDrag
         uiViewController.didChangeState = { [weak uiViewController] state in
             uiViewController?.swiftuiView = fn(state)
+            stateDidChange?(state)
         }
         uiViewController.swiftuiView = fn(uiViewController.state)
     }
@@ -115,11 +118,16 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
     }
     
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        self.didReleaseDrag?(self.state)
-        
         if !decelerate {
             self.state = .atRest
+        } else {
+            // Rewrite state to set dragging to false
+            if case .overscrolled(var values) = state {
+                values.isDragging = false
+                self.state = .overscrolled(values)
+            }
         }
+        self.didReleaseDrag?(self.state)
     }
     
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {

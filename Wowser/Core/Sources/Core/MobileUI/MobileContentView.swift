@@ -130,18 +130,19 @@ private struct MobileSidebarOverlay: View {
         
         Group {
             #if os(iOS)
-            OverscrollCatcher(options: .init(vertical: true, horizontal: false), didReleaseDrag: didReleaseDrag(_:)) { state in
+            OverscrollCatcher(options: .init(vertical: true, horizontal: false), stateDidChange: stateDidChange, didReleaseDrag: didReleaseDrag(_:)) { state in
 //                LinearGradient(colors: [Color.white, Color(Color(hex: 0xfdfeff))], startPoint: .top, endPoint: .bottom)
                 Sidebar(floating: true, width: nil)
                     .environment(\.windowID, windowID)
                     .environment(\.profileID, profileID)
-                    .overlay {
-                        if case .overscrolled(let values) = state, values.isDragging {
-                            Color.clear.onChange(of: values.realOffset.y) { yOffset in
-                                orbYPos.value = values.realOffset.y / offsetRange
-                            }
-                        }
-                    }
+//                    .overlay {
+//                        if case .overscrolled(let values) = state, values.isDragging {
+//                            Color.clear.onChange(of: values.realOffset.y) { yOffset in
+//                                print("[d] Value changed")
+//                                orbYPos.value = values.realOffset.y / offsetRange
+//                            }
+//                        }
+//                    }
             }
             #else
             EmptyView()
@@ -157,6 +158,12 @@ private struct MobileSidebarOverlay: View {
         viewSize.height
     }
     
+    func stateDidChange(_ state: OverscrollState) {
+        if case .overscrolled(let values) = state, values.isDragging {
+            orbYPos.value = values.realOffset.y / offsetRange
+        }
+    }
+    
     func didReleaseDrag(_ state: OverscrollState) {
         if case .overscrolled(let values) = state {
             let dismissRatio = values.realOffset.y / offsetRange
@@ -165,6 +172,8 @@ private struct MobileSidebarOverlay: View {
             } else {
                 orbYPos.animate(toValue: dismissRatio > 0.5 ? 1 : 0, velocity: orbYPos.velocity)
             }
+        } else {
+            print("[d] OOPS!")
         }
     }
 }
