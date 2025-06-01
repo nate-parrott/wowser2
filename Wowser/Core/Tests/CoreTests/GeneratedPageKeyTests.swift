@@ -33,14 +33,14 @@ final class GeneratedPageKeyTests: XCTestCase {
         ]
         
         for query in testQueries {
-            let key = GeneratedPageKey.answer(q: query)
+            let key = GeneratedPageKey.webSearch(q: query)
             let url = key.url
             
             XCTAssertEqual(url.scheme, "about")
             
             if let decodedKey = GeneratedPageKey(url: url) {
                 switch decodedKey {
-                case .answer(let q):
+                case .webSearch(let q):
                     XCTAssertEqual(q, query, "Query didn't match after roundtrip")
                 default:
                     XCTFail("Expected answer key, got \(decodedKey)")

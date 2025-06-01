@@ -128,6 +128,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         }
         #if os(iOS)
         config.allowsInlineMediaPlayback = allowsInlinePlayback
+        config.mediaTypesRequiringUserActionForPlayback = .all
         #endif
         if autoplayAllowed {
             config.mediaTypesRequiringUserActionForPlayback = []

@@ -61,11 +61,16 @@ extension Pane {
                 appearance.title = "Home"
                 appearance.urlFieldTextSelected = ""
                 appearance.urlFieldTextDeselected = "Home"
-            case .answer(let q):
+            case .webSearch(let q, _):
                 appearance.icon = .sfSymbol("magnifyingglass")
                 appearance.title = q
                 appearance.urlFieldTextSelected = q
                 appearance.urlFieldTextDeselected = q
+            case .imageSearch(let q, _):
+                appearance.icon = .sfSymbol("photo.on.rectangle")
+                appearance.title = "Images: \(q)"
+                appearance.urlFieldTextSelected = q
+                appearance.urlFieldTextDeselected = "Images: \(q)"
             }
         }
         

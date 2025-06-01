@@ -30,6 +30,7 @@ public enum DefaultsKeys: String {
     
     case enableGoDirectQueries // bool
     case lastShownWelcomePageForPageVersion
+    case searchToolbarEnabled // bool
 }
 
 public extension DefaultsKeys {
@@ -88,6 +89,7 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
     case duckduckgo
     case kagi
     case clean
+    case images
     
     static var current: SearchEngine {
         if let k = UserDefaults.standard.value(forKey: DefaultsKeys.searchEngine.rawValue) as? String {
@@ -115,7 +117,9 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
             components.queryItems = [URLQueryItem(name: "q", value: query)]
             return components.url ?? .googleSearch(query)
         case .clean:
-            return GeneratedPageKey.answer(q: query).url
+            return GeneratedPageKey.webSearch(q: query).url
+        case .images:
+            return GeneratedPageKey.imageSearch(q: query, page: 0).url
         }
     }
 }
