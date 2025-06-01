@@ -22,6 +22,19 @@ extension WebContent.Info {
             return SearchContext(query: query, currentType: .google)
         }
         
+        // Check for Google Maps
+        if url.host?.contains("maps.google.") == true,
+           let query = url.queryParam(name: "q") {
+            return SearchContext(query: query, currentType: .maps)
+        }
+        
+        // Check for YouTube
+        if url.host?.contains("youtube.com") == true,
+           url.path.contains("/results"),
+           let query = url.queryParam(name: "search_query") {
+            return SearchContext(query: query, currentType: .youtube)
+        }
+        
         return nil
     }
 }
@@ -53,12 +66,16 @@ enum SearchType: CaseIterable {
     case webSearch
     case imageSearch
     case google
+    case maps
+    case youtube
     
     var displayName: String {
         switch self {
         case .webSearch: return "Web"
         case .imageSearch: return "Images"
         case .google: return "Google"
+        case .maps: return "Maps"
+        case .youtube: return "YouTube"
         }
     }
     
@@ -67,6 +84,8 @@ enum SearchType: CaseIterable {
         case .webSearch: return "doc.text.magnifyingglass"
         case .imageSearch: return "photo.on.rectangle"
         case .google: return "globe"
+        case .maps: return "map"
+        case .youtube: return "play.rectangle"
         }
     }
 }
@@ -139,6 +158,20 @@ private struct SearchToolbar: View {
             targetURL = GeneratedPageKey.imageSearch(q: query).url
         case .google:
             targetURL = SearchEngine.google.urlForQuery(query)
+        case .maps:
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "maps.google.com"
+            components.path = "/maps"
+            components.queryItems = [URLQueryItem(name: "q", value: query)]
+            targetURL = components.url ?? SearchEngine.google.urlForQuery(query)
+        case .youtube:
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "www.youtube.com"
+            components.path = "/results"
+            components.queryItems = [URLQueryItem(name: "search_query", value: query)]
+            targetURL = components.url ?? SearchEngine.google.urlForQuery(query)
         }
         
         BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID)?.load(url: targetURL)
