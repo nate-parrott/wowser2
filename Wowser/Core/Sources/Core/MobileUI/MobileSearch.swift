@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MobileSearchOverlay: View {
+    var topSites: [TopSiteItem]
     var transitionOut: Bool
     @State var searchText: String = ""
     @State var selectedResultIndex: Int = 0
@@ -73,19 +74,19 @@ struct MobileSearchOverlay: View {
     private func handleTextFieldEvent(_ event: TextFieldEvent) {
         switch event {
         case .key(.enter):
-            if let windowID, let result = searcher.results.get(selectedResultIndex) {
+            if let windowID, let result = visibleResults.get(selectedResultIndex) {
                 BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
             }
             dismissOverlay()
             
         case .key(.upArrow):
-            if !searcher.results.isEmpty {
+            if !visibleResults.isEmpty {
                 selectedResultIndex = max(0, selectedResultIndex - 1)
             }
             
         case .key(.downArrow):
-            if !searcher.results.isEmpty {
-                selectedResultIndex = min(searcher.results.count - 1, selectedResultIndex + 1)
+            if !visibleResults.isEmpty {
+                selectedResultIndex = min(visibleResults.count - 1, selectedResultIndex + 1)
             }
             
         case .key(.escape):
@@ -114,7 +115,7 @@ struct MobileSearchOverlay: View {
     // Results stack containing all result rows
     private var resultsStack: some View {
         VStack(spacing: 0) {
-            ForEach(Array(searcher.results.enumerated()), id: \.element.id) { index, result in
+            ForEach(Array(visibleResults.enumerated()), id: \.element.id) { index, result in
                 MobileSearchResultRow(
                     result: result,
                     isSelected: index == selectedResultIndex,
@@ -129,7 +130,14 @@ struct MobileSearchOverlay: View {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.bottom, searcher.results.count > 0 ? 6 : 0)
+        .padding(.bottom, visibleResults.count > 0 ? 6 : 0)
+    }
+    
+    private var visibleResults: [SearchResult] {
+        if searcher.query.isEmpty {
+            return topSites.map(\.asSearchResult).prefix(4).asArray
+        }
+        return searcher.results.prefix(4).asArray
     }
 }
 
