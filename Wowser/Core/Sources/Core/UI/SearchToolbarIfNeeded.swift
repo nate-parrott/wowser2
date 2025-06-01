@@ -114,8 +114,13 @@ private struct SearchToolbar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .background {
+            #if os(macOS)
             (colorScheme?.background.color ?? Color(.windowBackgroundColor))
                 .opacity(0.9)
+            #else
+            (colorScheme?.background.color ?? Color(.background))
+                .opacity(0.9)
+            #endif
         }
         .overlay {
             Rectangle()

@@ -18,10 +18,12 @@ public struct MobileContentView: View {
 
 private struct _MobileContentView: View {
     var snapshot: MobileContentSnapshot
+    @Environment(\.profileID) private var profileID
     @Environment(\.windowID) private var windowID
     @StateObject private var orbUnitX = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
     @StateObject private var orbUnitY = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
     @State private var size = CGSize(width: 100, height: 100)
+    @StateObject private var topSitesFetcher = TopSitesFetcher()
     
     var body: some View {
         ZStack {
@@ -54,12 +56,15 @@ private struct _MobileContentView: View {
         .onAppear {
             setupOrbPos()
         }
+        .onAppearOrChange(of: profileID) {
+            topSitesFetcher.profileID = $0
+        }
     }
     
     @ViewBuilder private var searchOverlay: some View {
         GeometryReader { geo in
             ManualTransitionView(models: snapshot.searchActive ? [ID<String>(raw: "x")] : []) { (model, phase) in
-                MobileSearchOverlay(transitionOut: phase != .inserted)
+                MobileSearchOverlay(topSites: topSitesFetcher.topSites, transitionOut: phase != .inserted)
                     .animation(.spring(duration: 0.25, bounce: 0.15, blendDuration: 0.1), value: phase)
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
