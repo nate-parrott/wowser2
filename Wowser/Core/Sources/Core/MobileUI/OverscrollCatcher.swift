@@ -88,6 +88,9 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
         self.scrollView.addSubview(self.hostVC.view)
         self.scrollView.delegate = self
         self.scrollView.clipsToBounds = false
+        self.view.backgroundColor = nil
+        self.scrollView.backgroundColor = nil
+        self.hostVC.view.backgroundColor = nil
         _updatedOptions()
     }
     
@@ -154,28 +157,6 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
         return offset
     }
 }
-
-//struct OverscrollPreview: View {
-//    var body: some View {
-//        OverscrollCatcher(options: .init()) { state in
-//            Color.red
-//                .overlay {
-//                    if case .overscrolled(let values) = state, values.isDragging {
-//                        let committed = abs(values.rubberBandedOffset offset.x) > 50
-//                        let back = offset.x > 0
-//                        let icon: String = back ? (committed ? "arrow.backward.circle.fill" : "arrow.backward") :
-//                        (committed ? "arrow.forward.circle.fill" : "arrow.forward")
-//                        BackForwardGestureIndicator(offset: offset, fingerPos: draggingAtPos, icon: icon, lockedIn: committed)
-//                            .onChange(of: committed) { newValue in
-//                                if newValue {
-//                                    Haptics.shared.performSelectionHaptic()
-//                                }
-//                            }
-//                    }
-//                }
-//        }
-//    }
-//}
 
 struct DragToGoBackView<T: View>: View {
     var webContent: WebContent

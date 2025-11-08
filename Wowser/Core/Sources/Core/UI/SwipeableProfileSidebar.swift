@@ -196,13 +196,16 @@ private struct ProfilePageContent: View {
     var body: some View {
         VStack(spacing: 0) {
             // Favorite bookmarks/tabs section
-            FavoriteTabsView(
-                tabIDs: snapshot.favoriteTabIDs,
-                currentTabID: snapshot.currentTabID,
-                windowID: windowID
-            )
-            .padding(.top, 5)
-            .padding(.bottom, 10)
+            
+            if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
+                FavoriteTabsView(
+                    tabIDs: snapshot.favoriteTabIDs,
+                    currentTabID: snapshot.currentTabID,
+                    windowID: windowID
+                )
+                .padding(.top, 5)
+                .padding(.bottom, 10)
+            }
             
             // Regular tabs section with group headers
             GroupedTabsView(

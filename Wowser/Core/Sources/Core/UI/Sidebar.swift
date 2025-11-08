@@ -135,6 +135,7 @@ private struct SidebarContent: View {
 //            if floating {
 //                Spacer().frame(height: 30)
 //            }
+            
             HStack {
                 MacWindowControlsIfValidElse {
                     EmptyView()
@@ -272,7 +273,7 @@ struct GroupedTabsView: View {
         let cells: [TabListCell] = TabListCell.cellsFrom(groups: tabGroups)
         ScrollViewReader { scrollProxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: isMobile() ? 4 : 0) {
                     ForEach(cells) { cell in
                         switch cell {
                         case .header(id: _, name: let name, tabGroup: let tabGroup):
@@ -296,6 +297,7 @@ struct GroupedTabsView: View {
                         }
                     }
                 }
+                .padding(isMobile() ? 12 : 0)
                 .frame(maxWidth: .infinity)
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
             }
