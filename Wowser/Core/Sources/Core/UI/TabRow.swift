@@ -87,13 +87,13 @@ private struct RegularTabButton: View {
             Spacer()
             
             // Close button that appears on hover
-            if isHovered {
+            if isHovered || isMobile() {
                 CloseTabButton(tabID: snapshot.tabID)
             }
         }
-        .padding(.leading, 8)
+        .padding(.leading, isMobile() ? 14 : 8)
         .padding(.trailing, 4)
-        .frame(height: 30)
+        .frame(height: isMobile() ? 44 : 30)
         .contentShape(Rectangle())
     }
 }
@@ -110,6 +110,7 @@ private struct CloseTabButton: View {
                 .foregroundColor(.secondary)
                 .help("Close Tab")
                 .padding(6)
+                .frame(both: isMobile() ? 40 : nil)
         }
         .buttonStyle(CircleButtonStyle())
     }

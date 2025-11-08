@@ -24,6 +24,7 @@ private struct _MobileContentView: View {
     @StateObject private var orbUnitY = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
     @State private var size = CGSize(width: 100, height: 100)
     @StateObject private var topSitesFetcher = TopSitesFetcher()
+    @State private var settingsPresented = false
     
     var body: some View {
         ZStack {
@@ -58,6 +59,12 @@ private struct _MobileContentView: View {
         }
         .onAppearOrChange(of: profileID) {
             topSitesFetcher.profileID = $0
+        }
+        #if os(iOS)
+        .modifier(DeviceShakeViewModifier(action: { settingsPresented = true }))
+        #endif
+        .sheet(isPresented: $settingsPresented) {
+            SettingsView()
         }
     }
     
@@ -131,8 +138,7 @@ private struct MobileSidebarOverlay: View {
         Group {
             #if os(iOS)
             OverscrollCatcher(options: .init(vertical: true, horizontal: false), stateDidChange: stateDidChange, didReleaseDrag: didReleaseDrag(_:)) { state in
-//                LinearGradient(colors: [Color.white, Color(Color(hex: 0xfdfeff))], startPoint: .top, endPoint: .bottom)
-                Sidebar(floating: true, width: nil)
+                MobileDrawer()
                     .environment(\.windowID, windowID)
                     .environment(\.profileID, profileID)
 //                    .overlay {
@@ -148,10 +154,10 @@ private struct MobileSidebarOverlay: View {
             EmptyView()
             #endif
         }
-        .withFloatingSidebarContainer()
+        .withMobileDrawerContainer()
         .offset(y: orbYPos.rubberBandedValue * viewSize.height)
 //        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))
-        .padding(.top, 80)
+        .padding(.top, 120)
     }
     
     private var offsetRange: CGFloat {
@@ -172,8 +178,6 @@ private struct MobileSidebarOverlay: View {
             } else {
                 orbYPos.animate(toValue: dismissRatio > 0.5 ? 1 : 0, velocity: orbYPos.velocity)
             }
-        } else {
-            print("[d] OOPS!")
         }
     }
 }

@@ -143,7 +143,7 @@ struct TabStyleButtonModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 13))
+            .font(.system(size: isMobile() ? 16 : 13))
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background{

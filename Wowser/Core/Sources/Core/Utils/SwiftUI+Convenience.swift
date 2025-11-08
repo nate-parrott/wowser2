@@ -3,7 +3,7 @@ import SwiftUI
 extension View {
     var asAny: AnyView { AnyView(self) }
 
-    func frame(both: CGFloat, alignment: Alignment = .center) -> some View {
+    func frame(both: CGFloat?, alignment: Alignment = .center) -> some View {
         self.frame(width: both, height: both, alignment: alignment)
     }
 }

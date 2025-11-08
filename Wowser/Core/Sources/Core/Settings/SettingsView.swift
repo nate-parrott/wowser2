@@ -34,7 +34,7 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 500)
+        .frame(minWidth: isDesktop() ? 500 : nil)
     }
     
     @ViewBuilder private var main: some View {
