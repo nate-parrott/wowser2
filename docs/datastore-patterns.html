@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataStore Patterns - Wowser Architecture</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --primary: #e94560;
+            --secondary: #0f3460;
+            --text: #eaeaea;
+            --code-bg: #0d1117;
+            --border: #30475e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            color: var(--primary);
+            border-bottom: 2px solid var(--secondary);
+            padding-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            border-bottom: none;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 3rem;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            color: #79c0ff;
+        }
+
+        .keyword { color: #ff7b72; }
+        .type { color: #ffa657; }
+        .string { color: #a5d6ff; }
+        .comment { color: #8b949e; }
+        .func { color: #d2a8ff; }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 4px solid var(--primary);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            border-bottom: none;
+        }
+
+        .diagram {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: monospace;
+            white-space: pre;
+            overflow-x: auto;
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            background: var(--secondary);
+        }
+
+        .tip {
+            background: #1a4d1a;
+            border-left: 4px solid #3fb950;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+
+        .warning {
+            background: #4d3a1a;
+            border-left: 4px solid #d29922;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+
+        nav {
+            background: var(--surface);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        nav a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 DataStore Patterns</h1>
+        <p class="subtitle">A guide to state management in Wowser</p>
+
+        <nav>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#observing">Observing State</a></li>
+                <li><a href="#modifying">Modifying State</a></li>
+                <li><a href="#persistence">Persistence</a></li>
+                <li><a href="#concurrency">Concurrency</a></li>
+            </ul>
+        </nav>
+
+        <section id="overview">
+            <h2>Overview</h2>
+            <p>
+                Wowser uses a centralized state management pattern built around <code>DataStore&lt;Model&gt;</code>,
+                a generic class that wraps an immutable, Codable value type and provides:
+            </p>
+            <ul>
+                <li><strong>Thread-safe access</strong> via a dedicated queue</li>
+                <li><strong>Reactive updates</strong> via Combine publishers</li>
+                <li><strong>Automatic persistence</strong> to JSON files</li>
+                <li><strong>Frame-throttled UI updates</strong> for smooth rendering</li>
+            </ul>
+
+            <div class="diagram">
+┌─────────────────────────────────────────────────────────────┐
+│                        DataStore                            │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   _model     │───▶│   subject    │───▶│  publisher   │  │
+│  │ (protected)  │    │ (immediate)  │    │  (any sub)   │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│         │                                                   │
+│         ▼                                                   │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              FrameThrottledValue                      │  │
+│  │  ┌─────────┐    ┌─────────────┐    ┌─────────────┐   │  │
+│  │  │ pending │───▶│ DisplayLink │───▶│ uiPublisher │   │  │
+│  │  │  value  │    │  (60 fps)   │    │  (throttled)│   │  │
+│  │  └─────────┘    └─────────────┘    └─────────────┘   │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+            </div>
+        </section>
+
+        <section id="architecture">
+            <h2>Core Architecture</h2>
+
+            <h3>DataStore.swift</h3>
+            <p>The base class that manages state:</p>
+
+<pre><code><span class="keyword">open class</span> <span class="type">DataStore</span>&lt;<span class="type">Model</span>: <span class="type">Equatable</span> &amp; <span class="type">Codable</span>&gt;: <span class="type">NSObject</span> {
+    <span class="keyword">private var</span> _model: <span class="type">Model</span>           <span class="comment">// The actual state</span>
+    <span class="keyword">private var</span> subject: <span class="type">CurrentValueSubject</span>&lt;<span class="type">Model</span>, <span class="type">Never</span>&gt;
+
+    <span class="keyword">public let</span> persistenceKey: <span class="type">String</span>?  <span class="comment">// Key for JSON file</span>
+    <span class="keyword">public let</span> queue: <span class="type">Queue</span>              <span class="comment">// Thread synchronization</span>
+
+    <span class="comment">// Two publishers for different use cases</span>
+    <span class="keyword">public var</span> publisher: <span class="type">AnyPublisher</span>&lt;<span class="type">Model</span>, <span class="type">Never</span>&gt;    <span class="comment">// Immediate</span>
+    <span class="keyword">public var</span> uiPublisher: <span class="type">AnyPublisher</span>&lt;<span class="type">Model</span>, <span class="type">Never</span>&gt;  <span class="comment">// Frame-throttled</span>
+}</code></pre>
+
+            <h3>BrowserStore Example</h3>
+            <p>The main application state store:</p>
+
+<pre><code><span class="keyword">public class</span> <span class="type">BrowserStore</span>: <span class="type">DataStore</span>&lt;<span class="type">BrowserState</span>&gt; {
+    <span class="keyword">public static let</span> shared = <span class="type">BrowserStore</span>(
+        persistenceKey: <span class="string">"BrowserStore"</span>,
+        defaultModel: .defaultState,
+        queue: .main
+    )
+
+    <span class="keyword">private var</span> liveWebContents = [<span class="type">ID</span>&lt;<span class="type">WebContent</span>&gt;: <span class="type">WebContent</span>]()
+}</code></pre>
+        </section>
+
+        <section id="observing">
+            <h2>Observing State</h2>
+
+            <p>There are three main patterns for observing DataStore changes:</p>
+
+            <div class="card">
+                <h3>1. WithSnapshotMain (Recommended for UI)</h3>
+                <p>
+                    Creates an efficient, equatable snapshot of only the data your view needs.
+                    Re-renders only when the snapshot changes.
+                </p>
+
+<pre><code><span class="keyword">struct</span> <span class="type">DownloadsSidebar</span>: <span class="type">View</span> {
+    <span class="keyword">let</span> windowID: <span class="type">ID</span>&lt;<span class="type">WindowState</span>&gt;
+
+    <span class="keyword">var</span> body: <span class="keyword">some</span> <span class="type">View</span> {
+        <span class="type">WithSnapshotMain</span>(store: <span class="type">BrowserStore</span>.shared) { state <span class="keyword">in</span>
+            <span class="comment">// Create minimal snapshot with only needed data</span>
+            <span class="type">DownloadsSnapshot</span>(
+                windowID: windowID,
+                downloads: state.windows[windowID]?.downloads ?? [:]
+            )
+        } main: { snapshot <span class="keyword">in</span>
+            <span class="comment">// Render view with snapshot (non-optional)</span>
+            <span class="type">DownloadsSidebarContent</span>(snapshot: snapshot)
+        }
+    }
+}
+
+<span class="comment">// Define an Equatable snapshot struct</span>
+<span class="keyword">private struct</span> <span class="type">DownloadsSnapshot</span>: <span class="type">Equatable</span> {
+    <span class="keyword">let</span> windowID: <span class="type">ID</span>&lt;<span class="type">WindowState</span>&gt;
+    <span class="keyword">let</span> downloads: [<span class="type">ID</span>&lt;<span class="type">Download</span>&gt;: <span class="type">Download</span>]
+}</code></pre>
+            </div>
+
+            <div class="card">
+                <h3>2. onReceive with uiPublisher</h3>
+                <p>
+                    Direct Combine subscription for simpler cases or when you need
+                    to trigger side effects.
+                </p>
+
+<pre><code><span class="keyword">struct</span> <span class="type">MyView</span>: <span class="type">View</span> {
+    @<span class="type">State</span> <span class="keyword">private var</span> shouldFocus = <span class="keyword">false</span>
+    <span class="keyword">let</span> windowID: <span class="type">ID</span>&lt;<span class="type">WindowState</span>&gt;
+
+    <span class="keyword">var</span> body: <span class="keyword">some</span> <span class="type">View</span> {
+        <span class="type">Color</span>.clear
+            .<span class="func">onReceive</span>(
+                <span class="type">BrowserStore</span>.shared.uiPublisher
+                    .<span class="func">map</span> { $0.<span class="func">shouldFocusWebContent</span>(windowID) }
+                    .<span class="func">removeDuplicates</span>()
+            ) { shouldFocus <span class="keyword">in</span>
+                <span class="keyword">self</span>.shouldFocus = shouldFocus
+            }
+    }
+}</code></pre>
+            </div>
+
+            <div class="card">
+                <h3>3. WithSnapshot (for async/background stores)</h3>
+                <p>
+                    Similar to WithSnapshotMain but returns an optional snapshot,
+                    suitable for stores that may not have loaded yet.
+                </p>
+
+<pre><code><span class="type">WithSnapshot</span>(store: someBackgroundStore) { state <span class="keyword">in</span>
+    <span class="type">MySnapshot</span>(data: state.relevantData)
+} main: { snapshot <span class="keyword">in</span>  <span class="comment">// snapshot is optional</span>
+    <span class="keyword">if let</span> snapshot {
+        <span class="type">ContentView</span>(snapshot: snapshot)
+    } <span class="keyword">else</span> {
+        <span class="type">LoadingView</span>()
+    }
+}</code></pre>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pattern</th>
+                        <th>Use When</th>
+                        <th>Snapshot</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>WithSnapshotMain</code></td>
+                        <td>Main-thread stores (BrowserStore)</td>
+                        <td>Non-optional</td>
+                    </tr>
+                    <tr>
+                        <td><code>WithSnapshot</code></td>
+                        <td>Background stores, async loading</td>
+                        <td>Optional</td>
+                    </tr>
+                    <tr>
+                        <td><code>onReceive</code></td>
+                        <td>Simple values, side effects</td>
+                        <td>N/A</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="tip">
+                <strong>Tip:</strong> Always use <code>uiPublisher</code> for UI updates, not <code>publisher</code>.
+                The uiPublisher is throttled to the display refresh rate (60fps), preventing
+                excessive redraws during rapid state changes.
+            </div>
+        </section>
+
+        <section id="modifying">
+            <h2>Modifying State</h2>
+
+            <div class="card">
+                <h3>modify() - Synchronous Modification</h3>
+                <p>The primary way to update state. Runs on the store's queue.</p>
+
+<pre><code><span class="type">BrowserStore</span>.shared.<span class="func">modify</span> { state <span class="keyword">in</span>
+    <span class="comment">// Mutate state directly</span>
+    state.windows[windowID]?.currentTab = tabID
+
+    <span class="comment">// Call extension methods</span>
+    state.<span class="func">openTab</span>(url: url, activate: <span class="keyword">true</span>)
+}</code></pre>
+            </div>
+
+            <div class="card">
+                <h3>modifyAsync() - Async/Await Modification</h3>
+                <p>For use in async contexts. Returns a value if needed.</p>
+
+<pre><code><span class="keyword">func</span> <span class="func">updateTabs</span>() <span class="keyword">async</span> {
+    <span class="keyword">await</span> <span class="type">BrowserStore</span>.shared.<span class="func">modifyAsync</span> { state <span class="keyword">in</span>
+        state.tabs[tabID]?.aiTags = newTags
+    }
+}
+
+<span class="comment">// Can also return values</span>
+<span class="keyword">let</span> tabCount = <span class="keyword">await</span> store.<span class="func">modifyAsync</span> { state <span class="keyword">in</span>
+    state.tabs.count
+}</code></pre>
+            </div>
+
+            <div class="card">
+                <h3>readAsync() - Async Reading</h3>
+                <p>Read state without modification in async contexts.</p>
+
+<pre><code><span class="keyword">let</span> currentState = <span class="keyword">await</span> store.<span class="func">readAsync</span>()
+
+<span class="comment">// Or with a transform</span>
+<span class="keyword">let</span> tabIDs = <span class="keyword">await</span> store.<span class="func">readAsync</span> { state <span class="keyword">in</span>
+    <span class="type">Array</span>(state.tabs.keys)
+}</code></pre>
+            </div>
+
+            <div class="warning">
+                <strong>Warning:</strong> Never call <code>modify()</code> from within another <code>modify()</code> block.
+                The store has an assertion to catch this. Instead, perform all mutations
+                in a single modify call.
+            </div>
+        </section>
+
+        <section id="persistence">
+            <h2>Persistence</h2>
+
+            <p>DataStore automatically persists to JSON files in Application Support:</p>
+
+            <div class="diagram">
+~/Library/Application Support/WowserDataStores/{BundleID}/{persistenceKey}.json
+            </div>
+
+            <h3>Automatic Save Triggers</h3>
+            <ul>
+                <li>App resigns active (goes to background)</li>
+                <li>App terminates</li>
+            </ul>
+
+            <h3>Lifecycle Hooks</h3>
+
+<pre><code><span class="keyword">class</span> <span class="type">MyStore</span>: <span class="type">DataStore</span>&lt;<span class="type">MyState</span>&gt; {
+    <span class="comment">// Called during initialization</span>
+    <span class="keyword">override func</span> <span class="func">setup</span>() {
+        <span class="keyword">super</span>.<span class="func">setup</span>()
+        <span class="comment">// Setup subscriptions, background tasks, etc.</span>
+    }
+
+    <span class="comment">// Called after loading from disk</span>
+    <span class="keyword">override func</span> <span class="func">processModelAfterLoad</span>(model: <span class="keyword">inout</span> <span class="type">MyState</span>) {
+        model.<span class="func">cleanupStaleData</span>()
+    }
+
+    <span class="comment">// Called before saving to disk</span>
+    <span class="keyword">override func</span> <span class="func">processModelBeforePersist</span>(model: <span class="keyword">inout</span> <span class="type">MyState</span>) {
+        model.<span class="func">removeTransientData</span>()
+    }
+
+    <span class="comment">// Called periodically before saves</span>
+    <span class="keyword">override func</span> <span class="func">cleanup</span>(model: <span class="keyword">inout</span> <span class="type">MyState</span>) {
+        model.<span class="func">trimOldEntries</span>()
+    }
+
+    <span class="comment">// Migration from old data formats</span>
+    <span class="keyword">override func</span> <span class="func">migrate</span>(previousData: <span class="type">Data</span>) -> <span class="type">MyState</span>? {
+        <span class="comment">// Try to decode old format and convert</span>
+        <span class="keyword">return nil</span>
+    }
+}</code></pre>
+        </section>
+
+        <section id="concurrency">
+            <h2>Concurrency</h2>
+
+            <h3>The Queue System</h3>
+            <p>Each DataStore has an associated <code>Queue</code> that manages thread safety:</p>
+
+<pre><code><span class="keyword">public struct</span> <span class="type">Queue</span> {
+    <span class="keyword">public let</span> id: <span class="type">String</span>
+    <span class="keyword">public let</span> queue: <span class="type">DispatchQueue</span>
+
+    <span class="keyword">public static let</span> main = <span class="type">Queue</span>(id: <span class="string">"main"</span>, queue: .<span class="type">main</span>)
+
+    <span class="comment">// Runs async if not current, sync if already on queue</span>
+    <span class="keyword">public func</span> <span class="func">run</span>(_ block: @<span class="keyword">escaping</span> () -> ()) { ... }
+
+    <span class="comment">// Always runs sync (warns if blocking main)</span>
+    <span class="keyword">public func</span> <span class="func">runSync</span>(_ block: () -> ()) { ... }
+}</code></pre>
+
+            <h3>Store Queue Patterns</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Store</th>
+                        <th>Queue</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>BrowserStore</code></td>
+                        <td><code>.main</code></td>
+                        <td>UI state, needs immediate sync access</td>
+                    </tr>
+                    <tr>
+                        <td><code>HistoryStore</code></td>
+                        <td><code>.historyQueue</code></td>
+                        <td>Background data, avoids blocking UI</td>
+                    </tr>
+                    <tr>
+                        <td><code>ArchiveStore</code></td>
+                        <td>Custom</td>
+                        <td>Background processing</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>FrameThrottledValue</h3>
+            <p>
+                The <code>uiPublisher</code> uses a display-link-based throttling mechanism
+                to coalesce rapid updates into single frames:
+            </p>
+
+<pre><code><span class="keyword">class</span> <span class="type">FrameThrottledValue</span>&lt;<span class="type">V</span>&gt; {
+    <span class="keyword">private var</span> pendingVal: <span class="type">V</span>?
+    <span class="keyword">private var</span> displayLink: <span class="type">DisplayLink</span>?
+
+    <span class="keyword">func</span> <span class="func">update</span>(value: <span class="type">V</span>) {
+        <span class="comment">// Store pending value</span>
+        pendingVal = value
+
+        <span class="comment">// Create display link if needed</span>
+        <span class="keyword">if</span> displayLink == <span class="keyword">nil</span> {
+            displayLink = <span class="type">DisplayLink</span> { [<span class="keyword">weak self</span>] <span class="keyword">in</span>
+                <span class="comment">// Publish on next frame, then clean up</span>
+                <span class="keyword">self</span>?.subject.value = <span class="keyword">self</span>?.pendingVal
+                <span class="keyword">self</span>?.displayLink?.<span class="func">invalidate</span>()
+            }
+        }
+    }
+}</code></pre>
+
+            <div class="diagram">
+Multiple rapid updates:
+  t=0ms: modify() ──▶ pendingVal = A
+  t=1ms: modify() ──▶ pendingVal = B
+  t=2ms: modify() ──▶ pendingVal = C
+  t=16ms: DisplayLink fires ──▶ publish(C) ──▶ UI renders once
+            </div>
+        </section>
+
+        <section>
+            <h2>Best Practices Summary</h2>
+
+            <div class="tip">
+                <strong>Do:</strong>
+                <ul>
+                    <li>Use <code>WithSnapshotMain</code> with minimal, equatable snapshots</li>
+                    <li>Put business logic in extensions on the state type</li>
+                    <li>Use <code>uiPublisher</code> for UI subscriptions</li>
+                    <li>Extend <code>BrowserState</code> rather than <code>BrowserStore</code> when possible</li>
+                    <li>Keep state types JSON-serializable</li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <strong>Don't:</strong>
+                <ul>
+                    <li>Nest <code>modify()</code> calls</li>
+                    <li>Store large data (images, callbacks) in state</li>
+                    <li>Use <code>publisher</code> for UI (use <code>uiPublisher</code>)</li>
+                    <li>Block the main thread with <code>runSync</code> from background queues</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer style="text-align: center; margin-top: 3rem; color: #666;">
+            <p>Wowser Browser Architecture Documentation</p>
+        </footer>
+    </div>
+</body>
+</html>
