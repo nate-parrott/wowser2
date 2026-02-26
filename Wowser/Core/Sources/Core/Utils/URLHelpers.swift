@@ -152,7 +152,10 @@ extension URL {
     }
 
     public var isRootOfDomain: Bool {
-        return pathComponents.count == 0
+        // Root URLs may either have an empty path ("https://example.com")
+        // or a single trailing slash ("https://example.com/").
+        // Using the path string handles both cases.
+        return path.isEmpty || path == "/"
     }
 
     public var inferredFaviconURL: URL {
