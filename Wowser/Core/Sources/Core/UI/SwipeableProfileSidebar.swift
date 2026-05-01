@@ -212,7 +212,7 @@ private struct ProfilePageContent: View {
                 tabGroups: snapshot.regularTabGroups,
                 currentTabID: snapshot.currentTabID,
                 windowID: windowID
-            )
+            )            
         }
     }
 }

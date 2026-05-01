@@ -155,9 +155,9 @@ private struct SidebarContent: View {
             
             Spacer()
             
-            // Bottom buttons
-            SidebarBottomButtons(windowID: snapshot.windowID)
-                .padding(.bottom, 8)
+//            // Bottom buttons
+//            SidebarBottomButtons(windowID: snapshot.windowID)
+//                .padding(.bottom, 8)
         }
         .contextMenu {
             ProfilePicker(
@@ -296,6 +296,7 @@ struct GroupedTabsView: View {
                             }
                         }
                     }
+                    NewTabCell(windowID: windowID)
                 }
                 .padding(isMobile() ? 12 : 0)
                 .frame(maxWidth: .infinity)
@@ -326,52 +327,6 @@ struct GroupedTabsView: View {
         }
     }
 }
-
-// Bottom buttons component
-private struct SidebarBottomButtons: View {
-    let windowID: ID<WindowState>
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            // New Tab button
-            Button(action: { newTab() }) {
-                Image(systemName: "plus")
-                    .imageScale(.large)
-                    .help("New Tab")
-            }
-            
-            // Focus button
-            Button(action: { focus() }) {
-                Image(systemName: "moon")
-                    .imageScale(.large)
-                    .help("Focus")
-            }
-        }
-        .buttonStyle(BigSidebarButtonStyle())
-        .padding(.horizontal, 8)
-    }
-    
-    func newTab() {
-        // Create a new tab
-        BrowserStore.shared.createTab(
-            withURL: nil,  // Start with empty tab
-            in: windowID,
-            activate: true
-        )
-        
-        // Show search overlay to enter URL
-        BrowserStore.shared.modify { state in
-            state.windows[windowID]?.searchOverlayActive = true
-        }
-    }
-    
-    func focus() {
-        // No-op for now
-        // Will implement focus mode functionality in the future
-    }
-}
-
-// Helper functions
 
 // Extension to apply tab style to any shape
 extension Shape {

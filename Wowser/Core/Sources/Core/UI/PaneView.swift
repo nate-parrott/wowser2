@@ -17,7 +17,7 @@ struct PaneView: View {
     @State private var size: CGSize = .zero
     
     var body: some View {
-        let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? 40 : 0
+        let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
         
         ZStack(alignment: .top) {
             content

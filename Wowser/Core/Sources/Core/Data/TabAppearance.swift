@@ -11,6 +11,7 @@ struct TabAppearance: Equatable, Codable {
     }
     
     var title: String
+    var specialTitle = false // eg for new tabs
     var icon: Icon
     var urlFieldTextSelected: String
     var urlFieldTextDeselected: String
@@ -28,6 +29,10 @@ extension Pane {
             urlFieldTextSelected: info.url?.absoluteString ?? "",
             urlFieldTextDeselected: info.url?.hostWithoutWWW ?? ""
         )
+        if info.isEmptyPage {
+            appearance.title = "New"
+            appearance.specialTitle = true
+        }
         if let faviconUrl = info.favicon ?? baseInfo?.favicon ?? info.url?.inferredFaviconURL {
             appearance.icon = .favicon(faviconUrl)
         }

@@ -80,6 +80,8 @@ private struct RegularTabButton: View {
             // Title with truncation
             VStack(alignment: .leading, spacing: 0) {
                 Text(snapshot.appearance.title)
+//                    .italic(snapshot.appearance.specialTitle)
+                    .opacity(snapshot.appearance.specialTitle ? 0.66 : 1)
                     .truncationMode(.tail)
                     .lineLimit(1)
             }
@@ -97,6 +99,39 @@ private struct RegularTabButton: View {
         .contentShape(Rectangle())
     }
 }
+
+struct NewTabCell: View {
+    var windowID: ID<WindowState>
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            TabIconView(icon: .sfSymbol("plus"))
+                .saturation(0)
+                .opacity(0.5)
+            Text("New Tab")
+                .opacity(0.4)
+                .lineLimit(1)
+            Spacer()
+        }
+        .padding(.leading, isMobile() ? 14 : 8)
+        .padding(.trailing, 4)
+        .frame(height: isMobile() ? 44 : 30)
+        .contentShape(Rectangle())
+        .modifier(TabStyleButtonModifier(isSelected: false, pressed: {
+            BrowserStore.shared.createTab(
+                withURL: nil,
+                in: windowID,
+                activate: true
+            )
+            
+            // Show search overlay to enter URL
+            BrowserStore.shared.modify { state in
+                state.windows[windowID]?.searchOverlayActive = true
+            }
+        }))
+    }
+}
+
 
 private struct CloseTabButton: View {
     var tabID: ID<Tab>

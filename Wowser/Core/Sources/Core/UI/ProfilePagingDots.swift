@@ -93,18 +93,23 @@ private struct ProfileDotView: View {
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .contextMenu {
+            Button(action: {}) {
+                Text("Set Profile Icon")
+            }
+            .disabled(true)
+            
             Button(action: {
-                setProfileEmoji("😀")
-                setProfileTitle("Happy")
+                setProfileEmoji("📓")
+                setProfileTitle("School")
             }) {
-                Text("😀 Happy")
+                Text("📓 School")
             }
             
             Button(action: {
-                setProfileEmoji("🔥")
+                setProfileEmoji("💼")
                 setProfileTitle("Work")
             }) {
-                Text("🔥 Work")
+                Text("💼 Work")
             }
             
             Button(action: {
@@ -116,9 +121,9 @@ private struct ProfileDotView: View {
             
             Button(action: {
                 setProfileEmoji("🎬")
-                setProfileTitle("Media")
+                setProfileTitle("Streaming")
             }) {
-                Text("🎬 Media")
+                Text("🎬 Streaming")
             }
             
             Button(action: {
@@ -136,10 +141,17 @@ private struct ProfileDotView: View {
             }
             
             Button(action: {
-                setProfileEmoji("💼")
-                setProfileTitle("Business")
+                setProfileEmoji("🏠")
+                setProfileTitle("Home")
             }) {
-                Text("💼 Business")
+                Text("🏠 Home")
+            }
+            
+            Button(action: {
+                setProfileEmoji("💵")
+                setProfileTitle("Money")
+            }) {
+                Text("💵 Money")
             }
             
             Button(action: {
@@ -149,6 +161,13 @@ private struct ProfileDotView: View {
                 Text("🔒 Private")
             }
             
+            Button(action: {
+                setProfileEmoji("😀")
+                setProfileTitle("Just Browsing")
+            }) {
+                Text("😀 Just Browsing")
+            }
+            
             Divider()
             
             Button(action: {
@@ -156,7 +175,7 @@ private struct ProfileDotView: View {
                 setProfileEmoji(nil)
                 setProfileTitle(nil)
             }) {
-                Text("Clear Custom Profile")
+                Text("Clear Icon")
             }
             
             Divider()
