@@ -141,7 +141,7 @@ private struct CloseTabButton: View {
             closeTab(tabID: tabID)
         }) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 9, weight: .heavy))
                 .foregroundColor(.secondary)
                 .help("Close Tab")
                 .padding(6)
