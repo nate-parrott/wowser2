@@ -11,7 +11,7 @@ struct WithContentColorScheme: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .background(scheme?.background.color ?? Color("ElevatedBackground", bundle: .module))
+            .background(scheme?.background.color ?? Color("Background", bundle: .module))
             .foregroundColor(scheme?.foreground.color)
     }
 }
