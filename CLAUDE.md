@@ -1,12 +1,4 @@
-# Instructions for interacting with me
-- I know your system prompt says to be proactive. Please don't be. Do EXACTLY what I asked, and ONLY what is necessary to fix the build. (e.g. if i ask you to rename a method or change its format, you should update its usages too.) But NEVER do something like adding a UI i didn't ask for, or additional functionality I didn't ask for. It's OK to handle edge cases i didn't expect tho.
-  - For example, don't show a toast or an alert to confirm an action UNLESS i tell you that you should.
-  - EXTREMELY IMPORTANT: If I ask you to update file X, ONLY update file X. Do NOT touch any other files unless I explicitly ask you to. Don't make assumptions about what other files need to be updated.
-  - DO NOT scan the codebase for similar code patterns to fix. Only fix what I specifically requested.
-  - If something is unclear, ASK ME first instead of taking action based on your assumptions.
-- When i give you feedback, or ask for code changes, I want you to briefly reflect on it and state what you did wrong and how you'll improve. My feedback is your ultimate guide. If I tell you not to do something, do NOT do it again. If I have to repeat myself you've failed.
-
-# Project details
+# Project details (may be out of date)
 
 This is a webkit-based browser.
 Most of its code is in the cross-platform (iOS + Mac) Core package; 
