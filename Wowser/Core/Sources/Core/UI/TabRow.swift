@@ -65,7 +65,7 @@ private struct RegularTabButton: View {
     var body: some View {
         content
             .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
-                selectTab(tabID: snapshot.tabID, windowID: windowID)
+                didClickTabToSelect(tabID: snapshot.tabID, windowID: windowID)
             }))
             .contextMenu {
                 TabContextMenu(tabID: snapshot.tabID, isFavorite: false)
@@ -76,18 +76,25 @@ private struct RegularTabButton: View {
         HStack(spacing: 8) {
             // Icon based on the type in the snapshot
             TabIconView(icon: snapshot.appearance.icon)
-            
-            // Title with truncation
-            VStack(alignment: .leading, spacing: 0) {
+                .opacity(snapshot.appearance.isGhost ? 0.55 : 1)
+
+            // Title (and optional subtitle) with truncation
+            VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.appearance.title)
-//                    .italic(snapshot.appearance.specialTitle)
                     .opacity(snapshot.appearance.specialTitle ? 0.66 : 1)
                     .truncationMode(.tail)
                     .lineLimit(1)
+                if let subtitle = snapshot.appearance.subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
-            
+            .opacity(snapshot.appearance.isGhost ? 0.65 : 1)
+
             Spacer()
-            
+
             // Close button that appears on hover
             if isHovered || isMobile() {
                 CloseTabButton(tabID: snapshot.tabID)
@@ -95,7 +102,7 @@ private struct RegularTabButton: View {
         }
         .padding(.leading, isMobile() ? 14 : 8)
         .padding(.trailing, 4)
-        .frame(height: isMobile() ? 44 : 30)
+        .frame(height: snapshot.appearance.subtitle != nil ? (isMobile() ? 56 : 40) : (isMobile() ? 44 : 30))
         .contentShape(Rectangle())
     }
 }
@@ -121,9 +128,9 @@ struct NewTabCell: View {
             BrowserStore.shared.createTab(
                 withURL: nil,
                 in: windowID,
-                activate: true
+                activate: true,
+                inCurrentSplit: isOpenInSplitViewModifierKeyPressed()
             )
-            
             // Show search overlay to enter URL
             BrowserStore.shared.modify { state in
                 state.windows[windowID]?.searchOverlayActive = true

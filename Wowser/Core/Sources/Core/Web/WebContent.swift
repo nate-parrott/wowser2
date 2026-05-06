@@ -27,6 +27,13 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     private var observers = [NSKeyValueObservation]()
     private var subscriptions = Set<AnyCancellable>()
 
+    /// Storage for native overlays (terminal sessions, future webapp shells, etc.)
+    /// that need to survive SwiftUI view re-mounts and tab switches. The
+    /// reference is held for the lifetime of this WebContent — it gets evicted
+    /// when the WebContent itself is dropped (via the same lifecycle that
+    /// retires inactive web tabs in BrowserStore.removeWebContentNotInValidIds).
+    public var overlayObject: AnyObject?
+
     deinit {
         print("Webcontent deinit")
     }
@@ -99,6 +106,24 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     public func load(url: URL) {
         webview.load(.init(url: url))
     }
+
+    /// For native overlay tabs only: update the URL recorded in `info` (and
+    /// thus persisted on the pane) without navigating the underlying webview.
+    /// Used by the terminal to write the current cwd into its URL so a
+    /// restored session resumes in the right directory.
+    public func setNativeOverlayURL(_ url: URL) {
+        guard NativePageKey(url: url) != nil else { return }
+        if info.url != url { info.url = url }
+        // Snapshot webview.url so refreshMetadataNow can tell whether the
+        // overlay's URL is still authoritative. If the webview later navigates
+        // (e.g. file browser pushes a new path via webview.load, or user hits
+        // back), the snapshot won't match and webview.url wins again.
+        nativeOverlayURLSnapshot = webview.url
+    }
+
+    /// Webview.url at the time `setNativeOverlayURL` last ran. While webview.url
+    /// stays at this value, `info.url` is preserved over webview.url.
+    private var nativeOverlayURLSnapshot: URL?
 
     public func load(request: URLRequest) {
         webview.load(request)
@@ -470,10 +495,34 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     // do not call directly; call needsMetadataRefresh
     private func refreshMetadataNow() {
         self._mdRefreshScheduled = false
-        
+
         var info = self.info
-        info.url = webview.url
-        info.title = webview.title
+        // Native overlay tabs (terminal etc.) own their own title; the
+        // about:blank webview underneath always reports an empty title.
+        // For URL: preserve `info.url` only when the overlay has already
+        // rewritten it for the current session (e.g. terminal updating cwd
+        // in the query). On the initial load — when info.url is still nil
+        // or stale — we must take webview.url, otherwise the pane never
+        // gets a native URL and the overlay never mounts.
+        let webviewKey = webview.url.flatMap(NativePageKey.init(url:))
+        let infoKey = info.url.flatMap(NativePageKey.init(url:))
+        let sameNativeSession = (webviewKey != nil && infoKey != nil)
+            && webviewKey?.sessionID == infoKey?.sessionID
+        // Preserve info.url only while the overlay's snapshot still matches
+        // webview.url. If webview.url has moved (e.g. file browser back/fwd or
+        // a path push), drop our hold on info.url and adopt webview.url.
+        let overlayURLAuthoritative = sameNativeSession
+            && nativeOverlayURLSnapshot != nil
+            && nativeOverlayURLSnapshot == webview.url
+        if !overlayURLAuthoritative {
+            info.url = webview.url
+            if !sameNativeSession {
+                nativeOverlayURLSnapshot = nil
+            }
+        }
+        if webviewKey == nil {
+            info.title = webview.title
+        }
         info.isSecure = webview.hasOnlySecureContent
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba

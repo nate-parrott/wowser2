@@ -87,6 +87,11 @@ public struct Pane: Equatable, Identifiable, Codable {
     public var id: ID<WebContent>
     public var info: WebContent.Info
     public var baseInfo: WebContent.Info?
+    public var weight: Double?
+    /// Agent-opened "ghost" pane: live but not selected, muted, dimmed in the
+    /// sidebar with an "Agent tab" subtitle. Cleared when the user activates
+    /// the tab directly so it becomes a normal pane.
+    public var isGhost: Bool = false
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -137,6 +142,10 @@ public struct WindowState: Equatable, Codable {
     }
 
     public var lastActive: Date?
+    /// Bumped each time the window becomes key. Drives pane refocus: surface
+    /// snapshots include this date so `.onAppearOrChange` fires on window-key
+    /// the same way it fires on tab-switch (when `isFocused` flips).
+    public var lastBecameKeyAt: Date?
     public var searchOverlayActive = false
     public var toasts = [Toast]()
     public var sidebarLocked = true
@@ -194,7 +203,28 @@ public class BrowserStore: DataStore<BrowserState> {
             .sink { [weak self] ids in
                 self?.removeWebContentNotInValidIds()
             }.store(in: &subscriptions)
-        
+
+        // Mirror per-pane ghost flag onto WebContent.silenced so agent-opened
+        // background tabs stay muted (and unsilence when promoted to a normal
+        // foreground tab).
+        uiPublisher
+            .map { state -> [ID<WebContent>: Bool] in
+                var out: [ID<WebContent>: Bool] = [:]
+                for tab in state.tabs.values {
+                    for pane in tab.panes.asArray { out[pane.id] = pane.isGhost }
+                }
+                return out
+            }
+            .removeDuplicates()
+            .sink { [weak self] ghostByPane in
+                guard let self else { return }
+                for (paneID, isGhost) in ghostByPane {
+                    if let wc = self.liveWebContents[paneID], wc.silenced != isGhost {
+                        wc.silenced = isGhost
+                    }
+                }
+            }.store(in: &subscriptions)
+
         setupAutoArchiving()
     }
     
@@ -234,6 +264,9 @@ public class BrowserStore: DataStore<BrowserState> {
         }
         
         let wc = WebContent(id: id, profileUUID: profile.dataStoreUUID)
+        if pane.isGhost {
+            wc.silenced = true
+        }
         if let url = pane.info.url {
             wc.load(url: url)
         }
@@ -293,23 +326,36 @@ public class BrowserStore: DataStore<BrowserState> {
     ///   - activate: Whether to activate the tab after insertion
     /// - Returns: The ID of the created tab
     @discardableResult
-    public func createTab(withURL url: URL?, in windowID: ID<WindowState>, activate: Bool = true) -> ID<Tab> {
+    public func createTab(withURL url: URL?, in windowID: ID<WindowState>, activate: Bool = true, inCurrentSplit: Bool = false) -> ID<Tab> {
         var tabID: ID<Tab>?
         
         modify { state in
-            // Create a new tab with the URL
-            let tab = Tab.newTabWithURL(url)
-            
-            // Insert the tab into the window
-            let insertLocation = state.insertionIndex(window: windowID, spawningTabId: state.windows[windowID]?.currentTab)
-            state.insertTab(tab, location: insertLocation, inWindow: windowID)
-            
-            // Activate the tab if requested
-            if activate {
-                state.activate(tabId: tab.id, in: windowID)
+            if inCurrentSplit, let currentTabID = state.windows[windowID]?.currentTab {
+                let paneID = Core.ID<WebContent>.assign()
+                let info = WebContent.Info(url: url, title: nil)
+                let pane = Pane(id: paneID, info: info)
+                state.modifyTab(id: currentTabID) { tab in
+                    tab.panes.append(pane)
+                    if activate {
+                        tab.focusedPaneIdx = tab.panes.count - 1
+                    }
+                }
+                
+                tabID = currentTabID
+            } else {
+                // Create a new tab with the URL
+                let tab = Tab.newTabWithURL(url)
+                
+                // Insert the tab into the window
+                let insertLocation = state.insertionIndex(window: windowID, spawningTabId: state.windows[windowID]?.currentTab)
+                state.insertTab(tab, location: insertLocation, inWindow: windowID)
+                
+                // Activate the tab if requested
+                if activate {
+                    state.activate(tabId: tab.id, in: windowID)
+                }
+                tabID = tab.id
             }
-            
-            tabID = tab.id
         }
         
         return tabID!
@@ -410,17 +456,21 @@ extension BrowserStore: WebContentDelegate {
             }
         }
         
-        // Visit tracking
-        if let url = info.url, url.historyKey != previous?.url?.historyKey,
-            let profile = self.model.profile(forWebContentId: webContent.id) {
-            Queue.historyQueue.run {
-                profile.id.historyStore_historyQueueOnly.trackVisitDebounced(url: url, title: info.title)
-            }
-        } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
-                    let profile = self.model.profile(forWebContentId: webContent.id) {
-            // Update info
-            Queue.historyQueue.run {
-                profile.id.historyStore_historyQueueOnly.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
+        // Visit tracking — skip native overlay URLs (terminal cwd updates
+        // would otherwise spam history with about:blank?native=… entries).
+        let isNativeURL = info.url.flatMap(NativePageKey.init(url:)) != nil
+        if !isNativeURL {
+            if let url = info.url, url.historyKey != previous?.url?.historyKey,
+                let profile = self.model.profile(forWebContentId: webContent.id) {
+                Queue.historyQueue.run {
+                    profile.id.historyStore_historyQueueOnly.trackVisitDebounced(url: url, title: info.title)
+                }
+            } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
+                        let profile = self.model.profile(forWebContentId: webContent.id) {
+                // Update info
+                Queue.historyQueue.run {
+                    profile.id.historyStore_historyQueueOnly.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
+                }
             }
         }
     }
@@ -464,6 +514,48 @@ extension BrowserState {
             block(&pane, &tab)
             tab.panes[pane.id] = pane
             tabs[tabId] = tab
+        }
+    }
+
+    mutating func setPaneWeights(tabId: ID<Tab>, leftPaneIdx: Int, leftWeight: Double, rightWeight: Double) {
+        guard var tab = tabs[tabId],
+              let left = tab.panes[leftPaneIdx],
+              let right = tab.panes[leftPaneIdx + 1] else { return }
+        var newLeft = left
+        newLeft.weight = leftWeight
+        var newRight = right
+        newRight.weight = rightWeight
+        tab.panes[left.id] = newLeft
+        tab.panes[right.id] = newRight
+        tabs[tabId] = tab
+    }
+    
+    /// Clear the ghost flag on every pane in a tab. Called when the user
+    /// activates the tab directly, promoting an agent-opened ghost tab to a
+    /// normal foreground tab.
+    public mutating func unghostTab(id: ID<Tab>) {
+        guard var tab = tabs[id] else { return }
+        var anyChange = false
+        for pane in tab.panes.asArray {
+            if pane.isGhost {
+                var updated = pane
+                updated.isGhost = false
+                tab.panes[updated.id] = updated
+                anyChange = true
+            }
+        }
+        if anyChange {
+            tabs[id] = tab
+        }
+    }
+
+    mutating func makePaneActive(webContentID: ID<WebContent>) {
+        if let tabID = tabContaining(paneId: webContentID) {
+            modifyTab(id: tabID) { tab in
+                if let idx = tab.panes.asArray.firstIndex(where: { $0.id == webContentID }) {
+                    tab.focusedPaneIdx = idx
+                }
+            }
         }
     }
     

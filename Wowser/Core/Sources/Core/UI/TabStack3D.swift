@@ -76,7 +76,7 @@ struct TabStack3D: View {
             if !card.isLive, let tabId = card.tabId {
                 WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
                     if let pane {
-                        FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme)
+                        FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
                             .overlay {
                                 TabStackCardOverlay(webContentId: pane.id)
                                     .transition(.opacity)
@@ -235,14 +235,115 @@ private class TabStack3DModel: ObservableObject {
 struct TabContentView: View {
     var snapshot: WindowSnapshot
     var topbarVisible: Bool
-    
+
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(snapshot.panes) { pane in
-                PaneView(snapshot: pane, singlePane: snapshot.panes.count == 1, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
-                    .dropToCreateSplitViewTarget(paneId: pane.webContentId)
+        if snapshot.panes.count <= 1 {
+            HStack(spacing: 0) {
+                ForEach(snapshot.panes) { pane in
+                    PaneView(snapshot: pane, singlePane: true, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
+                        .dropToCreateSplitViewTarget(paneId: pane.webContentId)
+                }
+            }
+        } else {
+            GeometryReader { geo in
+                let totalWeight = max(snapshot.panes.map(\.weight).reduce(0, +), 0.0001)
+                let widths = snapshot.panes.map { geo.size.width * ($0.weight / totalWeight) }
+                ZStack(alignment: .topLeading) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(snapshot.panes.enumerated()), id: \.element.id) { idx, pane in
+                            PaneView(snapshot: pane, singlePane: false, topbarVisible: topbarVisible || pane.emptyPage, toolbarColorScheme: pane.colorScheme)
+                                .frame(width: widths[idx])
+                                .dropToCreateSplitViewTarget(paneId: pane.webContentId)
+                        }
+                    }
+                    if let tabId = snapshot.tabId {
+                        ForEach(0..<max(snapshot.panes.count - 1, 0), id: \.self) { idx in
+                            let seamX = widths.prefix(idx + 1).reduce(0, +)
+                            PaneSplitDivider(
+                                tabId: tabId,
+                                leftPaneIdx: idx,
+                                totalWidth: geo.size.width
+                            )
+                            .frame(height: geo.size.height)
+                            .offset(x: seamX - 4) // 4px hit area centered on seam (frame is 8px wide)
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+private struct PaneSplitDivider: View {
+    let tabId: ID<Tab>
+    let leftPaneIdx: Int
+    let totalWidth: CGFloat
+
+    @State private var dragStartLeftWeight: Double?
+    @State private var dragStartRightWeight: Double?
+    @State private var dragStartTotalWeight: Double?
+
+    var body: some View {
+        ZStack {
+            Color.primary.opacity(0.1)
+                .frame(width: 1)
+                .allowsHitTesting(false)
+            Color.black.opacity(0.0001) // non-clear so it always receives hits, even over WKWebView
+                .frame(width: 8)
+                .contentShape(Rectangle())
+                #if os(macOS)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.resizeLeftRight.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                #endif
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let startLeft: Double
+                            let startRight: Double
+                            let startTotal: Double
+                            if let l = dragStartLeftWeight, let r = dragStartRightWeight, let t = dragStartTotalWeight {
+                                startLeft = l
+                                startRight = r
+                                startTotal = t
+                            } else {
+                                let state = BrowserStore.shared.model
+                                guard let tab = state.tabs[tabId],
+                                      let left = tab.panes[leftPaneIdx],
+                                      let right = tab.panes[leftPaneIdx + 1] else { return }
+                                startLeft = left.weight ?? 1.0
+                                startRight = right.weight ?? 1.0
+                                let total = tab.panes.elements.map { $0.weight ?? 1.0 }.reduce(0, +)
+                                startTotal = max(total, 0.0001)
+                                self.dragStartLeftWeight = startLeft
+                                self.dragStartRightWeight = startRight
+                                self.dragStartTotalWeight = startTotal
+                            }
+
+                            let pairWeight = startLeft + startRight
+                            let unitsPerPx = startTotal / max(totalWidth, 1)
+                            let deltaWeight = Double(value.translation.width) * unitsPerPx
+                            let minWeight = pairWeight * 0.05
+                            var newLeft = startLeft + deltaWeight
+                            newLeft = min(max(newLeft, minWeight), pairWeight - minWeight)
+                            let newRight = pairWeight - newLeft
+
+                            BrowserStore.shared.modify { state in
+                                state.setPaneWeights(tabId: tabId, leftPaneIdx: leftPaneIdx, leftWeight: newLeft, rightWeight: newRight)
+                            }
+                        }
+                        .onEnded { _ in
+                            dragStartLeftWeight = nil
+                            dragStartRightWeight = nil
+                            dragStartTotalWeight = nil
+                        }
+                )
+        }
+        .frame(width: 8)
     }
 }
 

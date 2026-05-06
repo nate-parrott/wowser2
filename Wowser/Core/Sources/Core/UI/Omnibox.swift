@@ -7,6 +7,7 @@ struct Omnibox: View {
     @ObservedObject var searcher: Searcher
     var fgColor: HSBA?
     var onFocus: () -> Void // Handler should focus this pane within its tab and set searchOverlay visible on the pane state.
+    var fontSize: CGFloat = 14
     
     @State private var contentSize: CGSize = .zero
     @Environment(\.windowID) private var windowID
@@ -18,9 +19,9 @@ struct Omnibox: View {
             text: $searchText,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
-                font: .systemFont(ofSize: 14, weight: .regular),
+                font: .systemFont(ofSize: fontSize, weight: .regular),
                 color: fgColor?.uiColor ?? UINSColor.textColor,
-                insets: CGSize(width: 8, height: 12),
+                insets: CGSize(width: 8, height: 12 - (fontSize - 14) / 2), // Inset is calibrated to center size-14 text. reduce height insets if font has size excess of 14, so it remains centered.
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
                 lineLimit: 1
@@ -68,7 +69,10 @@ struct Omnibox: View {
             dismissOverlay()
             
         case .focus:
-            onFocus()
+            // HACK: Send focus event later in the runloop from the blur event; this prevents us from dismissing search when we click the search box in one split pane and it blurs the text field in another pane
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
+                onFocus()
+            }
             
         case .blur:
             dismissOverlay()

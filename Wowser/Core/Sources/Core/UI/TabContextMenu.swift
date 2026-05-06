@@ -23,6 +23,16 @@ public struct TabContextMenu: View {
                         Text("Pick CSS Selector")
                     }
 
+                    if tab.panes.count > 1 {
+                        Button(action: {
+                            BrowserStore.shared.modify { state in
+                                state.separateSplitTabs(tabId: tabID)
+                            }
+                        }) {
+                            Text("Separate Split Tabs")
+                        }
+                    }
+
                     if isFavorite {
                         // Remove from favorites option
                         Button(action: {

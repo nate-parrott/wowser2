@@ -7,8 +7,9 @@ struct FakePaneView: View {
     var singlePane: Bool
     var topbarVisible: Bool
     var toolbarColorScheme: ContentColorScheme?
+    var topbarLocked: Bool
     
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var size: CGSize = .zero
     
     var body: some View {

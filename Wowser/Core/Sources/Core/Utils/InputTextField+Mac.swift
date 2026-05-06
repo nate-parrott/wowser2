@@ -104,6 +104,10 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(textDidChange(_:)), name: NSText.didChangeNotification, object: textView)
 //        scrollView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scrollView)
+        
+        if #available(macOS 15.0, *) {
+            textView.writingToolsBehavior = .none
+        }
     }
 
     public override func layout() {

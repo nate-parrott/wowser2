@@ -131,7 +131,48 @@ extension BrowserState {
         
         return atLeastOneSuccess
     }
-    
+
+    /// Splits a multi-pane tab into individual tabs, one per pane. The first
+    /// pane stays in the original tab; the remaining panes are moved into new
+    /// tabs inserted directly after the original.
+    /// - Returns: The IDs of all tabs that contain the panes after splitting (the
+    ///   original first, then the new ones in order).
+    @discardableResult
+    public mutating func separateSplitTabs(tabId: ID<Tab>) -> [ID<Tab>] {
+        guard let tab = tabs[tabId], tab.panes.count > 1,
+              let win = windowContaining(tabId: tabId) else { return [] }
+        let winId = win.id
+        let originalLocation = location(ofTabId: tabId, inWindowId: winId)
+
+        let panesToMove = tab.panes.asArray.dropFirst().asArray
+
+        modifyTab(id: tabId) { t in
+            if let firstPane = t.panes.asArray.first {
+                t.panes = .init(items: [firstPane])
+            }
+            t.focusedPaneIdx = 0
+        }
+
+        var resultIds: [ID<Tab>] = [tabId]
+        var insertOffset = 1
+        for pane in panesToMove {
+            let newTab = Tab(id: .assign(), panes: [pane])
+            let location: SidebarLocation
+            switch originalLocation {
+            case .ordinaryTabs(let idx):
+                location = .ordinaryTabs(idx + insertOffset)
+            case .project(let projId, let idx):
+                location = .project(projId, idx + insertOffset)
+            case .favorites, nil:
+                location = .ordinaryTabs((windows[winId]?.tabs.count ?? 0))
+            }
+            insertTab(newTab, location: location, inWindow: winId)
+            resultIds.append(newTab.id)
+            insertOffset += 1
+        }
+        return resultIds
+    }
+
     var activeWindow: WindowState? {
         windows.values.max(by: { ($0.lastActive ?? .distantPast) < ($1.lastActive ?? .distantPast) })
     }

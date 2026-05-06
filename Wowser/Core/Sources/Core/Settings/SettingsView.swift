@@ -4,7 +4,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.adblock.rawValue) private var adblockEnabled = false
     @AppStorage(DefaultsKeys.cookieBannerBlock.rawValue) private var cookieBannerBlockEnabled = false
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkModeEnabled = false
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabsEnabled = true
     @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
     @AppStorage(DefaultsKeys.autoOrganizeTabs.rawValue) private var autoOrganizeTabsEnabled = false
@@ -26,6 +26,7 @@ public struct SettingsView: View {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
                     SwiftUI.Tab(content: { HomepageSettings() }, label: { Text("Homepage") })
                     SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
+                    SwiftUI.Tab(content: { MCPSettings() }, label: { Text("MCP") })
                     SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
                 }
             } else {
@@ -75,7 +76,7 @@ public struct SettingsView: View {
             }
             
             Section("Appearance") {
-                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
+//                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
             }

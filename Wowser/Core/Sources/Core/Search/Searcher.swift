@@ -17,7 +17,7 @@ struct SearchableItem: Equatable {
     var id: ID<SearchableItem>
     var content: Content
     var urlMatchStrings: [NormalizedSearchableString] = []
-    var titleMatchStr: NormalizedSearchableString?
+    var titleMatchStrings: [NormalizedSearchableString] = []
     var dedupeKey: String {
         switch content {
         case .searchWhatYouTyped(let string): return SearchEngine.current.urlForQuery(string).historyKey
@@ -247,7 +247,7 @@ extension CharacterSet {
 
         // Add matching actions
         let model = BrowserStore.shared.model
-        let actionMatches = model.matchingActions(query: normQuery)
+        let actionMatches = model.matchingActions(query: normQuery, windowID: self.windowID)
             .compactMap { $0.match(query: normQuery) }
             .sorted(by: { $0.score > $1.score })
 
@@ -320,7 +320,7 @@ extension CharacterSet {
                     id: .init(raw: "tab:\(tabId.raw):\(pane.id.raw)"),
                     content: .tab(tabId, pane.info),
                     urlMatchStrings: pane.info.url?.searchStrings ?? [],
-                    titleMatchStr: pane.info.title != nil ? NormalizedSearchableString(text: pane.info.title!) : nil
+                    titleMatchStrings: pane.info.title != nil ? [NormalizedSearchableString(text: pane.info.title!)] : []
                 )
                 
                 if let result = item.match(query: query) {
@@ -345,7 +345,7 @@ extension CharacterSet {
         
         // Add matching actions
         let model = BrowserStore.shared.model
-        let actionMatches = model.matchingActions(query: q)
+        let actionMatches = model.matchingActions(query: q, windowID: self.windowID)
             .compactMap { $0.match(query: q) }
             .sorted(by: { $0.score > $1.score })
         
@@ -440,7 +440,7 @@ func googleSuggestions(query: String, timeout: TimeInterval = 2) async throws ->
         let item = SearchableItem(
             id: .init(raw: "suggestion:\(suggestion)"),
             content: .searchSuggestion(suggestion, i),
-            titleMatchStr: NormalizedSearchableString(text: suggestion)
+            titleMatchStrings: [NormalizedSearchableString(text: suggestion)]
         )
         return SearchResult(item: item, matchQuality: .prefixMatchTitle)
     }
@@ -463,7 +463,7 @@ extension HistoryItem {
             id: .init(raw: key),
             content: .historyItem(self),
             urlMatchStrings: url.searchStrings,
-            titleMatchStr: title != nil ? NormalizedSearchableString(text: title!) : nil
+            titleMatchStrings: title != nil ? [NormalizedSearchableString(text: title!)] : []
         )
     }
 }
@@ -483,11 +483,13 @@ extension SearchableItem {
                 return .prefixMatchURL
             }
         }
-        if titleMatchStr?.prefixMatches(query: query) ?? false {
-            return .prefixMatchTitle
-        }
-        if titleMatchStr?.wordBoundarySubstringMatches(query: query) ?? false {
-            return .substringMatchTitle
+        for titleMatchStr in titleMatchStrings {
+            if titleMatchStr.prefixMatches(query: query) {
+                return .prefixMatchTitle
+            }
+            if titleMatchStr.wordBoundarySubstringMatches(query: query) {
+                return .substringMatchTitle
+            }
         }
         return .none
     }

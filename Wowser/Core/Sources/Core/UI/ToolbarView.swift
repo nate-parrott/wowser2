@@ -13,7 +13,8 @@ public struct ToolbarViewSnapshot: Equatable {
     var hasMultiplePanes: Bool
     var makeRoomForTrafficLights: Bool
     var isEmptyPage: Bool
-    
+    var nativeKey: NativePageKey?
+
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
         guard let webContentId,
@@ -31,9 +32,10 @@ public struct ToolbarViewSnapshot: Equatable {
             self.hasMultiplePanes = false
             self.makeRoomForTrafficLights = false
             self.isEmptyPage = true
+            self.nativeKey = nil
             return
         }
-        
+
         self.url = paneData.info.url
         self.tabAppearance = paneData.tabAppearance()
         self.isLoading = paneData.info.isLoading
@@ -47,27 +49,44 @@ public struct ToolbarViewSnapshot: Equatable {
         let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
         self.isEmptyPage = paneData.info.isEmptyPage
+        self.nativeKey = paneData.info.url.flatMap(NativePageKey.init(url:))
     }
 }
 
 /// A toolbar view that contains navigation controls and the omnibox
 public struct ToolbarView: View {
     var searchFocused: Bool
+    var paneFocused: Bool
     var webContentID: ID<WebContent>?
-    
+
     @ObservedObject var searcher: Searcher
     @Binding var searchText: String
     @Binding var selectedResultIndex: Int
-    
+
     var colorScheme: ContentColorScheme?
-    var emptyPage: Bool
-    
+    var emptyPage: Bool // is this being presented on an empty page?
+
     @Environment(\.windowID) private var windowID
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
-    
+//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+
     private let browserStore = BrowserStore.shared
     @State private var focusDate: Date?
     @State private var isBookmarked: Bool = false
+    @State private var lastBecameKeyAt: Date?
+
+//    private struct OmniboxFocusSnap: Equatable {
+//        var searchFocused: Bool
+//        var paneFocused: Bool
+//        var emptyPage: Bool
+//        var lastBecameKeyAt: Date?
+//    }
+    private var omniboxFocusSnap: OmniboxFocusSnap {
+        OmniboxFocusSnap(searchFocused: searchFocused, paneFocused: paneFocused, emptyPage: emptyPage, lastBecameKeyAt: lastBecameKeyAt)
+    }
+    
+    private var omniboxFocusDate: Date? {
+        if searchFocused && paneFocused
+    }
     
     public var body: some View {
         let topRadius: CGFloat = emptyPage ? 10 : 0
@@ -85,30 +104,37 @@ public struct ToolbarView: View {
                 // Leading nav controls
                 if !emptyPage {
                     navControls(snapshot: snapshot)
+                        .padding(.leading, 4)
                 }
                 
                 // Security indicator and Omnibox (search/URL input field)
                 HStack(spacing: -2) {
-                    LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
-                        .padding(.leading, 6)
-                    
+                    if snapshot.nativeKey == nil {
+                        LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
+                            .padding(.leading, 6)
+                    }
+
                     Omnibox(
                         focusDate: focusDate,
                         searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
                         selectedResultIndex: $selectedResultIndex,
                         searcher: searcher,
                         fgColor: colorScheme?.foreground,
-                        onFocus: activateSearchOverlay
+                        onFocus: activateSearchOverlay,
+                        fontSize: emptyPage ? 14 : 12
                     )
+//                    .border(searchFocused ? Color.red : Color.clear)
                 }
                 
                 // Trailing buttons container
                 if !emptyPage {
                     HStack(spacing: 0) {
-                        if let webContentID {
+                        if let nativeKey = snapshot.nativeKey {
+                            OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
+                        } else if let webContentID {
                             CleanModeStatusButton(webContentID: webContentID)
-                                .tint(colorScheme?.foreground.color ?? Color.primary)
-                                .padding(.trailing)
+//                                .tint(colorScheme?.foreground.color ?? Color.primary)
+//                                .padding(.trailing)
                         }
                                             
                         Button(action: toggleBookmark) {
@@ -142,14 +168,26 @@ public struct ToolbarView: View {
                     Text("Copy URL")
                 }
                 
-                Toggle(isOn: $topbarLocked) {
-                    Text("Lock Toolbar")
-                }
+//                Toggle(isOn: $topbarLocked) {
+//                    Text("Lock Toolbar")
+//                }
             }
         }
-        .onAppearOrChange(of: searchFocused, perform: { focused in
-            focusDate = focused ? Date() : nil
-        })
+        .onAppearOrChange(of: omniboxFocusSnap) { snap in
+            if snap.searchFocused {
+                focusDate = Date()
+            } else if snap.paneFocused && snap.emptyPage {
+                // Activate the overlay; the resulting state change re-fires
+                // this with searchFocused=true, which sets focusDate.
+                activateSearchOverlay()
+            } else {
+                focusDate = nil
+            }
+        }
+        .onReceive(BrowserStore.shared.uiPublisher.map { state -> Date? in
+            guard let windowID else { return nil }
+            return state.windows[windowID]?.lastBecameKeyAt
+        }.removeDuplicates()) { self.lastBecameKeyAt = $0 }
         .modifier(WithContentColorScheme(scheme: colorScheme))
         .clipShape(clipShape)
         .overlay {
@@ -173,7 +211,7 @@ public struct ToolbarView: View {
             }
             .buttonStyle(ToolbarButtonStyle())
             .disabled(!snapshot.canGoBack)
-            
+
             // Forward button
             Button(action: goForward) {
                 Image(systemName: "chevron.forward")
@@ -181,14 +219,53 @@ public struct ToolbarView: View {
             }
             .buttonStyle(ToolbarButtonStyle())
             .disabled(!snapshot.canGoForward)
-            
-            // Reload button
-            Button(action: reload) {
-                Image(systemName: snapshot.isLoading ? "xmark" : "arrow.clockwise")
-                    .imageScale(.medium)
+
+            if case .fileBrowser(let id, let path) = snapshot.nativeKey {
+                let parent = fileBrowserParentPath(path)
+                Button(action: { fileBrowserGoUp(sessionID: id, currentPath: path) }) {
+                    Image(systemName: "chevron.up")
+                        .imageScale(.medium)
+                }
+                .buttonStyle(ToolbarButtonStyle())
+                .disabled(parent == nil)
+                .help("Up one folder")
+            } else {
+                // Reload button
+                Button(action: reload) {
+                    Image(systemName: snapshot.isLoading ? "xmark" : "arrow.clockwise")
+                        .imageScale(.medium)
+                }
+                .buttonStyle(ToolbarButtonStyle())
             }
-            .buttonStyle(ToolbarButtonStyle())
         }
+    }
+
+    private func openNativeTabInOtherType(_ key: NativePageKey) {
+        BrowserStore.shared.modify { state in
+            state.openTab(url: key.url, windowID: windowID)
+        }
+    }
+
+    private func fileBrowserParentPath(_ path: String?) -> String? {
+        let resolved: String = {
+            if let path, !path.isEmpty {
+                return (path as NSString).expandingTildeInPath
+            }
+            return FileManager.default.homeDirectoryForCurrentUser.path
+        }()
+        if resolved == "/" || resolved.isEmpty { return nil }
+        let parent = (resolved as NSString).deletingLastPathComponent
+        return parent == resolved ? nil : parent
+    }
+
+    private func fileBrowserGoUp(sessionID: String, currentPath: String?) {
+        guard let parent = fileBrowserParentPath(currentPath),
+              let webContentID,
+              let webContent = browserStore.getOrCreateWebContent(forId: webContentID, toBeActiveInWindow: windowID!) else {
+            return
+        }
+        let key = NativePageKey.fileBrowser(id: sessionID, path: parent)
+        webContent.webview.load(URLRequest(url: key.url))
     }
     
     // MARK: - Actions
@@ -200,6 +277,9 @@ public struct ToolbarView: View {
         browserStore.modify { state in
             if let windowID = windowID {
                 state.windows[windowID]?.searchOverlayActive = true
+            }
+            if let webContentID {
+                state.makePaneActive(webContentID: webContentID)
             }
         }
     }
@@ -235,9 +315,7 @@ public struct ToolbarView: View {
     }
     
     private func closeCurrentPane() {
-        guard let webContentID, let windowID else { return }
-        
-        // Close the current pane using BrowserStore
+        guard let webContentID else { return }
         browserStore.close(webContentId: webContentID, removeIfPinned: false)
     }
 }

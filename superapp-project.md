@@ -299,11 +299,31 @@ Exactly these four tools are exposed over MCP:
 
 - Run a local HTTP(S) proxy inside the app and **force all `WKWebView` traffic
   through it**.
-- The proxy records every request/response (incl. XHR/fetch) into an indexed
-  log.
-- BrowserJS `browser.net.*` reads/greps that log and can **synthesize new
-  requests using cookies captured from real browser traffic** (synthetic
-  browser use).
+- The proxy is **trusted-by-default for our own webviews only** — no system
+  keychain modification, no admin auth. We override
+  `WKNavigationDelegate.webView(_:didReceive:completionHandler:)` (and the
+  matching `URLSessionDelegate` callback) to accept our private CA. The CA
+  lives in the app's data dir; the rest of the OS never sees it.
+- **Capture is opt-in per origin.** By default the proxy passes traffic
+  through and logs nothing. There is a hidden allowlist of origins for which
+  we record traffic to encrypted SQLite. BrowserJS exposes a hook
+  (`browser.net.captureOrigin(origin: string, enabled: boolean)` etc.) to
+  add/remove entries. Rationale: privacy by default — we don't want raw
+  request/response bodies for the user's banking, email, work SSO sitting on
+  disk just because they happened to load.
+- **Apple-property denylist.** Apple-controlled hosts (iCloud, App Store,
+  push.apple.com, gsa.apple.com, Mac App Store services, …) are pinned by
+  WebKit and cannot be MITM'd; our proxy bypasses them (passes the CONNECT
+  through unmodified) instead of generating broken TLS. Other cert-pinning
+  failures we encounter at runtime get added to a runtime denylist for the
+  session.
+- The capture log feeds BrowserJS `browser.net.*` for read/grep and for
+  synthesizing new requests using cookies captured from real browser
+  traffic (synthetic browser use).
+- Storage at rest: SQLite encrypted with a key stored in the macOS Keychain
+  (per-user, app-scoped). Bodies > 5 MB and audio/video MIME types are
+  dropped at capture time; time-based eviction at 24h, with a user-visible
+  "clear network log" button.
 
 ### Implementation notes [RESEARCH]
 

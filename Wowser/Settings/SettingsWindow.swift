@@ -24,7 +24,7 @@ class SettingsWindow: NSWindow {
 //        self.center()
         self.title = "Preferences"
         self.contentViewController = hostingController
-        self.setFrame(CGRect(x: 200, y: 200, width: 500, height: 500), display: false)
+        self.setFrame(CGRect(x: 200, y: 200, width: 700, height: 500), display: false)
 //        self.setFrameAutosaveName("WowserPreferences")
         self.isReleasedWhenClosed = false
         

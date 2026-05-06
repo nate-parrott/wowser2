@@ -8,9 +8,15 @@ struct CleanModeStatusButton: View {
     @State private var status = CleanModeButtonStatus.readerUnavail
     
     var body: some View {
-        BorderedToolbarButton(label: status.style.title, filled: status.style.active) {
-            status.toggle(paneID: webContentID)
+//        BorderedToolbarButton(label: status.style.title, filled: status.style.active) {
+//            status.toggle(paneID: webContentID)
+//        }
+        Button(action: { status.toggle(paneID: webContentID) }) {
+            Image(systemName: status.style.active ? "book.fill" : "book")
+                .imageScale(.medium)
+                .help(status.style.title)
         }
+        .buttonStyle(ToolbarButtonStyle())
         .disabled(status.disabled)
         .onReceive(CleanModeStore.shared.cleanModeSnapshotForPane(id: webContentID).map({ $0.buttonStatus }).removeDuplicates(), perform: { self.status = $0 })
     }

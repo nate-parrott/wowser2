@@ -5,8 +5,9 @@ import SwiftUI
 public enum SearchAction: Equatable, Codable {
     case clearAllTabs
     case organizeTabs
+    case separateSplitTabs
     case openURL(URL)
-    
+
     // Predefined URL cases
     static let newNotionDoc = openURL(URL(string: "https://notion.new")!)
     static let newGoogleDoc = openURL(URL(string: "https://doc.new")!)
@@ -27,6 +28,8 @@ public enum SearchAction: Equatable, Codable {
             return "Clear all tabs"
         case .organizeTabs:
             return "Organize tabs"
+        case .separateSplitTabs:
+            return "Separate split tabs"
         case SearchAction.newNotionDoc:
             return "New Notion page"
         case SearchAction.newGoogleDoc:
@@ -38,6 +41,13 @@ public enum SearchAction: Equatable, Codable {
         case SearchAction.newFigmaFile:
             return "New Figma file"
         case .openURL(let url):
+            if let key = NativePageKey(url: url) {
+                switch key {
+                case .terminal: return "Open Terminal"
+                case .vscode: return "Open VS Code"
+                case .fileBrowser: return "Open File Browser"
+                }
+            }
             return "Open \(url.stripped)" // not expected
         }
     }
@@ -51,6 +61,9 @@ public enum SearchAction: Equatable, Codable {
 // Extension to provide array of available action items for search
 extension BrowserState {
     private static var staticActionItems: [SearchableItem] = {
+        // For native-page actions, the URL itself encodes a fresh session id;
+        // we generate it lazily per-match in matchingActions to avoid handing
+        // out the same id across every search.
         let actions: [SearchAction] = [
             .clearAllTabs,
             .organizeTabs,
@@ -58,25 +71,83 @@ extension BrowserState {
             .newGoogleDoc,
             .newGoogleSheet,
             .newGoogleSlide,
-            .newFigmaFile
+            .newFigmaFile,
         ]
         return actions.map { action in
             let id = ID<SearchableItem>(raw: "action:\(action.title)")
             let titleStr = NormalizedSearchableString(text: action.title)
-            
+
             return SearchableItem(
                 id: id,
                 content: .searchAction(action),
-                titleMatchStr: titleStr
+                titleMatchStrings: [titleStr]
             )
         }
     }()
-    
-    func matchingActions(query: NormalizedSearchableString) -> [SearchableItem] {
-        return BrowserState.staticActionItems
-            .filter { action in
-                action.matchQuality(query: query) != .none
-            }
+
+    private static func dynamicActions(state: BrowserState, windowID: ID<WindowState>?) -> [SearchableItem] {
+        // Native-tab actions whose URL contains a fresh id each invocation.
+        let terminalAction = SearchAction.openURL(NativePageKey.newTerminal().url)
+        let terminalItem = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:Open Terminal"),
+            content: .searchAction(terminalAction),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: "Open Terminal"),
+                NormalizedSearchableString(text: "Terminal"),
+                NormalizedSearchableString(text: "Console"),
+            ]
+        )
+
+        let vscodeAction = SearchAction.openURL(NativePageKey.newVSCode().url)
+        let vscodeItem = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:Open VS Code"),
+            content: .searchAction(vscodeAction),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: "Open VS Code"),
+                NormalizedSearchableString(text: "VS Code"),
+                NormalizedSearchableString(text: "Visual Studio Code"),
+                NormalizedSearchableString(text: "Editor"),
+            ]
+        )
+
+        let filesAction = SearchAction.openURL(NativePageKey.newFileBrowser(path: FileManager.default.homeDirectoryForCurrentUser.path).url)
+        let filesItem = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:Open File Browser"),
+            content: .searchAction(filesAction),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: "Open File Browser"),
+                NormalizedSearchableString(text: "Files"),
+                NormalizedSearchableString(text: "Finder"),
+                NormalizedSearchableString(text: "Browse Files"),
+            ]
+        )
+
+        var items = [terminalItem, vscodeItem, filesItem]
+
+        // 'Separate split tabs' is only relevant when the active tab has > 1 pane.
+        if let windowID,
+           let currentTabID = state.windows[windowID]?.currentTab,
+           let currentTab = state.tabs[currentTabID],
+           currentTab.panes.count > 1 {
+            let action = SearchAction.separateSplitTabs
+            items.append(SearchableItem(
+                id: ID<SearchableItem>(raw: "action:\(action.title)"),
+                content: .searchAction(action),
+                titleMatchStrings: [
+                    NormalizedSearchableString(text: action.title),
+                    NormalizedSearchableString(text: "split"),
+                    NormalizedSearchableString(text: "unsplit"),
+                ]
+            ))
+        }
+        return items
+    }
+
+    func matchingActions(query: NormalizedSearchableString, windowID: ID<WindowState>? = nil) -> [SearchableItem] {
+        let all = BrowserState.staticActionItems + BrowserState.dynamicActions(state: self, windowID: windowID)
+        return all.filter { action in
+            action.matchQuality(query: query) != .none
+        }
     }
 }
 
@@ -91,7 +162,14 @@ extension BrowserStore {
             Task {
                 await autoOrganizeTabs(in: windowID)
             }
-            
+
+        case .separateSplitTabs:
+            modify { state in
+                if let tabID = state.windows[windowID]?.currentTab {
+                    state.separateSplitTabs(tabId: tabID)
+                }
+            }
+
         case .openURL(let url):
             loadURL(url, windowID: windowID)
         }

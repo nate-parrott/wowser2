@@ -177,7 +177,7 @@ struct FavoriteCell: View {
                         // Reset to base URL
                         resetTabToBaseURL(tabID: tabID, windowID: windowID)
                     } else {
-                        selectTab(tabID: tabID, windowID: windowID)
+                        didClickTabToSelect(tabID: tabID, windowID: windowID)
                     }
                 }
                 .onHover { hovering in
@@ -231,11 +231,30 @@ struct PlaceholderFavoriteCell: View {
 }
 
 // Helper functions
-func selectTab(tabID: ID<Tab>, windowID: ID<WindowState>) {
-    BrowserStore.shared.modify { state in 
-        state.activate(tabId: tabID, in: windowID)
+func didClickTabToSelect(tabID: ID<Tab>, windowID: ID<WindowState>) {
+    if isOpenInSplitViewModifierKeyPressed(),
+       let curTab = BrowserStore.shared.model.windows[windowID]?.currentTab,
+       curTab != tabID
+    {
+        BrowserStore.shared.modify { state in
+            state.moveAllPanesToSplitView(sourceTabId: tabID, destinationTabId: curTab, activateLast: true)
+        }
+    } else {
+        BrowserStore.shared.modify { state in
+            state.activate(tabId: tabID, in: windowID)
+            state.unghostTab(id: tabID)
+        }
     }
 }
+
+func isOpenInSplitViewModifierKeyPressed() -> Bool {
+    #if os(macOS)
+    return NSEvent.modifierFlags.contains(.option)
+    #else
+    return false
+    #endif
+}
+
 
 // Reset tab to its base URL
 func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {

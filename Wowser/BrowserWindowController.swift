@@ -8,9 +8,12 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
     
     override func windowDidLoad() {
         super.windowDidLoad()
-        
+
         self.window?.isMovableByWindowBackground = true
-        
+        // Self is registered as window delegate so windowDidBecomeKey fires;
+        // becoming-key bumps a state field that drives pane refocus.
+        self.window?.delegate = self
+
         // Setup window controls hacker
         if let window = self.window {
             windowControlsHacker = MacWindowControlsHacker(window: window)
@@ -57,6 +60,13 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
     
     deinit {
         print("BrowserWindowController deinit")
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard let windowID = browserViewController?.windowID else { return }
+        BrowserStore.shared.modify { state in
+            state.windows[windowID]?.lastBecameKeyAt = Date()
+        }
     }
 }
 

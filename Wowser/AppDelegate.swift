@@ -98,7 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
-            DefaultsKeys.enableGoDirectQueries.rawValue: false,
+            DefaultsKeys.enableGoDirectQueries.rawValue: true,
             DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
             DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt4o_mini.rawValue,
             DefaultsKeys.openAIKey.rawValue: "[REMOVED-OPENAI-KEY]"
@@ -133,6 +133,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }.store(in: &subscriptions)
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
+
+        Task {
+            do {
+                try await MCPServer.shared.start()
+            } catch {
+                FileHandle.standardError.write(Data("MCP server failed to start: \(error)\n".utf8))
+            }
+        }
         
         // show welcome?
         let appVer = 1

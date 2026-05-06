@@ -34,10 +34,16 @@ public struct InputTextFieldOptions: Equatable {
     }
 
     var attributedPlaceholder: NSAttributedString {
-        return NSAttributedString(string: placeholder, attributes: [
+        let str = NSMutableAttributedString(string: placeholder, attributes: [
             .foregroundColor: effectivePlaceholderColor,
-            .font: font
+            .font: font,
         ])
+        if lineLimit == 1 {
+            let para = NSParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+            para.lineBreakMode = .byTruncatingTail
+            str.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: str.length))
+        }
+        return str
     }
     
     public init(placeholder: String,

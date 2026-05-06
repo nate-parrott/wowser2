@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Computer Use Fixture</title></head>
+<body style="margin:0;padding:20px;font-family:sans-serif">
+  <button id="btn" style="position:absolute;left:50px;top:50px;width:100px;height:40px"
+          onclick="window.__clicks = (window.__clicks||0)+1">Click me</button>
+  <input id="text" style="position:absolute;left:50px;top:120px;width:300px"/>
+  <div id="readout" style="position:absolute;left:50px;top:200px"></div>
+  <div id="filler" style="height:5000px"></div>
+  <script>
+    window.__clicks = 0;
+    document.getElementById('text').addEventListener('input', function(e) {
+      document.getElementById('readout').textContent = e.target.value;
+    });
+  </script>
+</body>
+</html>

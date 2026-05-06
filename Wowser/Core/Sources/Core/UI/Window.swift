@@ -32,6 +32,8 @@ struct WindowSnapshot: Equatable {
         var emptyPage: Bool
         var colorScheme: ContentColorScheme?
         var isPickingSelector: Bool
+        var weight: Double = 1.0
+        var topbarLocked: Bool
     }
     
     // Must have at least one, even if empty
@@ -49,7 +51,7 @@ struct WindowSnapshot: Equatable {
     init(state: BrowserState, id: ID<WindowState>) {
         self.windowID = id
         guard let window = state.windows[id] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true, isPickingSelector: false)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true, isPickingSelector: false, topbarLocked: false)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
             self.hasToast = false
@@ -61,7 +63,7 @@ struct WindowSnapshot: Equatable {
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true, isPickingSelector: false)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
@@ -73,7 +75,10 @@ struct WindowSnapshot: Equatable {
                 searchActive: focused && window.searchOverlayActive,
                 emptyPage: pane.info.isEmptyPage,
                 colorScheme: pane.info.colorScheme,
-                isPickingSelector: window.pickingSelectorInPaneId == pane.id)
+                isPickingSelector: window.pickingSelectorInPaneId == pane.id,
+                weight: pane.weight ?? 1.0,
+                topbarLocked: window.sidebarLocked
+            )
         })
     }
 }
@@ -89,10 +94,11 @@ private struct WindowContent: View {
     var snapshot: WindowSnapshot
     
     @State private var topHovered = false
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var sidebarHovered = false
     
     var body: some View {
+        let topbarLocked = snapshot.sidebarLocked
         let justWebpage = !snapshot.sidebarLocked && !topbarLocked
         
         HStack(spacing: 0) {
@@ -131,7 +137,8 @@ private struct WindowContent: View {
     }
     
     private var topbarVisible: Bool {
-        topHovered || topbarLocked || snapshot.anyPaneHasSearchActive
+        let topbarLocked = snapshot.sidebarLocked
+        return topHovered || topbarLocked || snapshot.anyPaneHasSearchActive
     }
     
     private func mouseMoved(_ pt: CGPoint, rect: CGRect) {
@@ -165,9 +172,9 @@ private struct JustWebpageScrimModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .clipShape(RoundedRectangle(cornerRadius: active ? 6 : 0))
+            .clipShape(RoundedRectangle(cornerRadius: active ? 10 : 0))
             .shadow(color: Color.black.opacity(active ? 0.1 : 0), radius: 3, x: 0, y: 1)
-            .padding(active ? 10 : 0)
+            .padding(active ? 8 : 0)
     }
 }
 

@@ -13,11 +13,12 @@ struct PaneView: View {
     // Create Searcher with profile-specific history store
     @StateObject private var searcher = Searcher()
     @Environment(\.profileID) private var profileID
-    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var size: CGSize = .zero
     
     var body: some View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
+        let topbarLocked = snapshot.topbarLocked
         
         ZStack(alignment: .top) {
             content
@@ -33,6 +34,7 @@ struct PaneView: View {
             
             ToolbarView(
                 searchFocused: snapshot.searchActive,
+                paneFocused: snapshot.focused,
                 webContentID: snapshot.webContentId,
                 searcher: searcher,
                 searchText: $searchText,
@@ -52,9 +54,14 @@ struct PaneView: View {
                 .padding([.horizontal, .top], emptyPageSearchPadding)
                 .id(snapshot.emptyPage)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
+            
+            if snapshot.emptyPage, !singlePane {
+                closeButton.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(8)
+            }
         }
         .animation(.niceDefault, value: snapshot.emptyPage)
-        .modifier(ToastFirstTimeCleanModeAutoActivates(paneID: snapshot.webContentId))
+//        .modifier(ToastFirstTimeCleanModeAutoActivates(paneID: snapshot.webContentId))
         .measureSize { self.size = $0 }
         .overlay(alignment: .bottom) {
             if snapshot.focused, !singlePane {
@@ -79,8 +86,8 @@ struct PaneView: View {
                 searchText = ""
             }
         }
+        .animation(nil, value: snapshot.topbarLocked) // supress animation when changing sidebar locking (which is also not animated)
         .animation(.niceDefault(duration: 0.12), value: topbarVisible)
-//        .animation(.spring(response: 0.1, dampingFraction: 0.8, blendDuration: 0.05), value: topbarVisible)
     }
     
     @ViewBuilder private var elementPicker: some View {
@@ -146,5 +153,20 @@ struct PaneView: View {
                 LoadingIndicator(progress: prog == 1 ? nil : prog)
             }
         }
+    }
+    
+    // Used for split-pane New Tab Pages (empty pages) where the toolbar doesn't contain the x
+    @ViewBuilder private var closeButton: some View {
+        // Must show an x icon on empty pages
+        Button(action: {
+            // Close current pane
+            guard let webContentID = snapshot.webContentId else { return }
+            BrowserStore.shared.close(webContentId: webContentID, removeIfPinned: false)
+        }) {
+            Image(systemName: "xmark")
+                .imageScale(.medium)
+        }
+        .buttonStyle(ToolbarButtonStyle())
+        .help("Close pane")
     }
 }

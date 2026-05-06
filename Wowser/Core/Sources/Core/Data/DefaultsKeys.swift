@@ -5,7 +5,7 @@ public enum DefaultsKeys: String {
     case adblock // bool
     case cookieBannerBlock // bool
     case autoDarkMode
-    case topbarLocked // bool
+//    case topbarLocked // bool
     case animateNewTabs // bool
     case preserveWindowsAcrossRestarts // bool
     case autoOrganizeTabs // bool
@@ -31,6 +31,10 @@ public enum DefaultsKeys: String {
     case enableGoDirectQueries // bool
     case lastShownWelcomePageForPageVersion
     case searchToolbarEnabled // bool
+
+    case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
+    case mcpServerToken // string — per-launch bearer token for the local MCP server
+    case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
 }
 
 public extension DefaultsKeys {

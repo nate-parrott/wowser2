@@ -9,6 +9,12 @@ Prefer to store application state in `BrowserStore`, an object that protect a va
 
 `BrowserState` is a persisted value type, so only store not-huge data that can be converted to JSON. (E.g. don't store images or function callbacks here.)
 
+## No I/O in derived getters
+
+Computed properties on data-model types (`BrowserState`, `Tab`, `Pane`, `WebContent.Info`, `NativePageKey`, etc.) and on snapshot structs MUST be pure functions of the receiver's stored fields. They must NEVER touch the disk, the network, the keychain, NSPasteboard, NSWorkspace, or any other external state. SwiftUI re-evaluates these on every snapshot equality check and body re-render, so even one syscall per access becomes a per-frame syscall in practice.
+
+If a view needs filesystem (or other external) state, observe it at the view layer: use `@State` populated once on appear / on path change, an async task, or a `Combine` publisher that pushes updates. Do not bake the syscall into a getter and call it from `body`.
+
 # Reading / observing the store and rendering UI
 
 Observe the BrowserStore using `WithSnapshotMain` or `uiPublisher`. Observe the minimum 'snapshot' of data necessary by mapping the state to a view-specific `Snapshot` object that is equatable, and only receiving updates when the snapshot changes.
