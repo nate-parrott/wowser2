@@ -3,31 +3,37 @@ import WebKit
 import Combine
 import Reeeed
 
-/// A wrapper around WebView that provides additional functionality like find-in-page
+/// A wrapper around WebView that provides additional functionality like find-in-page.
+/// Pure observer of the focus system: every focus decision comes from
+/// `BrowserState.focusState(windowID:)`. See CLAUDE.md.
 public struct WrappedWebView: View {
     var webContent: WebContent
-    var isFocused: Bool
     var shrunk: Bool
 
-    @State private var isFindInPageActive = false
-    @State private var windowWebFocus = WindowWebFocusSignal()
+    @State private var focusSnap = FocusSnap()
     @Environment(\.windowID) private var windowID
 
     @State private var extractedReaderContent: ReadableDoc?
     @State private var nativePageKey: NativePageKey?
+
+    public init(webContent: WebContent, shrunk: Bool) {
+        self.webContent = webContent
+        self.shrunk = shrunk
+    }
 
     public var body: some View {
         ZStack {
             receivers
 
             ZStack {
-                // The base WebView
                 WebView(webContent: webContent, shrunk: shrunk)
-                    .onAppearOrChange(of: focusWebview, perform: { snap in
-                        if snap.enabled {
-                            DispatchQueue.main.async {
-                                webContent.focus()
-                            }
+                    .onAppearOrChange(of: webviewFocusToken, perform: { token in
+                        if token != nil {
+                            #if os(macOS)
+                            webContent.webview.wowser_becomeFirstResponder(asTarget: .webContent(webContent.id))
+                            #else
+                            webContent.focus()
+                            #endif
                         }
                     })
                     .onAppearOrChange(of: extractedReaderContent != nil, perform: { reader in
@@ -39,13 +45,12 @@ public struct WrappedWebView: View {
             }
 
             if let extractedReaderContent {
-                ReaderOverlay(readableDoc: extractedReaderContent, isFocusedPane: isFocused, windowWantsWebviewFocus: windowWebFocus.enabled, mainWebContent: webContent)
+                ReaderOverlay(readableDoc: extractedReaderContent, mainWebContent: webContent)
                     .id(webContent.id)
-//                    .transition(.asymmetric(insertion: .wipeAway.animation(.niceDefault.delay(0.5)), removal: .opacity))
             }
 
             if let nativePageKey {
-                NativePageOverlay(key: nativePageKey, webContent: webContent, isFocused: isFocused)
+                NativePageOverlay(key: nativePageKey, webContent: webContent)
                     .modifier(NewTabAnimation(shrunk: shrunk))
                     .id(nativePageKey)
             }
@@ -54,57 +59,76 @@ public struct WrappedWebView: View {
         .modifier(ByInjectingGeneratedPages(webContent: webContent))
         .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: isFindInPageActive)
     }
-    
-    private var focusWebview: WindowWebFocusSignal {
-        let enabled = isFocused && !isFindInPageActive && windowWebFocus.enabled
-            && extractedReaderContent == nil && nativePageKey == nil && !shrunk
-        return WindowWebFocusSignal(enabled: enabled, lastBecameKeyAt: windowWebFocus.lastBecameKeyAt)
+
+    /// True iff the focus snap currently designates this pane as focused — used
+    /// only to gate visual extras (the hidden Cmd+F button), never to drive focus.
+    private var isPaneFocused: Bool {
+        focusSnap.target?.paneID == webContent.id
     }
-    
+
+    private var isFindInPageActive: Bool {
+        if case .findInPage(let id) = focusSnap.target { return id == webContent.id }
+        return false
+    }
+
+    /// Non-nil iff the underlying WKWebView should hold first responder right now.
+    /// Single rule: target == .webContent(myID). All other gating (reader / native /
+    /// find / shrunk / search) is encoded by `focusState` returning a different target.
+    private var webviewFocusToken: Date? {
+        focusSnap.target == .webContent(webContent.id) ? focusSnap.date : nil
+    }
+
     @ViewBuilder private var findInPageContent: some View {
-        // Find in page overlay
-        if isFindInPageActive, extractedReaderContent == nil {
+        if isFindInPageActive {
             FindInPageView(
                 webView: webContent.webview,
-                onClose: { isFindInPageActive = false }
+                paneID: webContent.id,
+                onClose: { closeFindInPage() }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding()
             .transition(.move(edge: .top))
         }
-        
-        // Hidden find button for keyboard shortcut
-        if isFocused, extractedReaderContent == nil {
-            Button("", action: findInPage)
+
+        // Hidden find button for keyboard shortcut. Gated to the focused pane so
+        // Cmd+F in a split view only fires once.
+        if isPaneFocused, extractedReaderContent == nil {
+            Button("", action: toggleFindInPage)
                 .keyboardShortcut("f", modifiers: .command)
                 .opacity(0)
                 .frame(width: 0, height: 0)
                 .accessibility(hidden: true)
         }
     }
-    
-    private func findInPage() {
+
+    private func toggleFindInPage() {
         #if os(macOS)
         if isFindInPageActive {
+            // Already in find — re-fire makes the find field select-all.
             let selector = #selector(NSResponder.selectAll(_:))
-            NSApp.sendAction(selector, to: nil, from: self)
-        } else {
-            isFindInPageActive.toggle()
+            NSApp.sendAction(selector, to: nil, from: nil)
+            return
         }
-        #else
-        isFindInPageActive.toggle()
         #endif
+        BrowserStore.shared.modify { state in
+            state.didFocus(target: .findInPage(webContent.id))
+        }
     }
-    
+
+    private func closeFindInPage() {
+        BrowserStore.shared.modify { state in
+            state.didLoseFocus(target: .findInPage(webContent.id))
+        }
+    }
+
     private func cleanModeOptionsChanged(_ options: CleanModeSnapshotForPane) {
         webContent.injectedCSS = options.wantsCSS ?? ""
         webContent.fullContentExtractionMode = options.wantsReader ? .reader : .none
     }
-    
+
     @ViewBuilder private var receivers: some View {
-        // Fake view for onreceive
         if let windowID {
-            Color.clear.onReceive(BrowserStore.shared.uiPublisher.map({ $0.windowWebFocusSignal(forWindowID: windowID) }).removeDuplicates(), perform: { self.windowWebFocus = $0 })
+            Color.clear.onReceive(BrowserStore.shared.uiPublisher.map({ $0.focusState(windowID: windowID) }).removeDuplicates(), perform: { self.focusSnap = $0 })
                 .id(windowID)
         }
 
@@ -120,30 +144,14 @@ public struct WrappedWebView: View {
 // This version of the anim is applied for NATIVE OVERLAYS; the actual webview must be scaled by applying a CATransform3D to the WKWebView because SwiftUI's scaleEffect borks WKWebView layout
 private struct NewTabAnimation: ViewModifier {
     var shrunk: Bool
-    
+
     @AppStorage(DefaultsKeys.animateNewTabs.rawValue) private var animateNewTabs = false
-    
+
     func body(content: Content) -> some View {
         let shrink = shrunk && animateNewTabs
-        
+
         content
             .scaleEffect(shrink ? 0.05 : 1)
             .animation(shrink ? nil : .niceDefault(duration: 0.3), value: shrink)
-    }
-}
-
-/// Snapshot driving webview focus. `enabled` reflects whether the window
-/// currently wants the webview to hold first responder; `lastBecameKeyAt`
-/// is a token that bumps when the window becomes key, so an unchanged
-/// `enabled` value still triggers `.onAppearOrChange` (re-focus on key).
-struct WindowWebFocusSignal: Equatable {
-    var enabled: Bool = false
-    var lastBecameKeyAt: Date?
-}
-
-private extension BrowserState {
-    func windowWebFocusSignal(forWindowID id: ID<WindowState>) -> WindowWebFocusSignal {
-        guard let win = windows[id] else { return WindowWebFocusSignal() }
-        return WindowWebFocusSignal(enabled: !win.searchOverlayActive, lastBecameKeyAt: win.lastBecameKeyAt)
     }
 }

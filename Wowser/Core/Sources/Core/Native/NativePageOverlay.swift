@@ -2,21 +2,21 @@ import SwiftUI
 
 // Switches on a NativePageKey and renders the appropriate native overlay.
 // Mounted by WrappedWebView when the WKWebView's URL parses into a key.
+// Each overlay observes `BrowserState.focusState` itself — no isFocused prop here.
 struct NativePageOverlay: View {
     var key: NativePageKey
     var webContent: WebContent
-    var isFocused: Bool
 
     var body: some View {
         ZStack {
             switch key {
-            case .terminal(let id, let cwd):
+            case .terminal(let id, let cwd, let runCommand):
                 #if os(macOS)
                 TerminalOverlay(
                     sessionID: id,
                     cwd: cwd,
-                    webContent: webContent,
-                    isFocused: isFocused
+                    runCommand: runCommand,
+                    webContent: webContent
                 )
                 #else
                 Color.clear
@@ -26,8 +26,7 @@ struct NativePageOverlay: View {
                 VSCodeOverlay(
                     sessionID: id,
                     folder: folder,
-                    webContent: webContent,
-                    isFocused: isFocused
+                    webContent: webContent
                 )
                 #else
                 Color.clear
@@ -37,8 +36,7 @@ struct NativePageOverlay: View {
                 FileBrowserOverlay(
                     sessionID: id,
                     initialPath: path,
-                    webContent: webContent,
-                    isFocused: isFocused
+                    webContent: webContent
                 )
                 #else
                 Color.clear

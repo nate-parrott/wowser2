@@ -101,6 +101,28 @@ Benefits:
 - Better auto-completion
 - Prevents typos in string keys
 
+## Keyboard focus
+
+All focus logic lives in `BrowserState+KeyboardFocus.swift`. Do not invent
+focus signals elsewhere. Do not gate focus on view-local booleans like
+`isFocused && !shrunk` — encode the distinction as a `FocusTarget` case.
+
+`BrowserState.focusState(windowID:) -> FocusSnap` is the source of truth.
+A focusable view does two things, no more:
+
+1. Observe the snap (`.onReceiveFocusSnap(windowID:)`); when target matches
+   your case, call `view.wowser_becomeFirstResponder(asTarget:)`. Never raw
+   `makeFirstResponder` for state-driven focus.
+2. When AppKit tells you a focus event actually happened, call
+   `state.didFocus(target:)` / `state.didLoseFocus(target:)`.
+
+Commands (Cmd+L, "open new tab") mutate state fields directly
+(`searchOverlayActive`, `findInPageActiveInPaneId`). They are NOT focus
+events — do not call `didFocus` from them.
+
+For elements without a clean focus hook (SwiftTerm, SwiftUI Tables), wrap
+them in `WrapsContentReportingFirstResponder`.
+
 ## Closing Tabs
 
 When closing tabs, follow these principles:

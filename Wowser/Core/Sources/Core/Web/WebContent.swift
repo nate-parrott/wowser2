@@ -290,7 +290,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         #if os(iOS)
         webview.becomeFirstResponder()
         #else
-        webview.window?.makeFirstResponder(webview)
+        webview.wowser_becomeFirstResponder(asTarget: .webContent(id))
         #endif
     }
 

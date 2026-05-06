@@ -7,12 +7,19 @@ struct VSCodeOverlay: View {
     var sessionID: String
     var folder: String?
     var webContent: WebContent
-    var isFocused: Bool
 
     @ObservedObject private var manager = VSCodeServerManager.shared
     @State private var loadFailureCount = 0
+    @State private var focusSnap = FocusSnap()
+    @Environment(\.windowID) private var windowID
 
     private var paneID: ID<WebContent> { webContent.id }
+
+    /// VSCode panes have `focusState.target == .webContent(paneID)` because
+    /// the focus file falls VSCode through to the regular web-content target.
+    private var focusToken: Date? {
+        focusSnap.target == .webContent(paneID) ? focusSnap.date : nil
+    }
 
     var body: some View {
         ZStack {
@@ -22,11 +29,12 @@ struct VSCodeOverlay: View {
             case .running(let baseURL):
                 let session = sessionForWebContent()
                 VSCodeWebViewRepresentable(session: session, targetURL: composedURL(base: baseURL))
-                    .onAppearOrChange(of: isFocused) { focused in
-                        if focused {
-                            DispatchQueue.main.async { session.focus() }
+                    .onAppearOrChange(of: focusToken) { token in
+                        if token != nil {
+                            session.webView.wowser_becomeFirstResponder(asTarget: .webContent(paneID))
                         }
                     }
+                    .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
             case .starting, .notStarted:
                 VStack(spacing: 12) {
                     ProgressView()
@@ -98,10 +106,6 @@ final class VSCodeWebSession {
         if loadedURL == url { return }
         loadedURL = url
         webView.load(URLRequest(url: url))
-    }
-
-    func focus() {
-        webView.window?.makeFirstResponder(webView)
     }
 }
 

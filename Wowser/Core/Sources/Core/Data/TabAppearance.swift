@@ -162,7 +162,8 @@ struct TabIconView: View {
         case .vscode:
             TintedGlyph(icon: "chevron.left.forwardslash.chevron.right", fg: Color(hex: 0x2B65A6), bg: Color.white)
         case .files:
-            TintedGlyph(icon: "folder", fg: Color.accentColor, bg: Color(.background).opacity(0.15), blurBg: true)
+            TabIconView(icon: .sfSymbol("folder"))
+//            TintedGlyph(icon: "folder", fg: Color.accentColor, bg: Color(.background).opacity(0.15), blurBg: true)
         case .empty:
             Circle()
                 .fill(.primary)

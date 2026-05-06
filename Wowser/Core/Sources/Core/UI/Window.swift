@@ -62,17 +62,23 @@ struct WindowSnapshot: Equatable {
         self.profileID = window.profile
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
+        let focusSnap = state.focusState(windowID: id)
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
+            let emptyOmnibox: Bool
+            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: emptyOmnibox, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
             let focused = i == tab.focusedPaneIdx
+            // searchActive is *exactly* "the focus snap says omnibox" for this pane.
+            // Single rule, no separate computation, can't drift out of sync.
+            let searchActive = focusSnap.target == .omnibox(pane: pane.id)
             return PaneSnapshot(
                 id: pane.id.raw,
                 webContentId: pane.id,
                 focused: focused,
-                searchActive: focused && window.searchOverlayActive,
+                searchActive: searchActive,
                 emptyPage: pane.info.isEmptyPage,
                 colorScheme: pane.info.colorScheme,
                 isPickingSelector: window.pickingSelectorInPaneId == pane.id,

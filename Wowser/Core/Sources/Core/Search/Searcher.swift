@@ -133,7 +133,7 @@ extension CharacterSet {
     static var tokenSplits = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:/–—.\"“”'‘’"))
 }
 
-@MainActor class Searcher: ObservableObject {
+@MainActor public class Searcher: ObservableObject {
     @Published var results = [SearchResult]()
     var n = 5
     

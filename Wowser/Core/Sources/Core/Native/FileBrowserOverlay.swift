@@ -8,7 +8,6 @@ struct FileBrowserOverlay: View {
     var sessionID: String
     var initialPath: String?
     var webContent: WebContent
-    var isFocused: Bool
 
     @Environment(\.windowID) private var windowID
 
@@ -42,6 +41,12 @@ struct FileBrowserOverlay: View {
     }
 
     var body: some View {
+        WrapsContentReportingFirstResponder(target: .fileBrowser(paneID)) {
+            innerBody
+        }
+    }
+
+    @ViewBuilder private var innerBody: some View {
         VStack(spacing: 0) {
             content
         }

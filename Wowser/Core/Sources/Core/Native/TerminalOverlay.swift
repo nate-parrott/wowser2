@@ -1,33 +1,34 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
+import Combine
 import SwiftTerm
 
 struct TerminalOverlay: View {
     var sessionID: String
     var cwd: String?
+    var runCommand: String?
     var webContent: WebContent
-    var isFocused: Bool
 
     private var paneID: ID<WebContent> { webContent.id }
 
     @AppStorage(DefaultsKeys.hasSeenTerminalUpsell.rawValue) private var hasSeenUpsell: Bool = false
     @AppStorage(DefaultsKeys.mcpServerURL.rawValue) private var mcpURL: String = ""
     @State private var upsellVisible = false
-    @State private var lastBecameKeyAt: Date?
+    @State private var focusSnap = FocusSnap()
     @State private var appActive: Bool = NSApp?.isActive ?? true
     @Environment(\.windowID) private var windowID
 
-    private struct FocusSnap: Equatable {
-        var isFocused: Bool
-        var lastBecameKeyAt: Date?
-    }
-    private var focusSnap: FocusSnap {
-        FocusSnap(isFocused: isFocused, lastBecameKeyAt: lastBecameKeyAt)
+    private var isFocused: Bool {
+        focusSnap.target == .terminal(paneID)
     }
 
-    /// Drives the cwd-polling task. We poll only when the pane is focused
-    /// (i.e. the frontmost tab + frontmost pane) AND the app is active.
+    /// Non-nil iff the SwiftTerm view should hold first responder right now.
+    private var focusToken: Date? {
+        isFocused ? focusSnap.date : nil
+    }
+
+    /// Drives the cwd-polling task. We poll only when the pane is focused AND the app is active.
     private struct PollKey: Equatable {
         var focused: Bool
         var appActive: Bool
@@ -45,21 +46,14 @@ struct TerminalOverlay: View {
         let session = sessionForWebContent()
 
         return ZStack(alignment: .topTrailing) {
-            TerminalRepresentable(session: session)
+            TerminalRepresentable(session: session, paneID: paneID)
                 .background(Color.black)
-                .onAppearOrChange(of: focusSnap) { snap in
-                    // Defer to the next runloop tick: WrappedWebView's webview-focus
-                    // path is also async, and may fire briefly before nativePageKey
-                    // is set (focusing the webview). We need to run after that so
-                    // the terminal ends up as first responder.
-                    if snap.isFocused {
-                        DispatchQueue.main.async { session.focus() }
+                .onAppearOrChange(of: focusToken) { token in
+                    if token != nil {
+                        session.view.wowser_becomeFirstResponder(asTarget: .terminal(paneID))
                     }
                 }
-                .onReceive(BrowserStore.shared.uiPublisher.map { state -> Date? in
-                    guard let windowID else { return nil }
-                    return state.windows[windowID]?.lastBecameKeyAt
-                }.removeDuplicates()) { self.lastBecameKeyAt = $0 }
+                .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     appActive = true
                 }
@@ -91,7 +85,7 @@ struct TerminalOverlay: View {
             }
         }
         .onAppear {
-            session.start(sessionID: sessionID, cwd: cwd, paneID: paneID)
+            session.start(sessionID: sessionID, cwd: cwd, runCommand: runCommand, paneID: paneID)
             if !hasSeenUpsell {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     upsellVisible = true
@@ -176,7 +170,7 @@ final class TerminalSession: ObservableObject {
     var paneID: ID<WebContent>?
     weak var webContent: WebContent?
 
-    func start(sessionID: String, cwd: String?, paneID: ID<WebContent>) {
+    func start(sessionID: String, cwd: String?, runCommand: String? = nil, paneID: ID<WebContent>) {
         self.paneID = paneID
         self.sessionID = sessionID
         guard !started else { return }
@@ -195,6 +189,16 @@ final class TerminalSession: ObservableObject {
             execName: nil,
             currentDirectory: resolvedCwd
         )
+        if let runCommand, !runCommand.isEmpty {
+            // Wait briefly for the shell to print its prompt, then type the
+            // command + Return as if the user had entered it.
+            let line = runCommand + "\n"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard let self else { return }
+                let bytes = Array(line.utf8)
+                self.view.process.send(data: bytes[...])
+            }
+        }
     }
 
     /// One-shot cwd refresh, driven by the view layer. Reads the kernel's
@@ -209,8 +213,46 @@ final class TerminalSession: ObservableObject {
         shellIsForeground = ProcessCwd.isShellInForeground(masterFd: proc.childfd, shellPid: proc.shellPid)
     }
 
-    func focus() {
-        view.window?.makeFirstResponder(view)
+    /// First-responder observation: KVO on the SwiftTerm view's window so we
+    /// notice when the user clicks into the terminal directly. Idempotent —
+    /// safe to call from updateNSView. Re-establishes when the view moves
+    /// between windows.
+    private var firstResponderSubscription: AnyCancellable?
+    private var observedTarget: FocusTarget?
+    private var windowChangeObserver: NSObjectProtocol?
+
+    func attachFirstResponderObserver(target: FocusTarget) {
+        observedTarget = target
+        rebindFirstResponderObserver()
+        if windowChangeObserver == nil {
+            // SwiftTerm's view doesn't post a "moved to window" event in a
+            // form we can hook directly, so listen for window-key bumps and
+            // rebind. Cheap and correct.
+            windowChangeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.rebindFirstResponderObserver() }
+            }
+        }
+    }
+
+    private func rebindFirstResponderObserver() {
+        firstResponderSubscription?.cancel()
+        firstResponderSubscription = nil
+        guard let target = observedTarget, let window = view.window else { return }
+        let watched = view
+        firstResponderSubscription = window.publisher(for: \.firstResponder)
+            .removeDuplicates(by: { $0 === $1 })
+            .sink { firstResponder in
+                let inside = watched.wowser_subtreeContains(firstResponder)
+                BrowserStore.shared.modify { state in
+                    if inside {
+                        state.didFocus(target: target)
+                    } else {
+                        state.didLoseFocus(target: target)
+                    }
+                }
+            }
     }
 
     /// Resolve the tab title from current state and write it to BrowserStore.
@@ -238,7 +280,7 @@ final class TerminalSession: ObservableObject {
     /// alone for native tabs, so this sticks).
     fileprivate func writeCwdIntoURL() {
         guard let sessionID, let webContent else { return }
-        webContent.setNativeOverlayURL(NativePageKey.terminal(id: sessionID, cwd: lastKnownCwd).url)
+        webContent.setNativeOverlayURL(NativePageKey.terminal(id: sessionID, cwd: lastKnownCwd, runCommand: nil).url)
     }
 
     static func formatCwdForTitle(_ cwd: String?) -> String? {
@@ -255,6 +297,9 @@ final class TerminalSession: ObservableObject {
     }
 
     deinit {
+        if let obs = windowChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
         // PTY child gets SIGHUP via SwiftTerm's terminate(); main-actor hop
         // because LocalProcessTerminalView is AppKit-bound.
         let v = self.view
@@ -333,13 +378,20 @@ private struct FirstTerminalUpsell: View {
 
 private struct TerminalRepresentable: NSViewRepresentable {
     let session: TerminalSession
+    let paneID: ID<WebContent>
 
     func makeNSView(context: Context) -> NSView {
         // Return the session's stable container. The SwiftTerm view stays
         // pinned inside it across re-mounts so its layer never resets.
+        // Wire up first-responder observation: when SwiftTerm's view becomes
+        // first responder (user clicked into the terminal), report it so state
+        // can update `focusedPaneIdx`.
+        session.attachFirstResponderObserver(target: .terminal(paneID))
         return session.containerView
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        session.attachFirstResponderObserver(target: .terminal(paneID))
+    }
 }
 #endif

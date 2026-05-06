@@ -83,11 +83,10 @@ private struct _MobileContentView: View {
     }
     
     @ViewBuilder private var webContent: some View {
-        let focused = !snapshot.searchActive
         if let paneID = snapshot.currentPane, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
             #if os(iOS)
             DragToGoBackView(webContent: webContent) {
-                WrappedWebView(webContent: webContent, isFocused: focused, shrunk: snapshot.isEmptyPage)
+                WrappedWebView(webContent: webContent, shrunk: snapshot.isEmptyPage)
                     .edgesIgnoringSafeArea(.bottom)
             }
             .edgesIgnoringSafeArea(.all)

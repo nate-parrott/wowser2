@@ -41,7 +41,7 @@ struct OpenInOtherNativeMenu: View {
         }
         if !currentKey.isTerminal {
             menu.addItem(CallbackMenuItem(title: "Open in Terminal") {
-                openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder))
+                openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: nil))
             })
         }
         if !currentKey.isVSCode {
@@ -49,6 +49,9 @@ struct OpenInOtherNativeMenu: View {
                 openInOtherType(.vscode(id: UUID().uuidString, folder: resolvedFolder))
             })
         }
+        menu.addItem(CallbackMenuItem(title: "New Claude") {
+            openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: "claude"))
+        })
         return menu
     }
 

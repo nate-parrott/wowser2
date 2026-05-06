@@ -147,6 +147,10 @@ public struct WindowState: Equatable, Codable {
     /// the same way it fires on tab-switch (when `isFocused` flips).
     public var lastBecameKeyAt: Date?
     public var searchOverlayActive = false
+    /// Pane currently displaying the find-in-page bar (if any). Drives
+    /// `focusState` toward `.findInPage`. Cleared by closing the bar or
+    /// switching focus targets — never set in two places at once.
+    public var findInPageActiveInPaneId: ID<WebContent>?
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
@@ -226,6 +230,20 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
 
         setupAutoArchiving()
+        
+        // setupSearchFieldDismissOnSwitch
+        addChangeHook { prev, next in
+            if prev.activeWindow?.id == next.activeWindow?.id,
+               // are we switching tabs...
+               prev.activeWindow?.currentTab != next.activeWindow?.currentTab,
+               let winID = prev.activeWindow?.id,
+               // are we changing from an empty to non-empty page?
+               prev.currentWebContentInfo(windowID: winID)?.isEmptyPage ?? false,
+               !(next.currentWebContentInfo(windowID: winID)?.isEmptyPage ?? false)
+            {
+                next.windows[winID]?.searchOverlayActive = false
+            }
+        }
     }
     
     public override func processModelAfterLoad(model: inout BrowserState) {
@@ -476,20 +494,8 @@ extension BrowserStore: WebContentDelegate {
     }
     
     public func webContentDidBecomeFirstResponder(_ webContent: WebContent) {
-        // Find the tab and pane index for this webContent
-        guard let tabId = model.paneToTabMapping[webContent.id], 
-              let tab = model.tabs[tabId],
-              let paneIndex = tab.panes.elements.firstIndex(where: { $0.id == webContent.id }) else {
-            return
-        }
-        
-        // Update the focused pane index if it's different
-        if tab.focusedPaneIdx != paneIndex {
-            modify { state in
-                state.modifyTab(id: tabId) { tab in
-                    tab.focusedPaneIdx = paneIndex
-                }
-            }
+        modify { state in
+            state.didFocus(target: .webContent(webContent.id))
         }
     }
 }
@@ -669,6 +675,13 @@ extension BrowserState {
             return []
         }.asSet
     }
+    
+    func currentWebContentInfo(windowID: ID<WindowState>) -> WebContent.Info? {
+        if let curTabID = windows[windowID]?.currentTab, let curTab = tabs[curTabID], let pane = curTab.panes.elements.get(curTab.focusedPaneIdx) {
+            return pane.info
+        }
+        return nil
+    }
 }
 
 private extension BrowserState {
@@ -687,5 +700,6 @@ private extension WindowState {
     mutating func processAfterLoad() {
         searchOverlayActive = false
         swipeGestureOffset = nil
+        findInPageActiveInPaneId = nil
     }
 }

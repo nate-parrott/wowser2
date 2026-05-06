@@ -4,30 +4,46 @@ import Reeeed
 
 struct ReaderOverlay: View {
     var readableDoc: ReadableDoc
-    var isFocusedPane: Bool
-    var windowWantsWebviewFocus: Bool
     var mainWebContent: WebContent
-    
+
     @Environment(\.profileID) private var profileID
-    
+    @Environment(\.windowID) private var windowID
+
     @State private var isFindInPageActive = false
+    @State private var focusSnap = FocusSnap()
     // TODO: proper profile assignment
     @StateObject private var webContent = WebContent(id: .assign(), profileUUID: UUID())
     @StateObject private var webContentNavDelegate = WebContentNavDelegate()
-    
+
+    private var paneID: ID<WebContent> { mainWebContent.id }
+
+    /// Reader has its own FocusTarget case. Observe `.reader(paneID)` and
+    /// focus the internal reader WKWebView. find-in-page within the reader
+    /// stays as local view state — it lives only inside this overlay.
+    private var focusToken: Date? {
+        guard !isFindInPageActive else { return nil }
+        return focusSnap.target == .reader(paneID) ? focusSnap.date : nil
+    }
+
+    private var isPaneFocused: Bool {
+        focusSnap.target?.paneID == paneID
+    }
+
     var body: some View {
         ZStack {
             ReaderThemePref().color(forKey: .background).swiftUI
-                                    
+
             WebView(webContent: webContent)
-                .onAppearOrChange(of: focusWebview, perform: { focus in
-                    if focus {
-                        DispatchQueue.main.async {
-                            webContent.focus()
-                        }
+                .onAppearOrChange(of: focusToken, perform: { token in
+                    if token != nil {
+                        #if os(macOS)
+                        webContent.webview.wowser_becomeFirstResponder(asTarget: .reader(paneID))
+                        #else
+                        webContent.focus()
+                        #endif
                     }
                 })
-                        
+
             // Find in page overlay
             if isFindInPageActive {
                 FindInPageView(
@@ -40,7 +56,7 @@ struct ReaderOverlay: View {
             }
 
             // Hidden find button for keyboard shortcut
-            if isFocusedPane {
+            if isPaneFocused {
                 Button("", action: findInPage)
                     .keyboardShortcut("f", modifiers: .command)
                     .opacity(0)
@@ -48,21 +64,16 @@ struct ReaderOverlay: View {
                     .accessibility(hidden: true)
             }
         }
+        .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
         .onAppearOrChange(of: readableDoc) { content in
             let html = readableDoc.html(includeExitReaderButton: false, theme: ReaderThemePref().asTheme)
-//            print("HTML: \(html)")
             webContent.transparent = true
             webContent.populateWithInitialHTML(html, baseURL: content.url)
-//            webContent.load(html: html, baseURL: content.url)
             webContent.delegate = webContentNavDelegate
             webContentNavDelegate.mainWebContent = mainWebContent
         }
     }
-    
-    private var focusWebview: Bool {
-        isFocusedPane && !isFindInPageActive && windowWantsWebviewFocus
-    }
-    
+
     private func findInPage() {
         #if os(macOS)
         if isFindInPageActive {

@@ -43,7 +43,9 @@ public enum SearchAction: Equatable, Codable {
         case .openURL(let url):
             if let key = NativePageKey(url: url) {
                 switch key {
-                case .terminal: return "Open Terminal"
+                case .terminal(_, _, let cmd):
+                    if cmd == "claude" { return "New Claude" }
+                    return "Open Terminal"
                 case .vscode: return "Open VS Code"
                 case .fileBrowser: return "Open File Browser"
                 }
@@ -86,8 +88,15 @@ extension BrowserState {
     }()
 
     private static func dynamicActions(state: BrowserState, windowID: ID<WindowState>?) -> [SearchableItem] {
+        // Seed new native tabs with the folder of the most recently used
+        // native tab in this profile/space — so opening a new terminal,
+        // VS Code window, or file browser lands in the same place the user
+        // was working.
+        let suggestedFolder = state.mostRecentNativeFolderPath(windowID: windowID)
+        let filesPath = suggestedFolder ?? FileManager.default.homeDirectoryForCurrentUser.path
+
         // Native-tab actions whose URL contains a fresh id each invocation.
-        let terminalAction = SearchAction.openURL(NativePageKey.newTerminal().url)
+        let terminalAction = SearchAction.openURL(NativePageKey.newTerminal(cwd: suggestedFolder).url)
         let terminalItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open Terminal"),
             content: .searchAction(terminalAction),
@@ -98,7 +107,7 @@ extension BrowserState {
             ]
         )
 
-        let vscodeAction = SearchAction.openURL(NativePageKey.newVSCode().url)
+        let vscodeAction = SearchAction.openURL(NativePageKey.newVSCode(folder: suggestedFolder).url)
         let vscodeItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open VS Code"),
             content: .searchAction(vscodeAction),
@@ -110,7 +119,7 @@ extension BrowserState {
             ]
         )
 
-        let filesAction = SearchAction.openURL(NativePageKey.newFileBrowser(path: FileManager.default.homeDirectoryForCurrentUser.path).url)
+        let filesAction = SearchAction.openURL(NativePageKey.newFileBrowser(path: filesPath).url)
         let filesItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open File Browser"),
             content: .searchAction(filesAction),
@@ -122,7 +131,19 @@ extension BrowserState {
             ]
         )
 
-        var items = [terminalItem, vscodeItem, filesItem]
+        let claudeAction = SearchAction.openURL(NativePageKey.newTerminal(cwd: suggestedFolder, runCommand: "claude").url)
+        let claudeItem = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:Claude Code"),
+            content: .searchAction(claudeAction),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: "Claude Code"),
+                NormalizedSearchableString(text: "New Claude"),
+                NormalizedSearchableString(text: "claude"),
+                NormalizedSearchableString(text: "Agent"),
+            ]
+        )
+
+        var items = [terminalItem, vscodeItem, filesItem, claudeItem]
 
         // 'Separate split tabs' is only relevant when the active tab has > 1 pane.
         if let windowID,

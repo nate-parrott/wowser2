@@ -60,7 +60,12 @@ extension URL {
         if stringHasURLScheme(string) {
             return URL(string: string)
         }
-        return URL(string: "https://" + string)
+        let url = URL(string: "https://" + string)
+        // Check if it's a local url and dont use https
+        if url?.hostWithoutWWW == "localhost" || url?.hostWithoutWWW == "127.0.0.1" {
+            return URL(string: "http://" + string)
+        }
+        return url
     }
 //    public static func withSearchQuery(_ searchQuery: String) -> URL {
 //        return withNaturalString(searchQuery) ?? googleSearch(searchQuery)

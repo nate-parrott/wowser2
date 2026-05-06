@@ -7,13 +7,19 @@ public struct InputTextField: NSViewRepresentable {
     @Binding var text: String
     var options: InputTextFieldOptions
     var focusDate: Date?
+    /// If set, focusing routes through `wowser_becomeFirstResponder(asTarget:)`
+    /// so the resulting first-responder callback doesn't loop back into
+    /// `BrowserState.didFocus`. Required for any text field that participates
+    /// in the FocusTarget system (e.g. the omnibox).
+    var focusTarget: FocusTarget?
     var onEvent: (TextFieldEvent) -> Void
     var contentSize: Binding<CGSize>?
-    
-    public init(text: Binding<String>, options: InputTextFieldOptions, focusDate: Date? = nil, onEvent: @escaping (TextFieldEvent) -> Void, contentSize: Binding<CGSize>? = nil) {
+
+    public init(text: Binding<String>, options: InputTextFieldOptions, focusDate: Date? = nil, focusTarget: FocusTarget? = nil, onEvent: @escaping (TextFieldEvent) -> Void, contentSize: Binding<CGSize>? = nil) {
         _text = text
         self.options = options
         self.focusDate = focusDate
+        self.focusTarget = focusTarget
         self.onEvent = onEvent
         self.contentSize = contentSize
     }
@@ -25,6 +31,7 @@ public struct InputTextField: NSViewRepresentable {
         nsView.text = $text
         nsView.options = options
         nsView.onEvent = onEvent
+        nsView.focusTarget = focusTarget
         nsView.focusDate = focusDate
         nsView.contentSize = contentSize
     }
@@ -41,12 +48,17 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
             }
         }
     }
+    var focusTarget: FocusTarget?
     var focusDate: Date? {
         didSet {
             if focusDate != oldValue {
                 if focusDate != nil {
                     DispatchQueue.main.async {
-                        self.window?.makeFirstResponder(self.textView)
+                        if let target = self.focusTarget {
+                            self.textView.wowser_becomeFirstResponder(asTarget: target)
+                        } else {
+                            self.window?.makeFirstResponder(self.textView)
+                        }
                         if self.options.selectAllOnFocus {
                             self.textView.selectAll(nil)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -57,13 +69,10 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                             }
                         }
                     }
-                } else {
-                    DispatchQueue.main.async {
-                        if self.textView.window?.firstResponder == self.textView {
-                            self.window?.makeFirstResponder(nil)
-                        }
-                    }
                 }
+                // No `else { resignFirstResponder }`: when focus moves elsewhere
+                // (e.g. webview), that target's wowser_becomeFirstResponder will
+                // take focus from us automatically.
             }
         }
     }

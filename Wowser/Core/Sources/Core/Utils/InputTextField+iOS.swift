@@ -7,13 +7,16 @@ public struct InputTextField: UIViewRepresentable {
     @Binding var text: String
     var options: InputTextFieldOptions
     var focusDate: Date?
+    /// macOS-only — accepted on iOS for API parity. Ignored.
+    var focusTarget: FocusTarget?
     var onEvent: (TextFieldEvent) -> Void
     var contentSize: Binding<CGSize>?
-    
-    public init(text: Binding<String>, options: InputTextFieldOptions, focusDate: Date? = nil, onEvent: @escaping (TextFieldEvent) -> Void, contentSize: Binding<CGSize>? = nil) {
+
+    public init(text: Binding<String>, options: InputTextFieldOptions, focusDate: Date? = nil, focusTarget: FocusTarget? = nil, onEvent: @escaping (TextFieldEvent) -> Void, contentSize: Binding<CGSize>? = nil) {
         _text = text
         self.options = options
         self.focusDate = focusDate
+        self.focusTarget = focusTarget
         self.onEvent = onEvent
         self.contentSize = contentSize
     }

@@ -53,10 +53,9 @@ public struct ToolbarViewSnapshot: Equatable {
     }
 }
 
-/// A toolbar view that contains navigation controls and the omnibox
-public struct ToolbarView: View {
-    var searchFocused: Bool
-    var paneFocused: Bool
+/// A toolbar view that contains navigation controls and the omnibox.
+/// Stateless wrt focus — the omnibox observes the FocusSnap directly.
+struct ToolbarView: View {
     var webContentID: ID<WebContent>?
 
     @ObservedObject var searcher: Searcher
@@ -67,28 +66,12 @@ public struct ToolbarView: View {
     var emptyPage: Bool // is this being presented on an empty page?
 
     @Environment(\.windowID) private var windowID
-//    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
 
     private let browserStore = BrowserStore.shared
-    @State private var focusDate: Date?
     @State private var isBookmarked: Bool = false
-    @State private var lastBecameKeyAt: Date?
+    @State private var omniboxIsFocused: Bool = false
 
-//    private struct OmniboxFocusSnap: Equatable {
-//        var searchFocused: Bool
-//        var paneFocused: Bool
-//        var emptyPage: Bool
-//        var lastBecameKeyAt: Date?
-//    }
-    private var omniboxFocusSnap: OmniboxFocusSnap {
-        OmniboxFocusSnap(searchFocused: searchFocused, paneFocused: paneFocused, emptyPage: emptyPage, lastBecameKeyAt: lastBecameKeyAt)
-    }
-    
-    private var omniboxFocusDate: Date? {
-        if searchFocused && paneFocused
-    }
-    
-    public var body: some View {
+    var body: some View {
         let topRadius: CGFloat = emptyPage ? 10 : 0
         let bottomRadius: CGFloat = searchText == "" ? topRadius : 0
         let clipShape = UnevenRoundedRectangle(topLeadingRadius: topRadius, bottomLeadingRadius: bottomRadius, bottomTrailingRadius: bottomRadius, topTrailingRadius: topRadius, style: .continuous)
@@ -115,15 +98,18 @@ public struct ToolbarView: View {
                     }
 
                     Omnibox(
-                        focusDate: focusDate,
-                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
+                        paneID: webContentID,
+                        searchText: omniboxIsFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
                         selectedResultIndex: $selectedResultIndex,
                         searcher: searcher,
                         fgColor: colorScheme?.foreground,
-                        onFocus: activateSearchOverlay,
                         fontSize: emptyPage ? 14 : 12
                     )
-//                    .border(searchFocused ? Color.red : Color.clear)
+                    .onAppearOrChange(of: omniboxIsFocused) { focused in
+                        if focused {
+                            searchText = snapshot.tabAppearance.urlFieldTextSelected
+                        }
+                    }
                 }
                 
                 // Trailing buttons container
@@ -173,21 +159,15 @@ public struct ToolbarView: View {
 //                }
             }
         }
-        .onAppearOrChange(of: omniboxFocusSnap) { snap in
-            if snap.searchFocused {
-                focusDate = Date()
-            } else if snap.paneFocused && snap.emptyPage {
-                // Activate the overlay; the resulting state change re-fires
-                // this with searchFocused=true, which sets focusDate.
-                activateSearchOverlay()
+        .onReceiveFocusSnap(windowID: windowID) { snap in
+            // Used only to swap the omnibox text binding between live-edit and the
+            // tab's deselected URL/title display. Focus itself is handled by Omnibox.
+            if let webContentID, snap.target == .omnibox(pane: webContentID) {
+                omniboxIsFocused = true
             } else {
-                focusDate = nil
+                omniboxIsFocused = false
             }
         }
-        .onReceive(BrowserStore.shared.uiPublisher.map { state -> Date? in
-            guard let windowID else { return nil }
-            return state.windows[windowID]?.lastBecameKeyAt
-        }.removeDuplicates()) { self.lastBecameKeyAt = $0 }
         .modifier(WithContentColorScheme(scheme: colorScheme))
         .clipShape(clipShape)
         .overlay {
@@ -269,21 +249,7 @@ public struct ToolbarView: View {
     }
     
     // MARK: - Actions
-    
-    private func activateSearchOverlay() {
-        if let webContentID {
-            searchText = browserStore.model.pane(forId: webContentID)?.tabAppearance().urlFieldTextSelected ?? "" // .url?.absoluteString ?? ""
-        }
-        browserStore.modify { state in
-            if let windowID = windowID {
-                state.windows[windowID]?.searchOverlayActive = true
-            }
-            if let webContentID {
-                state.makePaneActive(webContentID: webContentID)
-            }
-        }
-    }
-    
+
     private func goBack() {
         guard let webContentID,
               let webContent = browserStore.getOrCreateWebContent(forId: webContentID, toBeActiveInWindow: windowID!) else {

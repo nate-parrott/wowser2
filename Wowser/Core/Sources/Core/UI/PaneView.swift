@@ -33,8 +33,6 @@ struct PaneView: View {
             }
             
             ToolbarView(
-                searchFocused: snapshot.searchActive,
-                paneFocused: snapshot.focused,
                 webContentID: snapshot.webContentId,
                 searcher: searcher,
                 searchText: $searchText,
@@ -133,7 +131,7 @@ struct PaneView: View {
             // Main web content
             ZStack {
                 if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-                    WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
+                    WrappedWebView(webContent: webContent, shrunk: snapshot.emptyPage)
                         .overlay(alignment: .top) {
                             loader.padding(6)
                         }

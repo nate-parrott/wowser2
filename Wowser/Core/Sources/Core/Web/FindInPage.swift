@@ -1,16 +1,34 @@
 import SwiftUI
 import WebKit
 
-/// A reusable view for the find-in-page UI
+/// A reusable view for the find-in-page UI.
+/// `paneID` participates in the FocusTarget system (`.findInPage`) when set.
+/// When nil (e.g. the reader overlay's local find bar, which has its own
+/// internal webview unrelated to the pane), focus is handled locally on
+/// appear.
 struct FindInPageView: View {
     var webView: WKWebView
+    var paneID: ID<WebContent>?
     var onClose: () -> Void
-    
+
     @State private var searchText = ""
     @State private var hasMatch = false
     @State private var matchCount = 0
-    @State private var focusDate: Date?
-    
+    @State private var focusSnap = FocusSnap()
+    @State private var localFocusDate: Date?
+    @Environment(\.windowID) private var windowID
+
+    private var focusDate: Date? {
+        if let paneID {
+            return focusSnap.target == .findInPage(paneID) ? focusSnap.date : nil
+        }
+        return localFocusDate
+    }
+
+    private var focusTarget: FocusTarget? {
+        paneID.map { FocusTarget.findInPage($0) }
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 12) {
@@ -23,6 +41,7 @@ struct FindInPageView: View {
                     insets: CGSize(width: 5, height: 5)
                 ),
                 focusDate: focusDate,
+                focusTarget: focusTarget,
                 onEvent: { event in
                    handle(event)
                 }
@@ -31,7 +50,8 @@ struct FindInPageView: View {
             .onChange(of: searchText) { _ in
                 performSearch()
             }
-            .onAppear { self.focusDate = Date() }
+            .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
+            .onAppear { if paneID == nil { localFocusDate = Date() } }
             
             // Match indicator
             if !hasMatch && searchText != "" {

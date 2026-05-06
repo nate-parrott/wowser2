@@ -86,6 +86,17 @@ public class WebContentWebView: WKWebView {
     #endif
     
     #if os(macOS)
+    public override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        print("[WebContentWebView] willOpenMenu — \(menu.items.count) item(s)")
+        for (idx, item) in menu.items.enumerated() {
+            let identifier = item.identifier?.rawValue ?? "<nil>"
+            let title = item.title
+            let represented = item.representedObject.map { String(describing: $0) } ?? "<nil>"
+            print("[WebContentWebView]   [\(idx)] id=\(identifier) title=\"\(title)\" representedObject=\(represented)")
+        }
+    }
+
     public override func layout() {
         super.layout()
         wantsLayer = true

@@ -8,7 +8,7 @@ import Foundation
 // per Q57) so that omnibox typing, history, and tab persistence all "just work" — the
 // URL is the source of truth.
 public enum NativePageKey: Hashable, Codable {
-    case terminal(id: String, cwd: String?)
+    case terminal(id: String, cwd: String?, runCommand: String? = nil)
     case vscode(id: String, folder: String?)
     case fileBrowser(id: String, path: String?)
 
@@ -19,7 +19,8 @@ public enum NativePageKey: Hashable, Codable {
             case "terminal":
                 let id = url.queryParam(name: "id") ?? UUID().uuidString
                 let cwd = url.queryParam(name: "cwd")
-                self = .terminal(id: id, cwd: cwd)
+                let cmd = url.queryParam(name: "cmd")
+                self = .terminal(id: id, cwd: cwd, runCommand: cmd)
             case "vscode":
                 let id = url.queryParam(name: "id") ?? UUID().uuidString
                 let folder = url.queryParam(name: "folder")
@@ -42,12 +43,13 @@ public enum NativePageKey: Hashable, Codable {
         components.path = "blank"
 
         switch self {
-        case .terminal(let id, let cwd):
+        case .terminal(let id, let cwd, let runCommand):
             var items = [
                 URLQueryItem(name: "native", value: "terminal"),
                 URLQueryItem(name: "id", value: id),
             ]
             if let cwd { items.append(URLQueryItem(name: "cwd", value: cwd)) }
+            if let runCommand { items.append(URLQueryItem(name: "cmd", value: runCommand)) }
             components.queryItems = items
         case .vscode(let id, let folder):
             var items = [
@@ -81,14 +83,14 @@ public enum NativePageKey: Hashable, Codable {
     /// folder, path) belong to the same underlying session.
     public var sessionID: String {
         switch self {
-        case .terminal(let id, _): return "terminal:\(id)"
+        case .terminal(let id, _, _): return "terminal:\(id)"
         case .vscode(let id, _): return "vscode:\(id)"
         case .fileBrowser(let id, _): return "files:\(id)"
         }
     }
 
-    public static func newTerminal(cwd: String? = nil) -> NativePageKey {
-        .terminal(id: UUID().uuidString, cwd: cwd)
+    public static func newTerminal(cwd: String? = nil, runCommand: String? = nil) -> NativePageKey {
+        .terminal(id: UUID().uuidString, cwd: cwd, runCommand: runCommand)
     }
 
     public static func newVSCode(folder: String? = nil) -> NativePageKey {
@@ -108,7 +110,7 @@ public enum NativePageKey: Hashable, Codable {
     /// the view layer (see `OpenInOtherNativeMenu`).
     public var folderPath: String? {
         switch self {
-        case .terminal(_, let cwd): return cwd
+        case .terminal(_, let cwd, _): return cwd
         case .vscode(_, let folder): return folder
         case .fileBrowser(_, let path): return path
         }
@@ -117,4 +119,34 @@ public enum NativePageKey: Hashable, Codable {
     public var isTerminal: Bool { if case .terminal = self { return true } else { return false } }
     public var isVSCode: Bool { if case .vscode = self { return true } else { return false } }
     public var isFileBrowser: Bool { if case .fileBrowser = self { return true } else { return false } }
+}
+
+extension BrowserState {
+    /// The folder path from the most recently accessed native (terminal /
+    /// vscode / file browser) tab visible in the given window's current
+    /// profile/space. Used to seed cwd/folder for new native tabs so the
+    /// user lands in the same folder they were last working in.
+    public func mostRecentNativeFolderPath(windowID: ID<WindowState>?) -> String? {
+        guard let windowID, let win = windows[windowID] else { return nil }
+        // Tabs visible in this window's current profile: ordinary tabs,
+        // favorites, and tabs in the focused project (if any).
+        var candidateTabIDs: [ID<Tab>] = win.tabs
+        if let projID = win.focusedOnProject, let proj = projects[projID] {
+            candidateTabIDs.append(contentsOf: proj.tabs)
+        }
+        candidateTabIDs.append(contentsOf: favorites(profileId: win.profile))
+
+        let scored: [(Date, String)] = candidateTabIDs.compactMap { tabID in
+            guard let tab = tabs[tabID] else { return nil }
+            for pane in tab.panes.asArray {
+                if let url = pane.info.url,
+                   let key = NativePageKey(url: url),
+                   let folder = key.folderPath, !folder.isEmpty {
+                    return (tab.lastAccessed, folder)
+                }
+            }
+            return nil
+        }
+        return scored.max(by: { $0.0 < $1.0 })?.1
+    }
 }
