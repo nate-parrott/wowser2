@@ -166,9 +166,9 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
         focusSubscriptions.removeAll()
         guard let window else { return }
 
-        if focusDate != nil {
-            window.makeFirstResponder(textView)
-        }
+//        if focusDate != nil {
+//            window.makeFirstResponder(textView)
+//        }
 
         // KVO the window's first responder to see if it's us
         window.publisher(for: \.firstResponder).sink { [weak self] firstResponder in

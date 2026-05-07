@@ -146,7 +146,13 @@ public struct WindowState: Equatable, Codable {
     /// snapshots include this date so `.onAppearOrChange` fires on window-key
     /// the same way it fires on tab-switch (when `isFocused` flips).
     public var lastBecameKeyAt: Date?
-    public var searchOverlayActive = false
+    public var searchOverlayActive = false {
+        didSet {
+            if oldValue != searchOverlayActive, searchOverlayActive {
+                print("Active")
+            }
+        }
+    }
     /// Pane currently displaying the find-in-page bar (if any). Drives
     /// `focusState` toward `.findInPage`. Cleared by closing the bar or
     /// switching focus targets — never set in two places at once.

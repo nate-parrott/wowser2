@@ -12,12 +12,27 @@ public enum FocusTarget: Equatable {
     case reader(ID<WebContent>)
     case findInPage(ID<WebContent>)
     case omnibox(pane: ID<WebContent>)
+    case emptyWindowOmnibox(ID<WindowState>) // when no tab is selected
 
-    public var paneID: ID<WebContent> {
+    public var paneID: ID<WebContent>? {
         switch self {
         case .webContent(let id), .terminal(let id), .fileBrowser(let id),
              .reader(let id), .findInPage(let id), .omnibox(pane: let id):
             return id
+        case .emptyWindowOmnibox: return nil
+        }
+    }
+    
+    func windowID(state: BrowserState) -> ID<WindowState>? {
+        if let paneID {
+            return state.windowContaining(webContentId: paneID)?.id
+        }
+        switch self {
+        case .webContent, .terminal, .fileBrowser, .reader, .findInPage, .omnibox:
+            assertionFailure()
+            return nil
+        case .emptyWindowOmnibox(let winID):
+            return winID
         }
     }
 }
@@ -36,12 +51,13 @@ extension BrowserState {
     /// `focusedPaneIdx`) so that `focusState` will return this exact target.
     public mutating func didFocus(target: FocusTarget) {
         if FocusSnap.midChangeFocus { return }
-        let paneID = target.paneID
-        guard let windowID = windowContaining(webContentId: paneID)?.id else { return }
+        guard let windowID = target.windowID(state: self) else { return }
 
-        modifyPaneAndTab(forWebContentId: paneID) { _, tab in
-            if let idx = tab.panes.elements.firstIndex(where: { $0.id == paneID }) {
-                tab.focusedPaneIdx = idx
+        if let paneID = target.paneID {
+            modifyPaneAndTab(forWebContentId: paneID) { _, tab in
+                if let idx = tab.panes.elements.firstIndex(where: { $0.id == paneID }) {
+                    tab.focusedPaneIdx = idx
+                }
             }
         }
 
@@ -54,10 +70,11 @@ extension BrowserState {
             windows[windowID]?.findInPageActiveInPaneId = nil
         case .findInPage:
             windows[windowID]?.searchOverlayActive = false
-            windows[windowID]?.findInPageActiveInPaneId = paneID
+            windows[windowID]?.findInPageActiveInPaneId = target.paneID
         case .webContent, .terminal, .fileBrowser, .reader:
             windows[windowID]?.searchOverlayActive = false
             windows[windowID]?.findInPageActiveInPaneId = nil
+        case .emptyWindowOmnibox: () // no op
         }
     }
 
@@ -67,15 +84,18 @@ extension BrowserState {
     public mutating func didLoseFocus(target: FocusTarget) {
         if FocusSnap.midChangeFocus { return }
         if !isTargetFocused(target) { return }
-        let paneID = target.paneID
-        guard let windowID = windowContaining(webContentId: paneID)?.id else { return }
+        guard let windowID = target.windowID(state: self) else {
+            return
+        }
+//        let paneID = target.paneID
+//        guard let windowID = windowContaining(webContentId: paneID)?.id else { return }
 
         switch target {
         case .omnibox:
             windows[windowID]?.searchOverlayActive = false
         case .findInPage:
             windows[windowID]?.findInPageActiveInPaneId = nil
-        case .webContent, .terminal, .fileBrowser, .reader:
+        case .webContent, .terminal, .fileBrowser, .reader, .emptyWindowOmnibox:
             () // Whatever takes focus next will reassert via didFocus.
         }
     }
@@ -88,7 +108,7 @@ extension BrowserState {
               let tab = tabs[tabID],
               let pane = tab.panes.elements.get(tab.focusedPaneIdx)
         else {
-            return .init(target: nil, date: windows[windowID]?.lastBecameKeyAt)
+            return .init(target: .emptyWindowOmnibox(windowID), date: windows[windowID]?.lastBecameKeyAt)
         }
         let date = window.lastBecameKeyAt
         let paneID = pane.id

@@ -16,8 +16,18 @@ struct Omnibox: View {
     /// Non-nil iff the omnibox should hold first responder. Self-derived from
     /// `focusState` — the parent does not drive focus into us.
     private var focusDate: Date? {
-        guard let paneID, focusSnap.target == .omnibox(pane: paneID) else { return nil }
+        guard focusSnap.target == focusTarget else { return nil }
         return focusSnap.date
+    }
+    
+    var focusTarget: FocusTarget? {
+        if let paneID {
+            return .omnibox(pane: paneID)
+        }
+        if let windowID {
+            return .emptyWindowOmnibox(windowID)
+        }
+        return nil
     }
 
     var body: some View {
@@ -33,7 +43,7 @@ struct Omnibox: View {
                 lineLimit: 1
             ),
             focusDate: focusDate,
-            focusTarget: paneID.map { FocusTarget.omnibox(pane: $0) },
+            focusTarget: focusTarget,
             onEvent: handleTextFieldEvent,
             contentSize: $contentSize
         )

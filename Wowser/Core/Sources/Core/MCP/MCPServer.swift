@@ -65,7 +65,7 @@ public actor MCPServer {
 
         let transport = StatefulHTTPServerTransport(validationPipeline: pipeline)
         let server = Server(
-            name: "Wowser",
+            name: isProd() ? "Tangerine" : "TangerineDev",
             version: "0.1.0",
             capabilities: Server.Capabilities(tools: .init(listChanged: false))
         )

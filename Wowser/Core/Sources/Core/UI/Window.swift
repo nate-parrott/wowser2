@@ -64,9 +64,10 @@ struct WindowSnapshot: Equatable {
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
-            let emptyOmnibox: Bool
-            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: emptyOmnibox, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
+//            let emptyOmnibox: Bool
+//            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
+            let searchActive = focusSnap.target == .emptyWindowOmnibox(windowID)
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: searchActive, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in

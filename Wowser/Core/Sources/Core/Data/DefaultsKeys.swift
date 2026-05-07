@@ -33,7 +33,13 @@ public enum DefaultsKeys: String {
     case searchToolbarEnabled // bool
 
     case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
-    case mcpServerToken // string — per-launch bearer token for the local MCP server
+    
+    case mcpServerTokenDev // string — per-launch bearer token for the local MCP server
+    case mcpServerTokenProd
+    static var mcpServerToken: DefaultsKeys {
+        isProd() ? mcpServerTokenProd : mcpServerTokenDev
+    }
+    
     case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
 }
 

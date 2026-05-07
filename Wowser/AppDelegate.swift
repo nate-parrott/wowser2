@@ -41,8 +41,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @IBAction func newWindow(_ sender: Any?) {
         BrowserStore.shared.modify { state in
-            let id = state.newWindow().id
-            state.openTab(url: URL(string: "https://google.com")!, activate: true, windowID: id)
+            _ = state.newWindow()
+//            state.openTab(url: URL(string: "https://google.com")!, activate: true, windowID: id)
         }
 //        let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
 //        windowControllers.append(windowController)

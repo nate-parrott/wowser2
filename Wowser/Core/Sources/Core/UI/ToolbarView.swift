@@ -164,6 +164,8 @@ struct ToolbarView: View {
             // tab's deselected URL/title display. Focus itself is handled by Omnibox.
             if let webContentID, snap.target == .omnibox(pane: webContentID) {
                 omniboxIsFocused = true
+            } else if webContentID == nil, let windowID, snap.target == .emptyWindowOmnibox(windowID) {
+                omniboxIsFocused = true
             } else {
                 omniboxIsFocused = false
             }

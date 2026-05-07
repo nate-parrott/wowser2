@@ -48,10 +48,11 @@ struct TabSnapshot: Equatable {
     
     var tabID: ID<Tab>
     var appearance: TabAppearance
+    var showSeparateSplitButton: Bool
     
     // Factory method to create a snapshot from a tab
     static func from(tab: Tab) -> TabSnapshot {
-        TabSnapshot(tabID: tab.id, appearance: tab.appearance())
+        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1)
     }
 }
 
@@ -97,7 +98,12 @@ private struct RegularTabButton: View {
 
             // Close button that appears on hover
             if isHovered || isMobile() {
-                CloseTabButton(tabID: snapshot.tabID)
+                HStack(spacing: 2) {
+                    if snapshot.showSeparateSplitButton {
+                        SeparateSplitTabsButton(tabID: snapshot.tabID)
+                    }
+                    CloseTabButton(tabID: snapshot.tabID)
+                }
             }
         }
         .padding(.leading, isMobile() ? 14 : 8)
@@ -129,7 +135,7 @@ struct NewTabCell: View {
                 withURL: nil,
                 in: windowID,
                 activate: true,
-                inCurrentSplit: isOpenInSplitViewModifierKeyPressed()
+                inCurrentSplit: isOpenInSplitViewModifierKeyPressed() || multiSelectModifierPressed()
             )
             // Show search overlay to enter URL
             BrowserStore.shared.modify { state in
@@ -148,13 +154,45 @@ private struct CloseTabButton: View {
             closeTab(tabID: tabID)
         }) {
             Image(systemName: "xmark")
-                .font(.system(size: 9, weight: .heavy))
-                .foregroundColor(.secondary)
                 .help("Close Tab")
-                .padding(6)
-                .frame(both: isMobile() ? 40 : nil)
         }
-        .buttonStyle(CircleButtonStyle())
+        .buttonStyle(TabAccessoryButtonStyle())
     }
 }
 
+private struct SeparateSplitTabsButton: View {
+    var tabID: ID<Tab>
+    
+    var body: some View {
+        Button(action: {
+            BrowserStore.shared.modify { state in
+                state.separateSplitTabs(tabId: tabID)
+            }
+        }) {
+            Image(systemName: "arrow.trianglehead.branch")
+                .help("Separate Split Tabs")
+        }
+        .buttonStyle(TabAccessoryButtonStyle())
+    }
+}
+
+struct TabAccessoryButtonStyle: ButtonStyle {
+    @State private var hovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 9, weight: .heavy))
+            .foregroundColor(.secondary)
+            .padding(6)
+            .frame(both: isMobile() ? 40 : nil)
+            .contentShape(Rectangle())
+            .background {
+                if hovered {
+                    Circle()
+                        .foregroundStyle(.primary)
+                        .opacity(0.1)
+                }
+            }
+            .onHover(perform: { self.hovered = $0 })
+    }
+}

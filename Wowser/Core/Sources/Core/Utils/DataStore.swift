@@ -172,7 +172,7 @@ open class DataStore<Model: Equatable & Codable>: NSObject {
     }
 
     static func persistentURL(_ key: String) -> URL {
-        let appDir = "WowserDataStores"
+        let appDir = "WowserDataStores-\(isProd() ? "prod" : "dev")"
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent(appDir).appendingPathComponent(Bundle.main.bundleIdentifier ?? "Unknown")
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)

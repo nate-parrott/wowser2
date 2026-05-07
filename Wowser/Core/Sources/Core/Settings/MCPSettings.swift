@@ -20,45 +20,45 @@ struct MCPSettings: View {
                     .padding(.top, 4)
             }
 
-            Section {
-                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Server URL").font(.caption).foregroundStyle(.secondary)
-                            HStack {
-                                Text(displayURL)
-                                    .font(.system(.body, design: .monospaced))
-                                    .textSelection(.enabled)
-                                Spacer()
-                                CopyButton(text: displayURL)
-                            }
-                            Text("The auth key is baked into the URL path. Anyone with the URL can drive this browser, so don't share it.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Other MCP clients").font(.caption).foregroundStyle(.secondary)
-                            CopyableCommand(text: mcpJSONSnippet)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Tools").font(.caption).foregroundStyle(.secondary)
-                            ToolRow(name: "run_browser_js", desc: "Run async JS in the privileged BrowserJS environment.")
-                            ToolRow(name: "save_browser_helper_file", desc: "Persist a JS helper that gets prepended to every run_browser_js eval.")
-                            ToolRow(name: "read_browser_helper_file", desc: "Read one helper, or list all.")
-                            ToolRow(name: "get_browser_js_docs", desc: "Return the BrowserJS .d.ts. Call this first.")
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-            }
+//            Section {
+//                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+//                    VStack(alignment: .leading, spacing: 14) {
+//                        VStack(alignment: .leading, spacing: 4) {
+//                            Text("Server URL").font(.caption).foregroundStyle(.secondary)
+//                            HStack {
+//                                Text(displayURL)
+//                                    .font(.system(.body, design: .monospaced))
+//                                    .textSelection(.enabled)
+//                                Spacer()
+//                                CopyButton(text: displayURL)
+//                            }
+//                            Text("The auth key is baked into the URL path. Anyone with the URL can drive this browser, so don't share it.")
+//                                .font(.caption).foregroundStyle(.secondary)
+//                        }
+//
+//                        VStack(alignment: .leading, spacing: 4) {
+//                            Text("Other MCP clients").font(.caption).foregroundStyle(.secondary)
+//                            CopyableCommand(text: mcpJSONSnippet)
+//                        }
+//
+//                        VStack(alignment: .leading, spacing: 6) {
+//                            Text("Tools").font(.caption).foregroundStyle(.secondary)
+//                            ToolRow(name: "run_browser_js", desc: "Run async JS in the privileged BrowserJS environment.")
+//                            ToolRow(name: "save_browser_helper_file", desc: "Persist a JS helper that gets prepended to every run_browser_js eval.")
+//                            ToolRow(name: "read_browser_helper_file", desc: "Read one helper, or list all.")
+//                            ToolRow(name: "get_browser_js_docs", desc: "Return the BrowserJS .d.ts. Call this first.")
+//                        }
+//                    }
+//                    .padding(.top, 8)
+//                }
+//            }
         }
     }
 
     private var displayURL: String { mcpURL.isEmpty ? "<starting…>" : mcpURL }
 
     private var claudeAddCommand: String {
-        "claude mcp add --transport http wowser \(displayURL)"
+        "claude mcp add --transport http \(isProd() ? "tangerine" : "tangerinedev") \(displayURL)"
     }
 
     private var mcpJSONSnippet: String {
@@ -77,17 +77,18 @@ struct MCPSettings: View {
 
 private struct CopyableCommand: View {
     var text: String
+    
     var body: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 12) {
             Text(text)
                 .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
+//                .textSelection(.enabled) // for some reason this crashes SwiftUI on second appearance
                 .frame(maxWidth: .infinity, alignment: .leading)
             CopyButton(text: text)
         }
-        .padding(8)
-        .background(Color.secondary.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+//        .padding(8)
+//        .background(Color.secondary.opacity(0.08))
+//        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 

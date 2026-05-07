@@ -40,7 +40,7 @@ private struct ProfilePagingDotsContent: View {
     var body: some View {
         // Only show paging dots if we have more than one profile
         if snapshot.orderedProfileIDs.count > 1 {
-            HStack(spacing: 8) {
+            HStack(spacing: 2) {
                 ForEach(snapshot.orderedProfileIDs, id: \.raw) { profileID in
                     ProfileDotView(
                         profileID: profileID,
@@ -50,7 +50,7 @@ private struct ProfilePagingDotsContent: View {
                     )
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.top, 8)
         } else {
             // No need to show paging dots if there's only one profile
             EmptyView()
@@ -65,8 +65,10 @@ private struct ProfileDotView: View {
     let profile: Profile?
     
     @State private var showingEmojiMenu = false
+    @State private var hovered = false
     
     var body: some View {
+        let scale = hovered ? 1.1 : 1
         Button(action: {
             // Switch to this profile when clicked
             switchToProfile()
@@ -74,7 +76,7 @@ private struct ProfileDotView: View {
             ZStack {
                 // Background circle for consistent sizing
                 Circle()
-                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.white.opacity(0.01))
                     .frame(width: 24, height: 24)
                 
                 if let emoji = profile?.emoji, !emoji.isEmpty {
@@ -82,16 +84,19 @@ private struct ProfileDotView: View {
                     Text(emoji)
                         .font(.system(size: 14))
                         .opacity(isSelected ? 1.0 : 0.6)
+                        .scaleEffect(scale)
                 } else {
                     // Default dot indicator
                     Circle()
                         .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
                         .frame(width: 8, height: 8)
+                        .scaleEffect(scale)
                 }
             }
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover(perform: { self.hovered = $0 })
         .contextMenu {
             Button(action: {}) {
                 Text("Set Profile Icon")

@@ -232,7 +232,7 @@ struct PlaceholderFavoriteCell: View {
 
 // Helper functions
 func didClickTabToSelect(tabID: ID<Tab>, windowID: ID<WindowState>) {
-    if isOpenInSplitViewModifierKeyPressed(),
+    if isOpenInSplitViewModifierKeyPressed() || multiSelectModifierPressed(),
        let curTab = BrowserStore.shared.model.windows[windowID]?.currentTab,
        curTab != tabID
     {
@@ -255,6 +255,13 @@ func isOpenInSplitViewModifierKeyPressed() -> Bool {
     #endif
 }
 
+func multiSelectModifierPressed() -> Bool {
+#if os(macOS)
+    return NSEvent.modifierFlags.contains(.command) || NSEvent.modifierFlags.contains(.shift)
+#else
+return false
+#endif
+}
 
 // Reset tab to its base URL
 func resetTabToBaseURL(tabID: ID<Tab>, windowID: ID<WindowState>) {
