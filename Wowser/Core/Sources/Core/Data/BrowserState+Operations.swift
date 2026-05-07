@@ -17,11 +17,20 @@ extension BrowserState {
         }
     }
     
-    // Create a new profile with a unique ID and UUID for its data store
-    public mutating func createNewProfile() -> ID<Profile> {
+    // Create a new profile with a unique ID and UUID for its data store.
+    // If `sharingLoginsWith` is provided and exists, the new profile reuses
+    // that profile's `dataStoreUUID` so they share cookies/logins. Otherwise
+    // the new profile gets a fresh UUID (isolated).
+    public mutating func createNewProfile(sharingLoginsWith sourceProfileID: ID<Profile>? = nil) -> ID<Profile> {
         let profilesCount = profiles.count
         let id = ID<Profile>(raw: "p\(profilesCount)")
-        let profile = Profile(id: id, dataStoreUUID: UUID(), creationOrder: profilesCount)
+        let dataStoreUUID: UUID
+        if let sourceProfileID, let source = profiles[sourceProfileID] {
+            dataStoreUUID = source.dataStoreUUID
+        } else {
+            dataStoreUUID = UUID()
+        }
+        let profile = Profile(id: id, dataStoreUUID: dataStoreUUID, creationOrder: profilesCount)
         profiles[id] = profile
         return id
     }

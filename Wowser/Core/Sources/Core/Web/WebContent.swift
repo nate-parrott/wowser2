@@ -22,7 +22,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     weak var delegate: WebContentDelegate?
     
     let id: ID<WebContent>
-    let profileUUID: UUID
+    let datastoreUUID: UUID
     public let webview: WebContentWebView
     private var observers = [NSKeyValueObservation]()
     private var subscriptions = Set<AnyCancellable>()
@@ -133,7 +133,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         webview.loadHTMLString(html, baseURL: baseURL)
     }
 
-    public init(id: ID<WebContent>?, profileUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
+    public init(id: ID<WebContent>?, datastoreUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
         self.id = id ?? .assign()
         let config = config ?? WKWebViewConfiguration()
         config.preferences.isElementFullscreenEnabled = true
@@ -146,7 +146,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
 //            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
         }
         if #available(macOS 14.0, *) {
-            config.websiteDataStore = WKWebsiteDataStore(forIdentifier: profileUUID)
+            config.websiteDataStore = WKWebsiteDataStore(forIdentifier: datastoreUUID)
         } else {
             // Fallback on earlier versions
             fatalError()
@@ -170,7 +170,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         webview.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
         #endif
         self.transparent = transparent
-        self.profileUUID = profileUUID
+        self.datastoreUUID = datastoreUUID
         super.init()
         webview.navigationDelegate = self
         webview.uiDelegate = self

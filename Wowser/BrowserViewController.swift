@@ -20,6 +20,8 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     private let moveBlockingView = MoveBlockingView()
     private let swipeGestureContainer = SwipeGestureContainer()
     private var escapeKeyMonitor: Any?
+    private var flagsChangedMonitor: Any?
+    private var tabStackCycleActive = false
     private var windowControlsHacker: MacWindowControlsHacker?
     private var subscriptions = Set<AnyCancellable>()
     private(set) var cleanModeButtonStatus = CleanModeButtonStatus.readerUnavail
@@ -53,12 +55,12 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         
         // Set up escape key monitoring
         escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self, 
+            guard let self = self,
                   self.view.window?.isKeyWindow == true,
                   event.keyCode == 53 else { // Escape key
                 return event
             }
-            
+
             // Dismiss toast inline
             if let windowID = self.windowID,
                let currentToast = BrowserStore.shared.model.windows[windowID]?.currentToast {
@@ -66,9 +68,41 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
                     state.removeToast(id: currentToast.id, in: windowID)
                 }
             }
-            
+
             return event // Let the event continue to propagate
         }
+
+        // Cmd-release commits an in-progress keyboard tab-stack cycle.
+        flagsChangedMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self else { return event }
+            if self.tabStackCycleActive, !event.modifierFlags.contains(.command) {
+                self.endTabStackCycleIfActive()
+            }
+            return event
+        }
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBeganTabStackCycle(_:)),
+            name: .beginTabStackCycle,
+            object: nil
+        )
+    }
+
+    @objc private func handleBeganTabStackCycle(_ note: Notification) {
+        guard let windowID = self.windowID,
+              note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
+        tabStackCycleActive = true
+    }
+
+    private func endTabStackCycleIfActive() {
+        guard tabStackCycleActive, let windowID = self.windowID else { return }
+        tabStackCycleActive = false
+        NotificationCenter.default.post(
+            name: .endTabStackCycle,
+            object: nil,
+            userInfo: [tabStackCycleWindowIDKey: windowID]
+        )
     }
     
     // we only expect this to ever be called once per window, by appdelegate
@@ -205,6 +239,10 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        if let monitor = flagsChangedMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        NotificationCenter.default.removeObserver(self, name: .beginTabStackCycle, object: nil)
     }
     
     // MARK: - Auto-Organize Tabs

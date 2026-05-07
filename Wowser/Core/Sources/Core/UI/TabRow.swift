@@ -62,11 +62,19 @@ private struct RegularTabButton: View {
     let isSelected: Bool
     let isHovered: Bool
     let windowID: ID<WindowState>
-    
+    @State private var lastClickAt: Date?
+
     var body: some View {
         content
             .modifier(TabStyleButtonModifier(isSelected: isSelected, pressed: {
-                didClickTabToSelect(tabID: snapshot.tabID, windowID: windowID)
+                let now = Date()
+                if let last = lastClickAt, now.timeIntervalSince(last) < 0.5 {
+                    lastClickAt = nil
+                    renameTab(tabID: snapshot.tabID)
+                } else {
+                    lastClickAt = now
+                    didClickTabToSelect(tabID: snapshot.tabID, windowID: windowID)
+                }
             }))
             .contextMenu {
                 TabContextMenu(tabID: snapshot.tabID, isFavorite: false)
@@ -83,6 +91,7 @@ private struct RegularTabButton: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.appearance.title)
                     .opacity(snapshot.appearance.specialTitle ? 0.66 : 1)
+                    .italic(snapshot.appearance.isCustomTitle)
                     .truncationMode(.tail)
                     .lineLimit(1)
                 if let subtitle = snapshot.appearance.subtitle {

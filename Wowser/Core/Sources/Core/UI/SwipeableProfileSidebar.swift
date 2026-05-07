@@ -220,33 +220,146 @@ private struct ProfilePageContent: View {
 // View for the "new profile" page
 private struct NewProfileView: View {
     let windowID: ID<WindowState>
-    
+
     var body: some View {
-        FreeformButton(action: createNewProfile) { status in
-            let bgOpacity: CGFloat = status == .pressed ? 0.1 : (status == .hovered ? 0.07 : 0)
-            VStack(spacing: 22) {
-                Image(systemName: "plus")
-                    .font(.system(size: 32))
-                
-                Text("New Profile")
-                    .fontWeight(.medium)
-            }
-            .padding()
-            .contentShape(Rectangle())
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(bgOpacity)))
-            .foregroundStyle(.secondary)
-            .padding()
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            NewProfileSnapshot(profiles: state.profiles)
+        } main: { snapshot in
+            NewProfileContent(snapshot: snapshot, windowID: windowID)
         }
+    }
+}
+
+private struct NewProfileSnapshot: Equatable {
+    var profiles: [ID<Profile>: Profile]
+
+    var sortedProfiles: [Profile] {
+        profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder })
+    }
+
+    var lastProfile: Profile? { sortedProfiles.last }
+}
+
+private enum NewProfileSharingChoice: Hashable {
+    case shareLogins(ID<Profile>)
+    case isolated
+}
+
+private struct NewProfileContent: View {
+    let snapshot: NewProfileSnapshot
+    let windowID: ID<WindowState>
+
+    @State private var pickedChoice: NewProfileSharingChoice?
+
+    private var resolvedChoice: NewProfileSharingChoice {
+        if let pickedChoice {
+            // If the picked profile no longer exists, fall back.
+            if case .shareLogins(let id) = pickedChoice, snapshot.profiles[id] == nil {
+                return defaultChoice
+            }
+            return pickedChoice
+        }
+        return defaultChoice
+    }
+
+    private var defaultChoice: NewProfileSharingChoice {
+        if let last = snapshot.lastProfile {
+            return .shareLogins(last.id)
+        }
+        return .isolated
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            FreeformButton(action: createNewProfile) { status in
+                let bgOpacity: CGFloat = status == .pressed ? 0.1 : (status == .hovered ? 0.07 : 0)
+                VStack(spacing: 22) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 32))
+
+                    Text("New Profile")
+                        .fontWeight(.medium)
+                }
+                .padding()
+                .contentShape(Rectangle())
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(bgOpacity)))
+                .foregroundStyle(.secondary)
+            }
+//            Divider()
+//                .padding(.horizontal)
+            
+            profileSharingMenu
+            .opacity(0.5)
+            .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer()
+        }
+        .padding()
         .frame(width: UIConstants.sidebarWidth)
-//        .background(Color(NSColor.windowBackgroundColor))
     }
     
+    @ViewBuilder private var profileSharingMenu: some View {
+        Menu {
+            ForEach(snapshot.sortedProfiles, id: \.id.raw) { profile in
+                Button(shareLoginsLabel(for: profile)) {
+                    pickedChoice = .shareLogins(profile.id)
+                }
+            }
+            Divider()
+            Button("Isolated profile") {
+                pickedChoice = .isolated
+            }
+        } label: {
+            HStack {
+                Text(label(for: resolvedChoice))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
+            .foregroundStyle(.primary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .controlSize(.small)
+    }
+
+    private func displayName(for profile: Profile) -> String {
+        profile.title ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)"
+    }
+
+    private func shareLoginsLabel(for profile: Profile) -> String {
+        "Share logins with \(displayName(for: profile))"
+    }
+
+    private func label(for choice: NewProfileSharingChoice) -> String {
+        switch choice {
+        case .shareLogins(let id):
+            if let profile = snapshot.profiles[id] {
+                return shareLoginsLabel(for: profile)
+            }
+            return "Share logins"
+        case .isolated:
+            return "Isolated profile"
+        }
+    }
+
     private func createNewProfile() {
+        let choice = resolvedChoice
         BrowserStore.shared.modify { state in
-            let newProfileId = state.createNewProfile()
+            let sourceID: ID<Profile>?
+            switch choice {
+            case .shareLogins(let id): sourceID = id
+            case .isolated: sourceID = nil
+            }
+            let newProfileId = state.createNewProfile(sharingLoginsWith: sourceID)
             state.windows[windowID]?.profile = newProfileId
-            // The reactive binding will automatically detect the profile change
-            // and update the selected profile ID
         }
     }
 }

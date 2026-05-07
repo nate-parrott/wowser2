@@ -29,14 +29,25 @@ extension BrowserViewController {
         getCurrentWebContent()?.reload()
     }
     
-    @IBAction func goToPreviousTab(_ sender: Any?) {
+    @IBAction func cycleTabs(_ sender: Any?) {
         guard let windowID = self.windowID else { return }
         
-        // Find the most recently active tab that's not the current one
-        if let previousTabID = BrowserStore.shared.model.findPreviouslyActiveTab(inWindow: windowID) {
-            // Activate that tab
-            BrowserStore.shared.modify { state in
-                state.activate(tabId: previousTabID, in: windowID)
+        
+        if NSEvent.modifierFlags.contains(.command) {
+            // Live cmd+e gesture: each press steps the 3D stack one tab back;
+            // commit happens when cmd is released (see flagsChanged monitor).
+            NotificationCenter.default.post(
+                name: .beginTabStackCycle,
+                object: nil,
+                userInfo: [tabStackCycleWindowIDKey: windowID]
+            )
+        } else {
+            // Find the most recently active tab that's not the current one
+            if let previousTabID = BrowserStore.shared.model.findPreviouslyActiveTab(inWindow: windowID) {
+                // Activate that tab
+                BrowserStore.shared.modify { state in
+                    state.activate(tabId: previousTabID, in: windowID)
+                }
             }
         }
     }
@@ -216,7 +227,7 @@ extension BrowserViewController {
                 return BrowserStore.shared.model.windows[windowID]?.lastClosedTabURL != nil
             }
             return false
-        case #selector(goToPreviousTab):
+        case #selector(cycleTabs):
             // Only enable if there's a window ID and there's a previous tab to go to
             if let windowID = self.windowID {
                 return BrowserStore.shared.model.findPreviouslyActiveTab(inWindow: windowID) != nil

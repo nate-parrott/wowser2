@@ -124,6 +124,7 @@ enum Alerts {
         textPlaceholder: String,
         submitTitle: String,
         cancelTitle: String,
+        defaultText: String? = nil,
         baseView: UINSView? = nil
     ) async -> String? {
         #if os(macOS)
@@ -138,6 +139,10 @@ enum Alerts {
 
         let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         input.placeholderString = textPlaceholder
+        if let defaultText {
+            input.stringValue = defaultText
+            input.selectText(nil)
+        }
         alert.accessoryView = input
 
         return await withCheckedContinuation { continuation in
@@ -158,6 +163,9 @@ enum Alerts {
         
         alert.addTextField { textField in
             textField.placeholder = textPlaceholder
+            if let defaultText {
+                textField.text = defaultText
+            }
         }
         
         return await withCheckedContinuation { continuation in

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="24412" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23504"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24412"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -668,9 +668,9 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="fGE-C5-rlN"/>
-                                        <menuItem title="Previous Tab" keyEquivalent="e" id="15O-Qk-4SM">
+                                        <menuItem title="Cycle Recent Tabs" keyEquivalent="e" id="15O-Qk-4SM">
                                             <connections>
-                                                <action selector="goToPreviousTab:" target="Ady-hI-5gd" id="qud-9Y-KFt"/>
+                                                <action selector="cycleTabs:" target="Ady-hI-5gd" id="T28-bj-e6N"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Switch to Tab Above" hidden="YES" keyEquivalent="" allowsKeyEquivalentWhenHidden="YES" id="9IL-4H-AQ0">
@@ -789,7 +789,7 @@
                         <outlet property="delegate" destination="Voe-Tx-rLC" id="PrD-fu-P6m"/>
                     </connections>
                 </application>
-                <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Wowser" customModuleProvider="target">
+                <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Tangerine" customModuleProvider="target">
                     <connections>
                         <outlet property="bookmarksMenuItem" destination="toJ-eM-zhy" id="JkK-Ix-4xw"/>
                         <outlet property="historyMenu" destination="KM3-fD-0ti" id="kms-np-cTl"/>
@@ -803,8 +803,8 @@
         <!--Browser Window Controller-->
         <scene sceneID="R2V-B0-nI4">
             <objects>
-                <windowController storyboardIdentifier="BrowserWindowController" id="B8D-0N-5wS" userLabel="Browser Window Controller" customClass="BrowserWindowController" customModule="Wowser" customModuleProvider="target" sceneMemberID="viewController">
-                    <window key="window" title="Window" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="Browser" animationBehavior="default" tabbingMode="disallowed" titlebarAppearsTransparent="YES" titleVisibility="hidden" id="IQv-IB-iLA" customClass="BrowserNSWindow" customModule="Wowser" customModuleProvider="target">
+                <windowController storyboardIdentifier="BrowserWindowController" id="B8D-0N-5wS" userLabel="Browser Window Controller" customClass="BrowserWindowController" customModule="Tangerine" customModuleProvider="target" sceneMemberID="viewController">
+                    <window key="window" title="Window" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="Browser" animationBehavior="default" tabbingMode="disallowed" titlebarAppearsTransparent="YES" titleVisibility="hidden" id="IQv-IB-iLA" customClass="BrowserNSWindow" customModule="Tangerine" customModuleProvider="target">
                         <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES" fullSizeContentView="YES"/>
                         <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
                         <rect key="contentRect" x="196" y="240" width="800" height="500"/>
@@ -824,7 +824,7 @@
         <!--Browser View Controller-->
         <scene sceneID="hIz-AP-VOD">
             <objects>
-                <viewController id="XfG-lQ-9wD" customClass="BrowserViewController" customModule="Wowser" customModuleProvider="target" sceneMemberID="viewController">
+                <viewController id="XfG-lQ-9wD" customClass="BrowserViewController" customModule="Tangerine" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="m2S-Jp-Qdl">
                         <rect key="frame" x="0.0" y="0.0" width="480" height="270"/>
                         <autoresizingMask key="autoresizingMask"/>

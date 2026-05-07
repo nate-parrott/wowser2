@@ -22,6 +22,8 @@ struct TabAppearance: Equatable, Codable {
     var subtitle: String?
     /// Ghost panes are shown muted/dimmed.
     var isGhost = false
+    /// Title is a user-provided custom name; rendered italic.
+    var isCustomTitle = false
 
     static var empty: TabAppearance {
         .init(title: "", icon: .empty, urlFieldTextSelected: "", urlFieldTextDeselected: "")
@@ -138,6 +140,11 @@ extension Tab {
         case 5:
             appearance.icon = .sfSymbol("5.circle.fill")
         default: ()
+        }
+        if let custom = customTitle?.nilIfEmpty {
+            appearance.title = custom
+            appearance.isCustomTitle = true
+            appearance.specialTitle = false
         }
         return appearance
     }

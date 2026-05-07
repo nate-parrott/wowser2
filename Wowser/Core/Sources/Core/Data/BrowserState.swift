@@ -36,6 +36,7 @@ public struct Tab: Equatable, Identifiable, Codable {
     public var lastActiveInWindow: Core.ID<WindowState>?
     public var aiTags: AITags?
     public var focusedPaneIdx = 0
+    public var customTitle: String?
     
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -287,7 +288,7 @@ public class BrowserStore: DataStore<BrowserState> {
             state.tabs[tabId]?.lastActiveInWindow = windowID
         }
         
-        let wc = WebContent(id: id, profileUUID: profile.dataStoreUUID)
+        let wc = WebContent(id: id, datastoreUUID: profile.dataStoreUUID)
         if pane.isGhost {
             wc.silenced = true
         }

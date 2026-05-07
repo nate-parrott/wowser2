@@ -14,7 +14,7 @@ extension WebContent: WKUIDelegate {
             }
         }
         
-        let newWebContent = WebContent(id: .assign(), profileUUID: profileUUID, config: configuration)
+        let newWebContent = WebContent(id: .assign(), datastoreUUID: datastoreUUID, config: configuration)
         if let url = navigationAction.request.url {
             newWebContent.populateWithInitialURL(url)
         }

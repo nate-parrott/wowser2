@@ -16,13 +16,6 @@ public struct TabContextMenu: View {
                         Text("Copy Link")
                     }
 
-                    // Pick CSS Selector option
-                    Button(action: {
-                        startPickingSelector(tabID: tabID)
-                    }) {
-                        Text("Pick CSS Selector")
-                    }
-
                     if tab.panes.count > 1 {
                         Button(action: {
                             BrowserStore.shared.modify { state in
@@ -30,6 +23,22 @@ public struct TabContextMenu: View {
                             }
                         }) {
                             Text("Separate Split Tabs")
+                        }
+                    }
+
+                    Button(action: {
+                        renameTab(tabID: tabID)
+                    }) {
+                        Text("Rename")
+                    }
+
+                    if tab.customTitle?.nilIfEmpty != nil {
+                        Button(action: {
+                            BrowserStore.shared.modify { state in
+                                state.modifyTab(id: tabID) { $0.customTitle = nil }
+                            }
+                        }) {
+                            Text("Clear Custom Title")
                         }
                     }
 
@@ -46,6 +55,14 @@ public struct TabContextMenu: View {
                             closeTab(tabID: tabID)
                         }) {
                             Text("Close Tab")
+                        }
+                    }
+
+                    Menu("Advanced") {
+                        Button(action: {
+                            startPickingSelector(tabID: tabID)
+                        }) {
+                            Text("Pick CSS Selector")
                         }
                     }
                 }
@@ -90,6 +107,26 @@ public func closeTab(tabID: ID<Tab>) {
           let paneID = tab.panes.first?.id else { return }
     // Then close via BrowserStore's API
     BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
+}
+
+// Helper function to rename a tab via a prompt
+public func renameTab(tabID: ID<Tab>) {
+    Task { @MainActor in
+        let current = BrowserStore.shared.model.tabs[tabID]
+        let defaultText = current?.customTitle?.nilIfEmpty ?? current?.appearance().title ?? ""
+        let result = await Alerts.showAppPrompt(
+            title: "Rename Tab",
+            message: "Enter a custom title for this tab.",
+            textPlaceholder: "Tab title",
+            submitTitle: "Rename",
+            cancelTitle: "Cancel",
+            defaultText: defaultText
+        )
+        guard let result else { return }
+        BrowserStore.shared.modify { state in
+            state.modifyTab(id: tabID) { $0.customTitle = result.nilIfEmpty }
+        }
+    }
 }
 
 // Helper function to start CSS selector picker

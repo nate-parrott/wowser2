@@ -12,7 +12,7 @@ struct ReaderOverlay: View {
     @State private var isFindInPageActive = false
     @State private var focusSnap = FocusSnap()
     // TODO: proper profile assignment
-    @StateObject private var webContent = WebContent(id: .assign(), profileUUID: UUID())
+    @StateObject private var webContent = WebContent(id: .assign(), datastoreUUID: UUID())
     @StateObject private var webContentNavDelegate = WebContentNavDelegate()
 
     private var paneID: ID<WebContent> { mainWebContent.id }

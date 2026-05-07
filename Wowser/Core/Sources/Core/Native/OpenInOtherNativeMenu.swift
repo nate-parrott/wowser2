@@ -16,7 +16,6 @@ struct OpenInOtherNativeMenu: View {
     let openInOtherType: (NativePageKey) -> Void
 
     @State private var resolvedFolder: String?
-    @State private var pointsAtFile = false
 
     var body: some View {
         ToolbarPopUpButton(
@@ -31,24 +30,15 @@ struct OpenInOtherNativeMenu: View {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        // "Open in Files" appears whenever we're not already showing a
-        // *folder* in the file browser. When a file-browser pane points at
-        // a single file, this option means "open the containing folder".
-        if !currentKey.isFileBrowser || pointsAtFile {
-            menu.addItem(CallbackMenuItem(title: "Open in Files") {
-                openInOtherType(.fileBrowser(id: UUID().uuidString, path: resolvedFolder))
-            })
-        }
-        if !currentKey.isTerminal {
-            menu.addItem(CallbackMenuItem(title: "Open in Terminal") {
-                openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: nil))
-            })
-        }
-        if !currentKey.isVSCode {
-            menu.addItem(CallbackMenuItem(title: "Open in VS Code") {
-                openInOtherType(.vscode(id: UUID().uuidString, folder: resolvedFolder))
-            })
-        }
+        menu.addItem(CallbackMenuItem(title: "Open in Files") {
+            openInOtherType(.fileBrowser(id: UUID().uuidString, path: resolvedFolder))
+        })
+        menu.addItem(CallbackMenuItem(title: "Open in Terminal") {
+            openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: nil))
+        })
+        menu.addItem(CallbackMenuItem(title: "Open in VS Code") {
+            openInOtherType(.vscode(id: UUID().uuidString, folder: resolvedFolder))
+        })
         menu.addItem(CallbackMenuItem(title: "New Claude") {
             openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: "claude"))
         })
@@ -58,7 +48,6 @@ struct OpenInOtherNativeMenu: View {
     private func recomputeFolderInfo(for rawPath: String?) {
         guard let rawPath, !rawPath.isEmpty else {
             resolvedFolder = nil
-            pointsAtFile = false
             return
         }
         let expanded = (rawPath as NSString).expandingTildeInPath
@@ -68,20 +57,15 @@ struct OpenInOtherNativeMenu: View {
             var isDir: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir)
             let resolved: String
-            let isFile: Bool
             if exists, isDir.boolValue {
                 resolved = expanded
-                isFile = false
             } else if exists {
                 resolved = (expanded as NSString).deletingLastPathComponent
-                isFile = true
             } else {
                 resolved = rawPath
-                isFile = false
             }
             DispatchQueue.main.async {
                 self.resolvedFolder = resolved
-                self.pointsAtFile = isFile
             }
         }
     }

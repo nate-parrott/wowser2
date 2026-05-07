@@ -246,8 +246,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "435"
             endingLineNumber = "435"
-            landmarkName = "webContent(_:didSpawnNewWebContent:shouldActivate:)"
-            landmarkType = "7">
+            landmarkName = "BrowserStore"
+            landmarkType = "21">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -278,7 +278,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "204"
             endingLineNumber = "204"
-            landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
+            landmarkName = "init(id:datastoreUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -742,7 +742,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "194"
             endingLineNumber = "194"
-            landmarkName = "init(id:profileUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
+            landmarkName = "init(id:datastoreUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1016,22 +1016,6 @@
             endingLineNumber = "529"
             landmarkName = "modifyPaneAndTab(forWebContentId:block:)"
             landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "041B8BD0-D1D1-42F1-93FA-A203FA221712"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "152"
-            endingLineNumber = "152"
-            landmarkName = "searchOverlayActive"
-            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

@@ -1,19 +1,30 @@
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted to step the TabStack3D one tab back (keyboard cycle, e.g. cmd+E).
+    /// userInfo["windowID"] = ID<WindowState>
+    public static let beginTabStackCycle = Notification.Name("beginTabStackCycle")
+    /// Posted to commit/end the keyboard tab-stack cycle (e.g. cmd released).
+    /// userInfo["windowID"] = ID<WindowState>
+    public static let endTabStackCycle = Notification.Name("endTabStackCycle")
+}
+
+public let tabStackCycleWindowIDKey = "windowID"
+
 struct TabStack3D: View {
     var snapshot: WindowSnapshot
     var topbarVisible: Bool
-    
+
     @StateObject private var model = TabStack3DModel()
     @State private var size: CGSize?
     @Environment(\.windowID) private var windowID
-    
+
     var body: some View {
         let (cards, selectedIdx) = model.cardsAndSelectedIndex
         ZStack {
             ForEach(cards) { card in
                 let idx = cards.firstIndex(of: card) ?? 0
-                
+
                 render(card: card)
                     .clipShape(RoundedRectangle(cornerRadius: model.isActive3D ? 8 : 0))
                     .shadow(color: Color.black.opacity(model.isActive3D ? 0.07 : 0), radius: 4, x: 0, y: 0)
@@ -36,6 +47,21 @@ struct TabStack3D: View {
             if oldValue.tabId != newValue.tabId {
                 model.swipeGestureActiveTabChanged(tabId: newValue.tabId)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .beginTabStackCycle)) { note in
+            guard let windowID, note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
+            model.swipeGestureOffsetChanged(offset: model.keyboardCycleNextOffset, windowID: windowID)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .endTabStackCycle)) { note in
+            guard let windowID, note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
+            // Commit the visually-selected tab before dismissing the stack.
+            let (cards, selectedIdx) = model.cardsAndSelectedIndex
+            if let card = cards.get(selectedIdx), let tabId = card.tabId {
+                BrowserStore.shared.modify { state in
+                    state.activate(tabId: tabId, in: windowID)
+                }
+            }
+            model.swipeGestureOffsetChanged(offset: nil, windowID: windowID)
         }
     }
     
@@ -181,6 +207,17 @@ private class TabStack3DModel: ObservableObject {
             return true
         }
         return false
+    }
+
+    /// Offset to use for the next keyboard cycle step. Starts at 1 (first
+    /// non-current tab); each subsequent press increments.
+    var keyboardCycleNextOffset: Int {
+        switch state {
+        case .normal:
+            return 1
+        case .pre3d(_, _, let offset), .active3d(_, _, let offset), .post3d(_, _, let offset):
+            return offset + 1
+        }
     }
     
     func swipeGestureActiveTabChanged(tabId: ID<Tab>?) {
@@ -361,6 +398,7 @@ private struct TabStackCardOverlay: View {
                         TabIconView(icon: appearance.icon)
                         Text(appearance.title)
                             .font(.system(size: 12, weight: .medium))
+                            .italic(appearance.isCustomTitle)
                             .lineLimit(1)
                     }
                     .padding(8)
