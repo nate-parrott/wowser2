@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct PaneView: View {
     var snapshot: WindowSnapshot.PaneSnapshot
@@ -69,9 +70,9 @@ struct PaneView: View {
                     .allowsHitTesting(false)
             }
         }
-        .onAppearOrChange(of: profileID) { profileID in
-            searcher.profileID = profileID
-        }
+        .onReceive(profileDataStoreID, perform: { id in
+            searcher.datastoreProfileID = id
+        })
         .onAppearOrChange(of: windowID, perform: { windowID in
             searcher.windowID = windowID
         })
@@ -86,6 +87,17 @@ struct PaneView: View {
         }
         .animation(nil, value: snapshot.topbarLocked) // supress animation when changing sidebar locking (which is also not animated)
         .animation(.niceDefault(duration: 0.12), value: topbarVisible)
+    }
+    
+    var profileDataStoreID: AnyPublisher<UUID?, Never> {
+        guard let profileID else {
+            return Just(nil).eraseToAnyPublisher()
+        }
+        return BrowserStore.shared.uiPublisher.map { state in
+            state.profiles[profileID]?.dataStoreUUID ?? nil
+        }
+        .removeDuplicates()
+        .eraseToAnyPublisher()
     }
     
     @ViewBuilder private var elementPicker: some View {

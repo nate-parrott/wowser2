@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 struct MobileSearchOverlay: View {
@@ -31,9 +32,9 @@ struct MobileSearchOverlay: View {
             focusDate = Date()
             searcher.n = 4
         }
-        .onAppearOrChange(of: profileID) { profileID in
-            searcher.profileID = profileID
-        }
+        .onReceive(profileDataStoreID, perform: { id in
+            searcher.datastoreProfileID = id
+        })
         .onAppearOrChange(of: windowID, perform: { windowID in
             searcher.windowID = windowID
         })
@@ -50,6 +51,17 @@ struct MobileSearchOverlay: View {
         .padding(30)
         .edgesIgnoringSafeArea(.all)
         .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+    
+    var profileDataStoreID: AnyPublisher<UUID?, Never> {
+        guard let profileID else {
+            return Just(nil).eraseToAnyPublisher()
+        }
+        return BrowserStore.shared.uiPublisher.map { state in
+            state.profiles[profileID]?.dataStoreUUID ?? nil
+        }
+        .removeDuplicates()
+        .eraseToAnyPublisher()
     }
     
     @ViewBuilder private var inputField: some View {

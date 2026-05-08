@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 public struct MobileContentView: View {
@@ -57,15 +58,26 @@ private struct _MobileContentView: View {
         .onAppear {
             setupOrbPos()
         }
-        .onAppearOrChange(of: profileID) {
-            topSitesFetcher.profileID = $0
-        }
+        .onReceive(profileDataStoreID, perform: { id in
+            topSitesFetcher.profileDataStoreID = id
+        })
         #if os(iOS)
         .modifier(DeviceShakeViewModifier(action: { settingsPresented = true }))
         #endif
         .sheet(isPresented: $settingsPresented) {
             SettingsView()
         }
+    }
+    
+    var profileDataStoreID: AnyPublisher<UUID?, Never> {
+        guard let profileID else {
+            return Just(nil).eraseToAnyPublisher()
+        }
+        return BrowserStore.shared.uiPublisher.map { state in
+            state.profiles[profileID]?.dataStoreUUID ?? nil
+        }
+        .removeDuplicates()
+        .eraseToAnyPublisher()
     }
     
     @ViewBuilder private var searchOverlay: some View {

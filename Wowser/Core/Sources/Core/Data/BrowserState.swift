@@ -488,13 +488,15 @@ extension BrowserStore: WebContentDelegate {
             if let url = info.url, url.historyKey != previous?.url?.historyKey,
                 let profile = self.model.profile(forWebContentId: webContent.id) {
                 Queue.historyQueue.run {
-                    profile.id.historyStore_historyQueueOnly.trackVisitDebounced(url: url, title: info.title)
+                    let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
+                    store.trackVisitDebounced(url: url, title: info.title)
                 }
             } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
                         let profile = self.model.profile(forWebContentId: webContent.id) {
                 // Update info
                 Queue.historyQueue.run {
-                    profile.id.historyStore_historyQueueOnly.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
+                    let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
+                    store.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
                 }
             }
         }

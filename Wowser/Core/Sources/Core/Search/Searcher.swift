@@ -151,9 +151,10 @@ extension CharacterSet {
     
     var windowID: ID<WindowState>?
     
-    var profileID: ID<Profile>? {
+    // Not the same as the profile ID, necessarily -- may be a shared container
+    var datastoreProfileID: UUID? {
         didSet {
-            if profileID != oldValue {
+            if datastoreProfileID != oldValue {
                 setupHistoryObservers()
             }
         }
@@ -200,9 +201,9 @@ extension CharacterSet {
         subscriptions.removeAll()
         historyStore = nil
         
-        guard let profileId = self.profileID else { return }
+        guard let datastoreID = self.datastoreProfileID else { return }
         Queue.historyQueue.run {
-            let store = profileId.historyStore_historyQueueOnly
+            let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(datastoreID)
             DispatchQueue.main.async {
                 self.historyStore = store
                 store.publisher.throttle(for: .seconds(2), scheduler: Queue.historyQueue.queue, latest: true)

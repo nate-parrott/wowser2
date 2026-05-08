@@ -45,23 +45,34 @@ extension Queue {
     static let historyQueue = Queue(id: "HistoryQueue", queue: DispatchQueue(label: "HistoryQueue", qos: .default))
 }
 
-extension ID<Profile> {
-    var historyStore_historyQueueOnly: HistoryStore {
-        assert(Queue.historyQueue.isCurrent)
-        if let existing = HistoryStore.stores[self] {
-            return existing
-        }
-        let store = HistoryStore(persistenceKey: "HistoryStore_\(self.raw)", defaultModel: .init(), queue: .historyQueue)
-        HistoryStore.stores[self] = store
-        return store
-    }
-}
+//extension ID<Profile> {
+//    var historyStore_historyQueueOnly: HistoryStore {
+//        assert(Queue.historyQueue.isCurrent)
+//        if let existing = HistoryStore.stores[self] {
+//            return existing
+//        }
+//        let store = HistoryStore(persistenceKey: "HistoryStore_\(self.raw)", defaultModel: .init(), queue: .historyQueue)
+//        HistoryStore.stores[self] = store
+//        return store
+//    }
+//}
 
 class HistoryStore: DataStore<HistoryState> {
 //    static let shared = HistoryStore(persistenceKey: "HistoryStore", defaultModel: .init(), queue: .historyQueue)
     
     // only access on historyqueue
-    fileprivate static var stores = [ID<Profile>: HistoryStore]()
+    fileprivate static var stores = [UUID: HistoryStore]()
+    
+    static func historyStoreForStoreUUID_historyQueueOnly(_ uuid: UUID)  -> HistoryStore {
+        assert(Queue.historyQueue.isCurrent)
+        if let existing = HistoryStore.stores[uuid] {
+            return existing
+        }
+        let store = HistoryStore(persistenceKey: "HistoryStore_\(uuid)", defaultModel: .init(), queue: .historyQueue)
+        HistoryStore.stores[uuid] = store
+        return store
+
+    }
     
     override func processModelAfterLoad(model: inout HistoryState) {
         // TODO: Periodically trim

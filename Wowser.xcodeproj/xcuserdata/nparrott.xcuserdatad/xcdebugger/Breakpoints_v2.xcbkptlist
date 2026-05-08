@@ -228,8 +228,8 @@
             filePath = "Wowser/Core/Sources/Core/Search/Searcher.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "245"
-            endingLineNumber = "245"
+            startingLineNumber = "246"
+            endingLineNumber = "246"
             landmarkName = "fastPathSearch(query:prevResults:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -1012,8 +1012,8 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "529"
-            endingLineNumber = "529"
+            startingLineNumber = "531"
+            endingLineNumber = "531"
             landmarkName = "modifyPaneAndTab(forWebContentId:block:)"
             landmarkType = "7">
          </BreakpointContent>

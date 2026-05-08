@@ -5,13 +5,13 @@ class TopSitesFetcher: ObservableObject {
     @Published var topSites = [TopSiteItem]()
     private var subscriptions = Set<AnyCancellable>()
     
-    var profileID: ID<Profile>? {
+    var profileDataStoreID: UUID? {
         didSet {
-            if oldValue != profileID {
+            if oldValue != profileDataStoreID {
                 subscriptions.removeAll()
-                if let profileID {
+                if let profileDataStoreID {
                     Queue.historyQueue.queue.async {
-                        let historyStore = profileID.historyStore_historyQueueOnly
+                        let historyStore = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profileDataStoreID)
                         let initial = historyStore.model.topSites(n: 5)
                         DispatchQueue.main.async {
                             self.topSites = initial
