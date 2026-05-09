@@ -381,11 +381,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     private func tabInfo(forPane pane: Pane, tab: Tab, windowID: ID<WindowState>?, indexInWindow: Int?, state: BrowserState) -> BrowserJSTabInfo {
         let kind: String = {
             if let url = pane.info.url, let key = NativePageKey(url: url) {
-                switch key {
-                case .terminal: return "terminal"
-                case .vscode: return "vscode"
-                case .fileBrowser: return "files"
-                }
+                return key.kindString
             }
             return "web"
         }()

@@ -521,10 +521,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         // other site.
         info.url = webview.url
         let suppressTitleFromWebview: Bool = {
-            switch webview.url.flatMap(NativePageKey.init(url:)) {
-            case .terminal, .fileBrowser: return true
-            case .vscode, .none: return false
-            }
+            webview.url.flatMap(NativePageKey.init(url:))?.suppressTitleFromWebview ?? false
         }()
         if !suppressTitleFromWebview {
             info.title = webview.title

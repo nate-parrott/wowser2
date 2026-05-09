@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 
 // A NativePageKey represents a tab content type associated with native UI.
@@ -29,6 +30,15 @@ public enum NativePageKey: Hashable, Codable {
             self = .fileBrowser(path: url.queryParam(name: "path"))
         default:
             return nil
+        }
+    }
+    
+    var kindString: String {
+        // for BrowserJS
+        switch self {
+        case .terminal: return "terminal"
+        case .vscode: return "vscode"
+        case .fileBrowser: return "files"
         }
     }
 
@@ -120,5 +130,111 @@ extension BrowserState {
             return nil
         }
         return scored.max(by: { $0.0 < $1.0 })?.1
+    }
+}
+
+extension NativePageKey {
+    @ViewBuilder
+    func favicon(size: CGFloat = 16) -> some View {
+        // HACK: is it ok to drop size?
+        switch self {
+        case .terminal:
+            TerminalFavicon()
+        case .vscode:
+            VSCodeFavicon()
+        case .fileBrowser:
+            FileBrowserFavicon()
+        }
+    }
+    
+    // String used in eg 'new terminal' search actions. Nonspecific
+    var actionTitle: String {
+        switch self {
+        case .terminal(_, let cmd):
+            if cmd == "claude" { return "New Claude" }
+            return "Open Terminal"
+        case .vscode: return "Open VS Code"
+        case .fileBrowser: return "Open File Browser"
+        }
+    }
+    
+    // String served for history-based navs
+    var historyBasedSearchResultTitle: String {
+        switch self {
+        case .terminal(let cwd, _):
+            if let cwd {
+                return cwd.lastPathComponent
+            }
+        case .vscode(let folder):
+            if let folder {
+                return folder.lastPathComponent
+            }
+        case .fileBrowser(let path):
+            if let path {
+                return path.lastPathComponent
+            }
+        }
+        return self.actionTitle
+    }
+    
+    var historyBasedSearchResultSubtitle: String? {
+        switch self {
+        case .terminal(let cwd, _):
+            if let cwd {
+                return "Terminal in \(cwd)"
+            }
+        case .vscode(let folder):
+            if let folder {
+                return "VS Code in \(folder)"
+            }
+        case .fileBrowser(let path):
+            if let path {
+                return "Files in \(path)"
+            }
+        }
+        return nil
+    }
+    
+    var suppressTitleFromWebview: Bool {
+        switch self {
+        case .terminal, .fileBrowser: return true
+        case .vscode: return false
+        }
+    }
+    
+    func tabAppearance(info: WebContent.Info, baseInfo: WebContent.Info?) -> TabAppearance {
+        var appearance = TabAppearance(
+            title: info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty ?? info.url?.hostWithoutWWW ?? "",
+            icon: .empty,
+            urlFieldTextSelected: info.url?.absoluteString ?? "",
+            urlFieldTextDeselected: info.url?.hostWithoutWWW ?? ""
+        )
+        switch self {
+        case .terminal:
+            appearance.icon = .terminal
+            let titleFromTerm = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
+            appearance.title = titleFromTerm ?? "Terminal"
+            appearance.urlFieldTextSelected = appearance.title
+            appearance.urlFieldTextDeselected = appearance.title
+        case .vscode(let folder):
+            appearance.icon = .vscode
+            let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
+            let folderName = folder.flatMap { ($0 as NSString).lastPathComponent.nilIfEmpty }
+            appearance.title = liveTitle ?? folderName ?? "VS Code"
+            appearance.urlFieldTextSelected = appearance.title
+            appearance.urlFieldTextDeselected = appearance.title
+        case .fileBrowser(let path):
+            appearance.icon = .files
+            let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
+            let pathName: String? = {
+                guard let path else { return nil }
+                if path == "/" { return "/" }
+                return ((path as NSString).expandingTildeInPath as NSString).lastPathComponent.nilIfEmpty
+            }()
+            appearance.title = liveTitle ?? pathName ?? "Files"
+            appearance.urlFieldTextSelected = appearance.title
+            appearance.urlFieldTextDeselected = appearance.title
+        }
+        return appearance
     }
 }

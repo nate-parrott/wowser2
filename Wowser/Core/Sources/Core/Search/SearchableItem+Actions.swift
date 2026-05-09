@@ -42,13 +42,7 @@ public enum SearchAction: Equatable, Codable {
             return "New Figma file"
         case .openURL(let url):
             if let key = NativePageKey(url: url) {
-                switch key {
-                case .terminal(_, let cmd):
-                    if cmd == "claude" { return "New Claude" }
-                    return "Open Terminal"
-                case .vscode: return "Open VS Code"
-                case .fileBrowser: return "Open File Browser"
-                }
+                return key.actionTitle
             }
             return "Open \(url.stripped)" // not expected
         }
@@ -263,20 +257,7 @@ extension SearchableItem {
     /// Gets the user-friendly title for display in search results
     public var title: String {
         if let representsNativeKey {
-            switch representsNativeKey {
-            case .terminal(let cwd, _):
-                if let cwd {
-                    return cwd.lastPathComponent
-                }
-            case .vscode(let folder):
-                if let folder {
-                    return folder.lastPathComponent
-                }
-            case .fileBrowser(let path):
-                if let path {
-                    return path.lastPathComponent
-                }
-            }
+            return representsNativeKey.historyBasedSearchResultTitle
         }
         switch content {
         case .searchWhatYouTyped(let query):
@@ -301,20 +282,7 @@ extension SearchableItem {
     /// Gets the user-friendly subtitle for display in search results
     public var subtitle: String? {
         if let representsNativeKey {
-            switch representsNativeKey {
-            case .terminal(let cwd, _):
-                if let cwd {
-                    return "Terminal in \(cwd)"
-                }
-            case .vscode(let folder):
-                if let folder {
-                    return "VS Code in \(folder)"
-                }
-            case .fileBrowser(let path):
-                if let path {
-                    return "Files in \(path)"
-                }
-            }
+            return representsNativeKey.historyBasedSearchResultSubtitle
         }
         switch content {
         case .searchWhatYouTyped:

@@ -74,32 +74,7 @@ extension Pane {
         }
 
         if let url = info.url, let nativeKey = NativePageKey(url: url) {
-            switch nativeKey {
-            case .terminal:
-                appearance.icon = .terminal
-                let titleFromTerm = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
-                appearance.title = titleFromTerm ?? "Terminal"
-                appearance.urlFieldTextSelected = appearance.title
-                appearance.urlFieldTextDeselected = appearance.title
-            case .vscode(let folder):
-                appearance.icon = .vscode
-                let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
-                let folderName = folder.flatMap { ($0 as NSString).lastPathComponent.nilIfEmpty }
-                appearance.title = liveTitle ?? folderName ?? "VS Code"
-                appearance.urlFieldTextSelected = appearance.title
-                appearance.urlFieldTextDeselected = appearance.title
-            case .fileBrowser(let path):
-                appearance.icon = .files
-                let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
-                let pathName: String? = {
-                    guard let path else { return nil }
-                    if path == "/" { return "/" }
-                    return ((path as NSString).expandingTildeInPath as NSString).lastPathComponent.nilIfEmpty
-                }()
-                appearance.title = liveTitle ?? pathName ?? "Files"
-                appearance.urlFieldTextSelected = appearance.title
-                appearance.urlFieldTextDeselected = appearance.title
-            }
+            appearance = nativeKey.tabAppearance(info: info, baseInfo: baseInfo)
         }
 
         if let url = info.url, let genKey = GeneratedPageKey(url: url) {
@@ -196,21 +171,6 @@ struct FileBrowserFavicon: View {
     var size: CGFloat = 16
     var body: some View {
         TabIconView(icon: .sfSymbol("folder"))
-    }
-}
-
-extension NativePageKey {
-    @ViewBuilder
-    func favicon(size: CGFloat = 16) -> some View {
-        // HACK: is it ok to drop size?
-        switch self {
-        case .terminal:
-            TerminalFavicon()
-        case .vscode:
-            VSCodeFavicon()
-        case .fileBrowser:
-            FileBrowserFavicon()
-        }
     }
 }
 
