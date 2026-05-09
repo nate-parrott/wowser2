@@ -1,104 +1,86 @@
 import Foundation
 
-// A NativePageKey represents a tab content type that is rendered as a native overlay
-// on top of a WKWebView (which actually loads about:blank). The overlay is shown by
-// WrappedWebView when the tab's URL parses into a NativePageKey.
+// A NativePageKey represents a tab content type associated with native UI.
 //
-// We piggy-back on `about:blank?…` (matching the existing GeneratedPageKey convention,
-// per Q57) so that omnibox typing, history, and tab persistence all "just work" — the
-// URL is the source of truth.
+// Terminal and file-browser tabs use a synthetic `about:blank?native=…` URL and
+// render via a `NativePageOverlay` on top of an idle WKWebView.
+//
+// VSCode is *real* web content (we run `code serve-web` on a deterministic
+// loopback port) so its NativePageKey is just the live `http://127.0.0.1:<port>/?folder=…`
+// URL itself — the underlying WKWebView loads it directly.
+//
+// `.vscodeLoading` is a transient sentinel: when the underlying webview's
+// nav to a serve-web URL fails (cold start: server not yet listening), we
+// redirect the webview to `about:blank?native=vscode-loading&folder=…`. That
+// commits, the loading overlay mounts, polls until the server is up, and
+// then navigates the webview to the real serve-web URL.
 public enum NativePageKey: Hashable, Codable {
-    case terminal(id: String, cwd: String?, runCommand: String? = nil)
-    case vscode(id: String, folder: String?)
-    case fileBrowser(id: String, path: String?)
+    case terminal(cwd: String?, runCommand: String? = nil)
+    case vscode(folder: String?)
+    case vscodeLoading(folder: String?)
+    case fileBrowser(path: String?)
 
     public init?(url: URL) {
-        guard url.absoluteString.hasPrefix("about:blank") else { return nil }
-        if let kind = url.queryParam(name: "native") {
-            switch kind {
-            case "terminal":
-                let id = url.queryParam(name: "id") ?? UUID().uuidString
-                let cwd = url.queryParam(name: "cwd")
-                let cmd = url.queryParam(name: "cmd")
-                self = .terminal(id: id, cwd: cwd, runCommand: cmd)
-            case "vscode":
-                let id = url.queryParam(name: "id") ?? UUID().uuidString
-                let folder = url.queryParam(name: "folder")
-                self = .vscode(id: id, folder: folder)
-            case "files":
-                let id = url.queryParam(name: "id") ?? UUID().uuidString
-                let path = url.queryParam(name: "path")
-                self = .fileBrowser(id: id, path: path)
-            default:
-                return nil
-            }
+        if VSCodeConfig.isServeWebURL(url) {
+            self = .vscode(folder: url.queryParam(name: "folder"))
             return
         }
-        return nil
+        guard url.absoluteString.hasPrefix("about:blank") else { return nil }
+        guard let kind = url.queryParam(name: "native") else { return nil }
+        switch kind {
+        case "terminal":
+            self = .terminal(cwd: url.queryParam(name: "cwd"), runCommand: url.queryParam(name: "cmd"))
+        case "vscode-loading":
+            self = .vscodeLoading(folder: url.queryParam(name: "folder"))
+        case "files":
+            self = .fileBrowser(path: url.queryParam(name: "path"))
+        default:
+            return nil
+        }
     }
 
     public var url: URL {
-        var components = URLComponents()
-        components.scheme = "about"
-        components.path = "blank"
-
         switch self {
-        case .terminal(let id, let cwd, let runCommand):
-            var items = [
-                URLQueryItem(name: "native", value: "terminal"),
-                URLQueryItem(name: "id", value: id),
-            ]
+        case .vscode(let folder):
+            var c = URLComponents(url: VSCodeConfig.serveWebBaseURL, resolvingAgainstBaseURL: false) ?? URLComponents()
+            if let folder, !folder.isEmpty {
+                c.queryItems = [URLQueryItem(name: "folder", value: folder)]
+            }
+            return c.url!
+        case .vscodeLoading(let folder):
+            var components = URLComponents()
+            components.scheme = "about"
+            components.path = "blank"
+            var items = [URLQueryItem(name: "native", value: "vscode-loading")]
+            if let folder { items.append(URLQueryItem(name: "folder", value: folder)) }
+            components.queryItems = items
+            return components.url!
+        case .terminal(let cwd, let runCommand):
+            var components = URLComponents()
+            components.scheme = "about"
+            components.path = "blank"
+            var items = [URLQueryItem(name: "native", value: "terminal")]
             if let cwd { items.append(URLQueryItem(name: "cwd", value: cwd)) }
             if let runCommand { items.append(URLQueryItem(name: "cmd", value: runCommand)) }
             components.queryItems = items
-        case .vscode(let id, let folder):
-            var items = [
-                URLQueryItem(name: "native", value: "vscode"),
-                URLQueryItem(name: "id", value: id),
-            ]
-            if let folder { items.append(URLQueryItem(name: "folder", value: folder)) }
-            components.queryItems = items
-        case .fileBrowser(let id, let path):
-            var items = [
-                URLQueryItem(name: "native", value: "files"),
-                URLQueryItem(name: "id", value: id),
-            ]
+            return components.url!
+        case .fileBrowser(let path):
+            var components = URLComponents()
+            components.scheme = "about"
+            components.path = "blank"
+            var items = [URLQueryItem(name: "native", value: "files")]
             if let path { items.append(URLQueryItem(name: "path", value: path)) }
             components.queryItems = items
+            return components.url!
         }
-
-        return components.url!
     }
 
     public var displayTitle: String {
         switch self {
         case .terminal: return "Terminal"
-        case .vscode: return "VS Code"
+        case .vscode, .vscodeLoading: return "VS Code"
         case .fileBrowser: return "Files"
         }
-    }
-
-    /// Stable per-tab id baked into the URL when the native page is opened.
-    /// Used to detect that two URLs differing only in per-overlay state (cwd,
-    /// folder, path) belong to the same underlying session.
-    public var sessionID: String {
-        switch self {
-        case .terminal(let id, _, _): return "terminal:\(id)"
-        case .vscode(let id, _): return "vscode:\(id)"
-        case .fileBrowser(let id, _): return "files:\(id)"
-        }
-    }
-
-    public static func newTerminal(cwd: String? = nil, runCommand: String? = nil) -> NativePageKey {
-        .terminal(id: UUID().uuidString, cwd: cwd, runCommand: runCommand)
-    }
-
-    public static func newVSCode(folder: String? = nil) -> NativePageKey {
-        .vscode(id: UUID().uuidString, folder: folder)
-    }
-
-    public static func newFileBrowser(path: String? = nil) -> NativePageKey {
-        .fileBrowser(id: UUID().uuidString, path: path)
     }
 
     /// The folder path this native session is associated with, if any
@@ -110,14 +92,19 @@ public enum NativePageKey: Hashable, Codable {
     /// the view layer (see `OpenInOtherNativeMenu`).
     public var folderPath: String? {
         switch self {
-        case .terminal(_, let cwd, _): return cwd
-        case .vscode(_, let folder): return folder
-        case .fileBrowser(_, let path): return path
+        case .terminal(let cwd, _): return cwd
+        case .vscode(let folder), .vscodeLoading(let folder): return folder
+        case .fileBrowser(let path): return path
         }
     }
 
     public var isTerminal: Bool { if case .terminal = self { return true } else { return false } }
-    public var isVSCode: Bool { if case .vscode = self { return true } else { return false } }
+    public var isVSCode: Bool {
+        switch self {
+        case .vscode, .vscodeLoading: return true
+        default: return false
+        }
+    }
     public var isFileBrowser: Bool { if case .fileBrowser = self { return true } else { return false } }
 }
 

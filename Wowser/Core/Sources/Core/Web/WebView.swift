@@ -20,7 +20,7 @@ public struct WebView: View {
 struct WebViewRepresentable: NSViewRepresentable {
     var webContent: WebContent
     var shrunk: Bool
-    
+
     func makeNSView(context: Context) -> some NSView {
         let container = WebviewContainer()
         container.webview = webContent.webview
@@ -28,7 +28,7 @@ struct WebViewRepresentable: NSViewRepresentable {
 //        container.webview?.shrunk = shrunk
         return container
     }
-    
+
     func updateNSView(_ nsView: NSViewType, context: Context) {
         if let container = nsView as? WebviewContainer {
             container.shrunk = shrunk
@@ -89,12 +89,12 @@ class WebviewContainer: UINSView {
             }
         }
     }
-    
+
     #if os(macOS)
     override func layout() {
         super.layout()
         webview?.frame = bounds
-        
+
     }
     #else
     override func layoutSubviews() {

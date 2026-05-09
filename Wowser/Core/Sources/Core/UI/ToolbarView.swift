@@ -11,6 +11,7 @@ public struct ToolbarViewSnapshot: Equatable {
     var webContentId: ID<WebContent>?
 //    var isBookmarked: Bool
     var hasMultiplePanes: Bool
+    var isLastPane: Bool
     var makeRoomForTrafficLights: Bool
     var isEmptyPage: Bool
     var nativeKey: NativePageKey?
@@ -30,6 +31,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.webContentId = webContentId
 //            self.isBookmarked = false
             self.hasMultiplePanes = false
+            self.isLastPane = false
             self.makeRoomForTrafficLights = false
             self.isEmptyPage = true
             self.nativeKey = nil
@@ -45,6 +47,7 @@ public struct ToolbarViewSnapshot: Equatable {
         self.webContentId = webContentId
 //        self.isBookmarked = false // Bookmark functionality not implemented yet
         self.hasMultiplePanes = tab.panes.count > 1
+        self.isLastPane = tab.panes[tab.panes.count - 1]?.id == webContentId
         let isFirstPane = tab.panes.first?.id == webContentId
         let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
@@ -73,7 +76,7 @@ struct ToolbarView: View {
 
     var body: some View {
         let topRadius: CGFloat = emptyPage ? 10 : 0
-        let bottomRadius: CGFloat = searchText == "" ? topRadius : 0
+        let bottomRadius: CGFloat = emptyPage ? 0 : (searchText == "" ? topRadius : 0) // on empty page, we show suggestions, so never round bottom corners
         let clipShape = UnevenRoundedRectangle(topLeadingRadius: topRadius, bottomLeadingRadius: bottomRadius, bottomTrailingRadius: bottomRadius, topTrailingRadius: topRadius, style: .continuous)
         
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
@@ -141,6 +144,16 @@ struct ToolbarView: View {
                             .buttonStyle(ToolbarButtonStyle())
                             .help("Close pane")
                         }
+
+                        // New split pane button (only on the last pane)
+                        if snapshot.isLastPane {
+                            Button(action: addSplitPane) {
+                                Image(systemName: "plus")
+                                    .imageScale(.medium)
+                            }
+                            .buttonStyle(ToolbarButtonStyle())
+                            .help("New split pane")
+                        }
                     }
                     .padding(.trailing, 8)
                 }
@@ -202,9 +215,9 @@ struct ToolbarView: View {
             .buttonStyle(ToolbarButtonStyle())
             .disabled(!snapshot.canGoForward)
 
-            if case .fileBrowser(let id, let path) = snapshot.nativeKey {
+            if case .fileBrowser(let path) = snapshot.nativeKey {
                 let parent = fileBrowserParentPath(path)
-                Button(action: { fileBrowserGoUp(sessionID: id, currentPath: path) }) {
+                Button(action: { fileBrowserGoUp(currentPath: path) }) {
                     Image(systemName: "chevron.up")
                         .imageScale(.medium)
                 }
@@ -240,13 +253,13 @@ struct ToolbarView: View {
         return parent == resolved ? nil : parent
     }
 
-    private func fileBrowserGoUp(sessionID: String, currentPath: String?) {
+    private func fileBrowserGoUp(currentPath: String?) {
         guard let parent = fileBrowserParentPath(currentPath),
               let webContentID,
               let webContent = browserStore.getOrCreateWebContent(forId: webContentID, toBeActiveInWindow: windowID!) else {
             return
         }
-        let key = NativePageKey.fileBrowser(id: sessionID, path: parent)
+        let key = NativePageKey.fileBrowser(path: parent)
         webContent.webview.load(URLRequest(url: key.url))
     }
     
@@ -285,6 +298,11 @@ struct ToolbarView: View {
     private func closeCurrentPane() {
         guard let webContentID else { return }
         browserStore.close(webContentId: webContentID, removeIfPinned: false)
+    }
+
+    private func addSplitPane() {
+        guard let windowID else { return }
+        browserStore.createTab(withURL: nil, in: windowID, activate: true, inCurrentSplit: true)
     }
 }
 

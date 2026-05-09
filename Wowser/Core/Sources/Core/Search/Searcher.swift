@@ -150,7 +150,7 @@ extension CharacterSet {
     }
     
     var windowID: ID<WindowState>?
-    
+
     // Not the same as the profile ID, necessarily -- may be a shared container
     var datastoreProfileID: UUID? {
         didSet {
@@ -159,17 +159,31 @@ extension CharacterSet {
             }
         }
     }
-    
+
     private var historyStore: HistoryStore?
-    
+
+    // When true and `query` is empty, `results` is populated with `topSites`.
+    // Used on empty-page omniboxes to prepopulate suggestions.
+    var topSitesEnabled: Bool = false {
+        didSet { if oldValue != topSitesEnabled { recomputeForEmptyQueryIfNeeded() } }
+    }
+    var topSites: [TopSiteItem] = [] {
+        didSet { recomputeForEmptyQueryIfNeeded() }
+    }
+
+    private func recomputeForEmptyQueryIfNeeded() {
+        guard query.isEmpty else { return }
+        results = topSitesEnabled ? topSites.map(\.asSearchResult) : []
+    }
+
     @Published var query = "" {
         didSet {
             let prevQuery = oldValue
             let prevResults = query.hasPrefix(prevQuery) ?  results : [] // prev results are only relevant if typing forwards
             let query = self.query
-            
+
             if query == "" {
-                self.results = []
+                self.results = topSitesEnabled ? topSites.map(\.asSearchResult) : []
                 return
             }
             
@@ -222,7 +236,7 @@ extension CharacterSet {
 
     }
     
-    // We cache, on the main queue, our top candidates
+    // We cache, on the main queue, our 50 top candidates
     private var historyTopHitCandidates = [SearchableItem]()
     
     func fastPathSearch(query: String, prevResults: [SearchResult]) -> [SearchResult] {
@@ -234,6 +248,12 @@ extension CharacterSet {
         // If typed a literal URL, include it:
         if let url = URL.withNaturalString(query) {
             results.append(.urlYouTyped(url))
+        } else if let (path, isDir) = detectPathAndAutocompleteFromQuery(query) {
+            results.append(.urlYouTyped(NativePageKey.fileBrowser(path: path).url))
+            if isDir {
+                results.append(.urlYouTyped(NativePageKey.terminal(cwd: path, runCommand: nil).url))
+                results.append(.urlYouTyped(NativePageKey.vscode(folder: path).url))
+            }
         }
         
         // Add "I'm feeling lucky" result only if the setting is enabled
@@ -460,6 +480,22 @@ extension HistoryState {
 
 extension HistoryItem {
     var searchableItem: SearchableItem {
+        if let native = NativePageKey(url: url) {
+            switch native {
+            case .terminal(let cwd, _):
+                if let cwd {
+                    return .init(path: cwd, item: self, keywords: ["terminal"], historyKey: key)
+                }
+            case .vscode(let folder), .vscodeLoading(let folder):
+                if let folder {
+                    return .init(path: folder, item: self, keywords: ["vscode", "visual studio code"], historyKey: key)
+                }
+            case .fileBrowser(let path):
+                if let path {
+                    return .init(path: path, item: self, keywords: ["folder", "finder"], historyKey: key)
+                }
+            }
+        }
         return SearchableItem(
             id: .init(raw: key),
             content: .historyItem(self),
@@ -470,6 +506,17 @@ extension HistoryItem {
 }
 
 extension SearchableItem {
+    fileprivate init(path: String, item: HistoryItem, keywords: [String], historyKey: String) {
+        // keywords is eg terminal, vscode
+        let lastComp = path.lastPathComponent
+        self = SearchableItem(
+            id: .init(raw: historyKey),
+            content: .historyItem(item),
+            urlMatchStrings: [ NormalizedSearchableString(text: path) ],
+            titleMatchStrings: [ NormalizedSearchableString(text: lastComp) ] + keywords.map({ NormalizedSearchableString(text: lastComp + " " + $0) })
+        )
+    }
+    
     func match(query: NormalizedSearchableString) -> SearchResult? {
         let quality = self.matchQuality(query: query)
         if quality == .none {
@@ -500,6 +547,13 @@ extension SearchableItem {
             return item
         }
         return nil
+    }
+}
+
+extension String {
+    var lastPathComponent: String {
+        // hack: do we need isDirectory to be accurate here?
+        URL(fileURLWithPath: self, isDirectory: false).lastPathComponent
     }
 }
 
@@ -549,4 +603,30 @@ func classifyQuery(_ query: String) -> OmniboxClassifierLabel? {
     } else {
         return nil
     }
+}
+
+// This hits disk, but should be ok for fast path since it's just a single directory op
+// TODO: Do fewer disk hits
+func detectPathAndAutocompleteFromQuery(_ q: String) -> (path: String, isDir: Bool)? {
+    if !q.starts(with: "/") && !q.starts(with: "~") {
+        return nil
+    }
+    if q.contains(" ") { return nil }
+    let pathURL = URL(filePath: q, directoryHint: .checkFileSystem)
+    var isDir: ObjCBool = false
+    if FileManager.default.fileExists(atPath: q, isDirectory: &isDir) {
+        return (pathURL.path(percentEncoded: false), isDir.boolValue)
+    }
+    let parentDir = pathURL.deletingLastPathComponent()
+    guard let contents = try? FileManager.default.contentsOfDirectory(atPath: parentDir.path(percentEncoded: false)) else {
+        return nil
+    }
+    let lastPathCompLower = pathURL.lastPathComponent.lowercased()
+    if let firstMatchingItem = contents.prefix(1000).first(where: { $0.lowercased().hasPrefix(lastPathCompLower) }) {
+        let fullPath = parentDir.appendingPathComponent(firstMatchingItem)
+        var isDir: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: fullPath.path(percentEncoded: false), isDirectory: &isDir)
+        return (fullPath.path(percentEncoded: false), isDir.boolValue)
+    }
+    return nil
 }

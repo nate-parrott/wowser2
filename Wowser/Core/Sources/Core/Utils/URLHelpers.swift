@@ -1,8 +1,11 @@
 import Foundation
 
 private func stringHasURLScheme(_ str: String) -> Bool {
-    if let comps = URLComponents(string: str) {
-        return comps.scheme?.count ?? 0 > 0
+    if let comps = URLComponents(string: str), let scheme = comps.scheme?.nilIfEmpty {
+        if scheme.contains(".") || scheme == "localhost" {
+            return false
+        }
+        return true
     }
     return false
 }

@@ -481,23 +481,19 @@ extension BrowserStore: WebContentDelegate {
             }
         }
         
-        // Visit tracking — skip native overlay URLs (terminal cwd updates
-        // would otherwise spam history with about:blank?native=… entries).
-        let isNativeURL = info.url.flatMap(NativePageKey.init(url:)) != nil
-        if !isNativeURL {
-            if let url = info.url, url.historyKey != previous?.url?.historyKey,
-                let profile = self.model.profile(forWebContentId: webContent.id) {
-                Queue.historyQueue.run {
-                    let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
-                    store.trackVisitDebounced(url: url, title: info.title)
-                }
-            } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
-                        let profile = self.model.profile(forWebContentId: webContent.id) {
-                // Update info
-                Queue.historyQueue.run {
-                    let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
-                    store.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
-                }
+//        let isNativeURL = info.url.flatMap(NativePageKey.init(url:)) != nil
+        if let url = info.url, url.historyKey != previous?.url?.historyKey,
+            let profile = self.model.profile(forWebContentId: webContent.id) {
+            Queue.historyQueue.run {
+                let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
+                store.trackVisitDebounced(url: url, title: info.title)
+            }
+        } else if let url = info.url, (url != previous?.url || info.title != previous?.title),
+                    let profile = self.model.profile(forWebContentId: webContent.id) {
+            // Update info
+            Queue.historyQueue.run {
+                let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(profile.dataStoreUUID)
+                store.updatePageInfo(url: url, title: info.title?.nilIfEmpty)
             }
         }
     }

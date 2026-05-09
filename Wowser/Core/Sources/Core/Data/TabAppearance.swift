@@ -81,14 +81,14 @@ extension Pane {
                 appearance.title = titleFromTerm ?? "Terminal"
                 appearance.urlFieldTextSelected = appearance.title
                 appearance.urlFieldTextDeselected = appearance.title
-            case .vscode(_, let folder):
+            case .vscode(let folder), .vscodeLoading(let folder):
                 appearance.icon = .vscode
                 let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
                 let folderName = folder.flatMap { ($0 as NSString).lastPathComponent.nilIfEmpty }
                 appearance.title = liveTitle ?? folderName ?? "VS Code"
                 appearance.urlFieldTextSelected = appearance.title
                 appearance.urlFieldTextDeselected = appearance.title
-            case .fileBrowser(_, let path):
+            case .fileBrowser(let path):
                 appearance.icon = .files
                 let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
                 let pathName: String? = {
@@ -165,12 +165,11 @@ struct TabIconView: View {
                 .frame(width: 16, height: 16)
 
         case .terminal:
-            TintedGlyph(icon: "terminal", fg: Color.white, bg: Color.black)
+            TerminalFavicon()
         case .vscode:
-            TintedGlyph(icon: "chevron.left.forwardslash.chevron.right", fg: Color(hex: 0x2B65A6), bg: Color.white)
+            VSCodeFavicon()
         case .files:
-            TabIconView(icon: .sfSymbol("folder"))
-//            TintedGlyph(icon: "folder", fg: Color.accentColor, bg: Color(.background).opacity(0.15), blurBg: true)
+            FileBrowserFavicon()
         case .empty:
             Circle()
                 .fill(.primary)
@@ -178,6 +177,40 @@ struct TabIconView: View {
                 .frame(width: 16, height: 16)
         }
 
+    }
+}
+
+struct TerminalFavicon: View {
+    var body: some View {
+        TintedGlyph(icon: "terminal", fg: Color.white, bg: Color.black)
+    }
+}
+
+struct VSCodeFavicon: View {
+    var body: some View {
+        TintedGlyph(icon: "chevron.left.forwardslash.chevron.right", fg: Color(hex: 0x2B65A6), bg: Color.white)
+    }
+}
+
+struct FileBrowserFavicon: View {
+    var size: CGFloat = 16
+    var body: some View {
+        TabIconView(icon: .sfSymbol("folder"))
+    }
+}
+
+extension NativePageKey {
+    @ViewBuilder
+    func favicon(size: CGFloat = 16) -> some View {
+        // HACK: is it ok to drop size?
+        switch self {
+        case .terminal:
+            TerminalFavicon()
+        case .vscode, .vscodeLoading:
+            VSCodeFavicon()
+        case .fileBrowser:
+            FileBrowserFavicon()
+        }
     }
 }
 

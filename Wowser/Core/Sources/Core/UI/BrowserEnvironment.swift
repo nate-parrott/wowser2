@@ -21,12 +21,12 @@ public extension EnvironmentValues {
         get { self[WindowIDKey.self] }
         set { self[WindowIDKey.self] = newValue }
     }
-    
+
     var profileID: ID<Profile>? {
         get { self[ProfileIDKey.self] }
         set { self[ProfileIDKey.self] = newValue }
     }
-    
+
     var isFullscreen: Bool {
         get { self[IsFullscreenKey.self] }
         set { self[IsFullscreenKey.self] = newValue }

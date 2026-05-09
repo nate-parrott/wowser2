@@ -5,7 +5,6 @@ import Quartz
 import UniformTypeIdentifiers
 
 struct FileBrowserOverlay: View {
-    var sessionID: String
     var initialPath: String?
     var webContent: WebContent
 
@@ -174,12 +173,12 @@ struct FileBrowserOverlay: View {
         if entry.isDirectory {
             Button("Open in Terminal") {
                 BrowserStore.shared.modify { state in
-                    state.openTab(url: NativePageKey.newTerminal(cwd: entry.url.path).url)
+                    state.openTab(url: NativePageKey.terminal(cwd: entry.url.path, runCommand: nil).url)
                 }
             }
             Button("Open in VS Code") {
                 BrowserStore.shared.modify { state in
-                    state.openTab(url: NativePageKey.newVSCode(folder: entry.url.path).url)
+                    state.openTab(url: NativePageKey.vscode(folder: entry.url.path).url)
                 }
             }
         } else {
@@ -220,7 +219,7 @@ struct FileBrowserOverlay: View {
         if !entry.isDirectory, isHTML(entry.url) {
             return entry.url
         }
-        return NativePageKey.newFileBrowser(path: entry.url.path).url
+        return NativePageKey.fileBrowser(path: entry.url.path).url
     }
 
     private func isHTML(_ url: URL) -> Bool {
@@ -229,7 +228,7 @@ struct FileBrowserOverlay: View {
     }
 
     private func navigate(to url: URL) {
-        let key = NativePageKey.fileBrowser(id: sessionID, path: url.path)
+        let key = NativePageKey.fileBrowser(path: url.path)
         webContent.webview.load(URLRequest(url: key.url))
     }
 

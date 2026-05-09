@@ -10,10 +10,9 @@ struct NativePageOverlay: View {
     var body: some View {
         ZStack {
             switch key {
-            case .terminal(let id, let cwd, let runCommand):
+            case .terminal(let cwd, let runCommand):
                 #if os(macOS)
                 TerminalOverlay(
-                    sessionID: id,
                     cwd: cwd,
                     runCommand: runCommand,
                     webContent: webContent
@@ -21,20 +20,22 @@ struct NativePageOverlay: View {
                 #else
                 Color.clear
                 #endif
-            case .vscode(let id, let folder):
+            case .vscode:
+                // Real VSCode is loaded directly by the underlying WKWebView;
+                // no overlay needed.
+                Color.clear.allowsHitTesting(false)
+            case .vscodeLoading(let folder):
                 #if os(macOS)
-                VSCodeOverlay(
-                    sessionID: id,
+                VSCodeLoadingOverlay(
                     folder: folder,
                     webContent: webContent
                 )
                 #else
                 Color.clear
                 #endif
-            case .fileBrowser(let id, let path):
+            case .fileBrowser(let path):
                 #if os(macOS)
                 FileBrowserOverlay(
-                    sessionID: id,
                     initialPath: path,
                     webContent: webContent
                 )

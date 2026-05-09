@@ -26,7 +26,7 @@ extension WebContent.Info {
             case .terminal:
                 // Black and white
                 return .init(background: .init(hue: 0, saturation: 0, brightness: 0, alpha: 1), foreground: .init(hue: 0, saturation: 0, brightness: 0.95, alpha: 1))
-            case .vscode: () // fall thru -- this is a normal webview
+            case .vscode, .vscodeLoading: () // fall thru -- this is a normal webview
             case .fileBrowser:
                 return nil
             }

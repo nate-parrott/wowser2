@@ -43,10 +43,10 @@ public enum SearchAction: Equatable, Codable {
         case .openURL(let url):
             if let key = NativePageKey(url: url) {
                 switch key {
-                case .terminal(_, _, let cmd):
+                case .terminal(_, let cmd):
                     if cmd == "claude" { return "New Claude" }
                     return "Open Terminal"
-                case .vscode: return "Open VS Code"
+                case .vscode, .vscodeLoading: return "Open VS Code"
                 case .fileBrowser: return "Open File Browser"
                 }
             }
@@ -95,8 +95,7 @@ extension BrowserState {
         let suggestedFolder = state.mostRecentNativeFolderPath(windowID: windowID)
         let filesPath = suggestedFolder ?? FileManager.default.homeDirectoryForCurrentUser.path
 
-        // Native-tab actions whose URL contains a fresh id each invocation.
-        let terminalAction = SearchAction.openURL(NativePageKey.newTerminal(cwd: suggestedFolder).url)
+        let terminalAction = SearchAction.openURL(NativePageKey.terminal(cwd: suggestedFolder, runCommand: nil).url)
         let terminalItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open Terminal"),
             content: .searchAction(terminalAction),
@@ -107,7 +106,7 @@ extension BrowserState {
             ]
         )
 
-        let vscodeAction = SearchAction.openURL(NativePageKey.newVSCode(folder: suggestedFolder).url)
+        let vscodeAction = SearchAction.openURL(NativePageKey.vscode(folder: suggestedFolder).url)
         let vscodeItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open VS Code"),
             content: .searchAction(vscodeAction),
@@ -119,7 +118,7 @@ extension BrowserState {
             ]
         )
 
-        let filesAction = SearchAction.openURL(NativePageKey.newFileBrowser(path: filesPath).url)
+        let filesAction = SearchAction.openURL(NativePageKey.fileBrowser(path: filesPath).url)
         let filesItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Open File Browser"),
             content: .searchAction(filesAction),
@@ -131,7 +130,7 @@ extension BrowserState {
             ]
         )
 
-        let claudeAction = SearchAction.openURL(NativePageKey.newTerminal(cwd: suggestedFolder, runCommand: "claude").url)
+        let claudeAction = SearchAction.openURL(NativePageKey.terminal(cwd: suggestedFolder, runCommand: "claude").url)
         let claudeItem = SearchableItem(
             id: ID<SearchableItem>(raw: "action:Claude Code"),
             content: .searchAction(claudeAction),
@@ -263,6 +262,22 @@ extension BrowserStore {
 extension SearchableItem {
     /// Gets the user-friendly title for display in search results
     public var title: String {
+        if let representsNativeKey {
+            switch representsNativeKey {
+            case .terminal(let cwd, _):
+                if let cwd {
+                    return cwd.lastPathComponent
+                }
+            case .vscode(let folder), .vscodeLoading(let folder):
+                if let folder {
+                    return folder.lastPathComponent
+                }
+            case .fileBrowser(let path):
+                if let path {
+                    return path.lastPathComponent
+                }
+            }
+        }
         switch content {
         case .searchWhatYouTyped(let query):
             return query
@@ -285,6 +300,22 @@ extension SearchableItem {
     
     /// Gets the user-friendly subtitle for display in search results
     public var subtitle: String? {
+        if let representsNativeKey {
+            switch representsNativeKey {
+            case .terminal(let cwd, _):
+                if let cwd {
+                    return "Terminal in \(cwd)"
+                }
+            case .vscode(let folder), .vscodeLoading(let folder):
+                if let folder {
+                    return "VS Code in \(folder)"
+                }
+            case .fileBrowser(let path):
+                if let path {
+                    return "Files in \(path)"
+                }
+            }
+        }
         switch content {
         case .searchWhatYouTyped:
             return nil
@@ -302,6 +333,27 @@ extension SearchableItem {
             return "Switch to Tab"
         case .searchAction:
             return "Action"
+        }
+    }
+    
+    private var representsNativeKey: NativePageKey? {
+        switch content {
+        case .searchWhatYouTyped:
+            return nil
+        case .urlYouTyped(let url):
+            return NativePageKey(url: url)
+        case .searchSuggestion:
+            return nil
+        case .imFeelingLucky:
+            return nil
+        case .chatbot:
+            return nil
+        case .historyItem(let item):
+            return NativePageKey(url: item.url)
+        case .tab(_, _):
+            return nil
+        case .searchAction:
+            return nil
         }
     }
 }

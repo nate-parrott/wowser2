@@ -17,6 +17,7 @@ public struct BrowserWindow: View {
                         .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
                         .environment(\.isFullscreen, isFullscreen)
                 }
+                .coordinateSpace(name: "BrowserWindowRoot")
             }
         }
     }

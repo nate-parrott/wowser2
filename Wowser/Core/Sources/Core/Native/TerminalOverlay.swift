@@ -5,7 +5,6 @@ import Combine
 import SwiftTerm
 
 struct TerminalOverlay: View {
-    var sessionID: String
     var cwd: String?
     var runCommand: String?
     var webContent: WebContent
@@ -85,7 +84,7 @@ struct TerminalOverlay: View {
             }
         }
         .onAppear {
-            session.start(sessionID: sessionID, cwd: cwd, runCommand: runCommand, paneID: paneID)
+            session.start(cwd: cwd, runCommand: runCommand, paneID: paneID)
             if !hasSeenUpsell {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     upsellVisible = true
@@ -123,12 +122,11 @@ final class TerminalSession: ObservableObject {
     var lastKnownCwd: String? {
         didSet {
             refreshTitle()
-            if lastKnownCwd != oldValue { writeCwdIntoURL() }
+            if lastKnownCwd != oldValue {
+                writeCwdIntoURL()
+            }
         }
     }
-    /// The session's stable terminal id (matches `NativePageKey.terminal.id`),
-    /// captured when `start` runs so we can rebuild the URL on cwd changes.
-    private var sessionID: String?
     /// Last non-empty title set by the shell or a child via OSC 0/1/2.
     /// Used as the displayed title only while a child app is in the
     /// foreground; when the shell itself is foreground, we override with
@@ -170,9 +168,8 @@ final class TerminalSession: ObservableObject {
     var paneID: ID<WebContent>?
     weak var webContent: WebContent?
 
-    func start(sessionID: String, cwd: String?, runCommand: String? = nil, paneID: ID<WebContent>) {
+    func start(cwd: String?, runCommand: String? = nil, paneID: ID<WebContent>) {
         self.paneID = paneID
-        self.sessionID = sessionID
         guard !started else { return }
         started = true
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
@@ -274,13 +271,15 @@ final class TerminalSession: ObservableObject {
         }
     }
 
-    /// Persist the live cwd into the pane's URL so a restored session lands
-    /// where the user left off. The URL only feeds restore; the live webview
-    /// keeps its original about:blank load (refreshMetadataNow leaves info.url
-    /// alone for native tabs, so this sticks).
+    /// Persist the live cwd into the pane's URL by navigating the webview to a
+    /// new about:blank?... URL. The webview is the source of truth; KVO on
+    /// webview.url propagates the new URL into `info.url` automatically.
     fileprivate func writeCwdIntoURL() {
-        guard let sessionID, let webContent else { return }
-        webContent.setNativeOverlayURL(NativePageKey.terminal(id: sessionID, cwd: lastKnownCwd, runCommand: nil).url)
+        guard let webContent else { return }
+        let newURL = NativePageKey.terminal(cwd: lastKnownCwd, runCommand: nil).url
+        if webContent.webview.url != newURL {
+            webContent.webview.load(URLRequest(url: newURL))
+        }
     }
 
     static func formatCwdForTitle(_ cwd: String?) -> String? {

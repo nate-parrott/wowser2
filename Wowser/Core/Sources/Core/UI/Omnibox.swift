@@ -89,7 +89,13 @@ struct Omnibox: View {
             }
 
         case .key(.escape):
-            dismiss()
+            if let paneID, searchText.isEmpty,
+               let pane = BrowserStore.shared.model.pane(forId: paneID),
+               pane.info.isEmptyPage {
+                BrowserStore.shared.close(webContentId: paneID, removeIfPinned: false)
+            } else {
+                dismiss()
+            }
 
         case .focus:
             guard let paneID else { return }

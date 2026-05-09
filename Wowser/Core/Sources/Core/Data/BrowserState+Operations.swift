@@ -165,7 +165,11 @@ extension BrowserState {
         var resultIds: [ID<Tab>] = [tabId]
         var insertOffset = 1
         for pane in panesToMove {
-            let newTab = Tab(id: .assign(), panes: [pane])
+            var newTab = Tab(id: .assign(), panes: [pane])
+            // Without this the tab fails the validLiveWebContentIds check and
+            // BrowserStore evicts the pane's WebContent ~0.5s later, killing
+            // any owned overlay session (e.g. terminal PTY).
+            newTab.lastActiveInWindow = winId
             let location: SidebarLocation
             switch originalLocation {
             case .ordinaryTabs(let idx):

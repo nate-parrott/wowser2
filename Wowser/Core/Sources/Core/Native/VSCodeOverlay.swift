@@ -1,41 +1,35 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
-import WebKit
 
-struct VSCodeOverlay: View {
-    var sessionID: String
+/// Loading-state overlay for VSCode tabs. Mounted only for
+/// `NativePageKey.vscodeLoading` — i.e., the WKWebView committed to the
+/// `about:blank?native=vscode-loading&folder=…` sentinel URL because the
+/// real serve-web URL couldn't load yet.
+///
+/// Owns the polling loop: kicks `VSCodeServerManager.ensureStarted()`,
+/// then probes the server's HTTP listener until it responds, and finally
+/// navigates the webview to the live `http://127.0.0.1:<port>/?folder=…`.
+/// Once that nav commits, `info.url` flips to a real serve-web URL,
+/// `NativePageKey` becomes `.vscode`, and this overlay unmounts.
+struct VSCodeLoadingOverlay: View {
     var folder: String?
     var webContent: WebContent
 
     @ObservedObject private var manager = VSCodeServerManager.shared
-    @State private var loadFailureCount = 0
-    @State private var focusSnap = FocusSnap()
-    @Environment(\.windowID) private var windowID
-
-    private var paneID: ID<WebContent> { webContent.id }
-
-    /// VSCode panes have `focusState.target == .webContent(paneID)` because
-    /// the focus file falls VSCode through to the regular web-content target.
-    private var focusToken: Date? {
-        focusSnap.target == .webContent(paneID) ? focusSnap.date : nil
-    }
+    @State private var pollTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
             Color(NSColor.windowBackgroundColor)
 
             switch manager.status {
-            case .running(let baseURL):
-                let session = sessionForWebContent()
-                VSCodeWebViewRepresentable(session: session, targetURL: composedURL(base: baseURL))
-                    .onAppearOrChange(of: focusToken) { token in
-                        if token != nil {
-                            session.webView.wowser_becomeFirstResponder(asTarget: .webContent(paneID))
-                        }
-                    }
-                    .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
-            case .starting, .notStarted:
+            case .failed(let message):
+                VSCodeNotInstalledOverlay(message: message) {
+                    manager.retry()
+                    manager.ensureStarted()
+                }
+            case .notStarted, .starting, .running:
                 VStack(spacing: 12) {
                     ProgressView()
                     Text("Starting VS Code…")
@@ -44,82 +38,47 @@ struct VSCodeOverlay: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
-            case .failed(let message):
-                VSCodeNotInstalledOverlay(message: message) {
-                    manager.retry()
-                    manager.ensureStarted()
-                }
             }
         }
         .onAppear {
-            updateTitle()
             manager.ensureStarted()
+            startPolling()
+        }
+        .onDisappear {
+            pollTask?.cancel()
+            pollTask = nil
         }
     }
 
-    private func composedURL(base: URL) -> URL {
-        guard let folder, !folder.isEmpty else { return base }
-        var c = URLComponents(url: base, resolvingAgainstBaseURL: false) ?? URLComponents()
-        var items = c.queryItems ?? []
-        items.append(URLQueryItem(name: "folder", value: folder))
-        c.queryItems = items
-        return c.url ?? base
-    }
-
-    private func updateTitle() {
-        let title: String = {
-            if let folder, !folder.isEmpty {
-                return (folder as NSString).lastPathComponent
-            }
-            return "VS Code"
-        }()
-        BrowserStore.shared.modify { state in
-            state.modifyPaneAndTab(forWebContentId: paneID) { pane, _ in
-                pane.info.title = title
+    private func startPolling() {
+        pollTask?.cancel()
+        let folder = self.folder
+        let webContent = self.webContent
+        pollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                if case .running(let baseURL) = manager.status,
+                   await Self.probe(baseURL) {
+                    webContent.load(url: NativePageKey.vscode(folder: folder).url)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
             }
         }
     }
 
-    private func sessionForWebContent() -> VSCodeWebSession {
-        if let existing = webContent.overlayObject as? VSCodeWebSession {
-            return existing
+    private static func probe(_ url: URL) async -> Bool {
+        var req = URLRequest(url: url)
+        req.httpMethod = "HEAD"
+        req.timeoutInterval = 1.5
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            if let http = response as? HTTPURLResponse {
+                return (200...399).contains(http.statusCode)
+            }
+            return true
+        } catch {
+            return false
         }
-        let s = VSCodeWebSession()
-        webContent.overlayObject = s
-        return s
-    }
-}
-
-@MainActor
-final class VSCodeWebSession {
-    let webView: WKWebView
-    private var loadedURL: URL?
-
-    init() {
-        let cfg = WKWebViewConfiguration()
-        cfg.websiteDataStore = WKWebsiteDataStore.nonPersistent()
-        webView = WKWebView(frame: .zero, configuration: cfg)
-        webView.translatesAutoresizingMaskIntoConstraints = false
-    }
-
-    func loadIfNeeded(_ url: URL) {
-        if loadedURL == url { return }
-        loadedURL = url
-        webView.load(URLRequest(url: url))
-    }
-}
-
-private struct VSCodeWebViewRepresentable: NSViewRepresentable {
-    let session: VSCodeWebSession
-    let targetURL: URL
-
-    func makeNSView(context: Context) -> WKWebView {
-        session.loadIfNeeded(targetURL)
-        return session.webView
-    }
-
-    func updateNSView(_ nsView: WKWebView, context: Context) {
-        session.loadIfNeeded(targetURL)
     }
 }
 

@@ -7,7 +7,12 @@ public struct Sidebar: View {
     @Environment(\.profileID) private var profileID
     private let browserStore = BrowserStore.shared
     var width: CGFloat? = UIConstants.sidebarWidth
-        
+
+    #if os(macOS)
+    @State private var hostWindow: NSWindow?
+    @State private var measuredFrame: CGRect = .zero
+    #endif
+
     public var body: some View {
         // Use the snapshot pattern to observe only necessary data
         WithSnapshotMain(store: browserStore) { state in
@@ -22,9 +27,44 @@ public struct Sidebar: View {
         } main: { snapshot in
             SidebarContent(snapshot: snapshot, floating: floating)
                 .frame(width: width)
+                .modifier(SidebarFramePublisher())
         }
     }
 }
+
+#if os(macOS)
+/// Publishes the sidebar's frame in the BrowserWindowRoot coordinate space
+/// to the host BrowserNSWindow's `sidebarFrameInWindow` prop. The window's
+/// sendEvent override consults this to gate split-view drop targets.
+private struct SidebarFramePublisher: ViewModifier {
+    @State private var hostWindow: NSWindow?
+    @State private var measuredFrame: CGRect = .zero
+
+    func body(content: Content) -> some View {
+        content
+            .background(WindowAccessor { window in
+                if hostWindow !== window {
+                    hostWindow = window
+                    publish()
+                }
+            })
+            .measureFrame(coordinateSpace: .named("BrowserWindowRoot")) { frame in
+                if frame != measuredFrame {
+                    measuredFrame = frame
+                    publish()
+                }
+            }
+    }
+
+    private func publish() {
+        (hostWindow as? SidebarFrameHostingWindow)?.sidebarFrameInWindow = measuredFrame
+    }
+}
+#else
+private struct SidebarFramePublisher: ViewModifier {
+    func body(content: Content) -> some View { content }
+}
+#endif
 
 // Helper struct to represent a tab group for the sidebar
 struct TabGroup: Equatable, Identifiable {

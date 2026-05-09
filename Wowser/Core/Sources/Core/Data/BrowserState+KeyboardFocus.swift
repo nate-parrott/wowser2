@@ -130,8 +130,9 @@ extension BrowserState {
                 return .init(target: .terminal(paneID), date: date)
             case .fileBrowser:
                 return .init(target: .fileBrowser(paneID), date: date)
-            case .vscode:
-                () // fall through
+            case .vscode, .vscodeLoading:
+                () // fall through — vscode is a normal webview; the loading
+                   // sentinel page also takes ordinary web focus.
             }
         }
         // 4. Reader overlay is showing on this pane.

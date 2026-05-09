@@ -13,6 +13,7 @@ struct PaneView: View {
     @Environment(\.windowID) private var windowID
     // Create Searcher with profile-specific history store
     @StateObject private var searcher = Searcher()
+    @StateObject private var topSitesFetcher = TopSitesFetcher()
     @Environment(\.profileID) private var profileID
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var size: CGSize = .zero
@@ -72,9 +73,16 @@ struct PaneView: View {
         }
         .onReceive(profileDataStoreID, perform: { id in
             searcher.datastoreProfileID = id
+            topSitesFetcher.profileDataStoreID = id
         })
         .onAppearOrChange(of: windowID, perform: { windowID in
             searcher.windowID = windowID
+        })
+        .onAppearOrChange(of: snapshot.emptyPage, perform: { emptyPage in
+            searcher.topSitesEnabled = emptyPage
+        })
+        .onReceive(topSitesFetcher.$topSites, perform: { sites in
+            searcher.topSites = sites
         })
         .onChange(of: searchText) { newValue in
             searcher.query = newValue

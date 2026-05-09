@@ -11,10 +11,18 @@ struct SearchIcon: View {
         Group {
             switch item.content {
             case .urlYouTyped(let url):
-                FaviconView(faviconURL: url.inferredFaviconURL, size: size)
+                if let nativeKey = NativePageKey(url: url) {
+                    nativeKey.favicon(size: size)
+                } else {
+                    FaviconView(faviconURL: url.inferredFaviconURL, size: size)
+                }
                 
             case .historyItem(let historyItem):
-                FaviconView(faviconURL: historyItem.url.inferredFaviconURL, size: size)
+                if let nativeKey = NativePageKey(url: historyItem.url) {
+                    nativeKey.favicon(size: size)
+                } else {
+                    FaviconView(faviconURL: historyItem.url.inferredFaviconURL, size: size)
+                }
                 
             case .searchWhatYouTyped:
                 Image(systemName: "magnifyingglass")

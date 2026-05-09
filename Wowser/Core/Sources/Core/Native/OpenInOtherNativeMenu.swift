@@ -16,6 +16,7 @@ struct OpenInOtherNativeMenu: View {
     let openInOtherType: (NativePageKey) -> Void
 
     @State private var resolvedFolder: String?
+    @State private var pathIsDirectory: Bool = true
 
     var body: some View {
         ToolbarPopUpButton(
@@ -31,18 +32,40 @@ struct OpenInOtherNativeMenu: View {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(CallbackMenuItem(title: "Open in Files") {
-            openInOtherType(.fileBrowser(id: UUID().uuidString, path: resolvedFolder))
+            openInOtherType(.fileBrowser(path: resolvedFolder))
         })
         menu.addItem(CallbackMenuItem(title: "Open in Terminal") {
-            openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: nil))
+            openInOtherType(.terminal(cwd: resolvedFolder, runCommand: nil))
         })
         menu.addItem(CallbackMenuItem(title: "Open in VS Code") {
-            openInOtherType(.vscode(id: UUID().uuidString, folder: resolvedFolder))
+            openInOtherType(.vscode(folder: resolvedFolder))
         })
         menu.addItem(CallbackMenuItem(title: "New Claude") {
-            openInOtherType(.terminal(id: UUID().uuidString, cwd: resolvedFolder, runCommand: "claude"))
+            openInOtherType(.terminal(cwd: resolvedFolder, runCommand: "claude"))
         })
+        menu.addItem(.separator())
+        if let expandedPath {
+            if pathIsDirectory {
+                menu.addItem(CallbackMenuItem(title: "Open in Finder") {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: expandedPath))
+                })
+            } else {
+                menu.addItem(CallbackMenuItem(title: "Open in Default App") {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: expandedPath))
+                })
+            }
+            menu.addItem(CallbackMenuItem(title: "Copy Path") {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(expandedPath, forType: .string)
+            })
+        }
         return menu
+    }
+
+    private var expandedPath: String? {
+        guard let raw = currentKey.folderPath, !raw.isEmpty else { return nil }
+        return (raw as NSString).expandingTildeInPath
     }
 
     private func recomputeFolderInfo(for rawPath: String?) {
@@ -57,15 +80,20 @@ struct OpenInOtherNativeMenu: View {
             var isDir: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir)
             let resolved: String
+            let isDirectory: Bool
             if exists, isDir.boolValue {
                 resolved = expanded
+                isDirectory = true
             } else if exists {
                 resolved = (expanded as NSString).deletingLastPathComponent
+                isDirectory = false
             } else {
                 resolved = rawPath
+                isDirectory = true
             }
             DispatchQueue.main.async {
                 self.resolvedFolder = resolved
+                self.pathIsDirectory = isDirectory
             }
         }
     }
