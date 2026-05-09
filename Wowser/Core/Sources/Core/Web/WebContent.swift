@@ -337,7 +337,12 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     }
     
     public  func reload() {
-        webview.reload()
+        if let failedNav = info.failedNavToURL {
+            info.failedNavToURL = nil
+            load(url: failedNav.url)
+        } else {
+            webview.reload()
+        }
     }
     
     // func configure(_ block: (WKWebView) -> Void) {
@@ -517,7 +522,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         info.url = webview.url
         let suppressTitleFromWebview: Bool = {
             switch webview.url.flatMap(NativePageKey.init(url:)) {
-            case .terminal, .fileBrowser, .vscodeLoading: return true
+            case .terminal, .fileBrowser: return true
             case .vscode, .none: return false
             }
         }()

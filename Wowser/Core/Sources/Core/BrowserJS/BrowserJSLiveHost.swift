@@ -383,7 +383,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             if let url = pane.info.url, let key = NativePageKey(url: url) {
                 switch key {
                 case .terminal: return "terminal"
-                case .vscode, .vscodeLoading: return "vscode"
+                case .vscode: return "vscode"
                 case .fileBrowser: return "files"
                 }
             }

@@ -93,7 +93,7 @@ struct WindowSnapshot: Equatable {
 
 extension WebContent.Info {
     var isEmptyPage: Bool {
-        url == nil || url == .aboutBlank
+        (url == nil || url == .aboutBlank) && failedNavToURL == nil
     }
 }
 

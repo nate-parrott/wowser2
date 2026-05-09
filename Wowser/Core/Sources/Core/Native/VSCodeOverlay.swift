@@ -2,11 +2,6 @@
 import SwiftUI
 import AppKit
 
-/// Loading-state overlay for VSCode tabs. Mounted only for
-/// `NativePageKey.vscodeLoading` — i.e., the WKWebView committed to the
-/// `about:blank?native=vscode-loading&folder=…` sentinel URL because the
-/// real serve-web URL couldn't load yet.
-///
 /// Owns the polling loop: kicks `VSCodeServerManager.ensureStarted()`,
 /// then probes the server's HTTP listener until it responds, and finally
 /// navigates the webview to the live `http://127.0.0.1:<port>/?folder=…`.

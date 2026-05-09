@@ -486,7 +486,7 @@ extension HistoryItem {
                 if let cwd {
                     return .init(path: cwd, item: self, keywords: ["terminal"], historyKey: key)
                 }
-            case .vscode(let folder), .vscodeLoading(let folder):
+            case .vscode(let folder):
                 if let folder {
                     return .init(path: folder, item: self, keywords: ["vscode", "visual studio code"], historyKey: key)
                 }

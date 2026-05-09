@@ -103,7 +103,7 @@ private struct ToolRow: View {
     }
 }
 
-private struct CopyButton: View {
+struct CopyButton: View {
     var text: String
     @State private var copied = false
 
@@ -119,6 +119,8 @@ private struct CopyButton: View {
         #if os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #else
+        // TODO: Use UIPasteboard
         #endif
         copied = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }

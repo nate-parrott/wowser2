@@ -130,7 +130,7 @@ extension BrowserState {
                 return .init(target: .terminal(paneID), date: date)
             case .fileBrowser:
                 return .init(target: .fileBrowser(paneID), date: date)
-            case .vscode, .vscodeLoading:
+            case .vscode:
                 () // fall through — vscode is a normal webview; the loading
                    // sentinel page also takes ordinary web focus.
             }

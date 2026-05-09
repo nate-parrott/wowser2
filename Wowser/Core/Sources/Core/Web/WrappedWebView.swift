@@ -15,6 +15,7 @@ public struct WrappedWebView: View {
 
     @State private var extractedReaderContent: ReadableDoc?
     @State private var nativePageKey: NativePageKey?
+    @State private var loadingFailure: WebContent.Info.FailedNav?
 
     public init(webContent: WebContent, shrunk: Bool) {
         self.webContent = webContent
@@ -44,15 +45,16 @@ public struct WrappedWebView: View {
                 findInPageContent
             }
 
-            if let extractedReaderContent {
-                ReaderOverlay(readableDoc: extractedReaderContent, mainWebContent: webContent)
-                    .id(webContent.id)
-            }
-
             if let nativePageKey {
                 NativePageOverlay(key: nativePageKey, webContent: webContent)
                     .modifier(NewTabAnimation(shrunk: shrunk))
                     .id(nativePageKey)
+            } else if let extractedReaderContent {
+                ReaderOverlay(readableDoc: extractedReaderContent, mainWebContent: webContent)
+                    .id(webContent.id)
+            } else if let loadingFailure {
+                LoadingFailureOverlay(failure: loadingFailure, webContent: webContent)
+                    .modifier(NewTabAnimation(shrunk: shrunk))
             }
         }
         .animation(.niceDefault(duration: 0.3), value: extractedReaderContent != nil)
@@ -137,6 +139,7 @@ public struct WrappedWebView: View {
         })
         .onReceive(webContent.$fullContentExtractionStatus.map { $0.readerContent }.removeDuplicates(), perform: { self.extractedReaderContent = $0 })
         .onReceive(webContent.$info.map { $0.url.flatMap(NativePageKey.init(url:)) }.removeDuplicates(), perform: { self.nativePageKey = $0 })
+        .onReceive(webContent.$info.map { $0.failedNavToURL }.removeDuplicates(), perform: { self.loadingFailure = $0 })
         .id(webContent.id)
     }
 }
@@ -153,5 +156,50 @@ private struct NewTabAnimation: ViewModifier {
         content
             .scaleEffect(shrink ? 0.05 : 1)
             .animation(shrink ? nil : .niceDefault(duration: 0.3), value: shrink)
+    }
+}
+
+private struct LoadingFailureOverlay: View {
+    var failure: WebContent.Info.FailedNav
+    var webContent: WebContent
+    
+    var body: some View {
+        if let nativePage = NativePageKey(url: failure.url), case .vscode(let folder) = nativePage {
+            VSCodeLoadingOverlay(folder: folder, webContent: webContent)
+        } else {
+            VStack(spacing: 20) {
+                Image(systemName: "network.slash")
+                    .opacity(0.1)
+                    .font(.system(size: 100))
+                
+                HStack {
+                    Text(failure.displayString)
+                        .lineLimit(1)
+                        .help(failure.displayString)
+                    
+                    CopyButton(text: failure.displayString)
+                }
+                .font(.system(.caption))
+                .frame(maxWidth: 400)
+                
+                Button(action: {
+                    webContent.load(url: failure.url)
+                }) {
+                    Text("Reload")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(40)
+            .background(.thickMaterial)
+
+        }
+    }
+}
+
+extension WebContent.Info.FailedNav {
+    var displayString: String {
+        switch error {
+        case .generic(let str): return str
+        }
     }
 }

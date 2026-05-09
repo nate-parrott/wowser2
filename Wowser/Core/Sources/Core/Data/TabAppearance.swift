@@ -81,7 +81,7 @@ extension Pane {
                 appearance.title = titleFromTerm ?? "Terminal"
                 appearance.urlFieldTextSelected = appearance.title
                 appearance.urlFieldTextDeselected = appearance.title
-            case .vscode(let folder), .vscodeLoading(let folder):
+            case .vscode(let folder):
                 appearance.icon = .vscode
                 let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
                 let folderName = folder.flatMap { ($0 as NSString).lastPathComponent.nilIfEmpty }
@@ -206,7 +206,7 @@ extension NativePageKey {
         switch self {
         case .terminal:
             TerminalFavicon()
-        case .vscode, .vscodeLoading:
+        case .vscode:
             VSCodeFavicon()
         case .fileBrowser:
             FileBrowserFavicon()

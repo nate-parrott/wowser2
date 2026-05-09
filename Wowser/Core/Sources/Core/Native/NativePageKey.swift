@@ -8,16 +8,9 @@ import Foundation
 // VSCode is *real* web content (we run `code serve-web` on a deterministic
 // loopback port) so its NativePageKey is just the live `http://127.0.0.1:<port>/?folder=…`
 // URL itself — the underlying WKWebView loads it directly.
-//
-// `.vscodeLoading` is a transient sentinel: when the underlying webview's
-// nav to a serve-web URL fails (cold start: server not yet listening), we
-// redirect the webview to `about:blank?native=vscode-loading&folder=…`. That
-// commits, the loading overlay mounts, polls until the server is up, and
-// then navigates the webview to the real serve-web URL.
 public enum NativePageKey: Hashable, Codable {
     case terminal(cwd: String?, runCommand: String? = nil)
     case vscode(folder: String?)
-    case vscodeLoading(folder: String?)
     case fileBrowser(path: String?)
 
     public init?(url: URL) {
@@ -30,8 +23,8 @@ public enum NativePageKey: Hashable, Codable {
         switch kind {
         case "terminal":
             self = .terminal(cwd: url.queryParam(name: "cwd"), runCommand: url.queryParam(name: "cmd"))
-        case "vscode-loading":
-            self = .vscodeLoading(folder: url.queryParam(name: "folder"))
+//        case "vscode-loading":
+//            self = .vscodeLoading(folder: url.queryParam(name: "folder"))
         case "files":
             self = .fileBrowser(path: url.queryParam(name: "path"))
         default:
@@ -47,14 +40,6 @@ public enum NativePageKey: Hashable, Codable {
                 c.queryItems = [URLQueryItem(name: "folder", value: folder)]
             }
             return c.url!
-        case .vscodeLoading(let folder):
-            var components = URLComponents()
-            components.scheme = "about"
-            components.path = "blank"
-            var items = [URLQueryItem(name: "native", value: "vscode-loading")]
-            if let folder { items.append(URLQueryItem(name: "folder", value: folder)) }
-            components.queryItems = items
-            return components.url!
         case .terminal(let cwd, let runCommand):
             var components = URLComponents()
             components.scheme = "about"
@@ -78,7 +63,7 @@ public enum NativePageKey: Hashable, Codable {
     public var displayTitle: String {
         switch self {
         case .terminal: return "Terminal"
-        case .vscode, .vscodeLoading: return "VS Code"
+        case .vscode: return "VS Code"
         case .fileBrowser: return "Files"
         }
     }
@@ -93,7 +78,7 @@ public enum NativePageKey: Hashable, Codable {
     public var folderPath: String? {
         switch self {
         case .terminal(let cwd, _): return cwd
-        case .vscode(let folder), .vscodeLoading(let folder): return folder
+        case .vscode(let folder): return folder
         case .fileBrowser(let path): return path
         }
     }
@@ -101,7 +86,7 @@ public enum NativePageKey: Hashable, Codable {
     public var isTerminal: Bool { if case .terminal = self { return true } else { return false } }
     public var isVSCode: Bool {
         switch self {
-        case .vscode, .vscodeLoading: return true
+        case .vscode: return true
         default: return false
         }
     }

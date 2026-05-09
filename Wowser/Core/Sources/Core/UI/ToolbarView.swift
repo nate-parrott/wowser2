@@ -286,7 +286,7 @@ struct ToolbarView: View {
               let webContent = browserStore.getOrCreateWebContent(forId: webContentID, toBeActiveInWindow: windowID!) else {
             return
         }
-        webContent.webview.reload()
+        webContent.reload()
     }
     
     private func toggleBookmark() {

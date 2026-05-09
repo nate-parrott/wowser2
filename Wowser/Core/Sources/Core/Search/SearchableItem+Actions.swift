@@ -46,7 +46,7 @@ public enum SearchAction: Equatable, Codable {
                 case .terminal(_, let cmd):
                     if cmd == "claude" { return "New Claude" }
                     return "Open Terminal"
-                case .vscode, .vscodeLoading: return "Open VS Code"
+                case .vscode: return "Open VS Code"
                 case .fileBrowser: return "Open File Browser"
                 }
             }
@@ -268,7 +268,7 @@ extension SearchableItem {
                 if let cwd {
                     return cwd.lastPathComponent
                 }
-            case .vscode(let folder), .vscodeLoading(let folder):
+            case .vscode(let folder):
                 if let folder {
                     return folder.lastPathComponent
                 }
@@ -306,7 +306,7 @@ extension SearchableItem {
                 if let cwd {
                     return "Terminal in \(cwd)"
                 }
-            case .vscode(let folder), .vscodeLoading(let folder):
+            case .vscode(let folder):
                 if let folder {
                     return "VS Code in \(folder)"
                 }
