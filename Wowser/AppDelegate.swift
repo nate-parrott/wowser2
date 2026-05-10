@@ -148,6 +148,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.lastAutoArchiveDate.setInt(appVer)
             openURL(URL(string: "https://www.notion.so/nate223/Welcome-to-Tangerine-1f48cbaf64db80eeb4c3f443a4f85c82?pvs=4")!)
         }
+        
+        WExtensionStore.shared.reloadFromDisk()
+    }
+    
+    func applicationDidBecomeActive(_ notification: Notification) {
+        WExtensionStore.shared.reloadFromDisk()
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
