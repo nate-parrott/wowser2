@@ -2,6 +2,7 @@ import ChatToys
 
 public enum LLMChoice: String, Equatable, Codable, CaseIterable {
     // Uses OpenAI API client w/ openrouter url
+    case openrouter_gpt_5_4_nano // openai/gpt-5.4-nano
     case openrouter_gemini_2_flash // google/gemini-2.0-flash-001
     case openrouter_gpt_4o // openai/gpt-4o
     case openrouter_gpt_4o_mini // openai/gpt-4o-mini
@@ -10,6 +11,7 @@ public enum LLMChoice: String, Equatable, Codable, CaseIterable {
     case openrouter_custom
 
     // Uses OpenAI API client
+    case openai_gpt_5_4_nano // gpt-5.4-nano-2026-03-17
     case openai_gpt4o_mini // gpt-4o-mini
     case openai_gpt4o // gpt-4o
     case openai_custom
@@ -41,10 +43,26 @@ enum LLMs {
     }
     
     static func current(json: Bool) -> (any ChatLLM)? {
-        guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue()) else {
+        guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue(defaultValue: LLMChoice.openai_gpt_5_4_nano.rawValue)) else {
             return nil
         }
         switch choice {
+        case .openrouter_gpt_5_4_nano:
+            if let key = DefaultsKeys.openrouterKey.stringValue().nilIfEmpty {
+                return ChatGPT(
+                    credentials: OpenAICredentials(apiKey: key),
+                    options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "openai/gpt-5.4-nano", tokenLimit: 1_000_000)), jsonMode: json, baseURL: .openRouterOpenAIChatEndpoint)
+                )
+            }
+            return nil
+        case .openai_gpt_5_4_nano:
+            if let key = DefaultsKeys.openAIKey.stringValue().nilIfEmpty {
+                return ChatGPT(
+                    credentials: OpenAICredentials(apiKey: key),
+                    options: .init(model: .custom2(ChatGPT.Model.CustomModel(name: "gpt-5.4-nano-2026-03-17", tokenLimit: 1_000_000)), jsonMode: json)
+                )
+            }
+            return nil
         case .openrouter_gemini_2_flash:
             if let key = DefaultsKeys.openrouterKey.stringValue().nilIfEmpty {
                 return ChatGPT(

@@ -14,6 +14,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
+    @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var spaceThemeIntensity = 1.0
     
     public init() {
         
@@ -24,7 +25,6 @@ public struct SettingsView: View {
             if #available(macOS 15.0, iOS 18.0, *) {
                 TabView {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
-                    SwiftUI.Tab(content: { HomepageSettings() }, label: { Text("Homepage") })
                     SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
                     SwiftUI.Tab(content: { MCPSettings() }, label: { Text("MCP") })
                     SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
@@ -79,6 +79,15 @@ public struct SettingsView: View {
 //                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
+
+                Slider(value: $spaceThemeIntensity, in: 0...2) {
+                    Text("Space color intensity")
+                } minimumValueLabel: {
+                    Text("Off").font(.caption).foregroundStyle(.secondary)
+                } maximumValueLabel: {
+                    Text("Vivid").font(.caption).foregroundStyle(.secondary)
+                }
+                .help("How strongly each space's auto-generated color scheme washes over the window background")
             }
         }
     }
@@ -99,7 +108,7 @@ struct EnumPicker<E: CaseIterable & Hashable & RawRepresentable>: View where E.R
 }
 
 struct AISettings: View {
-    @AppStorage(DefaultsKeys.llmChoice.rawValue) private var llmChoice = LLMChoice.openrouter_gemini_2_flash.rawValue
+    @AppStorage(DefaultsKeys.llmChoice.rawValue) private var llmChoice = LLMChoice.openai_gpt_5_4_nano.rawValue
     @AppStorage(DefaultsKeys.openrouterKey.rawValue) private var openrouterKey = ""
     @AppStorage(DefaultsKeys.openAIKey.rawValue) private var openAIKey = ""
     @AppStorage(DefaultsKeys.anthropicKey.rawValue) private var anthropicKey = ""
@@ -113,6 +122,7 @@ struct AISettings: View {
             Section("AI Models") {
                 EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { model in
                     switch model {
+                    case .openrouter_gpt_5_4_nano: return "OpenRouter - GPT-5.4 Nano"
                     case .openrouter_gemini_2_flash: return "OpenRouter - Gemini 2 Flash"
                     case .openrouter_gpt_4o: return "OpenRouter - GPT-4o"
                     case .openrouter_gpt_4o_mini: return "OpenRouter - GPT-4o Mini"
@@ -120,6 +130,7 @@ struct AISettings: View {
                     case .openrouter_haiku_35: return "OpenRouter - Claude 3.5 Haiku"
                     case .openrouter_custom: return "OpenRouter - Custom"
                         
+                    case .openai_gpt_5_4_nano: return "OpenAI - GPT-5.4 Nano"
                     case .openai_gpt4o_mini: return "OpenAI - GPT-4o Mini"
                     case .openai_gpt4o: return "OpenAI - GPT-4o"
                     case .openai_custom: return "OpenAI - Custom"

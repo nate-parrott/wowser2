@@ -42,6 +42,7 @@ struct WindowSnapshot: Equatable {
     var tabId: ID<Tab>?
     var profileID: ID<Profile>
     var windowID: ID<WindowState>
+    var theme: SpaceTheme?
     var sidebarLocked: Bool
     var swipeGestureOffset: Int?
     var hasToast: Bool
@@ -61,6 +62,7 @@ struct WindowSnapshot: Equatable {
         self.sidebarLocked = window.sidebarLocked
         self.tabId = window.currentTab
         self.profileID = window.profile
+        self.theme = state.profiles[window.profile]?.theme
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)
@@ -140,7 +142,12 @@ private struct WindowContent: View {
                 .trackMouseOutsideWindow(onMouseMoved: { self.mouseMoved($0, rect: $1) })
                 .edgesIgnoringSafeArea(.all)
         }
-        .background { WindowBG() }
+        .background { WindowBG(theme: snapshot.theme) }
+        // In-window accent follows the space theme. `.tint` covers modern
+        // control styling; `.accentColor` covers existing `Color.accentColor`
+        // reads (toasts, loading indicator, paging dots, etc.).
+        .tint(snapshot.theme?.tintColor)
+        .accentColor(snapshot.theme?.tintColor ?? .accentColor)
         .edgesIgnoringSafeArea(.all)
     }
     
@@ -187,10 +194,18 @@ private struct JustWebpageScrimModifier: ViewModifier {
 }
 
 private struct WindowBG: View {
+    var theme: SpaceTheme?
+
+    @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var intensity = 1.0
+
     var body: some View {
         ZStack {
             TransparentBg()
-            LinearGradient(colors: [Color.white.opacity(0), Color.accentColor.opacity(0.1)], startPoint: .top, endPoint: .bottom)
+            if let theme {
+                theme.backgroundGradient(intensity: intensity)
+            } else {
+                LinearGradient(colors: [Color.white.opacity(0), Color.accentColor.opacity(0.1)], startPoint: .top, endPoint: .bottom)
+            }
         }
     }
 }

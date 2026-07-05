@@ -18,10 +18,19 @@ struct PaneView: View {
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var size: CGSize = .zero
     
+    /// Assumed max height of the empty-page search UI (input box + fully
+    /// populated results list). We vertically center a box of this height and
+    /// top-align the search UI within it, so the input stays put as results
+    /// appear/disappear instead of re-centering on every keystroke.
+    /// Derivation: 42 (macHeaderHeight input bar) + 10×2 (results stack
+    /// padding) + 5 (Searcher max results) × ~34pt rows ≈ 240.
+    private static let emptySearchUIMaxHeight: CGFloat = 240
+
     var body: some View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
+        let emptyPageTopPadding: CGFloat = snapshot.emptyPage ? max(emptyPageSearchPadding, (size.height - Self.emptySearchUIMaxHeight) / 2) : 0
         let topbarLocked = snapshot.topbarLocked
-        
+
         ZStack(alignment: .top) {
             content
                 .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
@@ -31,7 +40,8 @@ struct PaneView: View {
             if snapshot.searchActive {
                 SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
                     .padding(.top, UIConstants.macHeaderHeight)
-                    .padding([.horizontal, .top], emptyPageSearchPadding)
+                    .padding(.horizontal, emptyPageSearchPadding)
+                    .padding(.top, emptyPageTopPadding)
             }
             
             ToolbarView(
@@ -51,7 +61,8 @@ struct PaneView: View {
 //            .blur(radius: !topbarVisible ? 5 : 0)
             .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
                 .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
-                .padding([.horizontal, .top], emptyPageSearchPadding)
+                .padding(.horizontal, emptyPageSearchPadding)
+                .padding(.top, emptyPageTopPadding)
                 .id(snapshot.emptyPage)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
             

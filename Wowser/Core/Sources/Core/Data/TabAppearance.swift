@@ -79,11 +79,6 @@ extension Pane {
 
         if let url = info.url, let genKey = GeneratedPageKey(url: url) {
             switch genKey {
-            case .homepage:
-                appearance.icon = .sfSymbol("leaf")
-                appearance.title = "Home"
-                appearance.urlFieldTextSelected = ""
-                appearance.urlFieldTextDeselected = "Home"
             case .webSearch(let q, _):
                 appearance.icon = .sfSymbol("magnifyingglass")
                 appearance.title = q

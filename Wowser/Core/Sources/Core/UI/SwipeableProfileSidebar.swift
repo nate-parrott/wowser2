@@ -120,10 +120,13 @@ private struct ProfilePageSnapshot: Equatable {
     let favoriteTabIDs: [ID<Tab>]
     let regularTabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
-    
+    let showSpaceTitle: Bool
+
     init(windowID: ID<WindowState>, profileID: ID<Profile>, state: BrowserState) {
         self.windowID = windowID
         self.profileID = profileID
+        // Only surface the editable space name when there's more than one space.
+        self.showSpaceTitle = state.profiles.count > 1
         
         // Extract favorites from profile
         var favoriteIDs = [ID<Tab>]()
@@ -195,8 +198,13 @@ private struct ProfilePageContent: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Editable space name, shown only when there's more than one space.
+            if snapshot.showSpaceTitle {
+                SpaceNameLabel(windowID: windowID, profileID: snapshot.profileID)
+            }
+
             // Favorite bookmarks/tabs section
-            
+
             if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
                 FavoriteTabsView(
                     tabIDs: snapshot.favoriteTabIDs,
@@ -238,6 +246,25 @@ private struct NewProfileSnapshot: Equatable {
     }
 
     var lastProfile: Profile? { sortedProfiles.last }
+
+    // Profiles grouped by the data store they share (i.e. profiles that already
+    // share logins). Each group is ordered by creation; groups are ordered by
+    // their earliest-created member.
+    var loginGroups: [[Profile]] {
+        var groups = [UUID: [Profile]]()
+        for profile in sortedProfiles {
+            groups[profile.dataStoreUUID, default: []].append(profile)
+        }
+        return groups.values.sorted(by: {
+            ($0.first?.creationOrder ?? 0) < ($1.first?.creationOrder ?? 0)
+        })
+    }
+
+    // The group of profiles that share logins with the given profile.
+    func loginGroup(for id: ID<Profile>) -> [Profile]? {
+        guard let dataStoreUUID = profiles[id]?.dataStoreUUID else { return nil }
+        return loginGroups.first(where: { $0.contains(where: { $0.dataStoreUUID == dataStoreUUID }) })
+    }
 }
 
 private enum NewProfileSharingChoice: Hashable {
@@ -301,9 +328,11 @@ private struct NewProfileContent: View {
     
     @ViewBuilder private var profileSharingMenu: some View {
         Menu {
-            ForEach(snapshot.sortedProfiles, id: \.id.raw) { profile in
-                Button(shareLoginsLabel(for: profile)) {
-                    pickedChoice = .shareLogins(profile.id)
+            ForEach(snapshot.loginGroups, id: \.first?.id.raw) { group in
+                if let representative = group.first {
+                    Button(shareLoginsLabel(for: group)) {
+                        pickedChoice = .shareLogins(representative.id)
+                    }
                 }
             }
             Divider()
@@ -334,15 +363,26 @@ private struct NewProfileContent: View {
         profile.title ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)"
     }
 
-    private func shareLoginsLabel(for profile: Profile) -> String {
-        "Share logins with \(displayName(for: profile))"
+    private func shareLoginsLabel(for group: [Profile]) -> String {
+        let names = group.map { displayName(for: $0) }
+        return "Share logins with \(joinedNames(names))"
+    }
+
+    // Joins names with commas and a trailing "and": "A", "A and B", "A, B and C".
+    private func joinedNames(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return ""
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        default: return "\(names.dropLast().joined(separator: ", ")) and \(names.last!)"
+        }
     }
 
     private func label(for choice: NewProfileSharingChoice) -> String {
         switch choice {
         case .shareLogins(let id):
-            if let profile = snapshot.profiles[id] {
-                return shareLoginsLabel(for: profile)
+            if let group = snapshot.loginGroup(for: id) {
+                return shareLoginsLabel(for: group)
             }
             return "Share logins"
         case .isolated:

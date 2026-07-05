@@ -158,6 +158,10 @@ public struct WindowState: Equatable, Codable {
     /// `focusState` toward `.findInPage`. Cleared by closing the bar or
     /// switching focus targets — never set in two places at once.
     public var findInPageActiveInPaneId: ID<WebContent>?
+    /// Profile whose editable space-title field currently holds focus (if any).
+    /// Drives `focusState` toward `.spaceTitle`. Set/cleared only via
+    /// `didFocus`/`didLoseFocus` — never in two places at once.
+    public var editingSpaceTitleForProfile: ID<Profile>?
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
@@ -188,7 +192,10 @@ public struct Profile: Equatable, Codable {
     public var autoFavorites = [ID<Tab>]()
     public var removedFavoriteDomains = Set<String>() // url.hostWithoutWWW
     public var emoji: String? // Identifier emoji for the profile
-    public var title: String? // Custom title for the profile
+    public var title: String? // Custom (user-entered) title for the profile
+    public var autoTitle: String? // AI-generated title set during tab auto-organize; shown as placeholder when `title` is empty
+    public var theme: SpaceTheme? // Auto-generated gradient/tint scheme derived from the title
+    public var themeGeneratedForTitle: String? // Dedupe key: the effective title `theme`/`emoji` were last generated from
 }
 
 public struct Project: Equatable, Codable {
@@ -310,12 +317,12 @@ public class BrowserStore: DataStore<BrowserState> {
         if let wv = liveWebContents[id]?.webview {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
                 if let wv {
-                    assertionFailure("Expected to deallocate webview: \(wv)")
+                    softAssert("Expected to deallocate webview: \(wv)")
                 }
             }
         }
     }
-    
+
     private func removeWebContentNotInValidIds() {
         removeWebContentNotInIds(model.validLiveWebContentIds)
     }
@@ -326,7 +333,7 @@ public class BrowserStore: DataStore<BrowserState> {
                 print("Trying to close web content '\(wv.title ?? "[no title]")'")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak wv] in
                     if let wv {
-                        assertionFailure("Expected to deallocate webview: \(wv)")
+                        softAssert("Expected to deallocate webview: \(wv)")
                     }
                 }
             }

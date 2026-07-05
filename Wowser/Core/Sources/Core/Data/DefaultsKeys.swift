@@ -13,8 +13,6 @@ public enum DefaultsKeys: String {
     case cleanModeForRecipes
     case lastAutoArchiveDate // Date
     
-    case homepagePrompt // string
-    
     case llmChoice // LLMChoice
     case ollamaCustomModel // string
     case openrouterCustomModel // string
@@ -33,6 +31,8 @@ public enum DefaultsKeys: String {
     case searchToolbarEnabled // bool
 
     case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
+
+    case disableNetworkProxy // bool — when true, webviews bypass the local capturing proxy entirely (no HTTP capture, no HTTPS MITM)
     
     case mcpServerTokenDev // string — per-launch bearer token for the local MCP server
     case mcpServerTokenProd
@@ -41,6 +41,8 @@ public enum DefaultsKeys: String {
     }
     
     case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
+
+    case spaceThemeIntensity // double 0–2 — scales the space theme's background gradient opacity (1 = default)
 }
 
 public extension DefaultsKeys {
@@ -58,6 +60,14 @@ public extension DefaultsKeys {
     
     func intValue() -> Int {
         return UserDefaults.standard.integer(forKey: rawValue)
+    }
+
+    func doubleValue(defaultValue def: Double = 0) -> Double {
+        return UserDefaults.standard.object(forKey: rawValue) as? Double ?? def
+    }
+
+    func setDouble(_ value: Double) {
+        UserDefaults.standard.set(value, forKey: rawValue)
     }
     
     func setInt(_ int: Int) {

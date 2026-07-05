@@ -106,7 +106,7 @@ extension BrowserStore {
             let existingGroupNames = await getExistingGroupNames(in: windowID)
             
             // Step 3: When ANY tab needs tagging, process ALL tabs with LLM to assign/update group names
-            try await assignGroupNames(to: allWindowTabs.map(\.id), existingGroups: existingGroupNames)
+            try await assignGroupNames(to: allWindowTabs.map(\.id), existingGroups: existingGroupNames, windowID: windowID)
             print("[🤖 AutoOrganize]: created AI tabs")
             
             // Step 4: Reorganize tabs based on their groups
@@ -141,7 +141,7 @@ extension BrowserStore {
         let title: String?
     }
     
-    private func assignGroupNames(to tabIds: [ID<Tab>], existingGroups: [String]) async throws {
+    private func assignGroupNames(to tabIds: [ID<Tab>], existingGroups: [String], windowID: ID<WindowState>) async throws {
         // Skip if no tabs to process
         if tabIds.isEmpty { return }
         
@@ -169,6 +169,7 @@ extension BrowserStore {
         // Call the LLM to assign group names
         struct Response: Codable {
             var groups: [String: String]
+            var spaceName: String?
         }
         
         let resp = try await LLMs.currentOrThrow(json: true).completeJSONObject(
@@ -204,6 +205,26 @@ extension BrowserStore {
                     }
                 }
             }
+
+            // Store an auto-generated name for the space (profile). Shown as the
+            // placeholder in the sidebar's editable space label until the user
+            // sets their own title. Skip when organizing a project's tabs, since
+            // those aren't representative of the whole space.
+            if state.windows[windowID]?.focusedOnProject == nil,
+               let profileID = state.windows[windowID]?.profile,
+               let spaceName = resp.spaceName?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !spaceName.isEmpty {
+                state.profiles[profileID]?.autoTitle = spaceName
+            }
+        }
+
+        // Refresh the space's emoji + gradient theme from the (possibly new)
+        // effective title. No-ops when nothing changed.
+        if let profileID = await readAsync({ state -> ID<Profile>? in
+            guard state.windows[windowID]?.focusedOnProject == nil else { return nil }
+            return state.windows[windowID]?.profile
+        }) {
+            await regenerateSpaceTheme(profileID: profileID)
         }
     }
     
@@ -263,6 +284,7 @@ extension BrowserStore {
         ```
         {
             "scratchpad": "", // brainstorm several POSSIBLE group names of varying specificities and identify how many tabs would fit. E.g. "Hikes - 3, Park Slope - 1, Brooklyn - 2"
+            "spaceName": "", // a short (1-3 word) sentence-case name summarizing this whole collection of tabs as a single "space", e.g. "Trip planning", "Work", "Apartment hunt". Pick the dominant theme if the tabs are mixed.
             "groups": {
                 "tab_id_1": "Group name",
                 "tab_id_2": "Group name",

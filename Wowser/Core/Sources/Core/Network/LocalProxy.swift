@@ -28,6 +28,12 @@ public actor LocalProxy {
     private var channel: Channel?
     private(set) public var boundPort: Int?
 
+    /// Thread-safe, synchronously-readable copy of `boundPort`. The webview
+    /// data store needs the port at `WebContent.init` time (a synchronous,
+    /// non-actor context), so we mirror it here.
+    private let portBox = ProxyPortBox()
+    public nonisolated var syncBoundPort: Int? { portBox.get() }
+
     public init(captureStore: NetworkCaptureStore, ca: LocalCA = .shared) {
         self.captureStore = captureStore
         self.ca = ca
@@ -55,6 +61,7 @@ public actor LocalProxy {
         self.channel = chan
         let bound = chan.localAddress?.port ?? port
         self.boundPort = bound
+        portBox.set(bound)
         return bound
     }
 
@@ -64,7 +71,17 @@ public actor LocalProxy {
         try? await group?.shutdownGracefully()
         group = nil
         boundPort = nil
+        portBox.set(nil)
     }
+}
+
+/// Lock-protected `Int?` so the proxy's bound port can be read synchronously
+/// from outside the actor (see `LocalProxy.syncBoundPort`).
+private final class ProxyPortBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Int?
+    func get() -> Int? { lock.lock(); defer { lock.unlock() }; return value }
+    func set(_ v: Int?) { lock.lock(); value = v; lock.unlock() }
 }
 
 private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
@@ -215,16 +232,22 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
         }
         let host = String(parts[0])
 
-        // Check whether we should MITM this host. If the origin is on the
-        // capture allowlist, do TLS interception so we can log the inner
-        // HTTP. Otherwise tunnel raw bytes (preserves cert-pinned origins).
+        // Check whether we should MITM this host. We MITM only when (a) the
+        // origin is on the capture allowlist AND (b) our root is trusted by the
+        // system — WebKit rejects forged certs for proxied TLS otherwise, which
+        // would break the page. Without trust we blind-tunnel (loads normally,
+        // just uncaptured). Plain `http://` capture needs neither and works
+        // through `handleHTTP`. Cert-pinned origins are preserved by tunneling.
         let originSchemeURL = "https://\(host):\(port)"
         let captureStore = self.captureStore
+        let ca = self.ca
         nonisolated(unsafe) let ctx = context
         // Run capture-allowlist check on a Task because actor; respond after.
         Task {
-            let captured = await captureStore.isCaptureEnabled(forURL: originSchemeURL)
-            FileHandle.standardError.write(Data("LocalProxy CONNECT \(host):\(port) -> captured=\(captured)\n".utf8))
+            let allowlisted = await captureStore.isCaptureEnabled(forURL: originSchemeURL)
+            let rootTrusted = ca.isRootTrusted()
+            let captured = allowlisted && rootTrusted
+            FileHandle.standardError.write(Data("LocalProxy CONNECT \(host):\(port) -> allowlisted=\(allowlisted) rootTrusted=\(rootTrusted) mitm=\(captured)\n".utf8))
             ctx.eventLoop.execute {
                 let head = HTTPResponseHead(version: state.head.version, status: .ok)
                 ctx.write(self.wrapOutboundOut(.head(head)), promise: nil)

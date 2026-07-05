@@ -99,9 +99,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
             DefaultsKeys.enableGoDirectQueries.rawValue: true,
-            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
-            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt4o_mini.rawValue,
-            DefaultsKeys.openAIKey.rawValue: "[REMOVED-OPENAI-KEY]"
+            DefaultsKeys.disableNetworkProxy.rawValue: true, // network capture is opt-in
+            DefaultsKeys.spaceThemeIntensity.rawValue: 1.0,
+            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt_5_4_nano.rawValue,
         ])
         
         #if os(macOS)
@@ -127,6 +127,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Start the local capturing proxy *before* any webview is created so its
+        // data store can be pointed at it (WebContent reads the bound port
+        // synchronously at init). Binding to loopback is fast; wait briefly.
+        let proxyStarted = DispatchSemaphore(value: 0)
+        Task {
+            do { _ = try await LocalProxy.shared.start() }
+            catch { FileHandle.standardError.write(Data("LocalProxy failed to start: \(error)\n".utf8)) }
+            proxyStarted.signal()
+        }
+        _ = proxyStarted.wait(timeout: .now() + 2)
+
         BrowserStore.shared.publisher.map { $0.windows.keys }.removeDuplicates()
             .sink { [weak self] ids in
                 self?.windowIDs = Set(ids)

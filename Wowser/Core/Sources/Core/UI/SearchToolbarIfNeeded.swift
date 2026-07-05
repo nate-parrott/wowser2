@@ -12,8 +12,6 @@ extension WebContent.Info {
                 return SearchContext(query: query, currentType: .webSearch)
             case .imageSearch(let query, _):
                 return SearchContext(query: query, currentType: .imageSearch)
-            case .homepage:
-                return nil
             }
         }
         

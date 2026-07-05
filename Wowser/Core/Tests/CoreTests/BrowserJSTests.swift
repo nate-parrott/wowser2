@@ -7,7 +7,7 @@ final class BrowserJSTests: XCTestCase {
     // MARK: - NativePageKey roundtrip
 
     func testNativePageKeyTerminalRoundtrip() {
-        let key = NativePageKey.terminal(id: "abc-123", cwd: "/tmp")
+        let key = NativePageKey.terminal(cwd: "/tmp")
         let url = key.url
         XCTAssertEqual(url.scheme, "about")
         let decoded = NativePageKey(url: url)
@@ -15,20 +15,20 @@ final class BrowserJSTests: XCTestCase {
     }
 
     func testNativePageKeyVSCodeRoundtrip() {
-        let key = NativePageKey.vscode(id: "vscode-1", folder: "/Users/me/proj")
+        let key = NativePageKey.vscode(folder: "/Users/me/proj")
         let decoded = NativePageKey(url: key.url)
         XCTAssertEqual(decoded, key)
 
-        let bare = NativePageKey.vscode(id: "vscode-2", folder: nil)
+        let bare = NativePageKey.vscode(folder: nil)
         XCTAssertEqual(NativePageKey(url: bare.url), bare)
     }
 
     func testNativePageKeyFileBrowserRoundtrip() {
-        let key = NativePageKey.fileBrowser(id: "files-1", path: "/Users/me/Documents")
+        let key = NativePageKey.fileBrowser(path: "/Users/me/Documents")
         let decoded = NativePageKey(url: key.url)
         XCTAssertEqual(decoded, key)
 
-        let bare = NativePageKey.fileBrowser(id: "files-2", path: nil)
+        let bare = NativePageKey.fileBrowser(path: nil)
         XCTAssertEqual(NativePageKey(url: bare.url), bare)
     }
 

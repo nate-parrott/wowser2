@@ -47,6 +47,22 @@ final class VSCodeServerManager: ObservableObject {
         status = .notStarted
     }
 
+    /// Full reset for the "Reset and try again" button. Kills our server (and
+    /// any orphan still holding the port), wipes stale `.staging` downloads, and
+    /// cold-starts again. This is the escape hatch for the wedged
+    /// "…is downloading, please wait" state, where serve-web is up but the
+    /// underlying server build never finishes downloading. `start()` already
+    /// reclaims the port and sweeps stuck downloads, so we just tear down and
+    /// re-enter it.
+    func resetAndRestart() {
+        log("resetAndRestart() called; tearing down and cold-starting")
+        process?.terminate()
+        process = nil
+        stdoutBuffer = Data()
+        status = .notStarted
+        start()
+    }
+
     private func start() {
         guard let codePath = VSCodeServerManager.locateCodeBinary() else {
             log("locateCodeBinary() returned nil — VS Code not found in standard paths")
@@ -57,6 +73,7 @@ final class VSCodeServerManager: ObservableObject {
         status = .starting
 
         reclaimPortFromOrphanedCodeServer(VSCodeConfig.serveWebPort)
+        Self.sweepStuckServerDownloads()
 
         let dataDir = vscodeUserDataDir()
         do {
@@ -92,6 +109,13 @@ final class VSCodeServerManager: ObservableObject {
         p.terminationHandler = { [weak self] proc in
             Task { @MainActor in
                 guard let self else { return }
+                // Ignore deaths of a process we've already replaced (e.g. via
+                // resetAndRestart()/retry()); otherwise the old process dying
+                // would flip a freshly-`.starting` status to `.failed`.
+                guard self.process === proc else {
+                    self.log("stale process (pid=\(proc.processIdentifier)) terminated; ignoring")
+                    return
+                }
                 self.log("process terminated; exit=\(proc.terminationStatus) reason=\(proc.terminationReason.rawValue) status=\(self.status)")
                 if case .running = self.status { return } // server died after coming up — leave URL stale; next tab will note the dead URL
                 if proc.terminationStatus != 0 {
@@ -157,8 +181,45 @@ final class VSCodeServerManager: ObservableObject {
                 log("port \(port) held by pid=\(pid) which is NOT a code-server — leaving alone. cmd=\(cmd)")
             }
         }
-        if !killed.isEmpty {
-            Self.waitForPIDsToExit(killed, timeout: 1.5)
+        guard !killed.isEmpty else { return }
+
+        // `code-tunnel` doesn't reliably drop its listening socket on SIGTERM
+        // (we've seen orphans survive for weeks), so escalate to SIGKILL for
+        // anything still alive after the grace period.
+        Self.waitForPIDsToExit(killed, timeout: 1.5)
+        let survivors = killed.filter { kill($0, 0) == 0 }
+        if !survivors.isEmpty {
+            log("pids \(survivors) survived SIGTERM — escalating to SIGKILL")
+            for pid in survivors { kill(pid, SIGKILL) }
+            Self.waitForPIDsToExit(survivors, timeout: 1.5)
+        }
+
+        // Confirm the port is actually free before we try to bind it; otherwise
+        // our fresh server fails to bind and the browser ends up talking to a
+        // stale orphan (the "downloading the latest version…" loop).
+        if !Self.pidsListening(onPort: port).isEmpty {
+            log("port \(port) STILL held after kill attempts — fresh server will likely fail to bind")
+        }
+    }
+
+    /// VS Code's CLI downloads each server build into
+    /// `~/.vscode/cli/serve-web/<commit>.staging` and renames it to `<commit>`
+    /// on success. If a download is interrupted, the `.staging` dir is left
+    /// behind (often empty) and `serve-web` can wedge on "downloading the latest
+    /// version of the VS Code Server, please wait…" forever. Sweep stale staging
+    /// dirs so the next launch re-downloads cleanly.
+    private static func sweepStuckServerDownloads() {
+        let dir = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".vscode/cli/serve-web")
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.pathExtension == "staging" {
+            do {
+                try fm.removeItem(at: entry)
+                print("[VSCodeServer] removed stuck server download \(entry.lastPathComponent)")
+            } catch {
+                print("[VSCodeServer] failed to remove stuck download \(entry.lastPathComponent): \(error)")
+            }
         }
     }
 

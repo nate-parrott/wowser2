@@ -3,26 +3,6 @@ import XCTest
 
 final class GeneratedPageKeyTests: XCTestCase {
     
-    func testHomepageKeyRoundtrip() {
-        let key = GeneratedPageKey.homepage
-        let url = key.url
-        print("HP URL: \(url)")
-        
-        XCTAssertEqual(url.scheme, "about")
-        
-        if let decodedKey = GeneratedPageKey(url: url) {
-            switch decodedKey {
-            case .homepage:
-                // Success
-                break
-            default:
-                XCTFail("Expected homepage key, got \(decodedKey)")
-            }
-        } else {
-            XCTFail("Failed to decode URL back to key")
-        }
-    }
-    
     func testAnswerKeyRoundtrip() {
         let testQueries = [
             "How does SwiftUI work?",

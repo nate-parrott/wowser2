@@ -414,23 +414,6 @@ private extension SearchResult {
     }
 }
 
-extension SearchResult {
-    public var highlightColor: Color {
-        switch item.content {
-        case .chatbot:
-            return Color.green
-        case .imFeelingLucky:
-            return Color.purple
-        case .tab:
-            return Color.gray
-        case .searchAction:
-            return Color.orange
-        case .searchWhatYouTyped, .urlYouTyped, .searchSuggestion, .historyItem:
-            return Color.blue
-        }
-    }
-}
-
 func googleSuggestions(query: String, timeout: TimeInterval = 2) async throws -> [SearchResult] {
     guard !query.isEmpty else { return [] }
     
@@ -488,7 +471,7 @@ extension HistoryItem {
                 }
             case .vscode(let folder):
                 if let folder {
-                    return .init(path: folder, item: self, keywords: ["vscode", "visual studio code"], historyKey: key)
+                    return .init(path: folder, item: self, keywords: ["vscode", "vs code", "visual studio code", "visual studio", "open vs code"], historyKey: key)
                 }
             case .fileBrowser(let path):
                 if let path {

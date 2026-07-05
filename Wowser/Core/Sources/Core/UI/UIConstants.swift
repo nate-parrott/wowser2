@@ -5,6 +5,7 @@ public enum UIConstants {
     public static var sidebarWidth: CGFloat = 200
     public static var autoOrgMinTabCount: Int = 5
     public static var mobileKeyboardReopenAfterIdleTime: TimeInterval = 5 * 60
+    public static var macTabHeight: CGFloat = 34
 }
 
 func isMobile() -> Bool {

@@ -20,10 +20,16 @@ struct NativePageOverlay: View {
                 #else
                 Color.clear
                 #endif
-            case .vscode:
-                // Real VSCode is loaded directly by the underlying WKWebView;
-                // no overlay needed.
+            case .vscode(let folder):
+                // Real VSCode is loaded directly by the underlying WKWebView.
+                // Normally invisible; re-shows the native loading UI if the
+                // committed page is serve-web's "downloading…" placeholder.
+                #if os(macOS)
+                VSCodeWedgeWatcher(folder: folder, webContent: webContent)
+                    .id(webContent.id)
+                #else
                 Color.clear.allowsHitTesting(false)
+                #endif
             case .fileBrowser(let path):
                 #if os(macOS)
                 FileBrowserOverlay(

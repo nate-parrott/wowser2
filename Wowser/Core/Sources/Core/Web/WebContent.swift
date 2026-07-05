@@ -7,6 +7,7 @@ import Reeeed
 
 #if os(macOS)
 import AppKit
+import Network
 #endif
 
 public protocol WebContentDelegate: AnyObject {
@@ -126,8 +127,15 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
 
     public init(id: ID<WebContent>?, datastoreUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
         self.id = id ?? .assign()
+        let isFreshConfig = config == nil
         let config = config ?? WKWebViewConfiguration()
         config.preferences.isElementFullscreenEnabled = true
+        // Register the tang:// scheme + BrowserJS bridge on configs we own.
+        // (Popup-inherited configs are skipped to avoid double-registration,
+        // which would throw; tang apps are opened with fresh configs.)
+        if isFreshConfig {
+            TangBridge.install(on: config)
+        }
         if #available(macOS 14.0, *) {
             config.preferences.inactiveSchedulingPolicy = .throttle
             // https://stackoverflow.com/questions/78758812/wkwebview-oauth-popup-misses-window-opener-in-ios-17-5
@@ -137,7 +145,14 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
 //            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
         }
         if #available(macOS 14.0, *) {
-            config.websiteDataStore = WKWebsiteDataStore(forIdentifier: datastoreUUID)
+            let dataStore = WKWebsiteDataStore(forIdentifier: datastoreUUID)
+            #if os(macOS)
+            // Route traffic through the local capturing proxy so the agent can
+            // introspect requests via `browser.net.*`. HTTPS is only MITM'd for
+            // origins on the capture allowlist; everything else blind-tunnels.
+            dataStore.proxyConfigurations = WebContent.captureProxyConfigurations(port: LocalProxy.shared.syncBoundPort)
+            #endif
+            config.websiteDataStore = dataStore
         } else {
             // Fallback on earlier versions
             fatalError()

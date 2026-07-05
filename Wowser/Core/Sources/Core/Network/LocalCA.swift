@@ -68,6 +68,88 @@ public final class LocalCA: @unchecked Sendable {
         return try root.cert.serializeAsPEM().pemString
     }
 
+    /// Mints a leaf certificate for `host` (signed by the local root) and
+    /// returns it as a `SecCertificate`. Used to build a `SecTrust` for
+    /// validating that our own webviews accept the proxy's forged leaf certs.
+    public func leafSecCertificate(forHost host: String) throws -> SecCertificate {
+        let root = try ensureRoot()
+        let leaf = try Self.signLeaf(forHost: host, root: root)
+        var serializer = DER.Serializer()
+        try leaf.cert.serialize(into: &serializer)
+        guard let cert = SecCertificateCreateWithData(nil, Data(serializer.serializedBytes) as CFData) else {
+            throw LocalCAError.derEncodingFailed
+        }
+        return cert
+    }
+
+    // MARK: - System trust (required for MITM HTTPS in WebKit)
+    //
+    // WebKit validates a *proxied* origin's TLS cert against the system trust
+    // store only — it never delivers a server-trust challenge to the app for
+    // proxied connections. So our forged MITM certs are only accepted once this
+    // root is installed and trusted in the user's keychain. The proxy gates MITM
+    // on `isRootTrusted()`; until the user installs trust, allowlisted HTTPS is
+    // blind-tunnelled (loads normally, just uncaptured).
+
+    private let trustLock = NSLock()
+    private var rootTrustedCache: Bool?
+
+    /// Whether this CA's root is currently trusted by the system (cached).
+    /// Pass `forceRefresh: true` after install/uninstall or to re-check.
+    public func isRootTrusted(forceRefresh: Bool = false) -> Bool {
+        trustLock.lock()
+        if !forceRefresh, let cached = rootTrustedCache { trustLock.unlock(); return cached }
+        trustLock.unlock()
+        let value = computeRootTrusted()
+        trustLock.lock(); rootTrustedCache = value; trustLock.unlock()
+        return value
+    }
+
+    private func computeRootTrusted() -> Bool {
+        guard let leaf = try? leafSecCertificate(forHost: "wowser-capture-probe.invalid"),
+              let rootSec = try? rootSecCertificate() else { return false }
+        let policy = SecPolicyCreateBasicX509()
+        var trust: SecTrust?
+        guard SecTrustCreateWithCertificates([leaf, rootSec] as CFArray, policy, &trust) == errSecSuccess,
+              let trust else { return false }
+        return SecTrustEvaluateWithError(trust, nil)
+    }
+
+    /// Adds the root to the user keychain and marks it trusted for SSL. Prompts
+    /// the user for authentication (Touch ID / password). Call off the main
+    /// thread. Idempotent.
+    public func installRootAsTrusted() throws {
+        let rootSec = try rootSecCertificate()
+        let addStatus = SecItemAdd([
+            kSecClass as String: kSecClassCertificate,
+            kSecValueRef as String: rootSec,
+        ] as CFDictionary, nil)
+        guard addStatus == errSecSuccess || addStatus == errSecDuplicateItem else {
+            throw LocalCAError.keychainAddFailed(addStatus)
+        }
+        // nil trust settings => trust as a root for all policies (prompts).
+        let trustStatus = SecTrustSettingsSetTrustSettings(rootSec, .user, nil)
+        guard trustStatus == errSecSuccess else {
+            throw LocalCAError.trustSettingsFailed(trustStatus)
+        }
+        _ = isRootTrusted(forceRefresh: true)
+    }
+
+    /// Removes our root's user trust settings and the cached cert. Prompts.
+    public func uninstallRootTrust() throws {
+        let rootSec = try rootSecCertificate()
+        let status = SecTrustSettingsRemoveTrustSettings(rootSec, .user)
+        // errSecItemNotFound is fine — nothing to remove.
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw LocalCAError.trustSettingsFailed(status)
+        }
+        SecItemDelete([
+            kSecClass as String: kSecClassCertificate,
+            kSecValueRef as String: rootSec,
+        ] as CFDictionary)
+        _ = isRootTrusted(forceRefresh: true)
+    }
+
     // MARK: - Leaf certs (per-host)
 
     /// Returns a NIOSSL server context wired with a leaf certificate for `host`,
@@ -267,5 +349,7 @@ public final class LocalCA: @unchecked Sendable {
 public enum LocalCAError: Error {
     case derEncodingFailed
     case keychainWriteFailed
+    case keychainAddFailed(OSStatus)
+    case trustSettingsFailed(OSStatus)
 }
 #endif

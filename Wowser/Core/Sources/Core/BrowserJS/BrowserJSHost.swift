@@ -59,6 +59,20 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func netFetch(req: NetFetchRequest) async throws -> NetFetchResponse
     func netReplay(entryId: String, overrides: NetFetchRequest?) async throws -> NetFetchResponse
     func netCaptureOrigin(origin: String, enabled: Bool) async throws
+
+    // MARK: - Webapps
+
+    /// Create (or overwrite) a tang:// webapp from a map of relative file paths
+    /// to file contents, then open it in a new tab. `files` must include an
+    /// `index.html` entry point. When `exposeBrowserJS` is true the app's pages
+    /// receive `window.browser` (the full BrowserJS surface). Returns the tabId.
+    func webappCreate(name: String, files: [String: String], exposeBrowserJS: Bool) async throws -> String
+}
+
+public extension BrowserJSHost {
+    func webappCreate(name: String, files: [String: String], exposeBrowserJS: Bool) async throws -> String {
+        throw BrowserJSError.notImplemented("webapp.create")
+    }
 }
 
 public struct NetLogFilter: Codable, Sendable {

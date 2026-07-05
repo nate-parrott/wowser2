@@ -136,9 +136,15 @@ declare global {
       captureOrigin(origin: string, enabled: boolean): Promise<void>;
     };
 
-    /** Generative app tabs. v1: stubbed — throws "not implemented". */
+    /**
+     * Local "tang://" webapps. `create` writes a folder of files to disk
+     * (~/Library/Application Support/Wowser/Tangerine/<slug>/) and opens it in
+     * a new tab at `tang://<slug>/`. `files` maps relative paths to contents and
+     * MUST include an `index.html`. Pages loaded from tang:// receive the full
+     * `window.browser` API (this same surface), so an app can drive the browser.
+     */
     webapp: {
-      create(opts: { name: string; html: string; exposeBrowserJS?: boolean }): Promise<TabId>;
+      create(opts: { name: string; files: Record<string, string>; exposeBrowserJS?: boolean }): Promise<TabId>;
     };
 
     sleep(ms: number): Promise<void>;

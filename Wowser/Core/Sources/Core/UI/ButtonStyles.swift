@@ -97,28 +97,25 @@ public struct IconButtonStyle: ButtonStyle {
 struct SearchResultButtonStyle: ButtonStyle {
     var isHighlighted: Bool
     @State private var hovered = false
-    var result: SearchResult?
-    
-    init(isHighlighted: Bool = false, result: SearchResult? = nil) {
+
+    init(isHighlighted: Bool = false) {
         self.isHighlighted = isHighlighted
-        self.result = result
     }
-    
+
     func makeBody(configuration: Configuration) -> some View {
+        // Selection follows the window's themed accent (set from the space
+        // theme at the window root); the theme guarantees contrast with the
+        // white selected-row text.
         configuration.label
             .foregroundColor(isHighlighted ? Color.white : nil)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
-                        isHighlighted ? highlightColor : (hovered ? highlightColor.opacity(0.1) : Color.clear)
+                        isHighlighted ? Color.accentColor : (hovered ? Color.accentColor.opacity(0.1) : Color.clear)
                     )
             )
             .contentShape(Rectangle())
             .onHover(perform: { self.hovered = $0 })
-    }
-    
-    private var highlightColor: Color {
-        result?.highlightColor ?? Color.accentColor
     }
 }
 
@@ -148,7 +145,7 @@ struct TabStyleButtonModifier: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background{
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(
                             LinearGradient(colors: [
                                 Color("TabBackground", bundle: .module),

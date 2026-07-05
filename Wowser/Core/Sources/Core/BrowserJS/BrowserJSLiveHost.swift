@@ -174,8 +174,14 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                 let html = try await wc.webview.evaluateAsyncJS("return document.documentElement.outerHTML;") as? String ?? ""
                 return BrowserJSLiveHost.htmlToMarkdown(html)
             default: // "text"
-                let text = try await wc.webview.evaluateAsyncJS("return document.documentElement.innerText;")
-                return text as? String ?? ""
+                let text = (try await wc.webview.evaluateAsyncJS("return document.documentElement.innerText;")) as? String ?? ""
+                if !text.isEmpty { return text }
+                // `innerText` is empty for tabs that have never been rendered
+                // (e.g. opened with `{background:true}`) because layout hasn't
+                // run. Fall back to the DOM's text, which is available without
+                // rendering — same source the `html`/`markdown` reads use.
+                let html = (try await wc.webview.evaluateAsyncJS("return document.documentElement.outerHTML;")) as? String ?? ""
+                return BrowserJSLiveHost.htmlToMarkdown(html)
             }
         }
     }
@@ -189,14 +195,20 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             #if os(macOS)
             let cfg = WKSnapshotConfiguration()
             cfg.afterScreenUpdates = true
+            // A tab that has never been rendered (e.g. opened with
+            // `{background:true}`) snapshots to a zero-sized image. Surface that
+            // as an explicit error instead of a silent 0-byte PNG, so callers
+            // know to `tabs.activate(id)` first.
             let img: NSImage = try await wc.webview.takeSnapshot(configuration: cfg)
-            guard let tiff = img.tiffRepresentation,
+            guard img.size.width > 0, img.size.height > 0,
+                  let tiff = img.tiffRepresentation,
                   let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:])
-            else { return BrowserJSImage(mime: "image/png", data: "") }
+                  let png = rep.representation(using: .png, properties: [:]),
+                  !png.isEmpty
+            else { throw BrowserJSError.underlying("screenshot unavailable — tab not rendered (activate it first)") }
             return BrowserJSImage(mime: "image/png", data: png.base64EncodedString())
             #else
-            return BrowserJSImage(mime: "image/png", data: "")
+            throw BrowserJSError.notImplemented("contentScreenshot (macOS only)")
             #endif
         }
     }
@@ -209,14 +221,18 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { throw BrowserJSError.tabNotFound(id) }
-            return try await wc.webview.evaluateAsyncJS(js)
+            return try await wc.webview.evalReturningValue(js)
         }
     }
 
     public func pageWaitFor(id: String, predicateJs: String, timeoutMs: Int) async throws -> Any? {
         let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
         while Date() < deadline {
-            let v = try? await pageEval(id: id, js: "return (function(){ \(predicateJs) })();")
+            // Evaluate the predicate directly so `evalReturningValue` captures a
+            // bare-expression predicate's value (e.g. `document.readyState ===
+            // 'complete'`). Wrapping it in a return-less IIFE, as before, always
+            // yielded undefined → null and the wait never resolved.
+            let v = try? await pageEval(id: id, js: predicateJs)
             if let v, !(v is NSNull) {
                 if let b = v as? Bool, b { return v }
                 if (v as? Bool) == nil { return v }
@@ -364,6 +380,17 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         await NetworkCaptureStore.shared.setCaptureEnabled(origin: origin, enabled: enabled)
     }
 
+    // MARK: - Webapps
+
+    public func webappCreate(name: String, files: [String: String], exposeBrowserJS: Bool) async throws -> String {
+        // exposeBrowserJS: v1 always exposes `window.browser` to tang:// pages
+        // (the scheme is the gate). The flag is kept in the API for a future
+        // per-app opt-out.
+        _ = exposeBrowserJS
+        let slug = try TangerineApps.shared.create(name: name, files: files)
+        return try await tabsOpen(url: "tang://\(slug)/", background: false, windowId: nil)
+    }
+
     private static func summary(from e: NetCaptureEntry) -> NetEntrySummary {
         NetEntrySummary(
             id: e.id,
@@ -380,8 +407,9 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     private func tabInfo(forPane pane: Pane, tab: Tab, windowID: ID<WindowState>?, indexInWindow: Int?, state: BrowserState) -> BrowserJSTabInfo {
         let kind: String = {
-            if let url = pane.info.url, let key = NativePageKey(url: url) {
-                return key.kindString
+            if let url = pane.info.url {
+                if url.scheme == TangSchemeHandler.scheme { return "webapp" }
+                if let key = NativePageKey(url: url) { return key.kindString }
             }
             return "web"
         }()
@@ -430,6 +458,15 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         // Very simple HTML → Markdown via stripping tags. Reeeed/Ink is the
         // proper path (Q30) and lives in the existing Reader pipeline; we
         // can wire the richer path in a follow-up. For now: text only.
+        //
+        // First drop the *contents* of non-text elements — otherwise raw JS/CSS
+        // source leaks into the output (e.g. inline <script> bootstraps, <style>
+        // rules). Tag-stripping alone only removes the tags, not their bodies.
+        var html = html
+        for tag in ["script", "style", "noscript", "template"] {
+            let block = "<\(tag)\\b[^>]*>[\\s\\S]*?</\(tag)>"
+            html = html.replacingOccurrences(of: block, with: "", options: [.regularExpression, .caseInsensitive])
+        }
         let pattern = "<[^>]+>"
         let stripped = html.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
         return stripped
@@ -454,4 +491,37 @@ extension WKWebView {
             }
         }
     }
+
+    /// REPL-style eval for `page.eval`: returns the value of the snippet's final
+    /// expression so a bare `document.title` or `1+2` yields a value without an
+    /// explicit `return`.
+    ///
+    /// `callAsyncJavaScript` treats the snippet as an async-function *body*, so a
+    /// bare expression returns nothing (→ null). To fix that we wrap a single
+    /// trailing expression in `return (...)`. Snippets that already manage their
+    /// own control flow (a top-level `return`, or multiple statements) are run
+    /// verbatim — that path still requires an explicit `return`, as before.
+    func evalReturningValue(_ js: String) async throws -> Any? {
+        var expr = js.trimmingCharacters(in: .whitespacesAndNewlines)
+        if expr.hasSuffix(";") { expr.removeLast() }
+
+        let looksLikeSingleExpression =
+            !expr.isEmpty &&
+            !expr.contains(";") &&
+            !expr.contains("\n") &&
+            !Self.statementPrefixes.contains { expr == $0 || expr.hasPrefix($0 + " ") || expr.hasPrefix($0 + "(") } &&
+            !expr.hasPrefix("{")
+
+        if looksLikeSingleExpression {
+            return try await evaluateAsyncJS("return (\(expr));")
+        }
+        return try await evaluateAsyncJS(js)
+    }
+
+    /// Leading tokens that mark a statement (not an expression) — if a snippet
+    /// starts with one of these we must NOT wrap it in `return (...)`.
+    private static let statementPrefixes = [
+        "return", "var", "let", "const", "if", "for", "while", "switch",
+        "function", "throw", "do", "try", "class", "async",
+    ]
 }

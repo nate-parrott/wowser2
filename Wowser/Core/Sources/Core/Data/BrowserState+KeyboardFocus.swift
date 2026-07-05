@@ -13,16 +13,17 @@ public enum FocusTarget: Equatable {
     case findInPage(ID<WebContent>)
     case omnibox(pane: ID<WebContent>)
     case emptyWindowOmnibox(ID<WindowState>) // when no tab is selected
+    case spaceTitle(profile: ID<Profile>, window: ID<WindowState>) // editable sidebar space-name field
 
     public var paneID: ID<WebContent>? {
         switch self {
         case .webContent(let id), .terminal(let id), .fileBrowser(let id),
              .reader(let id), .findInPage(let id), .omnibox(pane: let id):
             return id
-        case .emptyWindowOmnibox: return nil
+        case .emptyWindowOmnibox, .spaceTitle: return nil
         }
     }
-    
+
     func windowID(state: BrowserState) -> ID<WindowState>? {
         if let paneID {
             return state.windowContaining(webContentId: paneID)?.id
@@ -32,6 +33,8 @@ public enum FocusTarget: Equatable {
             assertionFailure()
             return nil
         case .emptyWindowOmnibox(let winID):
+            return winID
+        case .spaceTitle(_, let winID):
             return winID
         }
     }
@@ -74,7 +77,18 @@ extension BrowserState {
         case .webContent, .terminal, .fileBrowser, .reader:
             windows[windowID]?.searchOverlayActive = false
             windows[windowID]?.findInPageActiveInPaneId = nil
+        case .spaceTitle(let profileID, _):
+            windows[windowID]?.searchOverlayActive = false
+            windows[windowID]?.findInPageActiveInPaneId = nil
+            windows[windowID]?.editingSpaceTitleForProfile = profileID
         case .emptyWindowOmnibox: () // no op
+        }
+
+        // Any target other than spaceTitle ends space-title editing.
+        switch target {
+        case .spaceTitle: ()
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .reader, .emptyWindowOmnibox:
+            windows[windowID]?.editingSpaceTitleForProfile = nil
         }
     }
 
@@ -95,6 +109,8 @@ extension BrowserState {
             windows[windowID]?.searchOverlayActive = false
         case .findInPage:
             windows[windowID]?.findInPageActiveInPaneId = nil
+        case .spaceTitle:
+            windows[windowID]?.editingSpaceTitleForProfile = nil
         case .webContent, .terminal, .fileBrowser, .reader, .emptyWindowOmnibox:
             () // Whatever takes focus next will reassert via didFocus.
         }
@@ -103,14 +119,24 @@ extension BrowserState {
     /// Single source of truth: which UI element should hold first responder
     /// for this window right now. Pure function of state.
     public func focusState(windowID: ID<WindowState>) -> FocusSnap {
-        guard let window = windows[windowID],
-              let tabID = window.currentTab,
-              let tab = tabs[tabID],
-              let pane = tab.panes.elements.get(tab.focusedPaneIdx)
-        else {
+        guard let window = windows[windowID] else {
             return .init(target: .emptyWindowOmnibox(windowID), date: windows[windowID]?.lastBecameKeyAt)
         }
         let date = window.lastBecameKeyAt
+
+        // Editing a space (profile) title in the sidebar. A deliberately-opened
+        // omnibox still wins; otherwise the title field holds focus regardless
+        // of whether a tab is selected.
+        if !window.searchOverlayActive, let profileID = window.editingSpaceTitleForProfile {
+            return .init(target: .spaceTitle(profile: profileID, window: windowID), date: date)
+        }
+
+        guard let tabID = window.currentTab,
+              let tab = tabs[tabID],
+              let pane = tab.panes.elements.get(tab.focusedPaneIdx)
+        else {
+            return .init(target: .emptyWindowOmnibox(windowID), date: date)
+        }
         let paneID = pane.id
 
         // Priority order — the first match wins:

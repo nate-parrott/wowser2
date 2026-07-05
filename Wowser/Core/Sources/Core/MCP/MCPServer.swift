@@ -146,9 +146,9 @@ public actor MCPServer {
             description: """
             Run JS in the privileged BrowserJS environment (a JSContext with a
             global `browser` object). Persisted helpers are prepended in alpha
-            order. The JS may use top-level `await`. The value of the final
-            expression is returned in `result`. To return a value from
-            multi-statement code, end with a bare expression (e.g. `let x = 1; x + 1`).
+            order. Your code is the body of an async function: it may use
+            top-level `await`, and you MUST `return <expr>` to produce a result
+            in `result` (a bare trailing expression yields nothing).
             To see screenshots, call `browser.viewImage(await browser.content.screenshot(tabId))`
             — they're attached as image content blocks alongside the result.
             """,

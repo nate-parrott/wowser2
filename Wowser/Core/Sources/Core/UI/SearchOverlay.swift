@@ -101,7 +101,7 @@ private struct SearchResultRow: View {
             .contentShape(Rectangle())
             .lineLimit(1)
         }
-        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, result: result))
+        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected))
     }
     
     private var titleSubtitle: (String?, String?) {

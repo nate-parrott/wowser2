@@ -118,6 +118,85 @@ enum Alerts {
     }
 
     @MainActor
+    static func showAppLoginPrompt(
+        title: String,
+        message: String,
+        usernamePlaceholder: String = "Username",
+        passwordPlaceholder: String = "Password",
+        submitTitle: String = "Sign In",
+        cancelTitle: String = "Cancel",
+        baseView: UINSView? = nil
+    ) async -> (username: String, password: String)? {
+        #if os(macOS)
+        guard let mainWin = baseView?.window ?? windowForAlerts else { return nil }
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: submitTitle)
+        alert.addButton(withTitle: cancelTitle)
+
+        let usernameField = NSTextField(frame: NSRect(x: 0, y: 28, width: 300, height: 24))
+        usernameField.placeholderString = usernamePlaceholder
+        let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        passwordField.placeholderString = passwordPlaceholder
+
+        usernameField.nextKeyView = passwordField
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 52))
+        container.addSubview(usernameField)
+        container.addSubview(passwordField)
+        alert.accessoryView = container
+        alert.window.initialFirstResponder = usernameField
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                alert.beginSheetModal(for: mainWin) { response in
+                    if response == .alertFirstButtonReturn {
+                        continuation.resume(returning: (usernameField.stringValue, passwordField.stringValue))
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+        }
+        #else
+        guard let viewController = (baseView?.findViewController() ?? viewControllerForAlerts()) else { return nil }
+
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+
+        alert.addTextField { textField in
+            textField.placeholder = usernamePlaceholder
+            textField.autocapitalizationType = .none
+            textField.autocorrectionType = .no
+        }
+        alert.addTextField { textField in
+            textField.placeholder = passwordPlaceholder
+            textField.isSecureTextEntry = true
+        }
+
+        return await withCheckedContinuation { continuation in
+            let submitAction = UIAlertAction(title: submitTitle, style: .default) { _ in
+                let username = alert.textFields?.first?.text ?? ""
+                let password = alert.textFields?.last?.text ?? ""
+                continuation.resume(returning: (username, password))
+            }
+            alert.addAction(submitAction)
+
+            let cancelAction = UIAlertAction(title: cancelTitle, style: .cancel) { _ in
+                continuation.resume(returning: nil)
+            }
+            alert.addAction(cancelAction)
+
+            DispatchQueue.main.async {
+                viewController.present(alert, animated: true)
+            }
+        }
+        #endif
+    }
+
+    @MainActor
     static func showAppPrompt(
         title: String,
         message: String,

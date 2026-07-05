@@ -17,6 +17,25 @@ public func isProd() -> Bool {
     return isReleaseBuild || bundleHasProd
 }
 
+/// Like `assertionFailure`, but safe to ship: in dev/debug it traps so we catch
+/// the problem during development; in prod it degrades to a toast so we don't
+/// crash users. Use for "should never happen, but not worth crashing over" cases.
+public func softAssert(_ message: @autoclosure () -> String, file: StaticString = #file, line: UInt = #line) {
+    let msg = message()
+    if isProd() {
+        print("[softAssert] \(msg) (\(file):\(line))")
+        DispatchQueue.main.async {
+            BrowserStore.shared.modify { state in
+                for winID in state.windows.keys {
+                    state.windows[winID]?.toasts.append(Toast(message: msg, icon: "exclamationmark.triangle"))
+                }
+            }
+        }
+    } else {
+        assertionFailure(msg, file: file, line: line)
+    }
+}
+
 /// Suffix to apply to data directories to keep prod/dev state separate.
 /// Empty string for prod (so production data lives at the canonical path
 /// the app has always used), `-dev` for non-prod.

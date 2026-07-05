@@ -20,6 +20,16 @@ struct MCPSettings: View {
                     .padding(.top, 4)
             }
 
+            #if os(macOS)
+            Section {
+                NetworkProxyKillSwitchSection()
+            }
+
+            Section {
+                HTTPSCaptureSettingsSection()
+            }
+            #endif
+
 //            Section {
 //                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
 //                    VStack(alignment: .leading, spacing: 14) {
@@ -102,6 +112,94 @@ private struct ToolRow: View {
         }
     }
 }
+
+#if os(macOS)
+/// Opt-in switch for the local capturing proxy. Off by default (registered
+/// default sets `disableNetworkProxy` true): all webview traffic flows
+/// directly with no HTTP capture and no HTTPS MITM.
+private struct NetworkProxyKillSwitchSection: View {
+    @AppStorage(DefaultsKeys.disableNetworkProxy.rawValue) private var disabled = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $disabled.not()) {
+                Text("Enable network capture")
+                    .font(.headline)
+            }
+            .toggleStyle(.switch)
+
+            Text("Routes webview traffic through the local capturing proxy so agents can inspect HTTP (and, with the certificate below, HTTPS) requests. Turn it off if pages fail to load. Takes effect for new tabs (reload existing tabs or relaunch to apply everywhere).")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Lets the user install/trust the local MITM root so HTTPS traffic on
+/// allowlisted origins can be captured (`browser.net.*`). Without this, WebKit
+/// rejects the forged certs for proxied TLS, so allowlisted HTTPS origins are
+/// left untouched (loaded normally but uncaptured).
+private struct HTTPSCaptureSettingsSection: View {
+    @State private var trusted: Bool = false
+    @State private var working = false
+    @State private var errorText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("HTTPS capture")
+                .font(.headline)
+            Text("Plain HTTP is captured automatically. To also capture HTTPS traffic on origins you enable for capture, the agent's local certificate must be trusted. macOS will ask for your password.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Image(systemName: trusted ? "checkmark.shield.fill" : "shield.slash")
+                    .foregroundStyle(trusted ? .green : .secondary)
+                Text(trusted ? "Certificate installed — HTTPS capture enabled" : "Certificate not installed")
+                    .font(.callout)
+            }
+
+            HStack {
+                if trusted {
+                    Button("Remove Certificate") { run { try LocalCA.shared.uninstallRootTrust() } }
+                } else {
+                    Button("Install Certificate…") { run { try LocalCA.shared.installRootAsTrusted() } }
+                        .buttonStyle(.borderedProminent)
+                }
+                if working { ProgressView().controlSize(.small) }
+            }
+            .disabled(working)
+
+            if let errorText {
+                Text(errorText).font(.caption).foregroundStyle(.red)
+            }
+        }
+        .task { refresh() }
+    }
+
+    private func refresh() {
+        Task.detached {
+            let t = LocalCA.shared.isRootTrusted(forceRefresh: true)
+            await MainActor.run { self.trusted = t }
+        }
+    }
+
+    private func run(_ op: @escaping () throws -> Void) {
+        working = true
+        errorText = nil
+        Task.detached {
+            var failure: String?
+            do { try op() } catch { failure = "\(error)" }
+            let t = LocalCA.shared.isRootTrusted(forceRefresh: true)
+            await MainActor.run {
+                self.trusted = t
+                self.errorText = failure
+                self.working = false
+            }
+        }
+    }
+}
+#endif
 
 struct CopyButton: View {
     var text: String

@@ -117,14 +117,15 @@ private struct RegularTabButton: View {
         }
         .padding(.leading, isMobile() ? 14 : 8)
         .padding(.trailing, 4)
-        .frame(height: snapshot.appearance.subtitle != nil ? (isMobile() ? 56 : 40) : (isMobile() ? 44 : 30))
+        .frame(height: snapshot.appearance.subtitle != nil ? (isMobile() ? 56 : 40) : (isMobile() ? 44 : UIConstants.macTabHeight))
         .contentShape(Rectangle())
     }
 }
 
 struct NewTabCell: View {
     var windowID: ID<WindowState>
-    
+    @State private var isHovered = false
+
     var body: some View {
         HStack(spacing: 8) {
             TabIconView(icon: .sfSymbol("plus"))
@@ -134,11 +135,16 @@ struct NewTabCell: View {
                 .opacity(0.4)
                 .lineLimit(1)
             Spacer()
+            #if os(macOS)
+            NewNativeTabMenu(windowID: windowID)
+                .opacity(0.4)
+            #endif
         }
         .padding(.leading, isMobile() ? 14 : 8)
         .padding(.trailing, 4)
-        .frame(height: isMobile() ? 44 : 30)
+        .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
         .modifier(TabStyleButtonModifier(isSelected: false, pressed: {
             BrowserStore.shared.createTab(
                 withURL: nil,
