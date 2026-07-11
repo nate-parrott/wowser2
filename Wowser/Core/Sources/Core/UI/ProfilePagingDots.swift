@@ -67,9 +67,10 @@ private struct ProfileDotView: View {
     
     @State private var showingEmojiMenu = false
     @State private var hovered = false
-    
+    @State private var dropTargeted = false
+
     var body: some View {
-        let scale = hovered ? 1.1 : 1
+        let scale = (hovered || dropTargeted) ? 1.1 : 1
         Button(action: {
             // Switch to this profile when clicked
             switchToProfile()
@@ -98,6 +99,27 @@ private struct ProfileDotView: View {
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .onHover(perform: { self.hovered = $0 })
+        .overlay {
+            if dropTargeted {
+                Circle()
+                    .stroke(Color.accentColor, lineWidth: 2)
+                    .frame(width: 24, height: 24)
+            }
+        }
+        .onDrop(of: ["public.text"], isTargeted: $dropTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: String.self) { string, _ in
+                guard let string else { return }
+                DispatchQueue.main.async {
+                    BrowserStore.shared.move(
+                        tab: ID<Tab>(raw: string),
+                        toSpace: profileID,
+                        inWindow: windowID
+                    )
+                }
+            }
+            return true
+        }
         .contextMenu {
             Button(action: {}) {
                 Text("Set Profile Icon")

@@ -285,6 +285,15 @@ public class BrowserStore: DataStore<BrowserState> {
         return liveWebContents[id]
     }
 
+    /// Drops the live WKWebView for a pane without touching state. The pane
+    /// recreates its web content next time it's displayed — used when a tab
+    /// moves to a profile with a different website data store, so the webview
+    /// doesn't keep the old profile's cookies/logins.
+    public func unloadWebContent(forId id: ID<WebContent>) {
+        assertOnMainThread()
+        liveWebContents.removeValue(forKey: id)
+    }
+
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         assertOnMainThread()
         let model = self.model

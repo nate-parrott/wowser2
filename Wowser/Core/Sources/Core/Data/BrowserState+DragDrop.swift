@@ -4,18 +4,25 @@ enum TabDropDestination: Equatable {
     case ordinaryTabs(window: ID<WindowState>, before: ID<Tab>?) // if before is nil, insert at end
     case favorites(profile: ID<Profile>, before: ID<Tab>?)
     case project(project: ID<Project>, before: ID<Tab>?)
+    case space(window: ID<WindowState>, profile: ID<Profile>) // appended to that space's ordinary tabs
 }
 
 extension BrowserState {
     func canMove(tab: ID<Tab>, to dest: TabDropDestination) -> Bool {
-        guard let srcTab = tabs[tab] else { return false }
+        guard tabs[tab] != nil else { return false }
         guard let srcWindow = windowContaining(tabId: tab) else { return false }
         guard let destProfile = profile(forTabDropDest: dest) else { return false }
-        
+
+        if case .space = dest {
+            // Dropping on a space dot is explicitly a cross-profile move;
+            // only a drop on the tab's own space is a no-op.
+            return srcWindow.profile != destProfile
+        }
+
         // Return false if we are moving to a different profile
         return srcWindow.profile == destProfile
     }
-    
+
     func profile(forTabDropDest dest: TabDropDestination) -> ID<Profile>? {
         switch dest {
         case .ordinaryTabs(let window, _):
@@ -24,6 +31,8 @@ extension BrowserState {
             return profile
         case .project(let project, _):
             return projects[project]?.profile
+        case .space(_, let profile):
+            return profiles[profile]?.id
         }
     }
     
@@ -97,14 +106,56 @@ extension BrowserState {
                 insertIndex = projects[projectId]?.tabs.count ?? 0
             }
             projects[projectId]?.tabs.insert(tab, at: insertIndex)
+
+        case .space(let windowId, let profileId):
+            guard windows[windowId] != nil else { return }
+            if windows[windowId]!.perProfileData[profileId] == nil {
+                windows[windowId]!.perProfileData[profileId] = .init(tabs: [])
+            }
+            windows[windowId]!.perProfileData[profileId]!.tabs.append(tab)
+
+            // Clear baseInfo, same as moving to ordinary tabs
+            modifyTab(id: tab) { tab in
+                for i in 0..<tab.panes.count {
+                    tab.panes[i]!.baseInfo = nil
+                }
+            }
         }
-        
+
         // Update tab's last active window
         if let windowToActivate = window {
             modifyTab(id: tab) { tab in
                 tab.lastActiveInWindow = windowToActivate
             }
             windows[windowToActivate]?.currentTab = tab
+        }
+    }
+}
+
+extension BrowserStore {
+    /// Moves a tab into a different space (profile) within the same window.
+    /// If the destination profile uses a different website data store, the
+    /// tab's live webviews are dropped so they recreate with the right store.
+    func move(tab tabID: ID<Tab>, toSpace profileID: ID<Profile>, inWindow windowID: ID<WindowState>) {
+        assertOnMainThread()
+        let state = model
+        let dest = TabDropDestination.space(window: windowID, profile: profileID)
+        guard state.canMove(tab: tabID, to: dest) else { return }
+
+        let srcDataStore = state.windowContaining(tabId: tabID).flatMap { state.profiles[$0.profile]?.dataStoreUUID }
+        let destDataStore = state.profiles[profileID]?.dataStoreUUID
+        let paneIDs = state.tabs[tabID]?.panes.map(\.id) ?? []
+
+        modify { state in
+            state.move(tab: tabID, to: dest, makeActiveInWindow: nil)
+            let spaceName = state.profiles[profileID]?.title ?? "another space"
+            state.addToast(message: "Moved tab to \(spaceName)", icon: "arrowshape.turn.up.right", in: windowID)
+        }
+
+        if srcDataStore != destDataStore {
+            for paneID in paneIDs {
+                unloadWebContent(forId: paneID)
+            }
         }
     }
 }
