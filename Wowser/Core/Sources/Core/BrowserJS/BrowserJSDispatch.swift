@@ -46,11 +46,15 @@ enum BrowserJSDispatch {
 
         switch fn {
         case "tabs.list":
-            let info = try await host.tabsList(windowId: optStr("windowId"))
+            let info = try await host.tabsList(windowId: optStr("windowId"), spaceId: optStr("spaceId"))
             return try encodeValue(info)
         case "tabs.open":
             guard let url = str("url") else { throw BrowserJSError.invalidArgs("url") }
             let id = try await host.tabsOpen(url: url, background: bool("background"), windowId: optStr("windowId"))
+            return try encodeValue(id)
+        case "tabs.openSplit":
+            guard let url = str("url") else { throw BrowserJSError.invalidArgs("url") }
+            let id = try await host.tabsOpenSplit(url: url, besideTabId: optStr("besideTabId"), activate: bool("activate", true), windowId: optStr("windowId"))
             return try encodeValue(id)
         case "tabs.openGhost":
             guard let url = str("url") else { throw BrowserJSError.invalidArgs("url") }
@@ -174,6 +178,29 @@ enum BrowserJSDispatch {
             let enabled = bool("enabled", true)
             try await host.netCaptureOrigin(origin: origin, enabled: enabled)
             return nil
+        case "splits.list":
+            let info = try await host.splitsList(windowId: optStr("windowId"), spaceId: optStr("spaceId"))
+            return try encodeValue(info)
+        case "splits.get":
+            guard let tabId = str("tabId") else { throw BrowserJSError.invalidArgs("tabId") }
+            let info = try await host.splitsGet(tabId: tabId)
+            return try encodeValue(info)
+        case "splits.separate":
+            guard let tabId = str("tabId") else { throw BrowserJSError.invalidArgs("tabId") }
+            let ids = try await host.splitsSeparate(tabId: tabId)
+            return try encodeValue(ids)
+
+        case "spaces.list":
+            let info = try await host.spacesList(windowId: optStr("windowId"), includeHidden: bool("includeHidden", false))
+            return try encodeValue(info)
+        case "spaces.getCurrent":
+            let info = try await host.spacesGetCurrent(windowId: optStr("windowId"))
+            return try encodeValue(info)
+        case "spaces.activate":
+            guard let spaceId = str("spaceId") else { throw BrowserJSError.invalidArgs("spaceId") }
+            try await host.spacesActivate(spaceId: spaceId, windowId: optStr("windowId"))
+            return nil
+
         case "webapp.create":
             guard let name = str("name") else { throw BrowserJSError.invalidArgs("name") }
             let files = (raw["files"] as? [String: Any])?.compactMapValues { $0 as? String } ?? [:]
@@ -195,9 +222,10 @@ enum BrowserJSBridgeSource {
     static let browserObjectJS: String = """
     var browser = {
         tabs: {
-            list:     function(opts) { opts = opts || {}; return __browserCall('tabs.list', { windowId: opts.windowId }); },
+            list:     function(opts) { opts = opts || {}; return __browserCall('tabs.list', { windowId: opts.windowId, spaceId: opts.spaceId }); },
             open:     function(url, opts) { opts = opts || {}; return __browserCall('tabs.open', { url: url, background: !!opts.background, windowId: opts.windowId }); },
             openGhost:function(url, opts) { opts = opts || {}; return __browserCall('tabs.openGhost', { url: url, windowId: opts.windowId }); },
+            openSplit:function(url, opts) { opts = opts || {}; return __browserCall('tabs.openSplit', { url: url, besideTabId: opts.besideTabId, activate: opts.activate !== false, windowId: opts.windowId }); },
             openHTML: function(html, opts) { opts = opts || {}; return __browserCall('tabs.openHTML', { html: html, title: opts.title, windowId: opts.windowId }); },
             close:    function(id) { return __browserCall('tabs.close', { id: id }); },
             activate: function(id) { return __browserCall('tabs.activate', { id: id }); },
@@ -222,6 +250,16 @@ enum BrowserJSBridgeSource {
             list:       function() { return __browserCall('windows.list', {}); },
             getCurrent: function() { return __browserCall('windows.getCurrent', {}); },
             getById:    function(id) { return __browserCall('windows.getById', { id: id }); },
+        },
+        splits: {
+            list:     function(opts) { opts = opts || {}; return __browserCall('splits.list', { windowId: opts.windowId, spaceId: opts.spaceId }); },
+            get:      function(tabId) { return __browserCall('splits.get', { tabId: tabId }); },
+            separate: function(tabId) { return __browserCall('splits.separate', { tabId: tabId }); },
+        },
+        spaces: {
+            list:       function(opts) { opts = opts || {}; return __browserCall('spaces.list', { windowId: opts.windowId, includeHidden: !!opts.includeHidden }); },
+            getCurrent: function(opts) { opts = opts || {}; return __browserCall('spaces.getCurrent', { windowId: opts.windowId }); },
+            activate:   function(spaceId, opts) { opts = opts || {}; return __browserCall('spaces.activate', { spaceId: spaceId, windowId: opts.windowId }); },
         },
         net: {
             log:           function(filter)  { return __browserCall('net.log', filter || {}); },

@@ -117,7 +117,9 @@ private struct RegularTabButton: View {
         }
         .padding(.leading, isMobile() ? 14 : 8)
         .padding(.trailing, 4)
-        .frame(height: snapshot.appearance.subtitle != nil ? (isMobile() ? 56 : 40) : (isMobile() ? 44 : UIConstants.macTabHeight))
+        // Fixed regardless of subtitle: rows must not resize when a terminal
+        // tab starts or stops running a command.
+        .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
     }
 }

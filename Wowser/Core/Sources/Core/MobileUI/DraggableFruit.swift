@@ -28,18 +28,18 @@ struct DraggableFruit: View {
                 .offset(x: shadowOffset * 0.5, y: shadowOffset)
             
             ZStack {
-                Image(.fruit)
+                Image("Fruit", bundle: .module)
                     .resizable()
                     .frame(width: k, height: k)
-                
-                Image(.leafLeft)
+
+                Image("LeafLeft", bundle: .module)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .rotationEffect(leftLeafRotation, anchor: .bottomTrailing)
                     .frame(width: k * 0.305)
                     .position(x: k * 0.3, y: k * 0.27)
                 
-                Image(.leafRight)
+                Image("LeafRight", bundle: .module)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .rotationEffect(rightLeafRotation, anchor: .init(x: 0, y: 0.7))

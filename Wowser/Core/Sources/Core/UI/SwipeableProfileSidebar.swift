@@ -28,7 +28,7 @@ private struct SidebarSwipeSnapshot: Equatable {
     let currentProfileID: ID<Profile>
     
     var profileIDs: [ID<Profile>] {
-        profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }).map({ $0.id })
+        profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder }).map({ $0.id })
     }
 }
 
@@ -126,7 +126,7 @@ private struct ProfilePageSnapshot: Equatable {
         self.windowID = windowID
         self.profileID = profileID
         // Only surface the editable space name when there's more than one space.
-        self.showSpaceTitle = state.profiles.count > 1
+        self.showSpaceTitle = state.visibleProfiles.count > 1
         
         // Extract favorites from profile
         var favoriteIDs = [ID<Tab>]()
@@ -242,7 +242,7 @@ private struct NewProfileSnapshot: Equatable {
     var profiles: [ID<Profile>: Profile]
 
     var sortedProfiles: [Profile] {
-        profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder })
+        profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
     }
 
     var lastProfile: Profile? { sortedProfiles.last }

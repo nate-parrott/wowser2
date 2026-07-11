@@ -11,8 +11,16 @@ import Foundation
 //   - "tabId" in this surface = `ID<WebContent>.raw` (per-pane webview id).
 //     A multi-pane split tab exposes one tabId per pane.
 //   - "windowId" = `ID<WindowState>.raw`.
+//   - "splitId" = `ID<Tab>.raw`. A split is just a `Tab` holding >1 pane, so
+//     every tabId belongs to exactly one splitId (of size 1 when unsplit).
+//   - "spaceId" = `ID<Profile>.raw`. Spaces are profiles. A window displays one
+//     space at a time, and each space keeps its OWN tab list per window
+//     (`WindowState.perProfileData`) — so "the tabs in a space" is only
+//     meaningful relative to a window.
 public protocol BrowserJSHost: AnyObject, Sendable {
-    func tabsList(windowId: String?) async throws -> [BrowserJSTabInfo]
+    /// `spaceId` nil = the window's currently-displayed space (the only tabs the
+    /// user can see). Pass a spaceId to enumerate a background space's tabs.
+    func tabsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSTabInfo]
     func tabsOpen(url: String, background: Bool, windowId: String?) async throws -> String
     /// Open a ghost (agent) tab — like `tabsOpen` with `background=true`, but
     /// the pane is flagged so the sidebar dims it and surfaces "Agent tab" as
@@ -20,11 +28,35 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// cleared as soon as the user activates the tab from the sidebar.
     func tabsOpenGhost(url: String, windowId: String?) async throws -> String
     func tabsOpenHTML(html: String, title: String?, windowId: String?) async throws -> String
+    /// Open `url` as a NEW PANE inside an existing split, rather than as a new
+    /// tab. The pane joins the tab containing `besideTabId` (default: the
+    /// window's current tab). Returns the new pane's tabId — navigate that id
+    /// later to retarget the pane in place instead of stacking more panes.
+    func tabsOpenSplit(url: String, besideTabId: String?, activate: Bool, windowId: String?) async throws -> String
     func tabsClose(id: String) async throws
+    /// Activates the tab containing this pane AND focuses the pane within its split.
     func tabsActivate(id: String) async throws
     func tabsMove(id: String, toIndex: Int) async throws
     func tabsGet(id: String) async throws -> BrowserJSTabInfo
     func tabsNavigate(id: String, url: String) async throws
+
+    // MARK: - Splits
+
+    /// Every split in the window (including single-pane tabs, which are splits of size 1).
+    func splitsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSSplitInfo]
+    /// The split containing `tabId` (a pane id).
+    func splitsGet(tabId: String) async throws -> BrowserJSSplitInfo
+    /// Tear a split apart into one tab per pane. Returns the pane ids, in order.
+    func splitsSeparate(tabId: String) async throws -> [String]
+
+    // MARK: - Spaces (profiles)
+
+    /// `windowId` nil = the current window; `tabIds`/`isCurrent` are reported
+    /// relative to it. `includeHidden` surfaces spaces omitted from the sidebar.
+    func spacesList(windowId: String?, includeHidden: Bool) async throws -> [BrowserJSSpaceInfo]
+    func spacesGetCurrent(windowId: String?) async throws -> BrowserJSSpaceInfo?
+    /// Switch a window to display `spaceId`.
+    func spacesActivate(spaceId: String, windowId: String?) async throws
 
     func contentRead(id: String, as kind: String) async throws -> String
     func contentScreenshot(id: String) async throws -> BrowserJSImage
@@ -72,6 +104,30 @@ public protocol BrowserJSHost: AnyObject, Sendable {
 public extension BrowserJSHost {
     func webappCreate(name: String, files: [String: String], exposeBrowserJS: Bool) async throws -> String {
         throw BrowserJSError.notImplemented("webapp.create")
+    }
+
+    // Defaults so test doubles need only implement what they exercise.
+    // BrowserJSLiveHost overrides every one of these.
+    func tabsOpenSplit(url: String, besideTabId: String?, activate: Bool, windowId: String?) async throws -> String {
+        throw BrowserJSError.notImplemented("tabs.openSplit")
+    }
+    func splitsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSSplitInfo] {
+        throw BrowserJSError.notImplemented("splits.list")
+    }
+    func splitsGet(tabId: String) async throws -> BrowserJSSplitInfo {
+        throw BrowserJSError.notImplemented("splits.get")
+    }
+    func splitsSeparate(tabId: String) async throws -> [String] {
+        throw BrowserJSError.notImplemented("splits.separate")
+    }
+    func spacesList(windowId: String?, includeHidden: Bool) async throws -> [BrowserJSSpaceInfo] {
+        throw BrowserJSError.notImplemented("spaces.list")
+    }
+    func spacesGetCurrent(windowId: String?) async throws -> BrowserJSSpaceInfo? {
+        throw BrowserJSError.notImplemented("spaces.getCurrent")
+    }
+    func spacesActivate(spaceId: String, windowId: String?) async throws {
+        throw BrowserJSError.notImplemented("spaces.activate")
     }
 }
 
@@ -144,9 +200,68 @@ public struct BrowserJSTabInfo: Codable, Equatable, Sendable {
     public var index: Int?
     public var kind: String   // "web" | "terminal" | "webapp" (for now: web|terminal)
     public var isGhost: Bool
+    /// The split (`ID<Tab>`) this pane belongs to. Unsplit tabs still have one.
+    public var splitId: String?
+    /// All pane ids in this pane's split, in display order (includes `id`).
+    /// Count > 1 means the user sees this tab side-by-side with others.
+    public var splitTabIds: [String]
+    /// Whether this pane is the focused one within its split.
+    public var isFocusedInSplit: Bool
+    /// The space (`ID<Profile>`) whose tab list contains this pane's tab.
+    public var spaceId: String?
 
-    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false) {
+    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false, splitId: String? = nil, splitTabIds: [String] = [], isFocusedInSplit: Bool = true, spaceId: String? = nil) {
         self.id = id; self.windowId = windowId; self.url = url; self.title = title; self.index = index; self.kind = kind; self.isGhost = isGhost
+        self.splitId = splitId; self.splitTabIds = splitTabIds; self.isFocusedInSplit = isFocusedInSplit; self.spaceId = spaceId
+    }
+}
+
+/// A split = one `Tab` holding one or more panes. Single-pane tabs are splits of size 1.
+public struct BrowserJSSplitInfo: Codable, Equatable, Sendable {
+    public var id: String            // ID<Tab>
+    public var windowId: String?
+    public var spaceId: String?
+    /// Index in the window's tab strip.
+    public var index: Int?
+    /// Pane ids, left-to-right. Each is a valid `tabId` elsewhere in this API.
+    public var tabIds: [String]
+    public var focusedTabId: String?
+    public var title: String?
+
+    public init(id: String, windowId: String? = nil, spaceId: String? = nil, index: Int? = nil, tabIds: [String], focusedTabId: String? = nil, title: String? = nil) {
+        self.id = id; self.windowId = windowId; self.spaceId = spaceId; self.index = index
+        self.tabIds = tabIds; self.focusedTabId = focusedTabId; self.title = title
+    }
+}
+
+/// A space (a `Profile`). `tabIds`/`splitIds`/`isCurrent` are relative to the
+/// window they were resolved against — a space holds a different tab list in
+/// each window.
+public struct BrowserJSSpaceInfo: Codable, Equatable, Sendable {
+    public var id: String
+    /// User-entered title, if any.
+    public var title: String?
+    /// AI-generated title, shown as a placeholder when `title` is empty.
+    public var autoTitle: String?
+    /// What the UI actually shows: `title ?? autoTitle ?? "Space N"`.
+    public var displayName: String
+    public var emoji: String?
+    /// Creation order — the space's position in the sidebar carousel.
+    public var index: Int
+    public var hidden: Bool
+    /// True if `windowId` is currently displaying this space.
+    public var isCurrent: Bool
+    /// Every window currently displaying this space.
+    public var windowIds: [String]
+    /// Pane ids of this space's tabs, in the resolved window.
+    public var tabIds: [String]
+    /// Split (`ID<Tab>`) ids of this space's tabs, in the resolved window.
+    public var splitIds: [String]
+
+    public init(id: String, title: String? = nil, autoTitle: String? = nil, displayName: String, emoji: String? = nil, index: Int = 0, hidden: Bool = false, isCurrent: Bool = false, windowIds: [String] = [], tabIds: [String] = [], splitIds: [String] = []) {
+        self.id = id; self.title = title; self.autoTitle = autoTitle; self.displayName = displayName
+        self.emoji = emoji; self.index = index; self.hidden = hidden; self.isCurrent = isCurrent
+        self.windowIds = windowIds; self.tabIds = tabIds; self.splitIds = splitIds
     }
 }
 
@@ -166,15 +281,21 @@ public struct BrowserJSWindowInfo: Codable, Equatable, Sendable {
     public var id: String
     public var tabIds: [String]
     public var currentTabId: String?
+    /// The space this window is currently displaying. `tabIds` are that space's tabs.
+    public var spaceId: String?
+    /// Split (`ID<Tab>`) ids in the window's tab strip, in order.
+    public var splitIds: [String]
 
-    public init(id: String, tabIds: [String], currentTabId: String?) {
+    public init(id: String, tabIds: [String], currentTabId: String?, spaceId: String? = nil, splitIds: [String] = []) {
         self.id = id; self.tabIds = tabIds; self.currentTabId = currentTabId
+        self.spaceId = spaceId; self.splitIds = splitIds
     }
 }
 
 public enum BrowserJSError: LocalizedError, Equatable {
     case tabNotFound(String)
     case windowNotFound(String)
+    case spaceNotFound(String)
     case invalidArgs(String)
     case timeout
     case notImplemented(String)
@@ -184,6 +305,7 @@ public enum BrowserJSError: LocalizedError, Equatable {
         switch self {
         case .tabNotFound(let id): return "tab not found: \(id)"
         case .windowNotFound(let id): return "window not found: \(id)"
+        case .spaceNotFound(let id): return "space not found: \(id)"
         case .invalidArgs(let msg): return "invalid args: \(msg)"
         case .timeout: return "timeout"
         case .notImplemented(let what): return "not implemented in v1: \(what)"

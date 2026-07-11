@@ -163,15 +163,28 @@ extension URL {
         return pathComponents.count == 0
     }
 
+    /// Icon to use when the page didn't declare a favicon of its own. Google's s2
+    /// service resolves an icon for a domain by whatever means the site offers
+    /// (`/favicon.ico`, `<link rel=icon>`, web manifest), so it succeeds for plenty
+    /// of sites where a bare `/favicon.ico` guess 404s.
+    ///
+    /// Only the host is sent — never the full URL, which would hand Google the
+    /// user's browsing path.
     public var inferredFaviconURL: URL {
-        return URL(string: "/favicon.ico", relativeTo: self)!
+        return googleFaviconURL ?? URL(string: "/favicon.ico", relativeTo: self)!
     }
-    
-    var googleFaviconURL: URL? {
-        if let host {
-            return URL(string: "https://www.google.com/s2/favicons?domain=\(host)&sz=64")
-        }
-        return nil
+
+    public var googleFaviconURL: URL? {
+        guard let host else { return nil }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.google.com"
+        components.path = "/s2/favicons"
+        components.queryItems = [
+            URLQueryItem(name: "domain", value: host),
+            URLQueryItem(name: "sz", value: "64"),
+        ]
+        return components.url
     }
 
     public func hasRootHost(_ host: String) -> Bool {

@@ -68,7 +68,7 @@ struct MCPSettings: View {
     private var displayURL: String { mcpURL.isEmpty ? "<starting…>" : mcpURL }
 
     private var claudeAddCommand: String {
-        "claude mcp add --transport http \(isProd() ? "tangerine" : "tangerinedev") \(displayURL)"
+        "claude mcp add --scope user --transport http \(isProd() ? "tangerine" : "tangerinedev") \(displayURL)"
     }
 
     private var mcpJSONSnippet: String {

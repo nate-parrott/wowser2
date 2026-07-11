@@ -134,6 +134,15 @@ extension BrowserState {
 }
 
 extension NativePageKey {
+    /// Tidy rendering of a terminal cwd for a tab title/subtitle: "~", "/", or
+    /// the last path component (narrow tab strips can't show more).
+    static func prettyCwd(_ cwd: String?) -> String? {
+        guard let cwd, !cwd.isEmpty else { return nil }
+        if cwd == NSHomeDirectory() { return "~" }
+        if cwd == "/" { return "/" }
+        return (cwd as NSString).lastPathComponent
+    }
+
     @ViewBuilder
     func favicon(size: CGFloat = 16) -> some View {
         // HACK: is it ok to drop size?
@@ -210,10 +219,16 @@ extension NativePageKey {
             urlFieldTextDeselected: info.url?.hostWithoutWWW ?? ""
         )
         switch self {
-        case .terminal:
-            appearance.icon = .terminal
+        case .terminal(let cwd, _):
+            let command = info.terminalForegroundCommand?.nilIfEmpty
+            appearance.icon = .terminal(running: command != nil)
             let titleFromTerm = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
             appearance.title = titleFromTerm ?? "Terminal"
+            // While a command runs the title shows the command, so surface the
+            // cwd underneath it — otherwise the title *is* the cwd.
+            if command != nil {
+                appearance.subtitle = NativePageKey.prettyCwd(cwd)
+            }
             appearance.urlFieldTextSelected = appearance.title
             appearance.urlFieldTextDeselected = appearance.title
         case .vscode(let folder):

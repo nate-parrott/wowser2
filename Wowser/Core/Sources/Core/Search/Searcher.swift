@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import Foundation
+import CoreML
 
 struct SearchableItem: Equatable {
     enum Content: Equatable {
@@ -135,7 +136,7 @@ extension CharacterSet {
 
 @MainActor public class Searcher: ObservableObject {
     @Published var results = [SearchResult]()
-    var n = 5
+    var n = 6
     
     init() {
         
@@ -561,14 +562,23 @@ enum OmniboxClassifierLabel: String, Equatable {
     case nav
     case chat
     case search
-    
-    @available(macOS 14.0, *)
-    static let sharedModel: OmniboxClassifier? = try? OmniboxClassifier()
-    
-    static func preheat() {
-        if #available(macOS 14.0, *) {
-            _ = OmniboxClassifierLabel.sharedModel
+
+    /// Loaded straight from the compiled model in the resource bundle rather
+    /// than through the class Xcode generates from `OmniboxClassifier.mlmodel`.
+    /// Only Xcode's build system compiles `.mlmodel`; under plain `swift build`
+    /// neither the generated class nor the `.mlmodelc` exists, so referencing
+    /// the class breaks the package build outright. This way the CLI build
+    /// compiles and simply gets `nil` — `classifyQuery` falls back to its
+    /// heuristics — while app builds behave exactly as before.
+    static let sharedModel: MLModel? = {
+        guard let url = Bundle.module.url(forResource: "OmniboxClassifier", withExtension: "mlmodelc") else {
+            return nil
         }
+        return try? MLModel(contentsOf: url)
+    }()
+
+    static func preheat() {
+        _ = OmniboxClassifierLabel.sharedModel
     }
 }
 
@@ -579,13 +589,12 @@ func classifyQuery(_ query: String) -> OmniboxClassifierLabel? {
     if query.count < 3 {
         return nil
     }
-    if #available(macOS 14.0, *) {
-        guard let model = OmniboxClassifierLabel.sharedModel else { return nil }
-        let label = try! model.prediction(input: .init(text: query.lowercased())).label
-        return OmniboxClassifierLabel(rawValue: label)
-    } else {
-        return nil
-    }
+    guard let model = OmniboxClassifierLabel.sharedModel,
+          let input = try? MLDictionaryFeatureProvider(dictionary: ["text": query.lowercased()]),
+          let output = try? model.prediction(from: input),
+          let label = output.featureValue(for: "label")?.stringValue
+    else { return nil }
+    return OmniboxClassifierLabel(rawValue: label)
 }
 
 // This hits disk, but should be ok for fast path since it's just a single directory op

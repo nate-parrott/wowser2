@@ -27,7 +27,7 @@ public actor MCPServer {
 
     private var listenChannel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
-    private var transport: StatefulHTTPServerTransport?
+    private var transport: StatelessHTTPServerTransport?
     private var server: Server?
     private(set) public var boundPort: Int?
     private(set) public var authKey: String?
@@ -55,24 +55,49 @@ public actor MCPServer {
         }()
         self.authKey = key
 
+        // Stateless: no session state, so every client can `initialize`
+        // independently. No SessionValidator (there is no session to validate),
+        // and `.jsonOnly` because stateless never opens an SSE stream.
         let pipeline = StandardValidationPipeline(validators: [
             OriginValidator.localhost(),
-            AcceptHeaderValidator(mode: .sseRequired),
+            AcceptHeaderValidator(mode: .jsonOnly),
             ContentTypeValidator(),
             ProtocolVersionValidator(),
-            SessionValidator(),
         ])
 
-        let transport = StatefulHTTPServerTransport(validationPipeline: pipeline)
-        let server = Server(
-            name: isProd() ? "Tangerine" : "TangerineDev",
-            version: "0.1.0",
-            capabilities: Server.Capabilities(tools: .init(listChanged: false))
-        )
+        let transport = StatelessHTTPServerTransport(validationPipeline: pipeline)
+        let serverName = isProd() ? "Tangerine" : "TangerineDev"
+        let serverVersion = "0.1.0"
+        let capabilities = Server.Capabilities(tools: .init(listChanged: false))
+        let server = Server(name: serverName, version: serverVersion, capabilities: capabilities)
         self.transport = transport
         self.server = server
         await registerHandlers(on: server)
         try await server.start(transport: transport)
+
+        // `Server.start()` installs a default `initialize` handler that rejects
+        // a second call with "Server is already initialized" — the same
+        // one-client-forever lockout the stateless transport just removed, one
+        // layer up. We serve many independent, short-lived CLI clients against
+        // one long-lived Server, so re-initialization must be allowed. Override
+        // it *after* start(), since start() is what registers the default.
+        //
+        // Safe because `Server.Configuration.default` is non-strict: the
+        // `isInitialized` flag this skips setting only gates requests when
+        // `configuration.strict == true`. If we ever enable strict mode, this
+        // breaks and initialize must set that state instead.
+        await server.withMethodHandler(Initialize.self) { params in
+            // Mirrors the SDK's internal `Version.negotiate`, which isn't public.
+            let negotiated = Version.supported.contains(params.protocolVersion)
+                ? params.protocolVersion
+                : Version.latest
+            return Initialize.Result(
+                protocolVersion: negotiated,
+                capabilities: capabilities,
+                serverInfo: Server.Info(name: serverName, version: serverVersion),
+                instructions: nil
+            )
+        }
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         self.eventLoopGroup = group
@@ -287,12 +312,12 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = HTTPServerRequestPart
     typealias OutboundOut = HTTPServerResponsePart
 
-    private let transport: StatefulHTTPServerTransport
+    private let transport: StatelessHTTPServerTransport
     private let authKey: String
     private struct State { var head: HTTPRequestHead; var body: ByteBuffer }
     private var state: State?
 
-    init(transport: StatefulHTTPServerTransport, authKey: String) {
+    init(transport: StatelessHTTPServerTransport, authKey: String) {
         self.transport = transport
         self.authKey = authKey
     }
@@ -337,7 +362,7 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         }
         // Strip the auth key from the path before handing to the transport,
         // so the transport sees a clean `/mcp` regardless of the URL the
-        // client used. (StatefulHTTPServerTransport may route by path.)
+        // client used. (StatelessHTTPServerTransport may route by path.)
         let req = HTTPRequest(method: state.head.method.rawValue, headers: headers, body: bodyData, path: "/mcp")
         let resp = await transport.handleRequest(req)
 

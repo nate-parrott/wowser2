@@ -54,12 +54,11 @@ public class ThumbnailCache {
             let paneId = pane.id
             
             Task {
-                // Find the web content
-                guard let webContent = BrowserStore.shared.getOrCreateWebContent(
-                    forId: paneId, 
-                    toBeActiveInWindow: tab.lastActiveInWindow ?? BrowserStore.shared.model.windows.keys.first!
-                ) else { return }
-                
+                // Only thumbnail panes that are already loaded — an unloaded pane has
+                // nothing on screen to capture, and forcing one to load here would
+                // instantiate a WKWebView that never gets reclaimed.
+                guard let webContent = BrowserStore.shared.existingWebContent(forId: paneId) else { return }
+
                 // High-performance screenshot configuration
                 let config = WKSnapshotConfiguration()
                 config.afterScreenUpdates = false // Don't wait for screen updates for better performance

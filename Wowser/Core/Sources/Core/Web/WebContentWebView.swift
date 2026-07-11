@@ -111,6 +111,21 @@ public class WebContentWebView: WKWebView {
         }
         return result
     }
+
+    /// Key equivalents the browser always owns, no matter what the page wants.
+    /// WKWebView's `performKeyEquivalent` hands the event to the web process
+    /// first, so apps like VS Code (served in a tab) can swallow Cmd+T before
+    /// the main menu ever sees it. Route these straight to the menu instead.
+    private static let reservedKeyEquivalents: Set<String> = ["t"]
+
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .command, let chars = event.charactersIgnoringModifiers?.lowercased(),
+           Self.reservedKeyEquivalents.contains(chars) {
+            return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+        }
+        return super.performKeyEquivalent(with: event)
+    }
     
     private var darkMode = false {
         didSet {

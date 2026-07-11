@@ -25,6 +25,7 @@ public struct SettingsView: View {
             if #available(macOS 15.0, iOS 18.0, *) {
                 TabView {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
+                    SwiftUI.Tab(content: { ProfilesSettings() }, label: { Text("Profiles") })
                     SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
                     SwiftUI.Tab(content: { MCPSettings() }, label: { Text("MCP") })
                     SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
@@ -89,6 +90,57 @@ public struct SettingsView: View {
                 }
                 .help("How strongly each space's auto-generated color scheme washes over the window background")
             }
+        }
+    }
+}
+
+struct ProfilesSettings: View {
+    var body: some View {
+        Form {
+            HiddenProfilesSection()
+        }
+    }
+}
+
+/// Lists profiles hidden via right-click on their paging dot, so they can be restored.
+private struct HiddenProfilesSection: View {
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { HiddenProfilesSnapshot(state: $0) }) { snapshot in
+            Section("Hidden Profiles") {
+                if snapshot.profiles.isEmpty {
+                    Text("No hidden profiles. Right-click a profile dot in the sidebar to hide one.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(snapshot.profiles, id: \.id.raw) { profile in
+                        HStack {
+                            Text(profile.displayName)
+                            Spacer()
+                            Button("Restore") {
+                                BrowserStore.shared.modify { $0.unhideProfile(profile.id) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct HiddenProfilesSnapshot: Equatable {
+    struct Entry: Equatable {
+        var id: ID<Profile>
+        var displayName: String
+    }
+    var profiles: [Entry]
+
+    init(state: BrowserState) {
+        profiles = state.hiddenProfiles.map { profile in
+            let name = profile.title?.nilIfEmpty ?? profile.autoTitle?.nilIfEmpty ?? "Space \(profile.creationOrder + 1)"
+            if let emoji = profile.emoji?.nilIfEmpty {
+                return Entry(id: profile.id, displayName: "\(emoji) \(name)")
+            }
+            return Entry(id: profile.id, displayName: name)
         }
     }
 }

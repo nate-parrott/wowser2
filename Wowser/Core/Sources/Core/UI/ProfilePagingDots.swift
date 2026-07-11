@@ -28,6 +28,7 @@ private struct ProfilePagingDotsSnapshot: Equatable {
     
     var orderedProfileIDs: [ID<Profile>] {
         profiles.values
+            .filter({ !$0.isHidden })
             .sorted(by: { $0.creationOrder < $1.creationOrder })
             .map(\.id)
     }
@@ -184,7 +185,15 @@ private struct ProfileDotView: View {
             }
             
             Divider()
-            
+
+            if canHideProfile() {
+                Button(action: {
+                    hideProfile()
+                }) {
+                    Text("Hide Profile")
+                }
+            }
+
             // Only show Delete Profile if we have more than one profile
             if canDeleteProfile() {
                 Button(action: {
@@ -215,6 +224,18 @@ private struct ProfileDotView: View {
         }
     }
     
+    private func canHideProfile() -> Bool {
+        BrowserStore.shared.model.canHideProfile(profileID)
+    }
+
+    private func hideProfile() {
+        BrowserStore.shared.modify { state in
+            guard state.canHideProfile(profileID) else { return }
+            state.hideProfile(profileID)
+            state.addToast(message: "Profile hidden — restore it in Settings", icon: "eye.slash", in: windowID)
+        }
+    }
+
     private func canDeleteProfile() -> Bool {
         // Check if we have more than one profile (we never want to delete the last profile)
         let profileCount = BrowserStore.shared.model.profiles.count

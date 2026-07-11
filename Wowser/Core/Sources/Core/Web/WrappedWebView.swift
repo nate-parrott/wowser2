@@ -93,8 +93,9 @@ public struct WrappedWebView: View {
         }
 
         // Hidden find button for keyboard shortcut. Gated to the focused pane so
-        // Cmd+F in a split view only fires once.
-        if isPaneFocused, extractedReaderContent == nil {
+        // Cmd+F in a split view only fires once. Suppressed on VS Code tabs, where
+        // Cmd+F belongs to the editor's own find.
+        if isPaneFocused, extractedReaderContent == nil, nativePageKey?.isVSCode != true {
             Button("", action: toggleFindInPage)
                 .keyboardShortcut("f", modifiers: .command)
                 .opacity(0)

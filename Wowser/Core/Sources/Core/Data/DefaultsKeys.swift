@@ -27,7 +27,7 @@ public enum DefaultsKeys: String {
     case Chatbot // Chatbot
     
     case enableGoDirectQueries // bool
-    case lastShownWelcomePageForPageVersion
+    case lastShownWelcomePageForPageVersion // int
     case searchToolbarEnabled // bool
 
     case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
@@ -43,6 +43,8 @@ public enum DefaultsKeys: String {
     case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
 
     case spaceThemeIntensity // double 0–2 — scales the space theme's background gradient opacity (1 = default)
+
+    case devModeDomains // string — JSON [domain: DevModeDomainConfig]; see DevMode.swift
 }
 
 public extension DefaultsKeys {

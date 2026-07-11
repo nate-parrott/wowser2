@@ -9,6 +9,38 @@ Prefer to store application state in `BrowserStore`, an object that protect a va
 
 `BrowserState` is a persisted value type, so only store not-huge data that can be converted to JSON. (E.g. don't store images or function callbacks here.)
 
+## Building
+
+Two build systems compile `Core`: `swift build` (from `Wowser/Core/`) and Xcode,
+which consumes `Core` as a local package. Keep both green.
+
+**Never run two builds at once, and never edit a source file while a build is
+running.** Both build systems compile `Core` as one whole module, so a file that
+changes mid-build produces `error: input file '<path>' was modified during the
+build` plus a spray of *bogus, unrelated* type errors in other files (missing
+arguments, actor-isolation violations, unknown members). These phantom errors
+look completely real. If you see "modified during the build" anywhere in the
+output, throw the entire run away and rebuild serially before you believe a
+single error in it. Do not start "fixing" what it reported. This especially bites
+when a `git stash` / `git checkout` overlaps a background build, or when two
+agents build concurrently.
+
+**Only Xcode runs Apple's code generators.** `swift build` does not, so code in
+`Core` must never reference symbols they emit:
+
+- `.mlmodel` → Xcode compiles it to `.mlmodelc` and generates a Swift class
+  (`OmniboxClassifier`). Under `swift build` the model is an "unhandled
+  resource" (expect that warning) and the class does not exist. Load models via
+  `MLModel(contentsOf:)` against `Bundle.module.url(forResource:withExtension: "mlmodelc")`,
+  which yields `nil` in CLI builds — degrade gracefully rather than crashing.
+- `Assets.xcassets` → Xcode generates `ImageResource`/`ColorResource` symbols, so
+  `Image(.fruit)` compiles in the app and fails under `swift build`. Use
+  `Image("Fruit", bundle: .module)` instead.
+
+There's no compilation condition that distinguishes the two (both define
+`SWIFT_PACKAGE`), so `#if` can't paper over this — write code that compiles
+under both and resolves resources at runtime.
+
 ## No I/O in derived getters
 
 Computed properties on data-model types (`BrowserState`, `Tab`, `Pane`, `WebContent.Info`, `NativePageKey`, etc.) and on snapshot structs MUST be pure functions of the receiver's stored fields. They must NEVER touch the disk, the network, the keychain, NSPasteboard, NSWorkspace, or any other external state. SwiftUI re-evaluates these on every snapshot equality check and body re-render, so even one syscall per access becomes a per-frame syscall in practice.

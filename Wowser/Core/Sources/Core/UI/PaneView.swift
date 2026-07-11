@@ -23,8 +23,8 @@ struct PaneView: View {
     /// top-align the search UI within it, so the input stays put as results
     /// appear/disappear instead of re-centering on every keystroke.
     /// Derivation: 42 (macHeaderHeight input bar) + 10×2 (results stack
-    /// padding) + 5 (Searcher max results) × ~34pt rows ≈ 240.
-    private static let emptySearchUIMaxHeight: CGFloat = 240
+    /// padding) + 6 (Searcher max results) × ~34pt rows ≈ 274.
+    private static let emptySearchUIMaxHeight: CGFloat = 274
 
     var body: some View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
@@ -162,13 +162,15 @@ struct PaneView: View {
             // Main web content
             ZStack {
                 if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-                    WrappedWebView(webContent: webContent, shrunk: snapshot.emptyPage)
-                        .overlay(alignment: .top) {
-                            loader.padding(6)
-                        }
-                        .overlay {
-                            elementPicker
-                        }
+                    DevModeMobileContainer(webContent: webContent) {
+                        WrappedWebView(webContent: webContent, shrunk: snapshot.emptyPage)
+                            .overlay(alignment: .top) {
+                                loader.padding(6)
+                            }
+                            .overlay {
+                                elementPicker
+                            }
+                    }
                 } else {
                     Color.clear
                 }

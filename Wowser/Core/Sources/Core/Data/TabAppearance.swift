@@ -7,7 +7,8 @@ struct TabAppearance: Equatable, Codable {
     enum Icon: Equatable, Codable {
         case favicon(URL?) // image url
         case sfSymbol(String)
-        case terminal // terminal-glyph chip for native terminal tabs
+        case emoji(String) // user-chosen tab icon
+        case terminal(running: Bool) // terminal-glyph chip; dimmed when idle at the prompt
         case vscode  // VS Code-glyph chip
         case files   // file-browser-glyph chip
         case empty
@@ -116,6 +117,9 @@ extension Tab {
             appearance.isCustomTitle = true
             appearance.specialTitle = false
         }
+        if let emoji = customEmoji?.nilIfEmpty {
+            appearance.icon = .emoji(emoji)
+        }
         return appearance
     }
 }
@@ -134,8 +138,13 @@ struct TabIconView: View {
                 .font(.system(size: 12))
                 .frame(width: 16, height: 16)
 
-        case .terminal:
-            TerminalFavicon()
+        case .emoji(let emoji):
+            Text(emoji)
+                .font(.system(size: 13))
+                .frame(width: 16, height: 16)
+
+        case .terminal(let running):
+            TerminalFavicon(running: running)
         case .vscode:
             VSCodeFavicon()
         case .files:
@@ -151,8 +160,11 @@ struct TabIconView: View {
 }
 
 struct TerminalFavicon: View {
+    /// Black chip while a command runs; a lighter gray at the prompt.
+    var running = false
+
     var body: some View {
-        TintedGlyph(icon: "terminal", fg: Color.white, bg: Color.black)
+        TintedGlyph(icon: "terminal", fg: Color.white, bg: running ? Color.black : Color(white: 0.42))
     }
 }
 

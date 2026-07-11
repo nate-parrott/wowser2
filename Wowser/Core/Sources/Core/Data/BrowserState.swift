@@ -37,13 +37,20 @@ public struct Tab: Equatable, Identifiable, Codable {
     public var aiTags: AITags?
     public var focusedPaneIdx = 0
     public var customTitle: String?
-    
+    public var customEmoji: String? // User-chosen emoji shown in place of the favicon
+
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
         self.panes = .init(items: panes)
         self.lastAccessed = lastAccessed
         self.aiTags = aiTags
     }
+
+    /// The pane the user is currently interacting with, within this tab's split.
+    public var focusedPane: Pane? { panes[focusedPaneIdx] }
+
+    /// True when this tab is showing more than one pane side-by-side.
+    public var isSplit: Bool { panes.count > 1 }
 }
 
 public struct AITags: Equatable, Codable {
@@ -196,6 +203,11 @@ public struct Profile: Equatable, Codable {
     public var autoTitle: String? // AI-generated title set during tab auto-organize; shown as placeholder when `title` is empty
     public var theme: SpaceTheme? // Auto-generated gradient/tint scheme derived from the title
     public var themeGeneratedForTitle: String? // Dedupe key: the effective title `theme`/`emoji` were last generated from
+    /// Hidden profiles keep their tabs but are omitted from the sidebar carousel
+    /// and paging dots. Restorable from Settings. Optional so old persisted state decodes.
+    public var hidden: Bool?
+
+    public var isHidden: Bool { hidden == true }
 }
 
 public struct Project: Equatable, Codable {
@@ -264,6 +276,15 @@ public class BrowserStore: DataStore<BrowserState> {
         model.processAfterLoad()
     }
     
+    /// The already-live WebContent for this pane, if any. Unlike `getOrCreateWebContent`,
+    /// this never instantiates a WKWebView and never stamps `lastActiveInWindow`
+    /// (which would pin the pane against the cleaner). Use this for opportunistic work
+    /// like thumbnailing, where an unloaded pane simply has nothing to capture.
+    public func existingWebContent(forId id: ID<WebContent>) -> WebContent? {
+        assertOnMainThread()
+        return liveWebContents[id]
+    }
+
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         assertOnMainThread()
         let model = self.model

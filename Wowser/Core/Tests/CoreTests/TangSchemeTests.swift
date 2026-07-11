@@ -166,7 +166,7 @@ private final class TangMockHost: BrowserJSHost, @unchecked Sendable {
         return "webapp-tab-1"
     }
 
-    func tabsList(windowId: String?) async throws -> [BrowserJSTabInfo] {
+    func tabsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSTabInfo] {
         [BrowserJSTabInfo(id: Self.fixedTabID, windowId: "win-1", url: "tang://probe/", title: "Probe", index: 0, kind: "webapp")]
     }
 

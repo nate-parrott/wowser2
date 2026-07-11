@@ -71,6 +71,7 @@ struct ToolbarView: View {
     @Environment(\.windowID) private var windowID
 
     private let browserStore = BrowserStore.shared
+    @ObservedObject private var devModeStore = DevModeStore.shared
     @State private var isBookmarked: Bool = false
     @State private var omniboxIsFocused: Bool = false
 
@@ -126,6 +127,17 @@ struct ToolbarView: View {
 //                                .padding(.trailing)
                         }
                                             
+                        // Dev mode's one extra control: mobile viewport on/off.
+                        if let devDomain = devModeDomain(snapshot: snapshot), devModeStore.isEnabled(for: devDomain) {
+                            let mobile = devModeStore.config(for: devDomain).mobile
+                            Button(action: { devModeStore.modify(devDomain) { $0.mobile.toggle() } }) {
+                                Image(systemName: mobile ? "iphone.gen3" : "iphone.gen3.slash")
+                                    .imageScale(.medium)
+                            }
+                            .buttonStyle(ToolbarButtonStyle())
+                            .help(mobile ? "Turn off mobile viewport" : "Turn on mobile viewport")
+                        }
+
                         Button(action: toggleBookmark) {
                             Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                                 .imageScale(.medium)
@@ -166,7 +178,16 @@ struct ToolbarView: View {
                 }) {
                     Text("Copy URL")
                 }
-                
+
+                if let devDomain = devModeDomain(snapshot: snapshot) {
+                    Toggle(isOn: Binding(
+                        get: { devModeStore.isEnabled(for: devDomain) },
+                        set: { devModeStore.setEnabled($0, for: devDomain) }
+                    )) {
+                        Text("Dev Mode")
+                    }
+                }
+
 //                Toggle(isOn: $topbarLocked) {
 //                    Text("Lock Toolbar")
 //                }
@@ -233,6 +254,13 @@ struct ToolbarView: View {
                 .buttonStyle(ToolbarButtonStyle())
             }
         }
+    }
+
+    /// The dev-mode domain for this pane, or nil where dev mode doesn't apply
+    /// (native pages like the VS Code / terminal tabs, empty pages, non-http URLs).
+    private func devModeDomain(snapshot: ToolbarViewSnapshot) -> String? {
+        guard snapshot.nativeKey == nil, !snapshot.isEmptyPage else { return nil }
+        return DevModeStore.domain(for: snapshot.url)
     }
 
     private func openNativeTabInOtherType(_ key: NativePageKey) {

@@ -42,6 +42,22 @@ public struct TabContextMenu: View {
                         }
                     }
 
+                    Button(action: {
+                        setTabEmoji(tabID: tabID)
+                    }) {
+                        Text("Set Icon…")
+                    }
+
+                    if tab.customEmoji?.nilIfEmpty != nil {
+                        Button(action: {
+                            BrowserStore.shared.modify { state in
+                                state.modifyTab(id: tabID) { $0.customEmoji = nil }
+                            }
+                        }) {
+                            Text("Clear Icon")
+                        }
+                    }
+
                     if isFavorite {
                         // Remove from favorites option
                         Button(action: {
@@ -125,6 +141,25 @@ public func renameTab(tabID: ID<Tab>) {
         guard let result else { return }
         BrowserStore.shared.modify { state in
             state.modifyTab(id: tabID) { $0.customTitle = result.nilIfEmpty }
+        }
+    }
+}
+
+// Helper function to set a tab's emoji icon via a prompt. Empty input clears it.
+public func setTabEmoji(tabID: ID<Tab>) {
+    Task { @MainActor in
+        let defaultText = BrowserStore.shared.model.tabs[tabID]?.customEmoji?.nilIfEmpty ?? ""
+        let result = await Alerts.showAppPrompt(
+            title: "Set Tab Icon",
+            message: "Enter an emoji to use as this tab's icon. Leave empty to use the site's favicon.",
+            textPlaceholder: "Emoji",
+            submitTitle: "Set Icon",
+            cancelTitle: "Cancel",
+            defaultText: defaultText
+        )
+        guard let result else { return }
+        BrowserStore.shared.modify { state in
+            state.modifyTab(id: tabID) { $0.customEmoji = result.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
         }
     }
 }

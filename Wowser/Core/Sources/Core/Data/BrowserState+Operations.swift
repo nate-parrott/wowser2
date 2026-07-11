@@ -34,7 +34,38 @@ extension BrowserState {
         profiles[id] = profile
         return id
     }
-    
+
+    // MARK: - Hiding profiles
+
+    /// Profiles the user can currently see, in creation order.
+    public var visibleProfiles: [Profile] {
+        profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
+    }
+
+    public var hiddenProfiles: [Profile] {
+        profiles.values.filter({ $0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
+    }
+
+    /// We never let the user hide their way down to zero visible profiles.
+    public func canHideProfile(_ id: ID<Profile>) -> Bool {
+        profiles[id]?.isHidden == false && visibleProfiles.count > 1
+    }
+
+    /// Hides a profile and moves any window sitting on it to another visible profile.
+    /// Tabs and per-profile data are left intact so unhiding is lossless.
+    public mutating func hideProfile(_ id: ID<Profile>) {
+        guard canHideProfile(id) else { return }
+        profiles[id]?.hidden = true
+        guard let fallback = visibleProfiles.first?.id else { return }
+        for window in windows.values where window.profile == id {
+            windows[window.id]?.profile = fallback
+        }
+    }
+
+    public mutating func unhideProfile(_ id: ID<Profile>) {
+        profiles[id]?.hidden = false
+    }
+
     /// Moves a tab's pane into another tab's split view
     /// - Parameters:
     ///   - sourceTabId: The ID of the tab containing the pane to be moved

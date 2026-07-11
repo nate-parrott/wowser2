@@ -396,7 +396,7 @@ private struct ProfilePicker: View {
             state.profiles
         } main: { profiles in
             Group {
-                ForEach(profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }), id: \.id.raw) { profile in
+                ForEach(profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder }), id: \.id.raw) { profile in
                     Button {
                         switchToProfile(profileID: profile.id)
                     } label: {

@@ -91,7 +91,11 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and false
         public var recipeDetected: Bool? // Always being checked
         public var failedNavToURL: FailedNav?
-        
+        /// Native terminal tabs only: the command the PTY's foreground process
+        /// group is running (e.g. "npm run dev"), or nil at the shell prompt.
+        /// Drives the tab subtitle and the lit/dim terminal icon.
+        public var terminalForegroundCommand: String?
+
         public var committedURL: URL? {
             oldOnscreenURL ?? url
         }
@@ -110,6 +114,27 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
             if info != oldValue {
                 delegate?.webContent(self, infoDidChange: info, previous: oldValue)
             }
+        }
+    }
+
+    public static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
+    public static let mobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
+
+    /// The user agent this webview sends when `usesMobileUserAgent` is off.
+    public static var defaultUserAgent: String {
+        #if os(macOS)
+        desktopUserAgent
+        #else
+        mobileUserAgent
+        #endif
+    }
+
+    /// Dev mode's mobile emulation. Takes effect on the next navigation — callers
+    /// that want it applied to the current page should `reload()`.
+    public var usesMobileUserAgent = false {
+        didSet {
+            guard usesMobileUserAgent != oldValue else { return }
+            webview.customUserAgent = usesMobileUserAgent ? Self.mobileUserAgent : Self.defaultUserAgent
         }
     }
 
@@ -170,10 +195,10 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
 //            webview.isInspectable = true
 //        }
         #if os(macOS)
-        webview.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
+        webview.customUserAgent = Self.defaultUserAgent
         webview.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #else
-        webview.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
+        webview.customUserAgent = Self.mobileUserAgent
         #endif
         self.transparent = transparent
         self.datastoreUUID = datastoreUUID

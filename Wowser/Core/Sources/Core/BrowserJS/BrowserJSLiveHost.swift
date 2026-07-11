@@ -15,17 +15,19 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     // MARK: - Tabs
 
-    public func tabsList(windowId: String?) async throws -> [BrowserJSTabInfo] {
+    public func tabsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSTabInfo] {
         try await main {
             let state = BrowserStore.shared.model
             let targetWindow = self.resolveWindowID(windowId, state: state)
+            let space = try spaceId.map { try self.resolveSpaceID($0, state: state) }
             var out: [BrowserJSTabInfo] = []
             for (winID, win) in state.windows {
                 if let targetWindow, winID != targetWindow { continue }
-                for (idx, tabID) in win.tabs.enumerated() {
+                let space = space ?? win.profile
+                for (idx, tabID) in self.tabIDs(inWindow: win, space: space).enumerated() {
                     guard let tab = state.tabs[tabID] else { continue }
                     for pane in tab.panes {
-                        out.append(self.tabInfo(forPane: pane, tab: tab, windowID: winID, indexInWindow: idx, state: state))
+                        out.append(self.tabInfo(forPane: pane, tab: tab, windowID: winID, indexInWindow: idx, spaceID: space, state: state))
                     }
                 }
             }
@@ -74,6 +76,51 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         }
     }
 
+    public func tabsOpenSplit(url urlStr: String, besideTabId: String?, activate: Bool, windowId: String?) async throws -> String {
+        guard let url = URL(string: urlStr) else { throw BrowserJSError.invalidArgs("url") }
+        return try await mainAsync { @MainActor in
+            let state = BrowserStore.shared.model
+
+            // Resolve the split to join: the tab owning `besideTabId`, else the
+            // target window's current tab.
+            let destTabID: ID<Tab>
+            if let besideTabId {
+                guard let tabID = state.paneToTabMapping[ID<WebContent>(raw: besideTabId)] else {
+                    throw BrowserJSError.tabNotFound(besideTabId)
+                }
+                destTabID = tabID
+            } else {
+                let win: ID<WindowState>
+                if let resolved = self.resolveWindowID(windowId, state: state) {
+                    win = resolved
+                } else if let preferred = self.preferredCurrentWindow(state: state) {
+                    win = preferred
+                } else {
+                    throw BrowserJSError.windowNotFound(windowId ?? "current")
+                }
+                guard let current = state.windows[win]?.currentTab else {
+                    throw BrowserJSError.invalidArgs("window has no current tab to split; pass besideTabId")
+                }
+                destTabID = current
+            }
+            guard state.tabs[destTabID] != nil else { throw BrowserJSError.tabNotFound(destTabID.raw) }
+
+            var paneID: ID<WebContent>!
+            BrowserStore.shared.modify { st in
+                let pid = ID<WebContent>.assign()
+                paneID = pid
+                let pane = Pane(id: pid, info: .init(url: url))
+                st.modifyTab(id: destTabID) { tab in
+                    tab.panes.append(pane)
+                    if activate {
+                        tab.focusedPaneIdx = tab.panes.count - 1
+                    }
+                }
+            }
+            return paneID.raw
+        }
+    }
+
     public func tabsOpenHTML(html: String, title: String?, windowId: String?) async throws -> String {
         // Load via about:blank then write HTML once the webview is live.
         let id = try await tabsOpen(url: "about:blank", background: false, windowId: windowId)
@@ -105,11 +152,18 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             let state = BrowserStore.shared.model
             let pid = ID<WebContent>(raw: id)
             guard let tabID = state.paneToTabMapping[pid],
+                  let tab = state.tabs[tabID],
                   let winID = state.windowContaining(tabId: tabID)?.id
             else { throw BrowserJSError.tabNotFound(id) }
+            // Activating a pane inside a split must also focus that pane —
+            // otherwise the tab comes forward still showing a sibling.
+            let paneIdx = tab.panes.asArray.firstIndex { $0.id == pid }
             BrowserStore.shared.modify { st in
                 st.activate(tabId: tabID, in: winID)
                 st.unghostTab(id: tabID)
+                if let paneIdx {
+                    st.modifyTab(id: tabID) { $0.focusedPaneIdx = paneIdx }
+                }
             }
         }
     }
@@ -143,7 +197,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             else { throw BrowserJSError.tabNotFound(id) }
             let winID = state.windowContaining(tabId: tabID)?.id
             let idx = winID.flatMap { state.windows[$0]?.tabs.firstIndex(of: tabID) }
-            return self.tabInfo(forPane: pane, tab: tab, windowID: winID, indexInWindow: idx, state: state)
+            return self.tabInfo(forPane: pane, tab: tab, windowID: winID, indexInWindow: idx, spaceID: winID.flatMap { state.windows[$0]?.profile }, state: state)
         }
     }
 
@@ -302,17 +356,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func windowsList() async throws -> [BrowserJSWindowInfo] {
         try await main {
             let state = BrowserStore.shared.model
-            return state.windows.map { (id, win) in
-                BrowserJSWindowInfo(
-                    id: id.raw,
-                    tabIds: win.tabs.flatMap { tabID in
-                        state.tabs[tabID]?.panes.map { $0.id.raw } ?? []
-                    },
-                    currentTabId: win.currentTab.flatMap { tid in
-                        state.tabs[tid]?.panes[state.tabs[tid]?.focusedPaneIdx ?? 0]?.id.raw
-                    }
-                )
-            }
+            return state.windows.map { (id, win) in self.windowInfo(win, id: id, state: state) }
         }
     }
 
@@ -321,11 +365,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             let state = BrowserStore.shared.model
             guard let winID = self.preferredCurrentWindow(state: state),
                   let win = state.windows[winID] else { return nil }
-            return BrowserJSWindowInfo(
-                id: winID.raw,
-                tabIds: win.tabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
-                currentTabId: win.currentTab.flatMap { state.tabs[$0]?.panes.first?.id.raw }
-            )
+            return self.windowInfo(win, id: winID, state: state)
         }
     }
 
@@ -334,11 +374,98 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             let state = BrowserStore.shared.model
             let winID = ID<WindowState>(raw: id)
             guard let win = state.windows[winID] else { return nil }
-            return BrowserJSWindowInfo(
-                id: winID.raw,
-                tabIds: win.tabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
-                currentTabId: win.currentTab.flatMap { state.tabs[$0]?.panes.first?.id.raw }
-            )
+            return self.windowInfo(win, id: winID, state: state)
+        }
+    }
+
+    // MARK: - Splits
+
+    public func splitsList(windowId: String?, spaceId: String?) async throws -> [BrowserJSSplitInfo] {
+        try await main {
+            let state = BrowserStore.shared.model
+            let targetWindow = self.resolveWindowID(windowId, state: state)
+            let space = try spaceId.map { try self.resolveSpaceID($0, state: state) }
+            var out: [BrowserJSSplitInfo] = []
+            for (winID, win) in state.windows {
+                if let targetWindow, winID != targetWindow { continue }
+                let space = space ?? win.profile
+                for (idx, tabID) in self.tabIDs(inWindow: win, space: space).enumerated() {
+                    guard let tab = state.tabs[tabID] else { continue }
+                    out.append(self.splitInfo(forTab: tab, windowID: winID, spaceID: space, indexInWindow: idx))
+                }
+            }
+            return out
+        }
+    }
+
+    public func splitsGet(tabId: String) async throws -> BrowserJSSplitInfo {
+        try await main {
+            let state = BrowserStore.shared.model
+            let pid = ID<WebContent>(raw: tabId)
+            guard let tabID = state.paneToTabMapping[pid], let tab = state.tabs[tabID] else {
+                throw BrowserJSError.tabNotFound(tabId)
+            }
+            let winID = state.windowContaining(tabId: tabID)?.id
+            let idx = winID.flatMap { state.windows[$0]?.tabs.firstIndex(of: tabID) }
+            return self.splitInfo(forTab: tab, windowID: winID, spaceID: winID.flatMap { state.windows[$0]?.profile }, indexInWindow: idx)
+        }
+    }
+
+    public func splitsSeparate(tabId: String) async throws -> [String] {
+        try await main {
+            let state = BrowserStore.shared.model
+            let pid = ID<WebContent>(raw: tabId)
+            guard let tabID = state.paneToTabMapping[pid], let tab = state.tabs[tabID] else {
+                throw BrowserJSError.tabNotFound(tabId)
+            }
+            // Pane ids survive the separation — capture them before mutating.
+            let paneIDs = tab.panes.map { $0.id.raw }
+            guard tab.isSplit else { return paneIDs }
+            BrowserStore.shared.modify { st in
+                st.separateSplitTabs(tabId: tabID)
+            }
+            return paneIDs
+        }
+    }
+
+    // MARK: - Spaces (profiles)
+
+    public func spacesList(windowId: String?, includeHidden: Bool) async throws -> [BrowserJSSpaceInfo] {
+        try await main {
+            let state = BrowserStore.shared.model
+            let win = self.resolveWindowID(windowId, state: state) ?? self.preferredCurrentWindow(state: state)
+            return state.profiles.values
+                .filter { includeHidden || !$0.isHidden }
+                .sorted { $0.creationOrder < $1.creationOrder }
+                .map { self.spaceInfo($0, resolvedWindow: win, state: state) }
+        }
+    }
+
+    public func spacesGetCurrent(windowId: String?) async throws -> BrowserJSSpaceInfo? {
+        try await main {
+            let state = BrowserStore.shared.model
+            guard let winID = self.resolveWindowID(windowId, state: state) ?? self.preferredCurrentWindow(state: state),
+                  let profile = state.windows[winID].flatMap({ state.profiles[$0.profile] })
+            else { return nil }
+            return self.spaceInfo(profile, resolvedWindow: winID, state: state)
+        }
+    }
+
+    public func spacesActivate(spaceId: String, windowId: String?) async throws {
+        try await main {
+            let state = BrowserStore.shared.model
+            let space = try self.resolveSpaceID(spaceId, state: state)
+            guard let winID = self.resolveWindowID(windowId, state: state) ?? self.preferredCurrentWindow(state: state) else {
+                throw BrowserJSError.windowNotFound(windowId ?? "current")
+            }
+            // A hidden space is absent from the carousel; switching a window to
+            // it would strand the user with no way back to it.
+            if state.profiles[space]?.isHidden == true {
+                throw BrowserJSError.invalidArgs("space \(spaceId) is hidden; unhide it in Settings first")
+            }
+            BrowserStore.shared.modify { st in
+                st.windows[winID]?.profile = space
+            }
         }
     }
 
@@ -405,7 +532,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     // MARK: - Helpers
 
-    private func tabInfo(forPane pane: Pane, tab: Tab, windowID: ID<WindowState>?, indexInWindow: Int?, state: BrowserState) -> BrowserJSTabInfo {
+    private func tabInfo(forPane pane: Pane, tab: Tab, windowID: ID<WindowState>?, indexInWindow: Int?, spaceID: ID<Profile>?, state: BrowserState) -> BrowserJSTabInfo {
         let kind: String = {
             if let url = pane.info.url {
                 if url.scheme == TangSchemeHandler.scheme { return "webapp" }
@@ -413,6 +540,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             }
             return "web"
         }()
+        let paneIDs = tab.panes.map { $0.id.raw }
         return BrowserJSTabInfo(
             id: pane.id.raw,
             windowId: windowID?.raw,
@@ -420,7 +548,59 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             title: pane.info.title,
             index: indexInWindow,
             kind: kind,
-            isGhost: pane.isGhost
+            isGhost: pane.isGhost,
+            splitId: tab.id.raw,
+            splitTabIds: paneIDs,
+            isFocusedInSplit: tab.focusedPane?.id == pane.id,
+            spaceId: spaceID?.raw
+        )
+    }
+
+    /// A space's tab list is stored per-window (`WindowState.perProfileData`).
+    /// For the window's current space this is just `win.tabs`.
+    private func tabIDs(inWindow win: WindowState, space: ID<Profile>) -> [ID<Tab>] {
+        win.profile == space ? win.tabs : (win.perProfileData[space]?.tabs ?? [])
+    }
+
+    @MainActor
+    private func windowInfo(_ win: WindowState, id: ID<WindowState>, state: BrowserState) -> BrowserJSWindowInfo {
+        BrowserJSWindowInfo(
+            id: id.raw,
+            tabIds: win.tabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
+            // The visible pane of the current tab — NOT `panes.first`, which is
+            // a different pane whenever the current tab is a split.
+            currentTabId: win.currentTab.flatMap { state.tabs[$0]?.focusedPane?.id.raw },
+            spaceId: win.profile.raw,
+            splitIds: win.tabs.filter { state.tabs[$0] != nil }.map { $0.raw }
+        )
+    }
+
+    private func splitInfo(forTab tab: Tab, windowID: ID<WindowState>?, spaceID: ID<Profile>?, indexInWindow: Int?) -> BrowserJSSplitInfo {
+        BrowserJSSplitInfo(
+            id: tab.id.raw,
+            windowId: windowID?.raw,
+            spaceId: spaceID?.raw,
+            index: indexInWindow,
+            tabIds: tab.panes.map { $0.id.raw },
+            focusedTabId: tab.focusedPane?.id.raw,
+            title: tab.customTitle ?? tab.focusedPane?.info.title
+        )
+    }
+
+    private func spaceInfo(_ profile: Profile, resolvedWindow: ID<WindowState>?, state: BrowserState) -> BrowserJSSpaceInfo {
+        let tabIDs = resolvedWindow.flatMap { state.windows[$0] }.map { self.tabIDs(inWindow: $0, space: profile.id) } ?? []
+        return BrowserJSSpaceInfo(
+            id: profile.id.raw,
+            title: profile.title,
+            autoTitle: profile.autoTitle,
+            displayName: profile.title ?? profile.autoTitle ?? "Space \(profile.creationOrder + 1)",
+            emoji: profile.emoji,
+            index: profile.creationOrder,
+            hidden: profile.isHidden,
+            isCurrent: resolvedWindow.flatMap { state.windows[$0]?.profile } == profile.id,
+            windowIds: state.windows.values.filter { $0.profile == profile.id }.map { $0.id.raw },
+            tabIds: tabIDs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
+            splitIds: tabIDs.filter { state.tabs[$0] != nil }.map { $0.raw }
         )
     }
 
@@ -428,6 +608,12 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         guard let raw else { return nil }
         let id = ID<WindowState>(raw: raw)
         return state.windows[id] != nil ? id : nil
+    }
+
+    private func resolveSpaceID(_ raw: String, state: BrowserState) throws -> ID<Profile> {
+        let id = ID<Profile>(raw: raw)
+        guard state.profiles[id] != nil else { throw BrowserJSError.spaceNotFound(raw) }
+        return id
     }
 
     @MainActor

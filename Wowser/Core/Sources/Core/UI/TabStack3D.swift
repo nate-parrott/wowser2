@@ -104,7 +104,7 @@ struct TabStack3D: View {
                     if let pane {
                         FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
                             .overlay {
-                                TabStackCardOverlay(webContentId: pane.id)
+                                TabStackCardOverlay(tabId: tabId)
                                     .transition(.opacity)
                             }
                     }
@@ -385,12 +385,13 @@ private struct PaneSplitDivider: View {
 }
 
 private struct TabStackCardOverlay: View {
-    var webContentId: ID<WebContent>
-    
+    var tabId: ID<Tab>
+
     var body: some View {
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: webContentId) }) { pane in
-            if let pane {
-                let appearance = pane.tabAppearance()
+        // Tab-level appearance, so the user's custom title and icon show up here
+        // just like they do in the sidebar.
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.appearance() }) { appearance in
+            if let appearance {
                 ZStack(alignment: .top) {
                     LinearGradient(colors: [Color.black.opacity(0.05), Color.black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
                     
