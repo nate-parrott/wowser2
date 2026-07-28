@@ -1,8 +1,14 @@
 import Foundation
 
 // On-disk registry of named agent sessions, so an agent survives page reloads
-// and app restarts. Each record remembers how the agent was configured, its
-// harness session id (used to resume the conversation), and its transcript.
+// and app restarts. A record is just how the agent was configured plus its
+// harness session id — resuming that session is what carries the agent's
+// memory of the conversation.
+//
+// Transcripts are deliberately NOT stored: replaying old messages back to a
+// caller that reattaches would re-deliver things it has already seen. A
+// reattached agent starts with an empty transcript and remembers the
+// conversation itself.
 //
 // One JSON file per key at:
 //   ~/Library/Application Support/Wowser/agents/<slug>.json
@@ -17,17 +23,17 @@ public struct AgentSessionRecord: Codable, Sendable {
     public var exposeBrowserJS: Bool
     public var fileSystemTools: Bool
     public var workingDirectory: String?
-    /// Harness session id — replayed via resume to restore the conversation.
+    /// Harness session id — resumed to restore the agent's memory of the
+    /// conversation. The transcript is not stored; see the note above.
     public var sessionID: String?
-    public var messages: [BrowserJSAgentMessage]
     public var updatedAt: Date
 
-    public init(key: String, agentID: String, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, sessionID: String? = nil, messages: [BrowserJSAgentMessage] = [], updatedAt: Date = Date()) {
+    public init(key: String, agentID: String, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, sessionID: String? = nil, updatedAt: Date = Date()) {
         self.key = key; self.agentID = agentID; self.name = name
         self.model = model; self.effort = effort; self.systemPrompt = systemPrompt
         self.exposeBrowserJS = exposeBrowserJS; self.fileSystemTools = fileSystemTools
         self.workingDirectory = workingDirectory; self.sessionID = sessionID
-        self.messages = messages; self.updatedAt = updatedAt
+        self.updatedAt = updatedAt
     }
 }
 

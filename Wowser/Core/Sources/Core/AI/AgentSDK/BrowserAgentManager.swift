@@ -176,14 +176,15 @@ public actor BrowserAgentManager {
         return id
     }
 
-    /// Reload a persisted agent: same id, same config, conversation resumed
-    /// from its harness session, transcript restored.
+    /// Reload a persisted agent: same id, same config, and the harness told to
+    /// resume its session so the agent still remembers the conversation. The
+    /// transcript starts empty — old messages are never replayed.
     private func resume(_ record: AgentSessionRecord) async throws -> String {
-        try await start(record: record, isKeyed: true, restoring: record.messages)
+        try await start(record: record, isKeyed: true)
         return record.agentID
     }
 
-    private func start(record: AgentSessionRecord, isKeyed: Bool, restoring messages: [BrowserJSAgentMessage] = []) async throws {
+    private func start(record: AgentSessionRecord, isKeyed: Bool) async throws {
         guard let provider, provider.isAvailable else {
             throw BrowserJSError.underlying(AgentSDKError.noProviderAvailable.localizedDescription)
         }
@@ -221,8 +222,7 @@ public actor BrowserAgentManager {
             key: isKeyed ? record.key : nil,
             name: record.name,
             model: record.model,
-            status: "idle",
-            messages: messages
+            status: "idle"
         )
         entry.sessionID = record.sessionID
         entry.record = isKeyed ? record : nil
@@ -305,7 +305,7 @@ public actor BrowserAgentManager {
         for record in store.all() where !liveKeys.contains(record.key) {
             infos.append(BrowserJSAgentInfo(
                 id: record.agentID, key: record.key, name: record.name,
-                model: record.model, status: "saved", messageCount: record.messages.count
+                model: record.model, status: "saved", messageCount: 0
             ))
         }
         return infos.sorted { $0.id < $1.id }
@@ -411,14 +411,15 @@ public actor BrowserAgentManager {
         resumeIdleWaiters(id: agentID)
     }
 
-    /// Saves a keyed agent's session id and transcript so it can be resumed.
+    /// Saves a keyed agent's session id so it can be resumed later. The
+    /// transcript is not persisted — a reattached agent remembers the
+    /// conversation itself rather than replaying messages at the caller.
     private func persist(agentID: String, force: Bool) {
         guard let entry = entries[agentID], let key = entry.key, var record = entry.record else { return }
-        // Between turns is enough — no need to rewrite on every token.
-        guard force else { return }
+        // Between turns is enough — no need to rewrite on every event.
+        guard force, record.sessionID != entry.sessionID else { return }
         record.key = key
         record.sessionID = entry.sessionID
-        record.messages = entry.messages
         entries[agentID]?.record = record
         store.save(record)
     }

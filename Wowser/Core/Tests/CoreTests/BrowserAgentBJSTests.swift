@@ -72,10 +72,12 @@ final class BrowserAgentBJSTests: XCTestCase {
         let resumedID = try await second.create(options: .init(key: "chat"))
         XCTAssertEqual(resumedID, id, "resumed agent should keep its id")
 
-        let restored = try await second.messages(id: resumedID, since: 0)
-        XCTAssertEqual(restored.map(\.role), ["user", "assistant"], "transcript should survive")
+        // Memory comes from resuming the harness session, NOT from replaying
+        // the old transcript at the caller.
         let resumedSessions = await provider.resumedSessionIDs
         XCTAssertEqual(resumedSessions, ["echo-session"], "harness should be asked to resume the prior session")
+        let restored = try await second.messages(id: resumedID, since: 0)
+        XCTAssertTrue(restored.isEmpty, "old messages must not be replayed, got \(restored.map(\.role))")
     }
 
     /// `await` returns as soon as there's something new, so a UI can render

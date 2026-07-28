@@ -317,9 +317,13 @@ declare global {
     agent: {
       /**
        * Returns the agentId. Throws if no agent backend is available.
-       * With a `key`, returns the EXISTING agent for that key if there is one
-       * (reconnecting live, or resuming it from disk with its conversation and
-       * transcript intact) instead of creating a second one.
+       *
+       * With a `key`, returns the EXISTING agent for that key if there is one —
+       * reconnecting to it if it's still live, otherwise resuming it so it
+       * still remembers the conversation — instead of creating a second one.
+       * Old messages are NOT replayed: a reattached agent starts with an empty
+       * transcript, so `await`/`messages` only ever give you things you
+       * haven't seen. Render your own history if you want it on screen.
        */
       create(opts?: {
         /** Stable name for a long-running session; reuse it to reattach. */
