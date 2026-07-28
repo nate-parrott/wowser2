@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 public struct BrowserWindow: View {
     private let windowID: ID<WindowState>
@@ -43,6 +46,7 @@ struct WindowSnapshot: Equatable {
     var profileID: ID<Profile>
     var windowID: ID<WindowState>
     var theme: SpaceTheme?
+    var imageInfo: SpaceImageInfo?
     var sidebarLocked: Bool
     var swipeGestureOffset: Int?
     var hasToast: Bool
@@ -63,6 +67,7 @@ struct WindowSnapshot: Equatable {
         self.tabId = window.currentTab
         self.profileID = window.profile
         self.theme = state.profiles[window.profile]?.theme
+        self.imageInfo = state.profiles[window.profile]?.imageInfo
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)
@@ -142,13 +147,15 @@ private struct WindowContent: View {
                 .trackMouseOutsideWindow(onMouseMoved: { self.mouseMoved($0, rect: $1) })
                 .edgesIgnoringSafeArea(.all)
         }
-        .background { WindowBG(theme: snapshot.theme) }
-        // In-window accent follows the space theme. `.tint` covers modern
-        // control styling; `.accentColor` covers existing `Color.accentColor`
-        // reads (toasts, loading indicator, paging dots, etc.).
-        .tint(snapshot.theme?.tintColor)
-        .accentColor(snapshot.theme?.tintColor ?? .accentColor)
+        .background { WindowBG(theme: snapshot.theme, imageInfo: snapshot.imageInfo, windowID: snapshot.windowID) }
+        // In-window accent follows the space theme (or the tint derived from a
+        // dropped background image). `.tint` covers modern control styling;
+        // `.accentColor` covers existing `Color.accentColor` reads (toasts,
+        // loading indicator, paging dots, etc.).
+        .tint(snapshot.imageInfo?.tint.color ?? snapshot.theme?.tintColor)
+        .accentColor(snapshot.imageInfo?.tint.color ?? snapshot.theme?.tintColor ?? .accentColor)
         .edgesIgnoringSafeArea(.all)
+        .modifier(SpaceUISchemeOverride(prefersDarkUI: snapshot.imageInfo?.prefersDarkUI))
     }
     
     private var topbarVisible: Bool {
@@ -195,19 +202,65 @@ private struct JustWebpageScrimModifier: ViewModifier {
 
 private struct WindowBG: View {
     var theme: SpaceTheme?
+    var imageInfo: SpaceImageInfo?
+    var windowID: ID<WindowState>
 
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var intensity = 1.0
 
     var body: some View {
         ZStack {
             TransparentBg()
-            if let theme {
+            if let imageInfo {
+                SpaceBackgroundView(info: imageInfo, windowID: windowID)
+            } else if let theme {
                 theme.backgroundGradient(intensity: intensity)
             } else {
                 LinearGradient(colors: [Color.white.opacity(0), Color.accentColor.opacity(0.1)], startPoint: .top, endPoint: .bottom)
             }
         }
     }
+}
+
+/// Forces the whole window light or dark while a space has a background image
+/// whose ingest decided a scheme (dark image → dark UI). Setting the NSWindow
+/// appearance (rather than just the SwiftUI environment) also covers
+/// materials and AppKit-hosted views.
+private struct SpaceUISchemeOverride: ViewModifier {
+    var prefersDarkUI: Bool?
+
+    #if os(macOS)
+    @State private var hostWindow: NSWindow?
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                WindowAccessor { window in
+                    if hostWindow !== window {
+                        hostWindow = window
+                        apply()
+                    }
+                }
+            }
+            .onChange(of: prefersDarkUI) { apply() }
+    }
+
+    private func apply() {
+        guard let hostWindow else { return }
+        if let prefersDarkUI {
+            hostWindow.appearance = NSAppearance(named: prefersDarkUI ? .darkAqua : .aqua)
+        } else {
+            hostWindow.appearance = nil // follow the system
+        }
+    }
+    #else
+    func body(content: Content) -> some View {
+        if let prefersDarkUI {
+            content.environment(\.colorScheme, prefersDarkUI ? .dark : .light)
+        } else {
+            content
+        }
+    }
+    #endif
 }
 
 // Empty tab view

@@ -268,12 +268,16 @@ extension Binding where Value == Bool {
 }
 
 struct DebugSettings: View {
+    @AppStorage(DefaultsKeys.spaceBackgroundDebugView.rawValue) private var spaceBackgroundDebugView = false
+
     var body: some View {
         Form {
             Section("Debug") {
                 Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
                     Text("Clear AI tags")
                 }
+                Toggle("Space background blur debug view", isOn: $spaceBackgroundDebugView)
+                    .help("Outlines the blurred regions of space background images and shows the recompute counter")
             }
             
             Section("Advanced") {

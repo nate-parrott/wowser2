@@ -44,6 +44,7 @@ public enum DefaultsKeys: String {
     case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
 
     case spaceThemeIntensity // double 0–2 — scales the space theme's background gradient opacity (1 = default)
+    case spaceBackgroundDebugView // bool — outline the space background image's blur regions + show the recompute counter
 
     case devModeDomains // string — JSON [domain: DevModeDomainConfig]; see DevMode.swift
 }
