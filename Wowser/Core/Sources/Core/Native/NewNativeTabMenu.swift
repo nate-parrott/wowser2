@@ -34,6 +34,16 @@ struct NewNativeTabMenu: View {
         menu.addItem(CallbackMenuItem(title: "New Claude") {
             open { .terminal(cwd: $0, runCommand: "claude") }
         })
+        // Webapp "new" entry points from installed apps' manifests
+        for (app, entry) in TangAppRegistry.shared.entryPoints(.new) {
+            menu.addItem(CallbackMenuItem(title: entry.label) {
+                var args: [String: Any] = ["windowId": windowID.raw]
+                if let profile = BrowserStore.shared.model.windows[windowID]?.profile {
+                    args["profileId"] = profile.raw
+                }
+                TangAppEntryPointRunner.run(entry, appSlug: app.slug, args: args, windowID: windowID)
+            })
+        }
         return menu
     }
 

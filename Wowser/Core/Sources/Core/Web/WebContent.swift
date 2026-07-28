@@ -2,13 +2,33 @@ import Foundation
 import WebKit
 import Combine
 import SwiftUI
-import DominantColors
-import Reeeed
 
 #if os(macOS)
 import AppKit
-import Network
 #endif
+
+// MARK: - Engine
+
+/// Which rendering engine backs a pane's live web content. Persisted per-pane
+/// (see `Pane.engine`); chromium requires a build with CEF enabled
+/// (see Core/Package.swift) and falls back to webkit otherwise.
+public enum BrowserEngine: String, Codable {
+    case webkit
+    case chromium
+
+    /// The engine a brand-new pane should get, honoring the Settings toggle.
+    /// Native pages (tang://, terminal/file-browser overlays, generated pages)
+    /// are built on WebKit machinery, so anything that isn't plain http(s)
+    /// stays WebKit regardless of the toggle.
+    static func preferredForNewPane(url: URL?) -> BrowserEngine {
+        guard ChromiumSupport.isAvailable, DefaultsKeys.chromiumEngine.boolValue() else { return .webkit }
+        if let url {
+            guard url.scheme == "http" || url.scheme == "https" else { return .webkit }
+            if NativePageKey(url: url) != nil { return .webkit }
+        }
+        return .chromium
+    }
+}
 
 public protocol WebContentDelegate: AnyObject {
     func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy
@@ -19,14 +39,17 @@ public protocol WebContentDelegate: AnyObject {
     func webContentDidBecomeFirstResponder(_ webContent: WebContent)
 }
 
-public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
+/// Engine-agnostic base class for a live tab's content. Concrete engines are
+/// `WebContentWebKit` (WKWebView; the default everywhere) and, in CEF-enabled
+/// macOS builds, `WebContentChromium`. Shared surface lives here so the rest of
+/// the app can hold plain `WebContent` references; engine-specific features
+/// (JS injection, snapshots, element picker, …) either go through the
+/// overridable methods below or via `wkWebview`, which is nil for Chromium.
+public class WebContent: NSObject, ObservableObject {
     weak var delegate: WebContentDelegate?
-    
+
     let id: ID<WebContent>
     let datastoreUUID: UUID
-    public let webview: WebContentWebView
-    private var observers = [NSKeyValueObservation]()
-    private var subscriptions = Set<AnyCancellable>()
 
     /// Storage for native overlays (terminal sessions, future webapp shells, etc.)
     /// that need to survive SwiftUI view re-mounts and tab switches. The
@@ -39,40 +62,8 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         print("Webcontent deinit")
     }
 
-    // MARK: - Configuration
-    @Published var blocklists = UserDefaults.standard.blocklistsActive
-    public var injectedCSS: String = "" {
-        didSet(old) {
-            if injectedCSS != old {
-                updateInjectedCode()
-            }
-        }
-    }
-
-    public var injectedJS: String = "" {
-        didSet(old) {
-            if injectedJS != old {
-                updateInjectedCode()
-            }
-        }
-    }
-    
-    #if os(iOS)
-    var scrollEnabled: Bool {
-        get { webview.scrollView.isScrollEnabled }
-        set { webview.scrollView.isScrollEnabled = newValue }
-    }
-    #endif
-
-    var autoDarkMode = DefaultsKeys.autoDarkMode.boolValue(defaultValue: false) {
-        didSet {
-            if autoDarkMode != oldValue {
-                updateInjectedCode()
-                updateTransparency()
-            }
-        }
-    }
     // MARK: - API
+
     public struct Info: Equatable, Codable {
         public var url: URL?
         public var oldOnscreenURL: URL? // During nav, `url` may show a not-yet-committed url. If this field is set, we're in this state, and you can use this prop to get the existing committed url.
@@ -99,7 +90,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var committedURL: URL? {
             oldOnscreenURL ?? url
         }
-        
+
         public struct FailedNav: Equatable, Codable {
             public var url: URL
             public var error: NavError
@@ -109,7 +100,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         }
     }
 
-    @Published private(set) public var info = Info() {
+    @Published public internal(set) var info = Info() {
         didSet {
             if info != oldValue {
                 delegate?.webContent(self, infoDidChange: info, previous: oldValue)
@@ -129,265 +120,100 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         #endif
     }
 
-    /// Dev mode's mobile emulation. Takes effect on the next navigation — callers
-    /// that want it applied to the current page should `reload()`.
-    public var usesMobileUserAgent = false {
-        didSet {
-            guard usesMobileUserAgent != oldValue else { return }
-            webview.customUserAgent = usesMobileUserAgent ? Self.mobileUserAgent : Self.defaultUserAgent
-        }
-    }
-
-    public func load(url: URL) {
-        webview.load(.init(url: url))
-    }
-
-    public func load(request: URLRequest) {
-        webview.load(request)
-    }
-
-    public func load(html: String, baseURL: URL?) {
-        webview.loadHTMLString(html, baseURL: baseURL)
-    }
-
-    public init(id: ID<WebContent>?, datastoreUUID: UUID, transparent: Bool = false, allowsInlinePlayback: Bool = false, autoplayAllowed: Bool = false, config: WKWebViewConfiguration? = nil) {
+    init(id: ID<WebContent>?, datastoreUUID: UUID) {
         self.id = id ?? .assign()
-        let isFreshConfig = config == nil
-        let config = config ?? WKWebViewConfiguration()
-        config.preferences.isElementFullscreenEnabled = true
-        // Register the tang:// scheme + BrowserJS bridge on configs we own.
-        // (Popup-inherited configs are skipped to avoid double-registration,
-        // which would throw; tang apps are opened with fresh configs.)
-        if isFreshConfig {
-            TangBridge.install(on: config)
-        }
-        if #available(macOS 14.0, *) {
-            config.preferences.inactiveSchedulingPolicy = .throttle
-            // https://stackoverflow.com/questions/78758812/wkwebview-oauth-popup-misses-window-opener-in-ios-17-5
-            #if os(macOS)
-            GlobalHacks.hacks!.fixPreferences(config.preferences)
-            #endif
-//            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
-        }
-        if #available(macOS 14.0, *) {
-            let dataStore = WKWebsiteDataStore(forIdentifier: datastoreUUID)
-            #if os(macOS)
-            // Route traffic through the local capturing proxy so the agent can
-            // introspect requests via `browser.net.*`. HTTPS is only MITM'd for
-            // origins on the capture allowlist; everything else blind-tunnels.
-            dataStore.proxyConfigurations = WebContent.captureProxyConfigurations(port: LocalProxy.shared.syncBoundPort)
-            #endif
-            config.websiteDataStore = dataStore
-        } else {
-            // Fallback on earlier versions
-            fatalError()
-        }
-        #if os(iOS)
-        config.allowsInlineMediaPlayback = allowsInlinePlayback
-        config.mediaTypesRequiringUserActionForPlayback = .all
-        #endif
-        if autoplayAllowed {
-            config.mediaTypesRequiringUserActionForPlayback = []
-        }
-        webview = .init(frame: .zero, configuration: config)
-        webview.allowsBackForwardNavigationGestures = true
-//        if #available(iOS 16.4, macOS 13.3, *) {
-//            webview.isInspectable = true
-//        }
-        #if os(macOS)
-        webview.customUserAgent = Self.defaultUserAgent
-        webview.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
-        #else
-        webview.customUserAgent = Self.mobileUserAgent
-        #endif
-        self.transparent = transparent
         self.datastoreUUID = datastoreUUID
         super.init()
-        webview.navigationDelegate = self
-        webview.uiDelegate = self
-
-        observers.append(webview.observe(\.url, options: [.new], changeHandler: { [weak self] _, _ in
-            self?.needsMetadataRefresh()
-        }))
-
-        observers.append(webview.observe(\.title, options: [.new], changeHandler: { [weak self] _, _ in
-            self?.needsMetadataRefresh()
-        }))
-
-        observers.append(webview.observe(\.canGoBack, options: [.new], changeHandler: { [weak self] _, val in
-            self?.info.canGoBack = val.newValue ?? false
-        }))
-
-        observers.append(webview.observe(\.canGoForward, options: [.new], changeHandler: { [weak self] _, val in
-            self?.info.canGoForward = val.newValue ?? false
-        }))
-
-        observers.append(webview.observe(\.estimatedProgress, options: [.new], changeHandler: { [weak self] _, val in
-            self?.info.estimatedProgress = val.newValue ?? 0
-        }))
-
-        observers.append(webview.observe(\.isLoading, options: [.new], changeHandler: { [weak self] _, val in
-            self?.info.isLoading = val.newValue ?? false
-        }))
-        
-        observers.append(webview.observe(\.hasOnlySecureContent, options: [.new], changeHandler: { [weak self] _, val in
-            self?.info.isSecure = val.newValue ?? false
-        }))
-
-        observers.append(webview.observe(\.underPageBackgroundColor, options: [.new], changeHandler: { [weak self] _, val in
-            guard let self else { return }
-            self.refreshAutoDarkMode()
-            var updatedInfo = self.info
-            updatedInfo.underPageBackgroundColor = val.newValue?.hsba
-            self.info = updatedInfo
-        }))
-
-
-        #if os(iOS)
-        webview.scrollView.backgroundColor = nil
-        #endif
-        updateTransparency()
-
-        $blocklists.flatMap { blocklistsEnabled -> AnyPublisher<[WKContentRuleList], Never> in
-            return AdblockManager.shared.$blocklists.map {
-                $0?.filter({ blocklistsEnabled.contains($0.key) }).values.asArray ?? []
-            }.eraseToAnyPublisher()
-        }
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] lists in
-            self?.adblockRuleLists = lists
-        }
-        .store(in: &subscriptions)
 
         #if os(iOS)
         NotificationCenter.default.addObserver(self, selector: #selector(appDidForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
         #else
         NotificationCenter.default.addObserver(self, selector: #selector(appDidForeground), name: NSApplication.didBecomeActiveNotification, object: nil)
         #endif
+    }
 
-        webview.onDarkModeChanged = { [weak self] darkMode in
-            guard let self else { return }
-            self.colorScheme = darkMode ? .dark : .light // self.webview.colorScheme
-        }
-        
-        webview.onBecomeFirstResponder = { [weak self] in
-            guard let self else { return }
-            self.delegate?.webContentDidBecomeFirstResponder(self)
-        }
-        
-        // Observe UserDefaults changes for settings
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                
-                // Update adblock setting if changed in UserDefaults
-                if self.blocklists != UserDefaults.standard.blocklistsActive {
-                    self.blocklists = UserDefaults.standard.blocklistsActive
-                }
-                
-                // Update autoDarkMode setting if changed in UserDefaults
-                let autoDarkModeSetting = DefaultsKeys.autoDarkMode.boolValue(defaultValue: false)
-                if self.autoDarkMode != autoDarkModeSetting {
-                    self.autoDarkMode = autoDarkModeSetting
-                }
-            }
-            .store(in: &subscriptions)
-    }
-    var colorScheme = ColorScheme.light {
-        didSet {
-            if colorScheme != oldValue, autoDarkMode {
-                updateInjectedCode() // Update dark
-            }
-        }
-    }
+    // MARK: - Engine surface (overridden by concrete engines)
+
+    /// Which engine backs this content.
+    public var engine: BrowserEngine { .webkit }
+
+    /// The view to mount into the pane hierarchy.
+    public var view: UINSView { fatalError("WebContent subclass must override `view`") }
+
+    /// The backing WKWebView when this content is WebKit-backed; nil for
+    /// Chromium. Feature code that genuinely needs WebKit (snapshots, element
+    /// picker, cookie stores, …) should unwrap this and degrade gracefully.
+    public var wkWebview: WebContentWebView? { nil }
+
+    public func load(url: URL) {}
+    public func load(request: URLRequest) {}
+    public func load(html: String, baseURL: URL?) {}
+    public func goBack() {}
+    public func goForward() {}
+    public func reload() {}
+    public func focus() {}
+
+    /// Increases the zoom level of the web content
+    public func zoomIn() {}
+    /// Decreases the zoom level of the web content
+    public func zoomOut() {}
+    /// Resets the zoom level to the default value
+    public func resetZoom() {}
 
     public var silenced = false {
         didSet(old) {
             guard silenced != old else { return }
-            webview.setAllMediaPlaybackSuspended(silenced, completionHandler: nil)
-            webview.setMicrophoneCaptureState(silenced ? .none : .active, completionHandler: nil)
-            webview.setCameraCaptureState(silenced ? .none : .active, completionHandler: nil)
-            // TODO: Disable going fullscreen
+            silencedDidChange()
         }
     }
+    func silencedDidChange() {}
 
-    var transparent: Bool = false {
+    /// Dev mode's mobile emulation. Takes effect on the next navigation — callers
+    /// that want it applied to the current page should `reload()`.
+    public var usesMobileUserAgent = false {
+        didSet {
+            guard usesMobileUserAgent != oldValue else { return }
+            userAgentDidChange()
+        }
+    }
+    func userAgentDidChange() {}
+
+    // MARK: - Configuration
+
+    public var injectedCSS: String = "" {
         didSet(old) {
-            if transparent != old { updateTransparency() }
+            if injectedCSS != old {
+                updateInjectedCode()
+            }
         }
     }
-    
-    public func focus() {
-        #if os(iOS)
-        webview.becomeFirstResponder()
-        #else
-        webview.wowser_becomeFirstResponder(asTarget: .webContent(id))
-        #endif
-    }
 
-    private func updateTransparency() {
-        #if os(iOS)
-        if transparent {
-            webview.backgroundColor = nil
-        } else if autoDarkMode {
-            webview.backgroundColor = UIColor(named: "PureBackground", bundle: .module)!
-        } else {
-            webview.backgroundColor = UIColor.white
-        }
-        webview.isOpaque = !transparent
-        #else
-        // TODO
-//        let secretSelector = NSSelectorFromString("setDrawsFish:".replacingOccurrences(of: "Fish", with: "Background"))
-//        let secretProp = "drawsFish".replacingOccurrences(of: "Fish", with: "Background")
-//        if webview.responds(to: secretSelector) {
-//            webview.setValue(!transparent, forKey: secretProp)
-//        }
-        #endif
-    }
-
-    private var adblockRuleLists = [WKContentRuleList]() {
+    public var injectedJS: String = "" {
         didSet(old) {
-            // TODO: is the userContentController shared between webviews?
-            guard adblockRuleLists != old else { return }
-            let added = adblockRuleLists.asSet.subtracting(old)
-            let removed = old.asSet.subtracting(adblockRuleLists)
-            for list in removed {
-                webview.configuration.userContentController.remove(list)
+            if injectedJS != old {
+                updateInjectedCode()
             }
-            for list in added {
-                webview.configuration.userContentController.add(list)
-            }
-//            if let old = old {
-//                webview.configuration.userContentController.remove(old)
-//            }
-//            if let list = adblockRuleList {
-//                webview.configuration.userContentController.add(list)
-//            }
         }
     }
+    func updateInjectedCode() {}
 
-    public var view: UINSView { webview }
+    // MARK: - Full content extraction
 
-    public func goBack() {
-        webview.goBack()
-    }
-
-    public  func goForward() {
-        webview.goForward()
-    }
-    
-    public  func reload() {
-        if let failedNav = info.failedNavToURL {
-            info.failedNavToURL = nil
-            load(url: failedNav.url)
-        } else {
-            webview.reload()
+    var fullContentExtractionMode: FullContentExtractionMode? {
+        didSet {
+            if fullContentExtractionMode != oldValue {
+                fullContentExtractionStatus = .none
+                fullContentExtractionModeDidChange()
+            }
         }
     }
-    
-    // func configure(_ block: (WKWebView) -> Void) {
-    //     block(webview)
-    // }
+    func fullContentExtractionModeDidChange() {}
+
+    @Published var fullContentExtractionStatus: FullContentExtractionStatus = .none {
+        didSet {
+            info.readerAvailable = fullContentExtractionStatus.readerContent == nil ? nil : true
+        }
+    }
 
     // MARK: - Populate
 
@@ -410,7 +236,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
     }
 
     private var populateBlock: ((WebContent) -> Void)?
-    private var waitingForRepopulationAfterProcessTerminate = false
+    var waitingForRepopulationAfterProcessTerminate = false
     /// A webview's content process can be terminated while the app is in the background.
     /// `populate` allows you to handle this.
     /// Wrap your calls to load content into the webview within `populate`.
@@ -430,261 +256,5 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
             }
             self.waitingForRepopulationAfterProcessTerminate = false
         }
-    }
-
-    // MARK: - WKNavigationDelegate
-    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
-        if let failedURL = info.oldOnscreenURL {
-            self.info.failedNavToURL = .init(url: failedURL, error: .generic("\(error)"))
-        }
-        self.info.oldOnscreenURL = webView.url
-        
-//        // Cold-start recovery: if a serve-web (vscode) URL nav fails because
-//        // `code serve-web` isn't listening yet, redirect the webview to the
-//        // `vscode-loading` sentinel page. The loading overlay polls until
-//        // the server is up and then re-navigates to the real URL.
-//        let nsError = error as NSError
-//        if let urlString = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String,
-//           let failingURL = URL(string: urlString),
-//           VSCodeConfig.isServeWebURL(failingURL) {
-//            let folder = failingURL.queryParam(name: "folder")
-//            let loadingURL = NativePageKey.vscodeLoading(folder: folder).url
-//            webView.load(URLRequest(url: loadingURL))
-//        }
-    }
-    
-    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        info.oldOnscreenURL = nil
-        info.failedNavToURL = nil
-        needsMetadataRefresh()
-    }
-
-    // TODO?
-//    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
-//
-//    }
-
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        needsMetadataRefresh()
-        // Trigger a final refresh a bit later, just in case stuff hasn't rendered yet
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.needsMetadataRefresh()
-        }
-    }
-    
-    public func webViewDidClose(_ webView: WKWebView) {
-        delegate?.webContentWantsToClose(self)
-    }
-
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        func willAllowNav() {
-            if navigationAction.targetFrame?.isMainFrame ?? false {
-                self.info.oldOnscreenURL = webView.url
-            }
-        }
-        
-        if silenced {
-            willAllowNav()
-            decisionHandler(.allow, preferences)
-            return
-        }
-        
-        if navigationAction.shouldPerformDownload {
-            if silenced {
-                decisionHandler(.cancel, preferences)
-                return
-            }
-            decisionHandler(.download, preferences)
-            return
-        }
-        
-        if navigationAction.targetFrame?.isMainFrame ?? true,
-            let delegate {
-            let decision = delegate.webContent(self, decidePolicyFor: navigationAction)
-            if decision == .allow {
-                willAllowNav()
-            }
-            decisionHandler(decision, preferences)
-            return
-        }
-        
-        willAllowNav()
-        decisionHandler(.allow, preferences)
-    }
-
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        if !navigationResponse.canShowMIMEType {
-            decisionHandler(.download)
-            return
-        }
-        
-        if let delegate {
-            let decision = delegate.webContent(self, decidePolicyForResponse: navigationResponse)
-            decisionHandler(decision)
-            return
-        }
-        decisionHandler(.allow)
-    }
-    
-    public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
-        DownloadManager.shared.webView(webView, navigationAction: navigationAction, didBecome: download, windowID: windowID)
-    }
-    
-    public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
-        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
-        DownloadManager.shared.webView(webView, navigationResponse: navigationResponse, didBecome: download, windowID: windowID)
-    }
-
-    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        waitingForRepopulationAfterProcessTerminate = true
-    }
-
-    // MARK: - Metadata
-    private var _mdRefreshScheduled = false
-    private func needsMetadataRefresh() {
-        if _mdRefreshScheduled { return }
-        _mdRefreshScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            self.refreshMetadataNow()
-        }
-    }
-
-    // do not call directly; call needsMetadataRefresh
-    private func refreshMetadataNow() {
-        self._mdRefreshScheduled = false
-
-        var info = self.info
-        // Native overlay tabs (terminal / file browser) own their own title;
-        // the about:blank webview underneath always reports an empty title.
-        // VSCode is a real webview, so its title comes from the page like any
-        // other site.
-        info.url = webview.url
-        let suppressTitleFromWebview: Bool = {
-            webview.url.flatMap(NativePageKey.init(url:))?.suppressTitleFromWebview ?? false
-        }()
-        if !suppressTitleFromWebview {
-            info.title = webview.title
-        }
-        info.isSecure = webview.hasOnlySecureContent
-        info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
-        info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba
-        self.info = info
-        
-        Task {
-            let docReadyWithURL: URL?
-            do {
-                let extracted = try await extractWebContentData()
-                docReadyWithURL = extracted.isReady ? extracted.jsURL : nil
-                DispatchQueue.main.async {
-                    self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
-                    self.info.ogImage = extracted.ogImage
-                    self.info.recipeDetected = extracted.isRecipe?.nilIfFalse
-//                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
-                }
-            } catch {
-                docReadyWithURL = nil
-                print("[🌐❌ Webview metadata extraction error] \(error)")
-            }
-            do {
-                try await updateFullContentExtractionIfNecessary(docReadyWithURL: docReadyWithURL)
-            } catch {
-                print("[🌐❌ Full content extraction error] \(error)")
-            }
-        }
-        
-        if injectedCSS != "" || injectedJS != "" || autoDarkMode {
-            updateInjectedCode()
-        }
-        
-//         Capture the top portion of the page to determine dominant color
-        Task {
-            guard let hsba = await webview.extractTopDominantColor() else {
-                return
-            }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                // Only update if different from current value
-                if self.info.topColor != hsba {
-                    var updatedInfo = self.info
-                    updatedInfo.topColor = hsba
-                    self.info = updatedInfo
-                }
-            }
-        }
-    }
-
-    private func refreshAutoDarkMode() {
-        guard autoDarkMode else { return }
-        info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
-        info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba
-        updateInjectedCode()
-    }
-    
-    // MARK: Full content extraction
-    var fullContentExtractionMode: FullContentExtractionMode? {
-        didSet {
-            if fullContentExtractionMode != oldValue {
-                fullContentExtractionStatus = .none
-                needsMetadataRefresh()
-            }
-        }
-    }
-    
-    @Published var fullContentExtractionStatus: FullContentExtractionStatus = .none {
-        didSet {
-            info.readerAvailable = fullContentExtractionStatus.readerContent == nil ? nil : true
-        }
-    }
-
-    // MARK: - CSS Injection
-    private func updateInjectedCode() {
-        var injectedStyles = [injectedCSS]
-//        print("[AD] Autodark: \(autoDarkMode), pageDark: \(info.inferredDarkMode), markMode: \(colorScheme == .dark)")
-        let applyAutoDark = autoDarkMode && !info.inferredDarkMode && colorScheme == .dark
-        if applyAutoDark != info.autoDarkModeApplied {
-            info.autoDarkModeApplied = applyAutoDark
-            self.needsMetadataRefresh() // If we are about to change auto-dark status, let's trigger a refresh
-        }
-        if applyAutoDark {
-            injectedStyles.append("""
-            html { filter: hue-rotate(180deg) invert(1) contrast(0.9) brightness(0.95); }
-            img, video, object, iframe { filter: invert(1) hue-rotate(180deg); }
-            """)
-        }
-
-        let escaped = injectedStyles.joined(separator: "\n").encodedAsJSONString
-        let cssJS = """
-// Find injected CSS if it already exists:
-let css = document.getElementById('__webview_css');
-if (css) {
-    css.innerHTML = \(escaped);
-} else {
-    css = document.createElement('style');
-    css.id = '__webview_css';
-    css.innerHTML = \(escaped);
-    document.head.appendChild(css);
-}
-"""
-        webview.evaluateJavaScript((cssJS + "\n" + injectedJS).wrappedInSelfCallingJSFunction, completionHandler: nil)
-    }
-}
-
-extension URL {
-    fileprivate func nilIfExtensionIs(_ ext: String) -> URL? {
-        pathExtension == ext ? nil : self
-    }
-}
-
-private extension UserDefaults {
-    var blocklistsActive: Set<Blocklist> {
-        var blocklists = Set<Blocklist>()
-        if DefaultsKeys.adblock.boolValue(defaultValue: false) {
-            blocklists.insert(.ads)
-        }
-        if DefaultsKeys.cookieBannerBlock.boolValue(defaultValue: false) {
-            blocklists.insert(.cookies)
-        }
-        return blocklists
     }
 }

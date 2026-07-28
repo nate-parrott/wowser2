@@ -22,15 +22,15 @@ extension BrowserState {
     // that profile's `dataStoreUUID` so they share cookies/logins. Otherwise
     // the new profile gets a fresh UUID (isolated).
     public mutating func createNewProfile(sharingLoginsWith sourceProfileID: ID<Profile>? = nil) -> ID<Profile> {
-        let profilesCount = profiles.count
-        let id = ID<Profile>(raw: "p\(profilesCount)")
+        let id = ID<Profile>.assign()
         let dataStoreUUID: UUID
         if let sourceProfileID, let source = profiles[sourceProfileID] {
             dataStoreUUID = source.dataStoreUUID
         } else {
             dataStoreUUID = UUID()
         }
-        let profile = Profile(id: id, dataStoreUUID: dataStoreUUID, creationOrder: profilesCount)
+        let newCreationOrder: Int = (profiles.values.map({ $0.creationOrder }).max() ?? 0) + 1
+        let profile = Profile(id: id, dataStoreUUID: dataStoreUUID, creationOrder: newCreationOrder)
         profiles[id] = profile
         return id
     }

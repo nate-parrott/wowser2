@@ -43,7 +43,7 @@ enum FullContentExtractionStatus: Equatable, Codable {
     }
 }
 
-extension WebContent {
+extension WebContentWebKit {
     // docReadyWithURL: is document.readyState interactive or complete? if so, what url did we report?
     @MainActor
     func updateFullContentExtractionIfNecessary(docReadyWithURL: URL?) async throws {

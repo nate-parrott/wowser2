@@ -180,7 +180,7 @@ extension BrowserViewController {
         let request = URLRequest(url: url)
         
         // Create a download task
-        webContent.webview.downloadUsingRequest(request, windowID: windowID)
+        webContent.wkWebview?.downloadUsingRequest(request, windowID: windowID)
     }
     
     @IBAction func zoomIn(_ sender: Any?) {

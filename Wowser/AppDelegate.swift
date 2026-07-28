@@ -6,6 +6,16 @@ import Combine
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Custom entry point (shadows the NSApplicationDelegate-provided main).
+    /// CEF-enabled builds must install CEF's NSApplication subclass before
+    /// anything touches NSApp; in WebKit-only builds this is a no-op and the
+    /// launch path is identical to the default. The storyboard wires up the
+    /// app delegate, exactly as before.
+    static func main() {
+        ChromiumSupport.installApplicationClassIfAvailable()
+        _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
+    }
+
     static var shared: AppDelegate! {
         NSApplication.shared.delegate as? AppDelegate
     }
@@ -64,9 +74,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Outlets
     
-    @IBOutlet private(set) var historyMenu: NSMenu?    
+    @IBOutlet private(set) var historyMenu: NSMenu?
     @IBOutlet private(set) var bookmarksMenuItem: NSMenuItem?
     private var archiveMenuManager: ArchiveMenuManager?
+    private var appsMenuManager: TangAppsMenuManager?
 
     // Maps menu items to tab indices for quick tab switching
     var tabSwitchMenuItems = [NSMenuItem: Int]()
@@ -161,10 +172,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         WExtensionStore.shared.reloadFromDisk()
+
+        appsMenuManager = TangAppsMenuManager(openURL: { [weak self] url in
+            self?.openURL(url)
+        })
+        appsMenuManager?.install()
+        TangAppRegistry.shared.reload()
     }
-    
+
     func applicationDidBecomeActive(_ notification: Notification) {
         WExtensionStore.shared.reloadFromDisk()
+        TangAppRegistry.shared.reload()
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {

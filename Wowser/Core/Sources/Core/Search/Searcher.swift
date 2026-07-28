@@ -285,6 +285,12 @@ extension CharacterSet {
             }
         }
         
+        // Webapp keyword matches (e.g. "weather sf" hits an app's "weather"
+        // search entry point) go straight to the top, like prefix-title actions.
+        for match in webAppKeywordMatches(query: query) {
+            results.insert(match, at: 0)
+        }
+
         // Check for matching tab in current window (fast, synchronous)
         if let tabMatch = tabMatch(query: normQuery) {
             if let insertBefore = results.firstIndex(where: { tabMatch.score > $0.score }) {
@@ -319,6 +325,23 @@ extension CharacterSet {
         return results
     }
     
+    /// Results from installed webapps' "search" entry points whose keyword is
+    /// the query's first word ("weather" matches "weather" and "weather sf").
+    private func webAppKeywordMatches(query: String) -> [SearchResult] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !trimmed.isEmpty else { return [] }
+        return TangAppRegistry.shared.entryPoints(.search).compactMap { app, entry in
+            guard let keyword = entry.keyword?.lowercased(), !keyword.isEmpty,
+                  trimmed == keyword || trimmed.hasPrefix(keyword + " ") else { return nil }
+            let action = SearchAction.webAppSearch(appSlug: app.slug, label: entry.label, query: query)
+            let item = SearchableItem(
+                id: ID<SearchableItem>(raw: "appsearch:\(app.slug):\(entry.label)"),
+                content: .searchAction(action)
+            )
+            return SearchResult(item: item, matchQuality: .prefixMatchTitle)
+        }
+    }
+
     private func tabMatch(query: NormalizedSearchableString) -> SearchResult? {
         guard let windowID = self.windowID else { return nil }
         

@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "198"
             endingLineNumber = "198"
-            landmarkName = "insertionIndex(window:spawningTabId:)"
+            landmarkName = "separateSplitTabs(tabId:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -64,8 +64,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "361"
             endingLineNumber = "361"
-            landmarkName = "createTab(withURL:in:activate:inCurrentSplit:)"
-            landmarkType = "7">
+            landmarkName = "BrowserStore"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -96,7 +96,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "114"
             endingLineNumber = "114"
-            landmarkName = "moveAllPanesToSplitView(sourceTabId:destinationTabId:activateLast:)"
+            landmarkName = "moveToSplitView(sourceTabId:sourcePaneId:destinationTabId:activatePane:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -246,8 +246,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "435"
             endingLineNumber = "435"
-            landmarkName = "BrowserStore"
-            landmarkType = "21">
+            landmarkName = "createTab(withURL:in:activate:inCurrentSplit:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -261,9 +261,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "328"
-            endingLineNumber = "328"
-            landmarkName = "updateTransparency()"
-            landmarkType = "7">
+            endingLineNumber = "328">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -278,8 +276,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "213"
             endingLineNumber = "213"
-            landmarkName = "init(id:datastoreUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
-            landmarkType = "7">
+            landmarkName = "fullContentExtractionStatus"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -742,8 +740,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "203"
             endingLineNumber = "203"
-            landmarkName = "init(id:datastoreUUID:transparent:allowsInlinePlayback:autoplayAllowed:config:)"
-            landmarkType = "7">
+            landmarkName = "fullContentExtractionMode"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -1014,7 +1012,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "527"
             endingLineNumber = "527"
-            landmarkName = "modifyPaneAndTab(forWebContentId:block:)"
+            landmarkName = "webContent(_:didSpawnNewWebContent:shouldActivate:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

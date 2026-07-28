@@ -303,8 +303,8 @@ final class TerminalSession: ObservableObject {
     fileprivate func writeCwdIntoURL() {
         guard let webContent else { return }
         let newURL = NativePageKey.terminal(cwd: lastKnownCwd, runCommand: nil).url
-        if webContent.webview.url != newURL {
-            webContent.webview.load(URLRequest(url: newURL))
+        if let wkWebview = webContent.wkWebview, wkWebview.url != newURL {
+            wkWebview.load(URLRequest(url: newURL))
         }
     }
 

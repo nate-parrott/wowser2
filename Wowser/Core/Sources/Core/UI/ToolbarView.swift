@@ -126,6 +126,13 @@ struct ToolbarView: View {
 //                                .tint(colorScheme?.foreground.color ?? Color.primary)
 //                                .padding(.trailing)
                         }
+
+                        #if os(macOS)
+                        // Webapp "tab" entry points (hidden when none installed)
+                        if let webContentID, snapshot.nativeKey == nil {
+                            TabExtensionsMenuButton(webContentID: webContentID, url: snapshot.url)
+                        }
+                        #endif
                                             
                         // Dev mode's one extra control: mobile viewport on/off.
                         if let devDomain = devModeDomain(snapshot: snapshot), devModeStore.isEnabled(for: devDomain) {
@@ -288,7 +295,7 @@ struct ToolbarView: View {
             return
         }
         let key = NativePageKey.fileBrowser(path: parent)
-        webContent.webview.load(URLRequest(url: key.url))
+        webContent.load(request: URLRequest(url: key.url))
     }
     
     // MARK: - Actions

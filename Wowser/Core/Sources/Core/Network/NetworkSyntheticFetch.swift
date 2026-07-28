@@ -67,7 +67,7 @@ enum NetworkSyntheticFetch {
             guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { return nil }
-            return wc.webview.configuration.websiteDataStore.httpCookieStore
+            return wc.wkWebview?.configuration.websiteDataStore.httpCookieStore
         }
         if let store {
             let cookies = await Self.cookies(for: url, store: store)

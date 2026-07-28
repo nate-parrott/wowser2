@@ -26,7 +26,7 @@ struct ByInjectingGeneratedPages: ViewModifier {
                         document.documentElement.innerHTML = \(value.html.encodedAsJSONString)
                     }
                     """
-                    webContent.webview.evaluateJavaScript(js)
+                    webContent.wkWebview?.evaluateJavaScript(js)
                 }
             }
     }

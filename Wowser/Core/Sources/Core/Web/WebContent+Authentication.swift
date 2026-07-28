@@ -3,7 +3,7 @@ import WebKit
 import Network
 #endif
 
-extension WebContent {
+extension WebContentWebKit {
     #if os(macOS)
     // MARK: - Capture proxy wiring
 

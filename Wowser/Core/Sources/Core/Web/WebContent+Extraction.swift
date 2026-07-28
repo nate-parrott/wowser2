@@ -13,7 +13,7 @@ struct WebContentExtractedData: Equatable, Codable {
     }
 }
 
-extension WebContent {
+extension WebContentWebKit {
     func extractWebContentData() async throws -> WebContentExtractedData {
         try await webview.evaluateJS("""
         const result = {};

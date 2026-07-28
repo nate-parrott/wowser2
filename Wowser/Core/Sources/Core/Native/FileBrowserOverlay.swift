@@ -152,7 +152,7 @@ struct FileBrowserOverlay: View {
             navigate(to: entry.url)
         } else if isHTML(entry.url) {
             // HTML files load natively as file:// in the webview.
-            webContent.webview.load(URLRequest(url: entry.url))
+            webContent.load(request: URLRequest(url: entry.url))
         } else {
             // All other files: navigate to a Quick Look pane on this path.
             navigate(to: entry.url)
@@ -229,7 +229,7 @@ struct FileBrowserOverlay: View {
 
     private func navigate(to url: URL) {
         let key = NativePageKey.fileBrowser(path: url.path)
-        webContent.webview.load(URLRequest(url: key.url))
+        webContent.load(request: URLRequest(url: key.url))
     }
 
     // MARK: - Pasteboard

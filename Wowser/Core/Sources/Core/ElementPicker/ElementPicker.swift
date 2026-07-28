@@ -143,7 +143,7 @@ private struct SelectorPreview: View {
     private func refreshRects() {
         Task { @MainActor in
             do {
-                let newRects = try await webContent.webview.positionsForElementsMatchingSelector(selector, filterToViewBounds: true)
+                let newRects = try await webContent.wkWebviewForPicker.positionsForElementsMatchingSelector(selector, filterToViewBounds: true)
                 DispatchQueue.main.async {
                     self.rects = newRects
                 }
@@ -197,7 +197,7 @@ private struct HoveredElementPreview: View {
 
         Task { @MainActor in
             do {
-                let rect = try await webContent.webview.positionOfElementAtPoint(point)
+                let rect = try await webContent.wkWebviewForPicker.positionOfElementAtPoint(point)
 
                 DispatchQueue.main.async {
                     coordinator.fetchedRect = rect
@@ -375,7 +375,7 @@ struct ElementPickerOverlay: View {
 
         Task { @MainActor in
             do {
-                let candidates = try await webContent.webview.selectors(atPoint: location)
+                let candidates = try await webContent.wkWebviewForPicker.selectors(atPoint: location)
                 // Sort candidates by match count (more specific/unique selectors first)
                 let sortedCandidates = candidates.sorted { $0.matchCount < $1.matchCount }
                 if isTap, let first = sortedCandidates.first {
@@ -386,6 +386,21 @@ struct ElementPickerOverlay: View {
             } catch {
                 print("Error getting selectors: \(error)")
             }
+        }
+    }
+}
+
+private enum ElementPickerError: Error {
+    case webKitOnly
+}
+
+private extension WebContent {
+    /// The element picker drives the page via WebKit JS helpers; Chromium tabs
+    /// aren't supported yet.
+    var wkWebviewForPicker: WebContentWebView {
+        get throws {
+            guard let wkWebview else { throw ElementPickerError.webKitOnly }
+            return wkWebview
         }
     }
 }

@@ -7,6 +7,10 @@ public enum SearchAction: Equatable, Codable {
     case organizeTabs
     case separateSplitTabs
     case openURL(URL)
+    /// A webapp's "search" entry point matched by keyword; runs its bjs with
+    /// the full query. Looked up in TangAppRegistry by slug + label at
+    /// perform time (the bjs itself isn't stored here).
+    case webAppSearch(appSlug: String, label: String, query: String)
 
     // Predefined URL cases
     static let newNotionDoc = openURL(URL(string: "https://notion.new")!)
@@ -45,6 +49,8 @@ public enum SearchAction: Equatable, Codable {
                 return key.actionTitle
             }
             return "Open \(url.stripped)" // not expected
+        case .webAppSearch(_, let label, _):
+            return label
         }
     }
     
@@ -186,6 +192,12 @@ extension BrowserStore {
 
         case .openURL(let url):
             loadURL(url, windowID: windowID)
+
+        case .webAppSearch(let appSlug, let label, let query):
+            if let (app, entry) = TangAppRegistry.shared.searchEntryPoint(appSlug: appSlug, label: label) {
+                let args: [String: Any] = ["query": query, "windowId": windowID.raw]
+                TangAppEntryPointRunner.run(entry, appSlug: app.slug, args: args, windowID: windowID)
+            }
         }
     }
     
@@ -299,7 +311,10 @@ extension SearchableItem {
             return item.url.displayString
         case .tab(_, _):
             return "Switch to Tab"
-        case .searchAction:
+        case .searchAction(let action):
+            if case .webAppSearch(let appSlug, _, _) = action {
+                return "App · \(appSlug)"
+            }
             return "Action"
         }
     }

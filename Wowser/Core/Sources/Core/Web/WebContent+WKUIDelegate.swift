@@ -1,6 +1,6 @@
 import WebKit
 
-extension WebContent: WKUIDelegate {
+extension WebContentWebKit: WKUIDelegate {
     // MARK: - WKUIDelegate
 
     public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -14,7 +14,7 @@ extension WebContent: WKUIDelegate {
             }
         }
         
-        let newWebContent = WebContent(id: .assign(), datastoreUUID: datastoreUUID, config: configuration)
+        let newWebContent = WebContentWebKit(id: .assign(), datastoreUUID: datastoreUUID, config: configuration)
         if let url = navigationAction.request.url {
             newWebContent.populateWithInitialURL(url)
         }

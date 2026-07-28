@@ -70,7 +70,7 @@ private struct ProfileDotView: View {
     @State private var dropTargeted = false
 
     var body: some View {
-        let scale = (hovered || dropTargeted) ? 1.1 : 1
+        let scale = (hovered || dropTargeted) ? 1.3 : 1
         Button(action: {
             // Switch to this profile when clicked
             switchToProfile()
@@ -78,20 +78,20 @@ private struct ProfileDotView: View {
             ZStack {
                 // Background circle for consistent sizing
                 Circle()
-                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.white.opacity(0.01))
-                    .frame(width: 24, height: 24)
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.01))
+                    .frame(width: 28, height: 28)
                 
                 if let emoji = profile?.emoji, !emoji.isEmpty {
                     // Display the emoji if it's been set
                     Text(emoji)
-                        .font(.system(size: 14))
-                        .opacity(isSelected ? 1.0 : 0.6)
+                        .font(.system(size: 12))
+//                        .opacity(isSelected ? 1.0 : 0.6)
                         .scaleEffect(scale)
                 } else {
                     // Default dot indicator
                     Circle()
                         .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
-                        .frame(width: 8, height: 8)
+                        .frame(width: 6, height: 6)
                         .scaleEffect(scale)
                 }
             }

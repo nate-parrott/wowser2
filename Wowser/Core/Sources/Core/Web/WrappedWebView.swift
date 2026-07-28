@@ -30,11 +30,7 @@ public struct WrappedWebView: View {
                 WebView(webContent: webContent, shrunk: shrunk)
                     .onAppearOrChange(of: webviewFocusToken, perform: { token in
                         if token != nil {
-                            #if os(macOS)
-                            webContent.webview.wowser_becomeFirstResponder(asTarget: .webContent(webContent.id))
-                            #else
                             webContent.focus()
-                            #endif
                         }
                     })
                     .onAppearOrChange(of: extractedReaderContent != nil, perform: { reader in
@@ -81,9 +77,9 @@ public struct WrappedWebView: View {
     }
 
     @ViewBuilder private var findInPageContent: some View {
-        if isFindInPageActive {
+        if isFindInPageActive, let wkWebview = webContent.wkWebview {
             FindInPageView(
-                webView: webContent.webview,
+                webView: wkWebview,
                 paneID: webContent.id,
                 onClose: { closeFindInPage() }
             )
@@ -169,16 +165,14 @@ private struct LoadingFailureOverlay: View {
             VSCodeLoadingOverlay(folder: folder, webContent: webContent)
         } else {
             VStack(spacing: 20) {
+                Spacer()
                 Image(systemName: "network.slash")
                     .opacity(0.1)
                     .font(.system(size: 100))
                 
                 HStack {
-                    Text(failure.displayString)
-                        .lineLimit(1)
-                        .help(failure.displayString)
-                    
-                    CopyButton(text: failure.displayString)
+                    Text("Error :(")
+                        .font(.title)
                 }
                 .font(.system(.caption))
                 .frame(maxWidth: 400)
@@ -187,6 +181,16 @@ private struct LoadingFailureOverlay: View {
                     webContent.load(url: failure.url)
                 }) {
                     Text("Reload")
+                }
+                
+                Spacer()
+                
+                HStack {
+                    Text(failure.displayString)
+                        .lineLimit(1)
+                        .help(failure.displayString)
+                    
+                    CopyButton(text: failure.displayString)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

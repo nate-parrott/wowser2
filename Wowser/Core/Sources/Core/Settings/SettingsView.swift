@@ -12,6 +12,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.cleanModeForRecipes.rawValue) private var cleanModeForRecipesEnabled = false
     @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = true
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
+    @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var spaceThemeIntensity = 1.0
@@ -74,6 +75,19 @@ public struct SettingsView: View {
                     .help("Show animation when new tabs are loaded")
                 
                 Toggle("Save windows when quitting", isOn: $preserveWindowsAcrossRestarts)
+            }
+
+            Section("Browser Engine") {
+                Toggle("Use Chromium engine for new tabs", isOn: $chromiumEngineEnabled)
+                    .disabled(!ChromiumSupport.isAvailable)
+                    .help(ChromiumSupport.isAvailable
+                          ? "New tabs render with Chromium (CEF) instead of WebKit. Existing tabs keep their engine."
+                          : "This build doesn't include Chromium. Enable it with `touch Wowser/Core/.cef-enabled` and rebuild (see scripts/cef/README.md).")
+                if !ChromiumSupport.isAvailable {
+                    Text("Chromium is not included in this build.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             
             Section("Appearance") {

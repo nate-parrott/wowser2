@@ -65,7 +65,8 @@ public class ThumbnailCache {
                 
                 // Capture screenshot
                 do {
-                    let screenshot = try await webContent.webview.takeSnapshot(configuration: config)
+                    guard let wkWebview = webContent.wkWebview else { return }
+                    let screenshot = try await wkWebview.takeSnapshot(configuration: config)
                     // Store in cache
                     DispatchQueue.main.async {
                         self.cache.setObject(screenshot, forKey: paneId.raw as NSString)

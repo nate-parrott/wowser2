@@ -22,9 +22,9 @@ import Security
 final class WebviewProxyCaptureTests: XCTestCase {
 
     func testCaptureProxyConfigurationsHelper() {
-        XCTAssertTrue(WebContent.captureProxyConfigurations(port: nil).isEmpty)
-        XCTAssertTrue(WebContent.captureProxyConfigurations(port: 0).isEmpty)
-        XCTAssertEqual(WebContent.captureProxyConfigurations(port: 8080).count, 1)
+        XCTAssertTrue(WebContentWebKit.captureProxyConfigurations(port: nil).isEmpty)
+        XCTAssertTrue(WebContentWebKit.captureProxyConfigurations(port: 0).isEmpty)
+        XCTAssertEqual(WebContentWebKit.captureProxyConfigurations(port: 8080).count, 1)
     }
 
     /// The trust logic `WebContent`'s nav delegate runs: accept our LocalCA's

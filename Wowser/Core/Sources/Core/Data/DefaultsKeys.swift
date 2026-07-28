@@ -3,6 +3,7 @@ import Combine
 
 public enum DefaultsKeys: String {
     case adblock // bool
+    case chromiumEngine // bool — new tabs use the Chromium (CEF) engine, when the build includes it (see Core/Package.swift)
     case cookieBannerBlock // bool
     case autoDarkMode
 //    case topbarLocked // bool

@@ -100,6 +100,11 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// sidebar with an "Agent tab" subtitle. Cleared when the user activates
     /// the tab directly so it becomes a normal pane.
     public var isGhost: Bool = false
+    /// Which engine backs this pane. Stamped when the live WebContent is first
+    /// created (nil until then, and for panes persisted before this existed).
+    /// Lives on Pane rather than Info because `pane.info` gets wholesale-reset
+    /// on navigation.
+    public var engine: BrowserEngine?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -319,13 +324,28 @@ public class BrowserStore: DataStore<BrowserState> {
             return nil
         }
         print("CREATING WC FOR TAB \(tabId)")
-        
+
+        // Engine is decided once per pane (first WebContent creation) and then
+        // sticks, so a Chromium tab stays Chromium across unload/reload even if
+        // the default-engine setting changes.
+        let engine = pane.engine ?? BrowserEngine.preferredForNewPane(url: pane.info.url)
+
         modify { state in
             // Must set this otherwise tab will be unloaded
             state.tabs[tabId]?.lastActiveInWindow = windowID
+            state.tabs[tabId]?.panes[id]?.engine = engine
         }
-        
-        let wc = WebContent(id: id, datastoreUUID: profile.dataStoreUUID)
+
+        let wc: WebContent
+        #if canImport(CefKit) && os(macOS)
+        if engine == .chromium {
+            wc = WebContentChromium(id: id, datastoreUUID: profile.dataStoreUUID)
+        } else {
+            wc = WebContentWebKit(id: id, datastoreUUID: profile.dataStoreUUID)
+        }
+        #else
+        wc = WebContentWebKit(id: id, datastoreUUID: profile.dataStoreUUID)
+        #endif
         if pane.isGhost {
             wc.silenced = true
         }
@@ -344,7 +364,7 @@ public class BrowserStore: DataStore<BrowserState> {
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
         }
         liveWebContents.removeValue(forKey: id) // the cleaner (removeWebContentNotInIds) handles this for tabs that were removed, but not ones that were pinned (bc their tabs are still alive)
-        if let wv = liveWebContents[id]?.webview {
+        if let wv = liveWebContents[id]?.wkWebview {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
                 if let wv {
                     softAssert("Expected to deallocate webview: \(wv)")
@@ -359,7 +379,7 @@ public class BrowserStore: DataStore<BrowserState> {
     private func removeWebContentNotInIds(_ ids: Set<ID<WebContent>>) {
         let toRemove = liveWebContents.keys.filter { !ids.contains($0) }
         for id in toRemove {
-            if let wv = liveWebContents[id]?.webview {
+            if let wv = liveWebContents[id]?.wkWebview {
                 print("Trying to close web content '\(wv.title ?? "[no title]")'")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak wv] in
                     if let wv {

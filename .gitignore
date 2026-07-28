@@ -60,3 +60,6 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+# CEF (Chromium engine) build flag + artifacts (see scripts/cef/README.md)
+Wowser/Core/.cef-enabled
+Wowser/Core/.cef/

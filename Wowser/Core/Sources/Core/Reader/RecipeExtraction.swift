@@ -60,7 +60,7 @@ extension String {
     }
 }
 
-extension WebContent {
+extension WebContentWebKit {
     func tryToExtractRecipe() async throws -> (URL, Recipe)? {
         let js = """
         (function() {

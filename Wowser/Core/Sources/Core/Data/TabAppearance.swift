@@ -93,6 +93,15 @@ extension Pane {
             }
         }
         
+        // appearance for errored tabs, which may not have titles + urls
+        if appearance.urlFieldTextDeselected.isEmpty && appearance.urlFieldTextSelected.isEmpty, let failedURL = info.failedNavToURL?.url {
+            appearance.urlFieldTextSelected = failedURL.absoluteString
+            appearance.urlFieldTextDeselected = failedURL.hostWithoutWWW
+        }
+        if appearance.title.isEmpty, let failedURL = info.failedNavToURL?.url {
+            appearance.title = failedURL.hostWithoutWWW
+        }
+        
         return appearance
     }
 }
