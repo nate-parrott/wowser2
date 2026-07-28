@@ -109,7 +109,7 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws
     /// Wait (up to timeoutMs) for the agent to go idle. Returns `done:false` on
     /// timeout so callers can await again.
-    func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult
+    func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult
     /// Transcript entries with index >= since.
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage]
     func agentList() async throws -> [BrowserJSAgentInfo]
@@ -151,7 +151,7 @@ public extension BrowserJSHost {
     func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws {
         throw BrowserJSError.notImplemented("agent.send")
     }
-    func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult {
+    func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult {
         throw BrowserJSError.notImplemented("agent.await")
     }
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {

@@ -196,7 +196,7 @@ extension CharacterSet {
             for oldItem in prevResults.dropFirst(fastPath.count) {
                 showNow.append(oldItem)
             }
-            self.results = showNow.deduplicate({ $0.item.dedupeKey })
+            self.results = Array(showNow.deduplicate({ $0.item.dedupeKey }).prefix(n))
             
             // Now do slow path:
             Task {
@@ -205,7 +205,7 @@ extension CharacterSet {
                 if self.query != query {
                     return
                 }
-                self.results = slowResults.deduplicate({ $0.item.dedupeKey })
+                self.results = Array(slowResults.deduplicate({ $0.item.dedupeKey }).prefix(n))
             }
         }
     }

@@ -74,6 +74,8 @@ public enum AgentEvent: Sendable {
     case thinking(String)
     case toolUse(name: String, inputJSON: String)
     case toolResult(text: String, isError: Bool)
+    /// The current turn was stopped by `interrupt()`.
+    case interrupted
     case turnCompleted(AgentTurnResult)
     case failed(String)
     case terminated
@@ -92,11 +94,23 @@ public struct AgentSpec: Sendable {
     public var appendSystemPrompt: String?
     /// Host tools exposed to the agent.
     public var tools: [AgentToolDefinition]
+    /// Give the agent the harness's filesystem/shell tools. Off by default —
+    /// a browser-embedded agent normally acts through its BrowserJS tools.
+    /// Implementations that disable them must tell the model so, or it will
+    /// write tool-call syntax into its visible text when a task needs them.
+    public var enableFileSystemTools: Bool
+    /// Directory the agent's file/shell tools operate in.
+    public var workingDirectory: URL?
+    /// Resume a previous conversation instead of starting fresh. Pass the
+    /// `sessionID` reported by `AgentEvent.started` on an earlier run.
+    /// Harnesses that can't resume should ignore this and start clean.
+    public var resumeSessionID: String?
 
-    public init(model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, appendSystemPrompt: String? = nil, tools: [AgentToolDefinition] = []) {
+    public init(model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, appendSystemPrompt: String? = nil, tools: [AgentToolDefinition] = [], enableFileSystemTools: Bool = false, workingDirectory: URL? = nil, resumeSessionID: String? = nil) {
         self.model = model; self.effort = effort
         self.systemPrompt = systemPrompt; self.appendSystemPrompt = appendSystemPrompt
-        self.tools = tools
+        self.tools = tools; self.enableFileSystemTools = enableFileSystemTools
+        self.workingDirectory = workingDirectory; self.resumeSessionID = resumeSessionID
     }
 }
 

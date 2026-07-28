@@ -208,11 +208,14 @@ enum BrowserJSDispatch {
             return try encodeValue(id)
         case "agent.create":
             let options = BrowserJSAgentCreateOptions(
+                key: optStr("key"),
                 name: optStr("name"),
                 model: optStr("model"),
                 effort: optStr("effort"),
                 systemPrompt: optStr("systemPrompt"),
-                exposeBrowserJS: bool("exposeBrowserJS", true)
+                exposeBrowserJS: bool("exposeBrowserJS", true),
+                fileSystemTools: bool("fileSystemTools", false),
+                workingDirectory: optStr("workingDirectory")
             )
             let id = try await host.agentCreate(options: options)
             return try encodeValue(id)
@@ -226,7 +229,7 @@ enum BrowserJSDispatch {
             return nil
         case "agent.await":
             guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
-            let result = try await host.agentAwait(id: id, timeoutMs: int("timeoutMs") ?? 30_000)
+            let result = try await host.agentAwait(id: id, timeoutMs: int("timeoutMs") ?? 30_000, since: int("since"))
             return try encodeValue(result)
         case "agent.messages":
             guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }

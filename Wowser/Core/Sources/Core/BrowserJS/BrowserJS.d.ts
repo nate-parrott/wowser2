@@ -297,16 +297,33 @@ declare global {
      * `run_browser_js` tool + these docs, so it can drive the browser and see
      * screenshots it captures via `browser.viewImage(...)`.
      *
-     * Typical chat loop from a tang:// webapp:
-     *   const id = await browser.agent.create({ name: 'Helper', model: 'sonnet' });
-     *   await browser.agent.send({ id, text: userInput });
-     *   let r = await browser.agent.await({ id, timeoutMs: 30000 });
-     *   while (!r.done) r = await browser.agent.await({ id, timeoutMs: 30000 });
-     *   const msgs = await browser.agent.messages({ id });
+     * Typical chat loop, rendering progress as it happens:
+     *   const id = await browser.agent.create({ key: 'my-chat', model: 'sonnet' });
+     *   await browser.agent.send({ id, text: userInput });   // returns immediately
+     *   let since = 0, r;
+     *   do {
+     *     r = await browser.agent.await({ id, since, timeoutMs: 30000 });
+     *     for (const m of r.messages) render(m);   // assistant text, tool calls...
+     *     since = r.nextIndex;
+     *   } while (!r.done);
+     *
+     * Three things worth knowing:
+     * - `send` does NOT wait for the agent to be free. Sending while it's
+     *   working queues the message, which is how you steer it mid-task.
+     * - `interrupt` stops the current turn (a Stop button); the turn ends with
+     *   stopReason "interrupted" rather than an error.
+     * - Pass `key` to get a durable session that survives reloads/restarts.
      */
     agent: {
-      /** Returns the new agentId. Throws if no agent backend is available. */
+      /**
+       * Returns the agentId. Throws if no agent backend is available.
+       * With a `key`, returns the EXISTING agent for that key if there is one
+       * (reconnecting live, or resuming it from disk with its conversation and
+       * transcript intact) instead of creating a second one.
+       */
       create(opts?: {
+        /** Stable name for a long-running session; reuse it to reattach. */
+        key?: string;
         name?: string;
         /** 'opus' | 'sonnet' | 'haiku' | 'fable' | full model id. Default: the backend's default model. */
         model?: string;
@@ -315,21 +332,47 @@ declare global {
         systemPrompt?: string;
         /** Give the agent browser control via a run_browser_js tool (default true). */
         exposeBrowserJS?: boolean;
+        /**
+         * Also give the agent real filesystem/shell tools (read, write, edit,
+         * bash) scoped to `workingDirectory`. Default false — browser agents
+         * normally act through run_browser_js instead.
+         */
+        fileSystemTools?: boolean;
+        /** Directory for the filesystem tools. Ignored unless fileSystemTools. */
+        workingDirectory?: string;
       }): Promise<string>;
-      /** Start a turn. Returns immediately; the turn runs in the background. */
+      /**
+       * Queue a message and return immediately — the turn runs in the
+       * background. Safe to call while the agent is already working: the
+       * message is delivered right away and answered in order, so this is how
+       * you redirect an agent mid-task.
+       */
       send(opts: { id: string; text: string; images?: Image[] }): Promise<void>;
       /**
-       * Wait (up to timeoutMs, default 30000) for the agent to finish its turn.
-       * Returns { done, status, text?, isError } — `done: false` on timeout;
-       * just call again to keep waiting.
+       * Wait (up to timeoutMs, default 30000) for the agent to make progress:
+       * resolves as soon as new transcript entries appear OR the turn ends,
+       * whichever comes first — so you get tool calls and partial output live
+       * rather than only a final answer. Pass `since` (start at 0) and feed
+       * `nextIndex` back in on the next call.
+       *
+       * `done` is false when it returned because of progress or a timeout;
+       * loop until it's true.
        */
-      await(opts: { id: string; timeoutMs?: number }): Promise<{ done: boolean; status: string; text?: string; isError: boolean }>;
-      /** Transcript entries (role: user|assistant|thinking|tool_use|tool_result|error) with index >= since. */
+      await(opts: { id: string; since?: number; timeoutMs?: number }): Promise<{
+        done: boolean;
+        status: string;
+        text?: string;
+        isError: boolean;
+        messages: Array<{ index: number; role: string; text: string; toolName?: string }>;
+        nextIndex: number;
+      }>;
+      /** Transcript entries with index >= since. Roles: user | assistant | thinking | tool_use | tool_result | stopped | error. */
       messages(opts: { id: string; since?: number }): Promise<Array<{ index: number; role: string; text: string; toolName?: string }>>;
-      list(): Promise<Array<{ id: string; name?: string; model?: string; status: string; messageCount: number }>>;
-      /** Stop the agent's current turn early. */
+      /** Live agents plus saved sessions (status "saved") that can be reopened by key. */
+      list(): Promise<Array<{ id: string; key?: string; name?: string; model?: string; status: string; messageCount: number }>>;
+      /** Stop the current turn (a Stop button). The turn ends with stopReason "interrupted". */
       interrupt(id: string): Promise<void>;
-      /** Shut the agent down and free its resources. */
+      /** Shut the agent down and forget it, including any saved session. */
       dispose(id: string): Promise<void>;
     };
 

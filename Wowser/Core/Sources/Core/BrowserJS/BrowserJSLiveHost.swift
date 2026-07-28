@@ -532,8 +532,8 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         try await BrowserAgentManager.shared.send(id: id, text: text, images: images)
     }
 
-    public func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult {
-        try await BrowserAgentManager.shared.awaitIdle(id: id, timeoutMs: timeoutMs)
+    public func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult {
+        try await BrowserAgentManager.shared.awaitIdle(id: id, timeoutMs: timeoutMs, since: since)
     }
 
     public func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {

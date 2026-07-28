@@ -9,7 +9,7 @@ import XCTest
 final class BrowserAgentBJSTests: XCTestCase {
 
     func testAgentLifecycleViaBJS() async throws {
-        let manager = BrowserAgentManager(provider: EchoProvider(), host: StubHost(), helpers: NoHelpers())
+        let manager = BrowserAgentManager(provider: EchoProvider(), host: StubHost(), helpers: NoHelpers(), store: MemoryStore())
         let host = StubHost(manager: manager)
         let runtime = BrowserJSRuntime(host: host, helpers: NoHelpers())
 
@@ -43,13 +43,75 @@ final class BrowserAgentBJSTests: XCTestCase {
     }
 
     func testCreateFailsWithoutProvider() async throws {
-        let manager = BrowserAgentManager(provider: nil, host: StubHost(), helpers: NoHelpers())
+        let manager = BrowserAgentManager(provider: nil, host: StubHost(), helpers: NoHelpers(), store: MemoryStore())
         do {
             _ = try await manager.create(options: .init())
             XCTFail("expected create to throw with no provider")
         } catch {
             XCTAssertTrue("\(error)".contains("no agent implementation"), "\(error)")
         }
+    }
+
+    /// A keyed agent is the same agent across reloads: same id, transcript
+    /// restored, and the harness told to resume the prior conversation.
+    func testKeyedAgentPersistsAndResumes() async throws {
+        let store = MemoryStore()
+        let provider = EchoProvider()
+
+        let first = BrowserAgentManager(provider: provider, host: StubHost(), helpers: NoHelpers(), store: store)
+        let id = try await first.create(options: .init(key: "chat", model: "sonnet"))
+        try await first.send(id: id, text: "hello", images: [])
+        try await drain(first, id: id)
+
+        // Same key on a live manager returns the same agent, not a new one.
+        let again = try await first.create(options: .init(key: "chat"))
+        XCTAssertEqual(again, id)
+
+        // A fresh manager (app restart) resumes from disk.
+        let second = BrowserAgentManager(provider: provider, host: StubHost(), helpers: NoHelpers(), store: store)
+        let resumedID = try await second.create(options: .init(key: "chat"))
+        XCTAssertEqual(resumedID, id, "resumed agent should keep its id")
+
+        let restored = try await second.messages(id: resumedID, since: 0)
+        XCTAssertEqual(restored.map(\.role), ["user", "assistant"], "transcript should survive")
+        let resumedSessions = await provider.resumedSessionIDs
+        XCTAssertEqual(resumedSessions, ["echo-session"], "harness should be asked to resume the prior session")
+    }
+
+    /// `await` returns as soon as there's something new, so a UI can render
+    /// tool calls and partial output mid-turn.
+    func testAwaitReturnsProgressBeforeTurnEnds() async throws {
+        let agent = SlowAgent()
+        let manager = BrowserAgentManager(provider: FixedProvider(agent: agent), host: StubHost(), helpers: NoHelpers(), store: MemoryStore())
+        let id = try await manager.create(options: .init())
+        try await manager.send(id: id, text: "go", images: [])
+
+        await agent.emitToolUse()
+        let progress = try await manager.awaitIdle(id: id, timeoutMs: 3000, since: 1)
+        XCTAssertFalse(progress.done, "turn is still running")
+        XCTAssertEqual(progress.messages.map(\.role), ["tool_use"])
+
+        await agent.finish()
+        var roles: [String] = []
+        var since = progress.nextIndex
+        while true {
+            let r = try await manager.awaitIdle(id: id, timeoutMs: 3000, since: since)
+            roles += r.messages.map(\.role)
+            since = r.nextIndex
+            if r.done { break }
+        }
+        XCTAssertEqual(roles, ["assistant"])
+    }
+
+    /// `await` resolves on progress, so callers loop until `done`.
+    private func drain(_ manager: BrowserAgentManager, id: String) async throws {
+        var since = 0
+        for _ in 0..<20 {
+            let r = try await manager.awaitIdle(id: id, timeoutMs: 2000, since: since)
+            since = r.nextIndex
+            if r.done { return }
+        }
+        XCTFail("agent never went idle")
     }
 }
 
@@ -61,6 +123,7 @@ private final class EchoAgent: Agent, @unchecked Sendable {
     private var continuations: [AsyncStream<AgentEvent>.Continuation] = []
 
     func send(_ message: AgentUserMessage) async throws -> AgentTurnResult {
+        emit(.started(sessionID: "echo-session"))
         let result = AgentTurnResult(text: "echo: \(message.text)")
         emit(.assistantText(result.text))
         emit(.turnCompleted(result))
@@ -82,10 +145,76 @@ private final class EchoAgent: Agent, @unchecked Sendable {
     }
 }
 
-private struct EchoProvider: AgentProvider {
+private final class EchoProvider: AgentProvider, @unchecked Sendable {
     let id = "echo"
     var isAvailable: Bool { true }
-    func makeAgent(_ spec: AgentSpec) -> any Agent { EchoAgent() }
+    private let lock = NSLock()
+    private var _resumed: [String] = []
+    /// Session ids the manager asked us to resume — proves persistence wiring.
+    var resumedSessionIDs: [String] {
+        get async { lock.lock(); defer { lock.unlock() }; return _resumed }
+    }
+    func makeAgent(_ spec: AgentSpec) -> any Agent {
+        if let resume = spec.resumeSessionID {
+            lock.lock(); _resumed.append(resume); lock.unlock()
+        }
+        return EchoAgent()
+    }
+}
+
+/// Emits events on demand so a test can observe a turn in progress.
+private final class SlowAgent: Agent, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [AsyncStream<AgentEvent>.Continuation] = []
+    private var pending: CheckedContinuation<AgentTurnResult, Error>?
+
+    func send(_ message: AgentUserMessage) async throws -> AgentTurnResult {
+        emit(.started(sessionID: "slow-session"))
+        return try await withCheckedThrowingContinuation { c in
+            lock.lock(); pending = c; lock.unlock()
+        }
+    }
+    func emitToolUse() { emit(.toolUse(name: "run_browser_js", inputJSON: "{}")) }
+    func finish() {
+        let result = AgentTurnResult(text: "all done")
+        emit(.assistantText(result.text))
+        emit(.turnCompleted(result))
+        lock.lock(); let c = pending; pending = nil; lock.unlock()
+        c?.resume(returning: result)
+    }
+    func events() async -> AsyncStream<AgentEvent> {
+        AsyncStream { c in lock.lock(); continuations.append(c); lock.unlock() }
+    }
+    func interrupt() async {}
+    func shutdown() async {}
+    private func emit(_ event: AgentEvent) {
+        lock.lock(); let cs = continuations; lock.unlock()
+        for c in cs { c.yield(event) }
+    }
+}
+
+private struct FixedProvider: AgentProvider {
+    let id = "fixed"
+    let agent: any Agent
+    var isAvailable: Bool { true }
+    func makeAgent(_ spec: AgentSpec) -> any Agent { agent }
+}
+
+private final class MemoryStore: AgentSessionStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var records: [String: AgentSessionRecord] = [:]
+    func load(key: String) -> AgentSessionRecord? {
+        lock.lock(); defer { lock.unlock() }; return records[key]
+    }
+    func save(_ record: AgentSessionRecord) {
+        lock.lock(); records[record.key] = record; lock.unlock()
+    }
+    func delete(key: String) {
+        lock.lock(); records[key] = nil; lock.unlock()
+    }
+    func all() -> [AgentSessionRecord] {
+        lock.lock(); defer { lock.unlock() }; return Array(records.values)
+    }
 }
 
 private struct NoHelpers: BrowserJSHelpersProvider {
@@ -112,8 +241,8 @@ private final class StubHost: BrowserJSHost, @unchecked Sendable {
     func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws {
         try await requireManager().send(id: id, text: text, images: images)
     }
-    func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult {
-        try await requireManager().awaitIdle(id: id, timeoutMs: timeoutMs)
+    func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult {
+        try await requireManager().awaitIdle(id: id, timeoutMs: timeoutMs, since: since)
     }
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
         try await requireManager().messages(id: id, since: since)

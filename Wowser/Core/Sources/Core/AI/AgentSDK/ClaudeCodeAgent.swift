@@ -21,11 +21,11 @@ public actor ClaudeCodeAgent: Agent {
         public var effort: String?
         public var systemPrompt: String?
         public var appendSystemPrompt: String?
-        /// Built-in Claude Code tools to allow. nil = the CLI's default set;
-        /// [] = no built-in tools (pure chat + custom tools).
-        public var builtInTools: [String]?
+        /// Give the agent the harness's filesystem/shell tools (Read, Write,
+        /// Edit, Bash, Glob, Grep, ...). Off by default: a browser-embedded
+        /// agent normally acts through its BrowserJS tools instead.
+        public var enableFileSystemTools: Bool
         public var permissionMode: String
-        public var allowedTools: [String]
         public var maxTurns: Int?
         public var workingDirectory: URL?
         /// Host tools served to the agent over the in-process MCP bridge.
@@ -34,27 +34,30 @@ public actor ClaudeCodeAgent: Agent {
         public var turnTimeout: TimeInterval
         /// Explicit path to the `claude` binary; nil = auto-discover.
         public var claudeBinaryPath: String?
+        /// Resume this CLI session instead of starting a new conversation.
+        public var resumeSessionID: String?
 
         public init(
             model: String? = nil,
             effort: String? = nil,
             systemPrompt: String? = nil,
             appendSystemPrompt: String? = nil,
-            builtInTools: [String]? = [],
+            enableFileSystemTools: Bool = false,
             permissionMode: String = "bypassPermissions",
-            allowedTools: [String] = [],
             maxTurns: Int? = nil,
             workingDirectory: URL? = nil,
             tools: [AgentToolDefinition] = [],
             turnTimeout: TimeInterval = 60 * 10,
-            claudeBinaryPath: String? = nil
+            claudeBinaryPath: String? = nil,
+            resumeSessionID: String? = nil
         ) {
             self.model = model; self.effort = effort
             self.systemPrompt = systemPrompt; self.appendSystemPrompt = appendSystemPrompt
-            self.builtInTools = builtInTools; self.permissionMode = permissionMode
-            self.allowedTools = allowedTools; self.maxTurns = maxTurns
+            self.enableFileSystemTools = enableFileSystemTools
+            self.permissionMode = permissionMode; self.maxTurns = maxTurns
             self.workingDirectory = workingDirectory; self.tools = tools
             self.turnTimeout = turnTimeout; self.claudeBinaryPath = claudeBinaryPath
+            self.resumeSessionID = resumeSessionID
         }
     }
 
@@ -69,11 +72,18 @@ public actor ClaudeCodeAgent: Agent {
 
     public private(set) var sessionID: String?
 
-    // Turn serialization + completion
-    private var turnActive = false
-    private var turnWaiters: [CheckedContinuation<Void, Never>] = []
-    private var turnContinuation: CheckedContinuation<AgentTurnResult, Error>?
-    private var turnTimeoutTask: Task<Void, Never>?
+    // In-flight turns, oldest first. The CLI accepts messages while it is
+    // working and answers them in order, so we deliver immediately and match
+    // each `result` to the oldest pending turn rather than serializing sends.
+    private struct PendingTurn {
+        let id: UUID
+        let continuation: CheckedContinuation<AgentTurnResult, Error>
+        var timeoutTask: Task<Void, Never>?
+    }
+    private var pendingTurns: [PendingTurn] = []
+    /// Set when we've asked the CLI to stop; the turn it kills reports a
+    /// generic execution error, which we translate into a clean stop.
+    private var interruptRequested = false
 
     // Event broadcast
     private var eventContinuations: [UUID: AsyncStream<AgentEvent>.Continuation] = [:]
@@ -84,10 +94,10 @@ public actor ClaudeCodeAgent: Agent {
 
     // MARK: - Agent
 
+    /// Sends immediately, even while an earlier turn is still running — the
+    /// CLI queues messages and answers them in order, so this is how you steer
+    /// a working agent ("actually, do X instead") without waiting for it.
     public func send(_ message: AgentUserMessage) async throws -> AgentTurnResult {
-        if isShutDown { throw AgentSDKError.shutDown }
-        await acquireTurn()
-        defer { releaseTurn() }
         if isShutDown { throw AgentSDKError.shutDown }
         try ensureStarted()
 
@@ -104,16 +114,15 @@ public actor ClaudeCodeAgent: Agent {
             "message": ["role": "user", "content": content],
         ])
 
+        let turnID = UUID()
         let timeout = config.turnTimeout
-        turnTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            await self?.timeOutTurn()
-        }
-        defer { turnTimeoutTask?.cancel(); turnTimeoutTask = nil }
-
         return try await withCheckedThrowingContinuation { continuation in
-            turnContinuation = continuation
+            let timeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self?.timeOutTurn(turnID)
+            }
+            pendingTurns.append(PendingTurn(id: turnID, continuation: continuation, timeoutTask: timeoutTask))
         }
     }
 
@@ -128,7 +137,8 @@ public actor ClaudeCodeAgent: Agent {
     }
 
     public func interrupt() {
-        guard process?.isRunning == true else { return }
+        guard process?.isRunning == true, !pendingTurns.isEmpty else { return }
+        interruptRequested = true
         try? writeLine([
             "type": "control_request",
             "request_id": UUID().uuidString,
@@ -139,7 +149,7 @@ public actor ClaudeCodeAgent: Agent {
     public func shutdown() {
         guard !isShutDown else { return }
         isShutDown = true
-        failTurn(with: AgentSDKError.shutDown)
+        failAllTurns(with: AgentSDKError.shutDown)
         try? stdinHandle?.close()
         process?.terminate()
         process = nil
@@ -166,16 +176,35 @@ public actor ClaudeCodeAgent: Agent {
             "--strict-mcp-config",
             "--permission-mode", config.permissionMode,
         ]
+        if let resume = config.resumeSessionID ?? sessionID { args += ["--resume", resume] }
         if let model = config.model { args += ["--model", model] }
         if let effort = config.effort { args += ["--effort", Self.normalizeEffort(effort)] }
         if let system = config.systemPrompt { args += ["--system-prompt", system] }
-        if let append = config.appendSystemPrompt { args += ["--append-system-prompt", append] }
-        if let builtIn = config.builtInTools {
-            args += ["--tools", builtIn.isEmpty ? "" : builtIn.joined(separator: ",")]
+
+        var appendPieces: [String] = []
+        if let append = config.appendSystemPrompt { appendPieces.append(append) }
+        if !config.enableFileSystemTools {
+            // Without the built-in tools the model still believes it has
+            // Read/Bash/Glob, and writes tool-call syntax into its visible text
+            // when a task needs them. Tell it what it actually has.
+            args += ["--tools", ""]
+            let available = config.tools.isEmpty
+                ? "You have NO tools at all in this session."
+                : "The only tools you have are: \(config.tools.map(\.name).joined(separator: ", "))."
+            appendPieces.append("""
+            \(available) You have no filesystem, shell, editing, or search tools. \
+            NEVER write tool-call syntax (such as function_calls or invoke blocks) \
+            into your response text — it does not invoke anything and is shown to \
+            the user verbatim. If a request needs a capability you don't have, say \
+            so plainly and do what you can with the tools listed above.
+            """)
+        }
+        if !appendPieces.isEmpty {
+            args += ["--append-system-prompt", appendPieces.joined(separator: "\n\n")]
         }
         if let maxTurns = config.maxTurns { args += ["--max-turns", String(maxTurns)] }
 
-        var allowed = config.allowedTools
+        var allowed: [String] = []
         if !config.tools.isEmpty {
             let mcpConfig: [String: Any] = [
                 "mcpServers": [Self.mcpServerName: ["type": "sdk", "name": Self.mcpServerName]],
@@ -250,36 +279,31 @@ public actor ClaudeCodeAgent: Agent {
         process = nil
         let stderr = String(data: stderrData, encoding: .utf8) ?? ""
         let message = "agent process exited (code \(exitCode))" + (stderr.isEmpty ? "" : ": \(stderr.suffix(2000))")
-        failTurn(with: AgentSDKError.turnFailed(message))
+        failAllTurns(with: AgentSDKError.turnFailed(message))
         emit(.failed(message))
     }
 
-    private func timeOutTurn() {
-        guard turnContinuation != nil else { return }
+    private func timeOutTurn(_ id: UUID) {
+        guard let idx = pendingTurns.firstIndex(where: { $0.id == id }) else { return }
+        let turn = pendingTurns.remove(at: idx)
         interrupt()
-        failTurn(with: AgentSDKError.timeout)
+        turn.continuation.resume(throwing: AgentSDKError.timeout)
     }
 
-    private func failTurn(with error: Error) {
-        if let c = turnContinuation {
-            turnContinuation = nil
-            c.resume(throwing: error)
-        }
+    /// Resolves the oldest in-flight turn; results arrive in send order.
+    private func completeOldestTurn(with result: AgentTurnResult) {
+        guard !pendingTurns.isEmpty else { return }
+        let turn = pendingTurns.removeFirst()
+        turn.timeoutTask?.cancel()
+        turn.continuation.resume(returning: result)
     }
 
-    // MARK: - Turn serialization
-
-    private func acquireTurn() async {
-        if !turnActive { turnActive = true; return }
-        await withCheckedContinuation { c in turnWaiters.append(c) }
-    }
-
-    private func releaseTurn() {
-        if let next = turnWaiters.first {
-            turnWaiters.removeFirst()
-            next.resume()
-        } else {
-            turnActive = false
+    private func failAllTurns(with error: Error) {
+        let turns = pendingTurns
+        pendingTurns.removeAll()
+        for turn in turns {
+            turn.timeoutTask?.cancel()
+            turn.continuation.resume(throwing: error)
         }
     }
 
@@ -319,18 +343,24 @@ public actor ClaudeCodeAgent: Agent {
                                  isError: block["is_error"] as? Bool ?? false))
             }
         case "result":
-            let result = AgentTurnResult(
+            var result = AgentTurnResult(
                 text: obj["result"] as? String ?? "",
                 isError: (obj["is_error"] as? Bool ?? false) || (obj["subtype"] as? String != "success"),
                 stopReason: obj["stop_reason"] as? String ?? obj["subtype"] as? String,
                 costUSD: obj["total_cost_usd"] as? Double,
                 sessionID: obj["session_id"] as? String
             )
-            emit(.turnCompleted(result))
-            if let c = turnContinuation {
-                turnContinuation = nil
-                c.resume(returning: result)
+            // A turn we stopped on purpose comes back as a generic execution
+            // error with no text. Report it as a stop, not a failure.
+            if interruptRequested {
+                interruptRequested = false
+                result.isError = false
+                result.stopReason = "interrupted"
+                if result.text.isEmpty { result.text = "(stopped)" }
+                emit(.interrupted)
             }
+            emit(.turnCompleted(result))
+            completeOldestTurn(with: result)
         case "control_request":
             await handleControlRequest(obj)
         default:
@@ -529,8 +559,10 @@ public struct ClaudeCodeAgentProvider: AgentProvider {
             effort: spec.effort,
             systemPrompt: spec.systemPrompt,
             appendSystemPrompt: spec.appendSystemPrompt,
-            builtInTools: [],
-            tools: spec.tools
+            enableFileSystemTools: spec.enableFileSystemTools,
+            workingDirectory: spec.workingDirectory,
+            tools: spec.tools,
+            resumeSessionID: spec.resumeSessionID
         ))
     }
 }

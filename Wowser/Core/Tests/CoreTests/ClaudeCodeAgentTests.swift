@@ -18,7 +18,6 @@ final class ClaudeCodeAgentTests: XCTestCase {
         ClaudeCodeAgent(configuration: .init(
             model: "haiku",
             systemPrompt: systemPrompt,
-            builtInTools: [],
             tools: tools,
             turnTimeout: 120
         ))
@@ -73,6 +72,42 @@ final class ClaudeCodeAgentTests: XCTestCase {
         ))
         XCTAssertFalse(result.isError, "turn errored: \(result.text)")
         XCTAssertTrue(result.text.lowercased().contains("red"), "unexpected reply: \(result.text)")
+    }
+
+    /// A Stop button: interrupt ends the turn promptly and reports a clean
+    /// stop rather than an error.
+    func testInterruptStopsTurn() async throws {
+        try requireClaude()
+        let agent = makeAgent()
+        defer { Task { await agent.shutdown() } }
+
+        let started = Date()
+        async let turn = agent.send(AgentUserMessage(
+            text: "Count slowly from 1 to 500, one number per line. Do not stop early."))
+        try await Task.sleep(nanoseconds: 4_000_000_000)
+        await agent.interrupt()
+
+        let result = try await turn
+        XCTAssertLessThan(Date().timeIntervalSince(started), 45, "interrupt should end the turn promptly")
+        XCTAssertEqual(result.stopReason, "interrupted")
+        XCTAssertFalse(result.isError, "a deliberate stop is not an error")
+    }
+
+    /// Messages sent while the agent is working are delivered immediately and
+    /// answered in order — that's how a UI steers a running agent.
+    func testSendWhileWorkingQueuesInOrder() async throws {
+        try requireClaude()
+        let agent = makeAgent()
+        defer { Task { await agent.shutdown() } }
+
+        async let firstTurn = agent.send(AgentUserMessage(text: "Say the word ALPHA and nothing else."))
+        try await Task.sleep(nanoseconds: 500_000_000)
+        // Sent mid-turn: must not block behind the first turn.
+        async let secondTurn = agent.send(AgentUserMessage(text: "Say the word BETA and nothing else."))
+
+        let (first, second) = try await (firstTurn, secondTurn)
+        XCTAssertTrue(first.text.contains("ALPHA"), "first turn: \(first.text)")
+        XCTAssertTrue(second.text.contains("BETA"), "second turn: \(second.text)")
     }
 
     func testEventsStream() async throws {
