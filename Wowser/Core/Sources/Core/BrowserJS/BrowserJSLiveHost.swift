@@ -133,7 +133,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             // Title: best-effort — we set it on the next info update via JS.
             if let title {
                 let escaped = title.replacingOccurrences(of: "\"", with: "\\\"")
-                wc.webview.evaluateJavaScript("document.title = \"\(escaped)\"")
+                try wc.wkWebviewOrThrow.evaluateJavaScript("document.title = \"\(escaped)\"")
             }
             return ()
         }
@@ -222,19 +222,19 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             else { throw BrowserJSError.tabNotFound(id) }
             switch kind {
             case "html":
-                let html = try await wc.webview.evaluateAsyncJS("return document.documentElement.outerHTML;")
+                let html = try await wc.wkWebviewOrThrow.evaluateAsyncJS("return document.documentElement.outerHTML;")
                 return html as? String ?? ""
             case "markdown":
-                let html = try await wc.webview.evaluateAsyncJS("return document.documentElement.outerHTML;") as? String ?? ""
+                let html = try await wc.wkWebviewOrThrow.evaluateAsyncJS("return document.documentElement.outerHTML;") as? String ?? ""
                 return BrowserJSLiveHost.htmlToMarkdown(html)
             default: // "text"
-                let text = (try await wc.webview.evaluateAsyncJS("return document.documentElement.innerText;")) as? String ?? ""
+                let text = (try await wc.wkWebviewOrThrow.evaluateAsyncJS("return document.documentElement.innerText;")) as? String ?? ""
                 if !text.isEmpty { return text }
                 // `innerText` is empty for tabs that have never been rendered
                 // (e.g. opened with `{background:true}`) because layout hasn't
                 // run. Fall back to the DOM's text, which is available without
                 // rendering — same source the `html`/`markdown` reads use.
-                let html = (try await wc.webview.evaluateAsyncJS("return document.documentElement.outerHTML;")) as? String ?? ""
+                let html = (try await wc.wkWebviewOrThrow.evaluateAsyncJS("return document.documentElement.outerHTML;")) as? String ?? ""
                 return BrowserJSLiveHost.htmlToMarkdown(html)
             }
         }
@@ -253,7 +253,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             // `{background:true}`) snapshots to a zero-sized image. Surface that
             // as an explicit error instead of a silent 0-byte PNG, so callers
             // know to `tabs.activate(id)` first.
-            let img: NSImage = try await wc.webview.takeSnapshot(configuration: cfg)
+            let img: NSImage = try await wc.wkWebviewOrThrow.takeSnapshot(configuration: cfg)
             guard img.size.width > 0, img.size.height > 0,
                   let tiff = img.tiffRepresentation,
                   let rep = NSBitmapImageRep(data: tiff),
@@ -275,7 +275,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { throw BrowserJSError.tabNotFound(id) }
-            return try await wc.webview.evalReturningValue(js)
+            return try await wc.wkWebviewOrThrow.evalReturningValue(js)
         }
     }
 
@@ -348,7 +348,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
               let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
         else { throw BrowserJSError.tabNotFound(id) }
-        return wc.webview
+        return try wc.wkWebviewOrThrow
     }
 
     // MARK: - Windows
@@ -515,7 +515,41 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         // per-app opt-out.
         _ = exposeBrowserJS
         let slug = try TangerineApps.shared.create(name: name, files: files)
+        TangAppRegistry.shared.reload()
         return try await tabsOpen(url: "tang://\(slug)/", background: false, windowId: nil)
+    }
+
+    // MARK: - Agents
+    // Backed by BrowserAgentManager, which is platform-neutral over the
+    // `Agent`/`AgentProvider` protocols. On platforms with no registered
+    // provider only `create` fails.
+
+    public func agentCreate(options: BrowserJSAgentCreateOptions) async throws -> String {
+        try await BrowserAgentManager.shared.create(options: options)
+    }
+
+    public func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws {
+        try await BrowserAgentManager.shared.send(id: id, text: text, images: images)
+    }
+
+    public func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult {
+        try await BrowserAgentManager.shared.awaitIdle(id: id, timeoutMs: timeoutMs)
+    }
+
+    public func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
+        try await BrowserAgentManager.shared.messages(id: id, since: since)
+    }
+
+    public func agentList() async throws -> [BrowserJSAgentInfo] {
+        await BrowserAgentManager.shared.list()
+    }
+
+    public func agentInterrupt(id: String) async throws {
+        try await BrowserAgentManager.shared.interrupt(id: id)
+    }
+
+    public func agentDispose(id: String) async throws {
+        try await BrowserAgentManager.shared.dispose(id: id)
     }
 
     private static func summary(from e: NetCaptureEntry) -> NetEntrySummary {
@@ -710,4 +744,17 @@ extension WKWebView {
         "return", "var", "let", "const", "if", "for", "while", "switch",
         "function", "throw", "do", "try", "class", "async",
     ]
+}
+
+private extension WebContent {
+    /// BrowserJS agent APIs drive pages through WebKit. Chromium (CEF) tabs
+    /// don't support them yet, so surface a typed error instead of crashing.
+    var wkWebviewOrThrow: WebContentWebView {
+        get throws {
+            guard let wkWebview else {
+                throw BrowserJSError.notImplemented("This action isn't supported on Chromium-engine tabs yet")
+            }
+            return wkWebview
+        }
+    }
 }

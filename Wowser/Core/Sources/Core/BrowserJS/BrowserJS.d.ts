@@ -244,9 +244,93 @@ declare global {
      * a new tab at `tang://<slug>/`. `files` maps relative paths to contents and
      * MUST include an `index.html`. Pages loaded from tang:// receive the full
      * `window.browser` API (this same surface), so an app can drive the browser.
+     *
+     * ## manifest.json (optional)
+     *
+     * Include a `manifest.json` in `files` to give the app a title/metadata
+     * and register entry points that surface it elsewhere in the browser:
+     *
+     *   {
+     *     "title": "Weather",           // display name (Apps menu, etc.); defaults to the slug
+     *     "description": "...",         // optional
+     *     "icon": "🌤️",                 // optional emoji shown next to the title
+     *     "entryPoints": [ ... ]        // optional, see below
+     *   }
+     *
+     * Installed apps are listed in the "Apps" menu in the menu bar. Each entry
+     * point is { kind, label, bjs, keyword? } where `bjs` is the BODY of an
+     * async BrowserJS function (same environment as run_browser_js: `browser`
+     * in scope, `await` allowed, explicit `return` if you want a result) plus
+     * a kind-specific `args` object in scope:
+     *
+     * - kind "new": an item in the new-tab "…" menu, below "New Claude".
+     *   args = { windowId: WindowId, profileId?: string }
+     *   Example — open the app in a new tab:
+     *     { "kind": "new", "label": "New Weather Note",
+     *       "bjs": "await browser.tabs.open('tang://weather/new', { windowId: args.windowId });" }
+     *
+     * - kind "tab": an item in the puzzle-piece "extensions" menu shown in the
+     *   toolbar of web tabs. args = { tabId: TabId, url?: string, windowId?: WindowId }
+     *   Example — open the app in a split next to the current tab, passing its URL:
+     *     { "kind": "tab", "label": "Analyze This Page",
+     *       "bjs": "await browser.tabs.openSplit('tang://weather/?page=' + encodeURIComponent(args.url), { besideTabId: args.tabId });" }
+     *
+     * - kind "search": registers `keyword`; when an omnibox query starts with
+     *   that word (e.g. keyword "weather" matches "weather" or "weather in sf"),
+     *   a result titled `label` appears; selecting it runs `bjs`.
+     *   args = { query: string, windowId: WindowId }
+     *   Example:
+     *     { "kind": "search", "keyword": "weather", "label": "Weather result",
+     *       "bjs": "await browser.tabs.open('tang://weather/?q=' + encodeURIComponent(args.query), { windowId: args.windowId });" }
      */
     webapp: {
       create(opts: { name: string; files: Record<string, string>; exposeBrowserJS?: boolean }): Promise<TabId>;
+    };
+
+    /**
+     * AI agents. Create an agent session, send it messages (with optional
+     * images — e.g. from `content.screenshot`), and read back its transcript.
+     * Turns run asynchronously: `send` returns immediately; use `await` (waits
+     * until idle, up to timeoutMs) or poll `messages`.
+     *
+     * By default (`exposeBrowserJS: true`) the agent itself gets a
+     * `run_browser_js` tool + these docs, so it can drive the browser and see
+     * screenshots it captures via `browser.viewImage(...)`.
+     *
+     * Typical chat loop from a tang:// webapp:
+     *   const id = await browser.agent.create({ name: 'Helper', model: 'sonnet' });
+     *   await browser.agent.send({ id, text: userInput });
+     *   let r = await browser.agent.await({ id, timeoutMs: 30000 });
+     *   while (!r.done) r = await browser.agent.await({ id, timeoutMs: 30000 });
+     *   const msgs = await browser.agent.messages({ id });
+     */
+    agent: {
+      /** Returns the new agentId. Throws if no agent backend is available. */
+      create(opts?: {
+        name?: string;
+        /** 'opus' | 'sonnet' | 'haiku' | 'fable' | full model id. Default: the backend's default model. */
+        model?: string;
+        /** Reasoning effort: 'low' | 'medium' | 'high'. */
+        effort?: string;
+        systemPrompt?: string;
+        /** Give the agent browser control via a run_browser_js tool (default true). */
+        exposeBrowserJS?: boolean;
+      }): Promise<string>;
+      /** Start a turn. Returns immediately; the turn runs in the background. */
+      send(opts: { id: string; text: string; images?: Image[] }): Promise<void>;
+      /**
+       * Wait (up to timeoutMs, default 30000) for the agent to finish its turn.
+       * Returns { done, status, text?, isError } — `done: false` on timeout;
+       * just call again to keep waiting.
+       */
+      await(opts: { id: string; timeoutMs?: number }): Promise<{ done: boolean; status: string; text?: string; isError: boolean }>;
+      /** Transcript entries (role: user|assistant|thinking|tool_use|tool_result|error) with index >= since. */
+      messages(opts: { id: string; since?: number }): Promise<Array<{ index: number; role: string; text: string; toolName?: string }>>;
+      list(): Promise<Array<{ id: string; name?: string; model?: string; status: string; messageCount: number }>>;
+      /** Stop the agent's current turn early. */
+      interrupt(id: string): Promise<void>;
+      /** Shut the agent down and free its resources. */
+      dispose(id: string): Promise<void>;
     };
 
     sleep(ms: number): Promise<void>;

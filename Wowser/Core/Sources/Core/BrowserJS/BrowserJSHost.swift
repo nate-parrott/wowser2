@@ -99,6 +99,22 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// `index.html` entry point. When `exposeBrowserJS` is true the app's pages
     /// receive `window.browser` (the full BrowserJS surface). Returns the tabId.
     func webappCreate(name: String, files: [String: String], exposeBrowserJS: Bool) async throws -> String
+
+    // MARK: - Agents
+
+    /// Create a new agent session; returns its agentId. Turns are started with
+    /// `agentSend` and observed via `agentMessages`/`agentAwait`.
+    func agentCreate(options: BrowserJSAgentCreateOptions) async throws -> String
+    /// Start a turn (message + optional images). Returns immediately.
+    func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws
+    /// Wait (up to timeoutMs) for the agent to go idle. Returns `done:false` on
+    /// timeout so callers can await again.
+    func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult
+    /// Transcript entries with index >= since.
+    func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage]
+    func agentList() async throws -> [BrowserJSAgentInfo]
+    func agentInterrupt(id: String) async throws
+    func agentDispose(id: String) async throws
 }
 
 public extension BrowserJSHost {
@@ -128,6 +144,27 @@ public extension BrowserJSHost {
     }
     func spacesActivate(spaceId: String, windowId: String?) async throws {
         throw BrowserJSError.notImplemented("spaces.activate")
+    }
+    func agentCreate(options: BrowserJSAgentCreateOptions) async throws -> String {
+        throw BrowserJSError.notImplemented("agent.create")
+    }
+    func agentSend(id: String, text: String, images: [BrowserJSImage]) async throws {
+        throw BrowserJSError.notImplemented("agent.send")
+    }
+    func agentAwait(id: String, timeoutMs: Int) async throws -> BrowserJSAgentAwaitResult {
+        throw BrowserJSError.notImplemented("agent.await")
+    }
+    func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
+        throw BrowserJSError.notImplemented("agent.messages")
+    }
+    func agentList() async throws -> [BrowserJSAgentInfo] {
+        throw BrowserJSError.notImplemented("agent.list")
+    }
+    func agentInterrupt(id: String) async throws {
+        throw BrowserJSError.notImplemented("agent.interrupt")
+    }
+    func agentDispose(id: String) async throws {
+        throw BrowserJSError.notImplemented("agent.dispose")
     }
 }
 

@@ -206,6 +206,44 @@ enum BrowserJSDispatch {
             let files = (raw["files"] as? [String: Any])?.compactMapValues { $0 as? String } ?? [:]
             let id = try await host.webappCreate(name: name, files: files, exposeBrowserJS: bool("exposeBrowserJS", true))
             return try encodeValue(id)
+        case "agent.create":
+            let options = BrowserJSAgentCreateOptions(
+                name: optStr("name"),
+                model: optStr("model"),
+                effort: optStr("effort"),
+                systemPrompt: optStr("systemPrompt"),
+                exposeBrowserJS: bool("exposeBrowserJS", true)
+            )
+            let id = try await host.agentCreate(options: options)
+            return try encodeValue(id)
+        case "agent.send":
+            guard let id = str("id"), let text = str("text") else { throw BrowserJSError.invalidArgs("id, text") }
+            let images: [BrowserJSImage] = ((raw["images"] as? [[String: Any]]) ?? []).compactMap { dict in
+                guard let data = dict["data"] as? String, !data.isEmpty else { return nil }
+                return BrowserJSImage(mime: dict["mime"] as? String ?? "image/png", data: data)
+            }
+            try await host.agentSend(id: id, text: text, images: images)
+            return nil
+        case "agent.await":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            let result = try await host.agentAwait(id: id, timeoutMs: int("timeoutMs") ?? 30_000)
+            return try encodeValue(result)
+        case "agent.messages":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            let messages = try await host.agentMessages(id: id, since: int("since") ?? 0)
+            return try encodeValue(messages)
+        case "agent.list":
+            let info = try await host.agentList()
+            return try encodeValue(info)
+        case "agent.interrupt":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            try await host.agentInterrupt(id: id)
+            return nil
+        case "agent.dispose":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            try await host.agentDispose(id: id)
+            return nil
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -270,6 +308,15 @@ enum BrowserJSBridgeSource {
         },
         webapp: {
             create: function(opts) { return __browserCall('webapp.create', opts || {}); },
+        },
+        agent: {
+            create:    function(opts) { return __browserCall('agent.create', opts || {}); },
+            send:      function(opts) { return __browserCall('agent.send', opts || {}); },
+            await:     function(opts) { return __browserCall('agent.await', opts || {}); },
+            messages:  function(opts) { return __browserCall('agent.messages', opts || {}); },
+            list:      function() { return __browserCall('agent.list', {}); },
+            interrupt: function(id) { return __browserCall('agent.interrupt', { id: id }); },
+            dispose:   function(id) { return __browserCall('agent.dispose', { id: id }); },
         },
         sleep: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
         log:   function() {
