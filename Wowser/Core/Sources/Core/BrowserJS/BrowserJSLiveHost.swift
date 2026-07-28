@@ -536,6 +536,10 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         try await BrowserAgentManager.shared.awaitIdle(id: id, timeoutMs: timeoutMs, since: since)
     }
 
+    public func agentRespondTool(callId: String, text: String, isError: Bool) async throws {
+        try await BrowserAgentManager.shared.respondTool(callId: callId, text: text, isError: isError)
+    }
+
     public func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
         try await BrowserAgentManager.shared.messages(id: id, since: since)
     }

@@ -215,7 +215,18 @@ enum BrowserJSDispatch {
                 systemPrompt: optStr("systemPrompt"),
                 exposeBrowserJS: bool("exposeBrowserJS", true),
                 fileSystemTools: bool("fileSystemTools", false),
-                workingDirectory: optStr("workingDirectory")
+                workingDirectory: optStr("workingDirectory"),
+                tools: ((raw["tools"] as? [[String: Any]]) ?? []).compactMap { dict in
+                    guard let name = dict["name"] as? String else { return nil }
+                    let schema = dict["inputSchema"] ?? ["type": "object"]
+                    let schemaJSON = (try? JSONSerialization.data(withJSONObject: schema))
+                        .flatMap { String(data: $0, encoding: .utf8) } ?? #"{"type":"object"}"#
+                    return BrowserJSAgentToolSpec(
+                        name: name,
+                        description: dict["description"] as? String ?? "",
+                        inputSchemaJSON: schemaJSON
+                    )
+                }
             )
             let id = try await host.agentCreate(options: options)
             return try encodeValue(id)
@@ -235,6 +246,19 @@ enum BrowserJSDispatch {
             guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
             let messages = try await host.agentMessages(id: id, since: int("since") ?? 0)
             return try encodeValue(messages)
+        case "agent.respondTool":
+            guard let callId = str("callId") else { throw BrowserJSError.invalidArgs("callId") }
+            // `result` may be any JSON value; stringify non-strings for the agent.
+            let text: String
+            if let s = raw["result"] as? String {
+                text = s
+            } else if let value = raw["result"], let encoded = try encodeAny(value) {
+                text = encoded
+            } else {
+                text = ""
+            }
+            try await host.agentRespondTool(callId: callId, text: text, isError: bool("isError", false))
+            return nil
         case "agent.list":
             let info = try await host.agentList()
             return try encodeValue(info)
@@ -313,13 +337,48 @@ enum BrowserJSBridgeSource {
             create: function(opts) { return __browserCall('webapp.create', opts || {}); },
         },
         agent: {
-            create:    function(opts) { return __browserCall('agent.create', opts || {}); },
-            send:      function(opts) { return __browserCall('agent.send', opts || {}); },
-            await:     function(opts) { return __browserCall('agent.await', opts || {}); },
-            messages:  function(opts) { return __browserCall('agent.messages', opts || {}); },
-            list:      function() { return __browserCall('agent.list', {}); },
-            interrupt: function(id) { return __browserCall('agent.interrupt', { id: id }); },
-            dispose:   function(id) { return __browserCall('agent.dispose', { id: id }); },
+            create:      function(opts) { return __browserCall('agent.create', opts || {}); },
+            send:        function(opts) { return __browserCall('agent.send', opts || {}); },
+            await:       function(opts) { return __browserCall('agent.await', opts || {}); },
+            messages:    function(opts) { return __browserCall('agent.messages', opts || {}); },
+            list:        function() { return __browserCall('agent.list', {}); },
+            interrupt:   function(id) { return __browserCall('agent.interrupt', { id: id }); },
+            dispose:     function(id) { return __browserCall('agent.dispose', { id: id }); },
+            respondTool: function(opts) { return __browserCall('agent.respondTool', opts || {}); },
+
+            // Runs the agent's tool calls against your JS handlers until the
+            // agent goes idle. `handlers` maps tool name -> function(args).
+            // Returns the final await result. Anything a handler returns is
+            // sent back to the agent (objects are JSON-stringified); a handler
+            // that throws is reported to the agent as a tool error, so a bug
+            // in your code doesn't wedge the turn.
+            serve: async function(id, handlers, opts) {
+                opts = opts || {};
+                var since = opts.since || 0;
+                var onMessage = opts.onMessage;
+                for (;;) {
+                    var r = await browser.agent.await({ id: id, since: since, timeoutMs: opts.timeoutMs || 30000 });
+                    since = r.nextIndex;
+                    if (onMessage) { for (var i = 0; i < r.messages.length; i++) onMessage(r.messages[i]); }
+                    for (var j = 0; j < r.toolCalls.length; j++) {
+                        var call = r.toolCalls[j];
+                        var handler = handlers ? handlers[call.name] : null;
+                        if (!handler) {
+                            await browser.agent.respondTool({ callId: call.callId, result: 'no handler for tool: ' + call.name, isError: true });
+                            continue;
+                        }
+                        try {
+                            var args = {};
+                            try { args = JSON.parse(call.inputJSON || '{}'); } catch (e) {}
+                            var out = await handler(args);
+                            await browser.agent.respondTool({ callId: call.callId, result: out === undefined ? 'ok' : out });
+                        } catch (err) {
+                            await browser.agent.respondTool({ callId: call.callId, result: String((err && err.message) || err), isError: true });
+                        }
+                    }
+                    if (r.done) return r;
+                }
+            },
         },
         sleep: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
         log:   function() {

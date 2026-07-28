@@ -11,6 +11,33 @@ import Foundation
 
 // MARK: - BJS-facing value types
 
+/// A tool an app implements in JavaScript and hands to its agent. The agent
+/// calls it; the call surfaces through `agent.await` and the app answers with
+/// `agent.respondTool`. `browser.agent.serve()` wires that up as plain
+/// callbacks.
+public struct BrowserJSAgentToolSpec: Codable, Sendable {
+    public var name: String
+    public var description: String
+    /// JSON Schema for the tool's arguments, as a JSON string.
+    public var inputSchemaJSON: String
+
+    public init(name: String, description: String, inputSchemaJSON: String) {
+        self.name = name; self.description = description; self.inputSchemaJSON = inputSchemaJSON
+    }
+}
+
+/// An agent's pending call into app-provided JS. Answer it with `respondTool`.
+public struct BrowserJSAgentToolCall: Codable, Equatable, Sendable {
+    public var callId: String
+    public var name: String
+    /// The agent's arguments, as a JSON object string.
+    public var inputJSON: String
+
+    public init(callId: String, name: String, inputJSON: String) {
+        self.callId = callId; self.name = name; self.inputJSON = inputJSON
+    }
+}
+
 public struct BrowserJSAgentCreateOptions: Codable, Sendable {
     /// A stable name for a long-running session. Creating with the same key
     /// returns the SAME agent — reconnecting to the live one if it's still
@@ -32,11 +59,14 @@ public struct BrowserJSAgentCreateOptions: Codable, Sendable {
     public var fileSystemTools: Bool
     /// Directory for the filesystem tools. Ignored unless `fileSystemTools`.
     public var workingDirectory: String?
+    /// Tools the app implements itself, in JS.
+    public var tools: [BrowserJSAgentToolSpec]
 
-    public init(key: String? = nil, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil) {
+    public init(key: String? = nil, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, tools: [BrowserJSAgentToolSpec] = []) {
         self.key = key; self.name = name; self.model = model; self.effort = effort
         self.systemPrompt = systemPrompt; self.exposeBrowserJS = exposeBrowserJS
         self.fileSystemTools = fileSystemTools; self.workingDirectory = workingDirectory
+        self.tools = tools
     }
 }
 
@@ -81,10 +111,14 @@ public struct BrowserJSAgentAwaitResult: Codable, Equatable, Sendable {
     public var messages: [BrowserJSAgentMessage]
     /// Pass this back as `since` on the next call.
     public var nextIndex: Int
+    /// App-implemented tools the agent is waiting on. Run them and answer with
+    /// `agent.respondTool` — the agent is blocked until you do. Each call is
+    /// handed out once.
+    public var toolCalls: [BrowserJSAgentToolCall]
 
-    public init(done: Bool, status: String, text: String? = nil, isError: Bool = false, messages: [BrowserJSAgentMessage] = [], nextIndex: Int = 0) {
+    public init(done: Bool, status: String, text: String? = nil, isError: Bool = false, messages: [BrowserJSAgentMessage] = [], nextIndex: Int = 0, toolCalls: [BrowserJSAgentToolCall] = []) {
         self.done = done; self.status = status; self.text = text; self.isError = isError
-        self.messages = messages; self.nextIndex = nextIndex
+        self.messages = messages; self.nextIndex = nextIndex; self.toolCalls = toolCalls
     }
 }
 
@@ -130,6 +164,18 @@ public actor BrowserAgentManager {
     private var keyToAgentID: [String: String] = [:]
     private var idleWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
 
+    /// An agent's call into app-provided JS, parked until the app answers.
+    private struct ParkedToolCall {
+        let call: BrowserJSAgentToolCall
+        let agentID: String
+        var handedOut = false
+        var continuation: CheckedContinuation<AgentToolOutput, Never>?
+        var timeoutTask: Task<Void, Never>?
+    }
+    private var parkedToolCalls: [String: ParkedToolCall] = [:]
+    /// How long an app has to answer a tool call before the agent is told it failed.
+    private let appToolTimeout: TimeInterval = 120
+
     public init(provider: (any AgentProvider)?, host: any BrowserJSHost, helpers: BrowserJSHelpersProvider, store: any AgentSessionStoring = AgentSessionStore.shared) {
         self.provider = provider
         self.host = host
@@ -169,7 +215,8 @@ public actor BrowserAgentManager {
             systemPrompt: options.systemPrompt,
             exposeBrowserJS: options.exposeBrowserJS,
             fileSystemTools: options.fileSystemTools,
-            workingDirectory: options.workingDirectory
+            workingDirectory: options.workingDirectory,
+            appTools: options.tools
         )
         record.sessionID = nil
         try await start(record: record, isKeyed: options.key != nil)
@@ -216,6 +263,9 @@ public actor BrowserAgentManager {
             """
         }
         let id = record.agentID
+        for tool in record.appTools {
+            spec.tools.append(makeAppTool(tool, agentID: id))
+        }
         let agent = provider.makeAgent(spec)
         var entry = Entry(
             agent: agent,
@@ -267,8 +317,8 @@ public actor BrowserAgentManager {
         guard let entry = entries[id] else { throw BrowserJSError.invalidArgs("unknown agent: \(id)") }
         let since = since ?? entry.messages.count
         // Return immediately if there's already something new, or nothing to wait for.
-        if entry.status != "running" || entry.messages.count > since {
-            return snapshotResult(entry, since: since)
+        if entry.status != "running" || entry.messages.count > since || hasUnclaimedToolCalls(agentID: id) {
+            return snapshotResult(entry, agentID: id, since: since)
         }
         _ = await withTaskGroup(of: Bool.self) { group -> Bool in
             group.addTask { [weak self] in
@@ -286,7 +336,65 @@ public actor BrowserAgentManager {
             return first
         }
         guard let latest = entries[id] else { throw BrowserJSError.invalidArgs("unknown agent: \(id)") }
-        return snapshotResult(latest, since: since)
+        return snapshotResult(latest, agentID: id, since: since)
+    }
+
+    /// Answer a tool call the agent is waiting on. The agent resumes as soon
+    /// as this lands.
+    public func respondTool(callId: String, text: String, isError: Bool) throws {
+        guard var parked = parkedToolCalls[callId] else {
+            throw BrowserJSError.invalidArgs("unknown or already-answered tool call: \(callId)")
+        }
+        parkedToolCalls[callId] = nil
+        parked.timeoutTask?.cancel()
+        parked.continuation?.resume(returning: AgentToolOutput(text: text, isError: isError))
+    }
+
+    /// Bridges an app's JS tool into the agent: the agent's call is parked
+    /// here until the app picks it up via `await` and answers it.
+    private func makeAppTool(_ spec: BrowserJSAgentToolSpec, agentID: String) -> AgentToolDefinition {
+        AgentToolDefinition(
+            name: spec.name,
+            description: spec.description,
+            inputSchemaJSON: spec.inputSchemaJSON
+        ) { [weak self] inputJSON in
+            guard let self else { return AgentToolOutput(text: "app is gone", isError: true) }
+            return await self.parkToolCall(agentID: agentID, name: spec.name, inputJSON: inputJSON)
+        }
+    }
+
+    private func parkToolCall(agentID: String, name: String, inputJSON: String) async -> AgentToolOutput {
+        let callID = "call-" + String(UUID().uuidString.lowercased().prefix(8))
+        let call = BrowserJSAgentToolCall(callId: callID, name: name, inputJSON: inputJSON)
+        return await withCheckedContinuation { continuation in
+            var parked = ParkedToolCall(call: call, agentID: agentID)
+            parked.continuation = continuation
+            parked.timeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64((self?.appToolTimeout ?? 120) * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self?.timeOutToolCall(callID)
+            }
+            parkedToolCalls[callID] = parked
+            // Wake `await` so the app sees the call immediately.
+            resumeIdleWaiters(id: agentID)
+        }
+    }
+
+    private func timeOutToolCall(_ callID: String) {
+        guard var parked = parkedToolCalls[callID] else { return }
+        parkedToolCalls[callID] = nil
+        parked.continuation?.resume(returning: AgentToolOutput(
+            text: "the app did not respond to `\(parked.call.name)` in time", isError: true))
+    }
+
+    /// Tool calls this agent is waiting on that haven't been handed out yet.
+    private func claimToolCalls(agentID: String) -> [BrowserJSAgentToolCall] {
+        var claimed: [BrowserJSAgentToolCall] = []
+        for (callID, parked) in parkedToolCalls where parked.agentID == agentID && !parked.handedOut {
+            parkedToolCalls[callID]?.handedOut = true
+            claimed.append(parked.call)
+        }
+        return claimed.sorted { $0.callId < $1.callId }
     }
 
     public func messages(id: String, since: Int) throws -> [BrowserJSAgentMessage] {
@@ -340,21 +448,26 @@ public actor BrowserAgentManager {
 
     // MARK: - Internals
 
-    private func snapshotResult(_ entry: Entry, since: Int) -> BrowserJSAgentAwaitResult {
+    private func snapshotResult(_ entry: Entry, agentID: String, since: Int) -> BrowserJSAgentAwaitResult {
         BrowserJSAgentAwaitResult(
             done: entry.status != "running",
             status: entry.status,
             text: entry.lastResult?.text,
             isError: entry.lastResult?.isError ?? false,
             messages: entry.messages.filter { $0.index >= since },
-            nextIndex: entry.messages.count
+            nextIndex: entry.messages.count,
+            toolCalls: claimToolCalls(agentID: agentID)
         )
+    }
+
+    private func hasUnclaimedToolCalls(agentID: String) -> Bool {
+        parkedToolCalls.values.contains { $0.agentID == agentID && !$0.handedOut }
     }
 
     private func addIdleWaiter(id: String, since: Int, continuation: CheckedContinuation<Void, Never>) {
         // Re-check: the turn may have progressed between the caller's check and now.
         guard let entry = entries[id] else { continuation.resume(); return }
-        if entry.status != "running" || entry.messages.count > since {
+        if entry.status != "running" || entry.messages.count > since || hasUnclaimedToolCalls(agentID: id) {
             continuation.resume()
             return
         }

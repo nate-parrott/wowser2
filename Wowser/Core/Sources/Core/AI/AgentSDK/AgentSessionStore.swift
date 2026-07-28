@@ -23,17 +23,20 @@ public struct AgentSessionRecord: Codable, Sendable {
     public var exposeBrowserJS: Bool
     public var fileSystemTools: Bool
     public var workingDirectory: String?
+    /// App-implemented (JS) tools this agent was created with, so a resumed
+    /// agent still has them. The app must re-`serve` them after reattaching.
+    public var appTools: [BrowserJSAgentToolSpec]
     /// Harness session id — resumed to restore the agent's memory of the
     /// conversation. The transcript is not stored; see the note above.
     public var sessionID: String?
     public var updatedAt: Date
 
-    public init(key: String, agentID: String, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, sessionID: String? = nil, updatedAt: Date = Date()) {
+    public init(key: String, agentID: String, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, appTools: [BrowserJSAgentToolSpec] = [], sessionID: String? = nil, updatedAt: Date = Date()) {
         self.key = key; self.agentID = agentID; self.name = name
         self.model = model; self.effort = effort; self.systemPrompt = systemPrompt
         self.exposeBrowserJS = exposeBrowserJS; self.fileSystemTools = fileSystemTools
-        self.workingDirectory = workingDirectory; self.sessionID = sessionID
-        self.updatedAt = updatedAt
+        self.workingDirectory = workingDirectory; self.appTools = appTools
+        self.sessionID = sessionID; self.updatedAt = updatedAt
     }
 }
 

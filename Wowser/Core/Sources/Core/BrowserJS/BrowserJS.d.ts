@@ -344,6 +344,13 @@ declare global {
         fileSystemTools?: boolean;
         /** Directory for the filesystem tools. Ignored unless fileSystemTools. */
         workingDirectory?: string;
+        /**
+         * Tools YOUR app implements. Declare them here, then implement them
+         * with `agent.serve(id, handlers)` — that's how you let an agent act
+         * on the app itself (add a row, run a query, change a setting) rather
+         * than only talk about it.
+         */
+        tools?: Array<{ name: string; description: string; inputSchema?: object }>;
       }): Promise<string>;
       /**
        * Queue a message and return immediately — the turn runs in the
@@ -369,7 +376,39 @@ declare global {
         isError: boolean;
         messages: Array<{ index: number; role: string; text: string; toolName?: string }>;
         nextIndex: number;
+        /**
+         * Your app's tools that the agent is waiting on. The agent is BLOCKED
+         * until each is answered with `respondTool`. Handed out once each —
+         * prefer `serve()`, which handles this for you.
+         */
+        toolCalls: Array<{ callId: string; name: string; inputJSON: string }>;
       }>;
+      /**
+       * Answer a tool call from `await`. `result` can be a string or any
+       * JSON-able value. Unanswered calls fail the tool after ~120s.
+       */
+      respondTool(opts: { callId: string; result?: any; isError?: boolean }): Promise<void>;
+      /**
+       * Implement your app's tools as ordinary async callbacks. Drives the
+       * agent until it goes idle, dispatching each tool call to
+       * `handlers[name](args)` and sending the return value back. A handler
+       * that throws is reported to the agent as a tool error rather than
+       * wedging the turn.
+       *
+       *   const id = await browser.agent.create({
+       *     tools: [{ name: 'add_todo', description: 'Add a todo.',
+       *               inputSchema: { type: 'object', properties: { title: { type: 'string' } } } }],
+       *   });
+       *   await browser.agent.send({ id, text: 'add milk to my list' });
+       *   await browser.agent.serve(id, {
+       *     add_todo: async ({ title }) => { todos.push(title); render(); return 'added'; },
+       *   }, { onMessage: m => renderMessage(m) });
+       */
+      serve(
+        id: string,
+        handlers: Record<string, (args: any) => any>,
+        opts?: { since?: number; timeoutMs?: number; onMessage?: (m: { index: number; role: string; text: string; toolName?: string }) => void }
+      ): Promise<{ done: boolean; status: string; text?: string; isError: boolean; nextIndex: number }>;
       /** Transcript entries with index >= since. Roles: user | assistant | thinking | tool_use | tool_result | stopped | error. */
       messages(opts: { id: string; since?: number }): Promise<Array<{ index: number; role: string; text: string; toolName?: string }>>;
       /** Live agents plus saved sessions (status "saved") that can be reopened by key. */

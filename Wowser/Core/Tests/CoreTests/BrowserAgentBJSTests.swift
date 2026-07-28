@@ -105,6 +105,43 @@ final class BrowserAgentBJSTests: XCTestCase {
         XCTAssertEqual(roles, ["assistant"])
     }
 
+    /// An app declares a tool, serves it with a JS callback, and the agent's
+    /// call round-trips through that callback and back into the agent.
+    func testAppProvidedJSToolRoundTrip() async throws {
+        let agent = ToolCallingAgent()
+        let manager = BrowserAgentManager(provider: FixedProvider(agent: agent), host: StubHost(), helpers: NoHelpers(), store: MemoryStore())
+        let host = StubHost(manager: manager)
+        let runtime = BrowserJSRuntime(host: host, helpers: NoHelpers())
+
+        let result = await runtime.run(code: """
+            const id = await browser.agent.create({
+              exposeBrowserJS: false,
+              tools: [{
+                name: 'add_todo',
+                description: 'Add a todo item.',
+                inputSchema: { type: 'object', properties: { title: { type: 'string' } } },
+              }],
+            });
+            const added = [];
+            await browser.agent.send({ id, text: 'add milk' });
+            await browser.agent.serve(id, {
+              add_todo: async (args) => { added.push(args.title); return { ok: true, count: added.length }; },
+            });
+            return added;
+            """)
+
+        XCTAssertNil(result.error, result.error ?? "")
+        XCTAssertEqual(result.result, #"["milk"]"#, "app callback should have run with the agent's args")
+        let toolOutput = await agent.receivedToolOutput
+        XCTAssertEqual(toolOutput?.isError, false)
+        // The handler's return value reaches the agent as JSON (key order is
+        // not guaranteed, so compare parsed).
+        let returned = try XCTUnwrap(toolOutput?.text)
+        let parsed = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(returned.utf8)) as? [String: Any])
+        XCTAssertEqual(parsed["ok"] as? Bool, true)
+        XCTAssertEqual(parsed["count"] as? Int, 1)
+    }
+
     /// `await` resolves on progress, so callers loop until `done`.
     private func drain(_ manager: BrowserAgentManager, id: String) async throws {
         var since = 0
@@ -195,11 +232,54 @@ private final class SlowAgent: Agent, @unchecked Sendable {
     }
 }
 
+/// On its turn, calls the single app-provided tool it was given, then finishes.
+private final class ToolCallingAgent: Agent, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [AsyncStream<AgentEvent>.Continuation] = []
+    private var tools: [AgentToolDefinition] = []
+    private var _receivedToolOutput: AgentToolOutput?
+    var receivedToolOutput: AgentToolOutput? {
+        get async { lock.lock(); defer { lock.unlock() }; return _receivedToolOutput }
+    }
+
+    func configure(tools: [AgentToolDefinition]) {
+        lock.lock(); self.tools = tools; lock.unlock()
+    }
+
+    func send(_ message: AgentUserMessage) async throws -> AgentTurnResult {
+        emit(.started(sessionID: "tool-session"))
+        lock.lock(); let tool = tools.first; lock.unlock()
+        if let tool {
+            emit(.toolUse(name: tool.name, inputJSON: #"{"title":"milk"}"#))
+            let output = await tool.handler(#"{"title":"milk"}"#)
+            lock.lock(); _receivedToolOutput = output; lock.unlock()
+            emit(.toolResult(text: output.text, isError: output.isError))
+        }
+        let result = AgentTurnResult(text: "added")
+        emit(.assistantText(result.text))
+        emit(.turnCompleted(result))
+        return result
+    }
+    func events() async -> AsyncStream<AgentEvent> {
+        AsyncStream { c in lock.lock(); continuations.append(c); lock.unlock() }
+    }
+    func interrupt() async {}
+    func shutdown() async {}
+    private func emit(_ event: AgentEvent) {
+        lock.lock(); let cs = continuations; lock.unlock()
+        for c in cs { c.yield(event) }
+    }
+}
+
 private struct FixedProvider: AgentProvider {
     let id = "fixed"
     let agent: any Agent
     var isAvailable: Bool { true }
-    func makeAgent(_ spec: AgentSpec) -> any Agent { agent }
+    func makeAgent(_ spec: AgentSpec) -> any Agent {
+        // Hand the agent the tools the manager bridged for it.
+        (agent as? ToolCallingAgent)?.configure(tools: spec.tools)
+        return agent
+    }
 }
 
 private final class MemoryStore: AgentSessionStoring, @unchecked Sendable {
@@ -245,6 +325,9 @@ private final class StubHost: BrowserJSHost, @unchecked Sendable {
     }
     func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult {
         try await requireManager().awaitIdle(id: id, timeoutMs: timeoutMs, since: since)
+    }
+    func agentRespondTool(callId: String, text: String, isError: Bool) async throws {
+        try await requireManager().respondTool(callId: callId, text: text, isError: isError)
     }
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
         try await requireManager().messages(id: id, since: since)

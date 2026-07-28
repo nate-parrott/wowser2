@@ -110,6 +110,8 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// Wait (up to timeoutMs) for the agent to go idle. Returns `done:false` on
     /// timeout so callers can await again.
     func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult
+    /// Answer an app-implemented tool call the agent is blocked on.
+    func agentRespondTool(callId: String, text: String, isError: Bool) async throws
     /// Transcript entries with index >= since.
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage]
     func agentList() async throws -> [BrowserJSAgentInfo]
@@ -153,6 +155,9 @@ public extension BrowserJSHost {
     }
     func agentAwait(id: String, timeoutMs: Int, since: Int?) async throws -> BrowserJSAgentAwaitResult {
         throw BrowserJSError.notImplemented("agent.await")
+    }
+    func agentRespondTool(callId: String, text: String, isError: Bool) async throws {
+        throw BrowserJSError.notImplemented("agent.respondTool")
     }
     func agentMessages(id: String, since: Int) async throws -> [BrowserJSAgentMessage] {
         throw BrowserJSError.notImplemented("agent.messages")
