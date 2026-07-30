@@ -28,6 +28,9 @@ public struct Sidebar: View {
             SidebarContent(snapshot: snapshot, floating: floating)
                 .frame(width: width)
                 .modifier(SidebarFramePublisher())
+                // Only the fixed sidebar reports blur regions to the space
+                // background; the floating sidebar has its own material.
+                .environment(\.sidebarReportsBlurRegions, !floating)
         }
     }
 }
@@ -87,7 +90,11 @@ private struct SidebarSnapshot: Equatable {
     
     // Downloads
     let hasDownloads: Bool
-    
+
+    // Whether the current space has a dropped background image (for the
+    // "Remove Background Image" context menu item)
+    let hasBackgroundImage: Bool
+
     init(windowID: ID<WindowState>, 
          profileID: ID<Profile>?, // Can be nil, will use window's current profile
          windows: [ID<WindowState>: WindowState],
@@ -113,7 +120,8 @@ private struct SidebarSnapshot: Equatable {
             favoriteIDs = profile.manualFavorites + profile.autoFavorites
         }
         self.favoriteTabIDs = favoriteIDs
-        
+        self.hasBackgroundImage = profiles[effectiveProfileID]?.imageInfo != nil
+
         // Process tabs in their original order but add headers when group changes
         let regularTabIDs = perProfileData?.tabs ?? []
         var tabGroups: [TabGroup] = []
@@ -184,13 +192,15 @@ private struct SidebarContent: View {
                 topButtons
             }
             .padding(6)
-            
+            .reportsSpaceBackgroundRegion("top-chrome", edge: .top)
+
             // Swipeable profile content (favorites and tabs)
             SidebarSwipeView(windowID: snapshot.windowID)
-                        
+
             // Downloads section
             if snapshot.hasDownloads {
                 DownloadsSidebar(windowID: snapshot.windowID)
+                    .reportsSpaceBackgroundRegion("downloads", edge: .bottom)
             }
             
             Spacer()
@@ -204,6 +214,12 @@ private struct SidebarContent: View {
                 currentProfileID: snapshot.profileID,
                 windowID: snapshot.windowID
             )
+            if snapshot.hasBackgroundImage {
+                Divider()
+                Button("Remove Background Image") {
+                    BrowserStore.shared.clearSpaceBackgroundImage(profileID: snapshot.profileID)
+                }
+            }
         }
     }
     

@@ -83,7 +83,7 @@ public extension SpaceTheme {
 
     /// WCAG relative luminance of an HSB color (contrast vs white is
     /// 1.05 / (L + 0.05)).
-    private static func relativeLuminance(hue: Double, saturation: Double, brightness: Double) -> Double {
+    internal static func relativeLuminance(hue: Double, saturation: Double, brightness: Double) -> Double {
         let h = ((hue.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) / 60
         let c = brightness * saturation
         let x = c * (1 - abs(h.truncatingRemainder(dividingBy: 2) - 1))

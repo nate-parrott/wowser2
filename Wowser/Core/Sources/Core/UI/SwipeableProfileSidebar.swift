@@ -83,6 +83,7 @@ private struct SidebarSwipeContent: View {
                 ProfilePagingDots(windowID: windowID)
                     .padding(.top, 4)
                     .padding(.bottom, 8)
+                    .reportsSpaceBackgroundRegion("paging-dots", edge: .bottom)
             }
         }
     }
@@ -198,23 +199,26 @@ private struct ProfilePageContent: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Editable space name, shown only when there's more than one space.
-            if snapshot.showSpaceTitle {
-                SpaceNameLabel(windowID: windowID, profileID: snapshot.profileID)
-            }
+            VStack(spacing: 0) {
+                // Editable space name, shown only when there's more than one space.
+                if snapshot.showSpaceTitle {
+                    SpaceNameLabel(windowID: windowID, profileID: snapshot.profileID)
+                }
 
-            // Favorite bookmarks/tabs section
+                // Favorite bookmarks/tabs section
 
-            if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
-                FavoriteTabsView(
-                    tabIDs: snapshot.favoriteTabIDs,
-                    currentTabID: snapshot.currentTabID,
-                    windowID: windowID
-                )
-                .padding(.top, 5)
-                .padding(.bottom, 10)
+                if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
+                    FavoriteTabsView(
+                        tabIDs: snapshot.favoriteTabIDs,
+                        currentTabID: snapshot.currentTabID,
+                        windowID: windowID
+                    )
+                    .padding(.top, 5)
+                    .padding(.bottom, 10)
+                }
             }
-            
+            .reportsSpaceBackgroundRegion("top-favorites-\(snapshot.profileID.raw)", edge: .top)
+
             // Regular tabs section with group headers
             GroupedTabsView(
                 tabGroups: snapshot.regularTabGroups,

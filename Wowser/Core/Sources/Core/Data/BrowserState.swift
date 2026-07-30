@@ -207,6 +207,7 @@ public struct Profile: Equatable, Codable {
     public var title: String? // Custom (user-entered) title for the profile
     public var autoTitle: String? // AI-generated title set during tab auto-organize; shown as placeholder when `title` is empty
     public var theme: SpaceTheme? // Auto-generated gradient/tint scheme derived from the title
+    public var imageInfo: SpaceImageInfo? // User-dropped background image + tint/scheme derived from it; overrides `theme` visuals
     public var themeGeneratedForTitle: String? // Dedupe key: the effective title `theme`/`emoji` were last generated from
     /// Hidden profiles keep their tabs but are omitted from the sidebar carousel
     /// and paging dots. Restorable from Settings. Optional so old persisted state decodes.
