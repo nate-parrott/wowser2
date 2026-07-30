@@ -41,7 +41,7 @@ private struct ProfilePagingDotsContent: View {
     var body: some View {
         // Only show paging dots if we have more than one profile
         if snapshot.orderedProfileIDs.count > 1 {
-            HStack(spacing: 2) {
+            HStack(spacing: 0) {
                 ForEach(snapshot.orderedProfileIDs, id: \.raw) { profileID in
                     ProfileDotView(
                         profileID: profileID,
@@ -79,7 +79,7 @@ private struct ProfileDotView: View {
                 // Background circle for consistent sizing
                 Circle()
                     .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.01))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
                 
                 if let emoji = profile?.emoji, !emoji.isEmpty {
                     // Display the emoji if it's been set
