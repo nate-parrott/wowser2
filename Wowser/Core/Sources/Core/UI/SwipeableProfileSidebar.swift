@@ -57,7 +57,7 @@ private struct SidebarSwipeContent: View {
                 }
             }
             .scrollTargetLayout()
-            .scrollTargetBehavior(.viewAligned)
+            .scrollTargetBehavior(.paging)
 //            .scrollTargetBehavior(.paging)
             .scrollPosition(id: $selectedProfileID)
             .onAppear {
@@ -101,7 +101,6 @@ private struct ProfilePageView: View {
     let profileID: ID<Profile>
     
     var body: some View {
-        // Use reactive programming to observe the profile's data
         WithSnapshotMain(store: BrowserStore.shared) { state in
             ProfilePageSnapshot(
                 windowID: windowID,
@@ -223,8 +222,9 @@ private struct ProfilePageContent: View {
             GroupedTabsView(
                 tabGroups: snapshot.regularTabGroups,
                 currentTabID: snapshot.currentTabID,
-                windowID: windowID
-            )            
+                windowID: windowID,
+                profileID: snapshot.profileID
+            )
         }
     }
 }

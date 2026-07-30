@@ -324,6 +324,7 @@ struct GroupedTabsView: View {
     let tabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
     let windowID: ID<WindowState>
+    let profileID: ID<Profile>
     
     var body: some View {
         let cells: [TabListCell] = TabListCell.cellsFrom(groups: tabGroups)
@@ -357,6 +358,11 @@ struct GroupedTabsView: View {
                 .padding(isMobile() ? 12 : 0)
                 .frame(maxWidth: .infinity)
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
+                .overlay(alignment: .bottom) {
+                    Color.clear.frame(height: 2000)
+                        .reportsSpaceBackgroundRegion("tabs-\(profileID.raw)", edge: .top)
+                        .frame(height: 1, alignment: .bottom)
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
             // Background drop target for the entire area

@@ -72,13 +72,20 @@ private struct SpaceBackgroundRegionReporter: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .measureFrame(coordinateSpace: .named("BrowserWindowRoot")) { frame in
-                guard enabled, let windowID else { return }
-                SpaceBackgroundRegions.shared.set(windowID: windowID, key: key, edge: edge, rect: frame)
-            }
-            .onDisappear {
-                if let windowID {
-                    SpaceBackgroundRegions.shared.remove(windowID: windowID, key: key)
+            .background {
+                if enabled {
+                    Color.clear
+                        .measureFrame(coordinateSpace: .named("BrowserWindowRoot")) { frame in
+                            guard enabled, let windowID else { return }
+                            var f = frame
+                            f.origin.y += 32
+                            SpaceBackgroundRegions.shared.set(windowID: windowID, key: key, edge: edge, rect: f)
+                        }
+                        .onDisappear {
+                            if let windowID {
+                                SpaceBackgroundRegions.shared.remove(windowID: windowID, key: key)
+                            }
+                        }
                 }
             }
     }
@@ -89,6 +96,7 @@ extension View {
     /// blur behind. `key` must be stable and unique per block.
     func reportsSpaceBackgroundRegion(_ key: String, edge: SpaceBackgroundRegionEdge) -> some View {
         modifier(SpaceBackgroundRegionReporter(key: key, edge: edge))
+//            .border(.blue)
     }
 }
 
@@ -110,7 +118,7 @@ struct SpaceBackgroundBlurInput: Equatable {
         }
         func snapRect(_ r: CGRect?) -> CGRect? {
             guard let r else { return nil }
-            // Snap outward so the blur never undershoots the content.
+//            // Snap outward so the blur never undershoots the content.
             let minX = snap(r.minX, up: false, step: 16), minY = snap(r.minY, up: false, step: 16)
             return CGRect(x: minX, y: minY,
                           width: snap(r.maxX, up: true, step: 16) - minX,
@@ -192,22 +200,25 @@ final class SpaceBackgroundRenderer: ObservableObject {
         if !rects.isEmpty {
             // Detail map: edge energy, spread and boosted, so flat areas of the
             // image contribute ~0 blur radius and detailed areas ~full radius.
-            let detail = img
-                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
-                .applyingFilter("CIEdges", parameters: [kCIInputIntensityKey: 8])
-                .clampedToExtent()
-                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 12 * renderScale])
-                .applyingFilter("CIColorMatrix", parameters: [
-                    "inputRVector": CIVector(x: 5, y: 0, z: 0, w: 0),
-                    "inputGVector": CIVector(x: 0, y: 5, z: 0, w: 0),
-                    "inputBVector": CIVector(x: 0, y: 0, z: 5, w: 0),
-                ])
-                .applyingFilter("CIColorClamp")
-                .cropped(to: pixelRect)
+//            let detail = img
+//                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
+//                .applyingFilter("CIEdges", parameters: [kCIInputIntensityKey: 8])
+//                .clampedToExtent()
+//                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 12 * renderScale])
+//                .applyingFilter("CIColorMatrix", parameters: [
+//                    "inputRVector": CIVector(x: 5, y: 0, z: 0, w: 0),
+//                    "inputGVector": CIVector(x: 0, y: 5, z: 0, w: 0),
+//                    "inputBVector": CIVector(x: 0, y: 0, z: 5, w: 0),
+//                ])
+//                .applyingFilter("CIColorClamp")
+//                .cropped(to: pixelRect)
 
             // Feathered rect mask: white rects over black, gaussian-softened.
             var rectMask = CIImage(color: .black).cropped(to: pixelRect)
-            for rect in rects {
+            for rect_ in rects {
+                let vpRect = CGRect(x: 0, y: 0, width: input.viewSize.width, height: input.viewSize.height)
+                let rect = rect_.intersection(vpRect)
+                if rect.isNull || rect.isEmpty { continue }
                 // View coords (top-left origin) → CI pixel coords (bottom-left).
                 let ciRect = CGRect(
                     x: rect.minX * renderScale,
@@ -220,17 +231,17 @@ final class SpaceBackgroundRenderer: ObservableObject {
             }
             rectMask = rectMask
                 .clampedToExtent()
-                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 18 * renderScale])
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 36 * renderScale])
                 .cropped(to: pixelRect)
 
-            let mask = detail.applyingFilter("CIMultiplyCompositing", parameters: [
-                kCIInputBackgroundImageKey: rectMask,
-            ])
+//            let mask = detail.applyingFilter("CIMultiplyCompositing", parameters: [
+//                kCIInputBackgroundImageKey: rectMask,
+//            ])
             result = img
                 .clampedToExtent()
                 .applyingFilter("CIMaskedVariableBlur", parameters: [
-                    "inputMask": mask,
-                    kCIInputRadiusKey: 22 * renderScale,
+                    "inputMask": rectMask, // mask,
+                    kCIInputRadiusKey: 6 * renderScale,
                 ])
                 .cropped(to: pixelRect)
         }
@@ -242,7 +253,7 @@ final class SpaceBackgroundRenderer: ObservableObject {
 
         recomputeCount += 1
         let count = recomputeCount
-        print("[SpaceBG] recompute #\(count): view=\(Int(input.viewSize.width))x\(Int(input.viewSize.height)) blurRects=\(rects.map { "\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" }.joined(separator: " | "))")
+//        print("[SpaceBG] recompute #\(count): view=\(Int(input.viewSize.width))x\(Int(input.viewSize.height)) blurRects=\(rects.map { "\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" }.joined(separator: " | "))")
 
         let debug = DebugInfo(blurRects: rects, recomputeCount: count, viewSize: input.viewSize)
         DispatchQueue.main.async {
@@ -312,5 +323,7 @@ private struct SpaceBackgroundDebugOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .allowsHitTesting(false)
+//        .border(.yellow)
+        .edgesIgnoringSafeArea(.all)
     }
 }
