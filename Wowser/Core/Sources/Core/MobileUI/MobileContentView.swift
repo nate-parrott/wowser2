@@ -14,6 +14,13 @@ public struct MobileContentView: View {
                 .environment(\.profileID, snapshot.profileID)
         }
         .environment(\.windowID, windowID)
+        .onAppear {
+            BrowserStore.shared.modify { state in
+                if state.windows[windowID] == nil {
+                    state.windows[windowID] = .init(id: windowID, profile: .defaultProfile)
+                }
+            }
+        }
     }
 }
 

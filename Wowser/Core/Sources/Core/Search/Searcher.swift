@@ -174,7 +174,24 @@ extension CharacterSet {
 
     private func recomputeForEmptyQueryIfNeeded() {
         guard query.isEmpty else { return }
-        results = topSitesEnabled ? topSites.map(\.asSearchResult) : []
+        results = emptyQueryResults
+    }
+
+    /// Recompute the empty-query results (call when the command bar opens —
+    /// the space's folder may have changed since the last keystroke).
+    func refreshForEmptyQuery() {
+        recomputeForEmptyQueryIfNeeded()
+    }
+
+    // With no query typed we show frecent top sites — but if this space has a
+    // folder in play, the native folder actions take the top slots.
+    private var emptyQueryResults: [SearchResult] {
+        var results = BrowserStore.shared.model.emptyQueryDefaultActions(windowID: windowID)
+            .map { SearchResult(item: $0, matchQuality: .prefixMatchTitle) }
+        if topSitesEnabled {
+            results += topSites.map(\.asSearchResult)
+        }
+        return Array(results.prefix(n))
     }
 
     @Published var query = "" {
@@ -184,7 +201,7 @@ extension CharacterSet {
             let query = self.query
 
             if query == "" {
-                self.results = topSitesEnabled ? topSites.map(\.asSearchResult) : []
+                self.results = emptyQueryResults
                 return
             }
             

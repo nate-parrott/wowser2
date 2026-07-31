@@ -110,28 +110,22 @@ public struct SettingsView: View {
 
 struct ProfilesSettings: View {
     var body: some View {
-        Form {
-            HiddenProfilesSection()
-        }
-    }
-}
-
-/// Lists profiles hidden via right-click on their paging dot, so they can be restored.
-private struct HiddenProfilesSection: View {
-    var body: some View {
+        // Must put form WITHIN WithSnapshotMain; cannot put WithSnapshotMain within Form
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { HiddenProfilesSnapshot(state: $0) }) { snapshot in
-            Section("Hidden Profiles") {
-                if snapshot.profiles.isEmpty {
-                    Text("No hidden profiles. Right-click a profile dot in the sidebar to hide one.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(snapshot.profiles, id: \.id.raw) { profile in
-                        HStack {
-                            Text(profile.displayName)
-                            Spacer()
-                            Button("Restore") {
-                                BrowserStore.shared.modify { $0.unhideProfile(profile.id) }
+            Form {
+                Section("Hidden Profiles") {
+                    if snapshot.profiles.isEmpty {
+                        Text("No hidden profiles. Right-click a profile dot in the sidebar to hide one.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(snapshot.profiles, id: \.id.raw) { profile in
+                            HStack {
+                                Text(profile.displayName)
+                                Spacer()
+                                Button("Restore") {
+                                    BrowserStore.shared.modify { $0.unhideProfile(profile.id) }
+                                }
                             }
                         }
                     }

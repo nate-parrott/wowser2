@@ -189,12 +189,22 @@ extension NSView {
     /// doesn't loop back into `didFocus` (the caller already encodes the
     /// desired state).
     public func wowser_becomeFirstResponder(asTarget target: FocusTarget, canDeferOneFrame: Bool = true) {
+        if case .webContent(let iD) = target {
+            if window != nil {
+                print("[first responder wc focus] has window")
+            } else if canDeferOneFrame {
+                print("[first responder wc focus] can defer one frame")
+            } else {
+                print("[first responder wc focus] cannot defer")
+            }
+        }
         if let window {
             FocusSnap.midChangeFocus = true
             window.makeFirstResponder(self)
             FocusSnap.midChangeFocus = false
         } else if canDeferOneFrame {
-            DispatchQueue.main.async { [weak self] in
+            // HACK: macos 27 beta, delay for 0.01s (view is not mounted until then)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
                 if BrowserStore.shared.model.isTargetFocused(target) {
                     self?.wowser_becomeFirstResponder(asTarget: target, canDeferOneFrame: false)
                 }

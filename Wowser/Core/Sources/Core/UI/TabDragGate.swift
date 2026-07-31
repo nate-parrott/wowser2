@@ -1,5 +1,9 @@
 import Foundation
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension Notification.Name {
     /// Posted when the user mouseDowns inside the sidebar — arms split-drop

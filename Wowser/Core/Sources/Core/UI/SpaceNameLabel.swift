@@ -54,7 +54,11 @@ private struct SpaceNameField: View {
     }
     /// Same muted tone as the section-divider headers; full-strength while editing.
     private var textColor: UINSColor {
-        isEditing ? .labelColor : .secondaryLabelColor
+        #if os(macOS)
+        return isEditing ? .labelColor : .secondaryLabelColor
+        #else
+        return isEditing ? .label : .secondaryLabel
+        #endif
     }
 
     var body: some View {
@@ -123,7 +127,14 @@ private struct SpaceNameField: View {
     }
 
     private func commit() {
+        // Only the user editing this field may change the title. Blur events
+        // arrive for unrelated first-responder changes anywhere in the window
+        // (including one when this view first enters it), and `text` may not
+        // have been synced from state yet — committing those would silently
+        // clear a user-entered title and leave the AI `autoTitle` showing.
+        guard isEditing else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != (snapshot.title ?? "") else { return }
         BrowserStore.shared.modify { state in
             state.profiles[profileID]?.title = trimmed.isEmpty ? nil : trimmed
         }

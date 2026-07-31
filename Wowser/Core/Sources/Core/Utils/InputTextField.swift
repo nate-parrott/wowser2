@@ -28,6 +28,7 @@ public struct InputTextFieldOptions: Equatable {
     var largePasteThreshold: Int? = nil
     var selectAllOnFocus: Bool = false
     var lineLimit: Int? = nil
+    var disableFindReplace: Bool = false
     
     var effectivePlaceholderColor: UINSColor {
         return placeholderColor ?? color.withAlphaComponentSafe(0.5)
@@ -55,7 +56,9 @@ public struct InputTextFieldOptions: Equatable {
                 wantsUpDownArrowEvents: Bool = true, 
                 largePasteThreshold: Int? = nil, 
                 selectAllOnFocus: Bool = false,
-                lineLimit: Int? = nil) {
+                lineLimit: Int? = nil,
+                disableFindReplace: Bool = false
+    ) {
         self.placeholder = placeholder
         self.font = font
         self.color = color
@@ -66,5 +69,6 @@ public struct InputTextFieldOptions: Equatable {
         self.largePasteThreshold = largePasteThreshold
         self.selectAllOnFocus = selectAllOnFocus
         self.lineLimit = lineLimit
+        self.disableFindReplace = disableFindReplace
     }
 }

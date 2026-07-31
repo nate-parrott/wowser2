@@ -100,7 +100,9 @@ struct PaneView: View {
             selectedResultIndex = 0 // Reset selection when query changes
         }
         .onChange(of: snapshot.searchActive) {
-            if !$0 {
+            if $0 {
+                searcher.refreshForEmptyQuery()
+            } else {
                 searchText = ""
             }
         }

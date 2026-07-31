@@ -162,7 +162,12 @@ private struct LoadingFailureOverlay: View {
     
     var body: some View {
         if let nativePage = NativePageKey(url: failure.url), case .vscode(let folder) = nativePage {
+            #if os(macOS)
             VSCodeLoadingOverlay(folder: folder, webContent: webContent)
+            #else
+            Text("VSCode not supported here")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #endif
         } else {
             VStack(spacing: 20) {
                 Spacer()

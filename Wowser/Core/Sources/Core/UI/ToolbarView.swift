@@ -50,8 +50,9 @@ public struct ToolbarViewSnapshot: Equatable {
         self.isLastPane = tab.panes[tab.panes.count - 1]?.id == webContentId
         let isFirstPane = tab.panes.first?.id == webContentId
         let sidebarLocked = windowID != nil && state.windows[windowID!]?.sidebarLocked ?? false
-        self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked
         self.isEmptyPage = paneData.info.isEmptyPage
+        // Display traffic lights only if top-docked (ie not empty page)
+        self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked && !self.isEmptyPage
         self.nativeKey = paneData.info.url.flatMap(NativePageKey.init(url:))
     }
 }
@@ -120,7 +121,9 @@ struct ToolbarView: View {
                 if !emptyPage {
                     HStack(spacing: 0) {
                         if let nativeKey = snapshot.nativeKey {
+                            #if os(macOS)
                             OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
+                            #endif
                         } else if let webContentID {
                             CleanModeStatusButton(webContentID: webContentID)
 //                                .tint(colorScheme?.foreground.color ?? Color.primary)
@@ -277,6 +280,7 @@ struct ToolbarView: View {
     }
 
     private func fileBrowserParentPath(_ path: String?) -> String? {
+        #if os(macOS)
         let resolved: String = {
             if let path, !path.isEmpty {
                 return (path as NSString).expandingTildeInPath
@@ -286,6 +290,9 @@ struct ToolbarView: View {
         if resolved == "/" || resolved.isEmpty { return nil }
         let parent = (resolved as NSString).deletingLastPathComponent
         return parent == resolved ? nil : parent
+        #else
+        return nil
+        #endif
     }
 
     private func fileBrowserGoUp(currentPath: String?) {

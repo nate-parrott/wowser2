@@ -52,8 +52,8 @@ if cefEnabled {
 let package = Package(
     name: "Core",
     platforms: [
-        .iOS(.v17),
-        .macOS(.v14),
+        .iOS("26.0"),
+        .macOS("26.0"),
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

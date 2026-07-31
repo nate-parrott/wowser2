@@ -87,12 +87,11 @@ extension BrowserState {
         }
     }()
 
-    private static func dynamicActions(state: BrowserState, windowID: ID<WindowState>?) -> [SearchableItem] {
-        // Seed new native tabs with the folder of the most recently used
-        // native tab in this profile/space — so opening a new terminal,
-        // VS Code window, or file browser lands in the same place the user
-        // was working.
-        let suggestedFolder = state.mostRecentNativeFolderPath(windowID: windowID)
+    /// The four native-tab actions (terminal, Claude, files, VS Code) pointed at
+    /// `suggestedFolder`. Ordered as we want them presented when they're shown
+    /// as top-level defaults in an empty command bar.
+    static func nativeActionItems(suggestedFolder: String?) -> [SearchableItem] {
+        #if os(macOS)
         let filesPath = suggestedFolder ?? FileManager.default.homeDirectoryForCurrentUser.path
 
         let terminalAction = SearchAction.openURL(NativePageKey.terminal(cwd: suggestedFolder, runCommand: nil).url)
@@ -142,7 +141,18 @@ extension BrowserState {
             ]
         )
 
-        var items = [terminalItem, vscodeItem, filesItem, claudeItem]
+        return [terminalItem, claudeItem, filesItem, vscodeItem]
+        #else
+        return []
+        #endif
+    }
+
+    private static func dynamicActions(state: BrowserState, windowID: ID<WindowState>?) -> [SearchableItem] {
+        // Seed new native tabs with the folder of the most recently used
+        // native tab in this profile/space — so opening a new terminal,
+        // VS Code window, or file browser lands in the same place the user
+        // was working.
+        var items = nativeActionItems(suggestedFolder: state.mostRecentNativeFolderPath(windowID: windowID))
 
         // 'Separate split tabs' is only relevant when the active tab has > 1 pane.
         if let windowID,
@@ -161,6 +171,15 @@ extension BrowserState {
             ))
         }
         return items
+    }
+
+    /// Actions to show at the top of an empty command bar: when this window's
+    /// space has a folder in play (a native tab open anywhere in it, pinned or
+    /// not), we promote the native actions for that folder ahead of frecents.
+    /// Empty when the space has no folder.
+    func emptyQueryDefaultActions(windowID: ID<WindowState>?) -> [SearchableItem] {
+        guard let folder = mostRecentNativeFolderPath(windowID: windowID) else { return [] }
+        return BrowserState.nativeActionItems(suggestedFolder: folder)
     }
 
     func matchingActions(query: NormalizedSearchableString, windowID: ID<WindowState>? = nil) -> [SearchableItem] {

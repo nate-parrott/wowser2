@@ -15,9 +15,9 @@ struct TangerineMobileApp: App {
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
             DefaultsKeys.enableGoDirectQueries.rawValue: true,
-            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
-            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt4o_mini.rawValue,
-            DefaultsKeys.openAIKey.rawValue: "[REMOVED-OPENAI-KEY]"
+//            DefaultsKeys.homepagePrompt.rawValue: "Create a fun, engaging, interesting homepage with the latest news.",
+            DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt_5_4_nano.rawValue,
+//            DefaultsKeys.openAIKey.rawValue: "[REMOVED-OPENAI-KEY]"
         ])
         
         Preheat.preheat()

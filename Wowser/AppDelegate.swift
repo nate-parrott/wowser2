@@ -178,6 +178,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         })
         appsMenuManager?.install()
         TangAppRegistry.shared.reload()
+
+        #if DEBUG
+        PromoteToProd.installMenuItem()
+        #endif
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

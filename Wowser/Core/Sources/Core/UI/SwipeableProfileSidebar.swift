@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 public struct SidebarSwipeView: View {
     let windowID: ID<WindowState>
@@ -303,33 +306,49 @@ private struct NewProfileContent: View {
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-            FreeformButton(action: createNewProfile) { status in
-                let bgOpacity: CGFloat = status == .pressed ? 0.1 : (status == .hovered ? 0.07 : 0)
-                VStack(spacing: 22) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 32))
-
-                    Text("New Profile")
-                        .fontWeight(.medium)
-                }
-                .padding()
-                .contentShape(Rectangle())
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(bgOpacity)))
-                .foregroundStyle(.secondary)
-            }
+//            FreeformButton(action: createNewProfile) { status in
+//                let bgOpacity: CGFloat = status == .pressed ? 0.1 : (status == .hovered ? 0.07 : 0)
+//                VStack(spacing: 22) {
+//                    Image(systemName: "plus")
+//                        .font(.system(size: 32))
+//
+//                    Text("New Profile")
+//                        .fontWeight(.medium)
+//                }
+//                .padding()
+//                .contentShape(Rectangle())
+//                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(bgOpacity)))
+//                .foregroundStyle(.secondary)
+//            }
 //            Divider()
 //                .padding(.horizontal)
             
+            
+            Button(action: createNewProfile) {
+                Text("New Profile")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+            
             profileSharingMenu
-            .opacity(0.5)
-            .fixedSize(horizontal: false, vertical: true)
+            
+//            .opacity(0.5)
+//            .fixedSize(horizontal: false, vertical: true)
+
+
+            #if os(macOS)
+            Divider()
+            
+            Button("From Folder…", action: createProfileFromFolder)
+                .buttonStyle(.glass)
+            #endif
             
             Spacer()
         }
         .padding()
         .frame(width: UIConstants.sidebarWidth)
     }
-    
+
     @ViewBuilder private var profileSharingMenu: some View {
         Menu {
             ForEach(snapshot.loginGroups, id: \.first?.id.raw) { group in
@@ -344,27 +363,30 @@ private struct NewProfileContent: View {
                 pickedChoice = .isolated
             }
         } label: {
-            HStack {
-                Text(label(for: resolvedChoice))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
-            .foregroundStyle(.primary)
+            Text(label(for: resolvedChoice))
+                .lineLimit(1)
+                .truncationMode(.tail)
+//            HStack {
+//                Text(label(for: resolvedChoice))
+//                    .lineLimit(1)
+//                    .truncationMode(.tail)
+//                Spacer()
+//                Image(systemName: "chevron.up.chevron.down")
+//                    .font(.system(size: 10, weight: .semibold))
+//                    .foregroundStyle(.secondary)
+//            }
+//            .padding(.horizontal, 10)
+//            .padding(.vertical, 6)
+//            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
+//            .foregroundStyle(.primary)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+//        .menuStyle(.borderlessButton)
+//        .menuIndicator(.hidden)
         .controlSize(.small)
     }
 
     private func displayName(for profile: Profile) -> String {
-        profile.title ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)"
+        profile.title ?? profile.autoTitle ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)"
     }
 
     private func shareLoginsLabel(for group: [Profile]) -> String {
@@ -406,6 +428,36 @@ private struct NewProfileContent: View {
             state.windows[windowID]?.profile = newProfileId
         }
     }
+
+    private var sourceProfileIDForSharing: ID<Profile>? {
+        switch resolvedChoice {
+        case .shareLogins(let id): return id
+        case .isolated: return nil
+        }
+    }
+
+    #if os(macOS)
+    // Picks a folder (new folders allowed) and makes a profile named after it,
+    // pre-pinned with VS Code / terminal / files tabs for that folder.
+    private func createProfileFromFolder() {
+        let sourceID = sourceProfileIDForSharing
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Create Profile"
+        panel.message = "Choose a folder for the new profile"
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        panel.begin { response in
+            guard response == .OK, let path = panel.url?.path else { return }
+            BrowserStore.shared.modify { state in
+                let newProfileId = state.createNewProfile(forFolderPath: path, sharingLoginsWith: sourceID)
+                state.windows[windowID]?.profile = newProfileId
+            }
+        }
+    }
+    #endif
 }
 
 // Helper extension to safely access array elements

@@ -167,9 +167,13 @@ struct FavoriteCell: View {
                     }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.vertical, 8)
+                .glassEffect(isSelected ? Glass.regular : .identity, in: Capsule(style: .continuous))
+//                .glassEffect(isSelected ? Glass.regular.interactive() : .identity, in: true)
                 .background {
-                    Capsule()
-                        .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
+                    if !isSelected  {
+                        Capsule()
+                            .applyTabStyle(isSelected: isSelected, isHovered: isHovered)
+                    }
                 }
                 .contentShape(Capsule())
                 .onTapGesture {

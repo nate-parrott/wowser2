@@ -143,18 +143,19 @@ struct TabStyleButtonModifier: ViewModifier {
             .font(.system(size: isMobile() ? 16 : 13))
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background{
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(
-                            LinearGradient(colors: [
-                                Color("TabBackground", bundle: .module),
-                                Color("TabBackground", bundle: .module).opacity(0.7),
-                            ], startPoint: .top, endPoint: .bottom)
-                        )
-                        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-                }
-            }
+            .glassEffect(isSelected ? .regular : .identity, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+//            .background{
+//                if isSelected {
+//                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+//                        .fill(
+//                            LinearGradient(colors: [
+//                                Color("TabBackground", bundle: .module),
+//                                Color("TabBackground", bundle: .module).opacity(0.7),
+//                            ], startPoint: .top, endPoint: .bottom)
+//                        )
+//                        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+//                }
+//            }
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .contentShape(Rectangle())

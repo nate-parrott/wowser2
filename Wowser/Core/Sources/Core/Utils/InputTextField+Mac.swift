@@ -153,6 +153,14 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
                 textView.textContainer?.widthTracksTextView = true
             }
             
+            // Turn off find/replace?
+            if textView.usesFindBar != options.disableFindReplace {
+                textView.usesFindBar = !options.disableFindReplace
+            }
+            if options.disableFindReplace && textView.usesFindPanel {
+                textView.usesFindPanel = false
+            }
+            
             contentSizeMayHaveChanged()
         }
     }
@@ -160,6 +168,7 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
     // override did move to windwo and focus if necessary
 
     private var focusSubscriptions = Set<AnyCancellable>()
+    private var wasFirstResponder = false
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
 
@@ -170,14 +179,18 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
 //            window.makeFirstResponder(textView)
 //        }
 
-        // KVO the window's first responder to see if it's us
+        // KVO the window's first responder to see if it's us. Only report
+        // transitions: the publisher fires for every first-responder change in
+        // the window (plus once on subscribe), and consumers treat .blur as
+        // "the user finished editing" — delivering it when we never had focus
+        // makes them commit stale state.
+        wasFirstResponder = window.firstResponder === textView
         window.publisher(for: \.firstResponder).sink { [weak self] firstResponder in
             guard let self else { return }
-            if firstResponder === self.textView {
-                self.onEvent?(.focus)
-            } else {
-                self.onEvent?(.blur)
-            }
+            let isUs = firstResponder === self.textView
+            guard isUs != self.wasFirstResponder else { return }
+            self.wasFirstResponder = isUs
+            self.onEvent?(isUs ? .focus : .blur)
         }.store(in: &focusSubscriptions)
 
         contentSizeMayHaveChanged()

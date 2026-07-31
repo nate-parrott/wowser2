@@ -40,7 +40,8 @@ struct Omnibox: View {
                 insets: CGSize(width: 8, height: 12 - (fontSize - 14) / 2),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
-                lineLimit: 1
+                lineLimit: 1,
+                disableFindReplace: true
             ),
             focusDate: focusDate,
             focusTarget: focusTarget,

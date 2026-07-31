@@ -30,6 +30,14 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if let id = self.browserViewController?.windowID {
+                self.observers.append(BrowserStore.shared.uiPublisher.map({ $0.focusState(windowID: id) }).removeDuplicates().sink(receiveValue: { s in
+                    print("[First responder focus snap] \(s.target)")
+                }))
+            }
+        }
+        
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: self.window!, queue: .main) { [weak self] _ in
             if let self {
                 self.willClose()

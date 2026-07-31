@@ -35,6 +35,23 @@ extension BrowserState {
         return id
     }
 
+    // Creates a profile named after the given folder, pre-pinned with VS Code,
+    // terminal and file-browser tabs pointed at that folder.
+    public mutating func createNewProfile(forFolderPath folderPath: String, sharingLoginsWith sourceProfileID: ID<Profile>? = nil) -> ID<Profile> {
+        let id = createNewProfile(sharingLoginsWith: sourceProfileID)
+        profiles[id]?.title = (folderPath as NSString).lastPathComponent
+        let keys: [NativePageKey] = [
+            .vscode(folder: folderPath),
+            .terminal(cwd: folderPath),
+            .fileBrowser(path: folderPath),
+        ]
+        for key in keys {
+            let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: key.url))])
+            insertTab(tab, intoProfileFavoritesAtIndex: profiles[id]?.manualFavorites.count ?? 0, profile: id)
+        }
+        return id
+    }
+
     // MARK: - Hiding profiles
 
     /// Profiles the user can currently see, in creation order.
