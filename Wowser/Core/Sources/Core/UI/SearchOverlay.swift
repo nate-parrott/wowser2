@@ -5,6 +5,7 @@ public struct SearchResultsOverlay: View {
     @Binding var searchText: String
     @Binding var selectedResultIndex: Int
     @ObservedObject var searcher: Searcher
+    var drawsCenteredBackdropIncludingBehindToolbar: Bool = false
     
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
@@ -28,11 +29,17 @@ public struct SearchResultsOverlay: View {
                 // Search interface
                 resultsStack
                     .background {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color("Background",  bundle: .module))
-                            .padding(.top, -10)
-                            .clipShape(Rectangle())
-                            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 2, y: 3)
+                        if drawsCenteredBackdropIncludingBehindToolbar {
+                            Color.clear
+                                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .padding(.top, -UIConstants.macHeaderHeight - 8)
+                        } else {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color("Background",  bundle: .module))
+                                .padding(.top, -10) // remove rounded corners
+                                .clipShape(Rectangle())
+                                .shadow(color: Color.black.opacity(0.12), radius: 8, x: 2, y: 3)
+                        }
                     }
 //                    .frame(maxWidth: 500)
 //                    .padding(8)

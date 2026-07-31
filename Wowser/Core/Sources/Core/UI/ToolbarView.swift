@@ -214,15 +214,15 @@ struct ToolbarView: View {
                 omniboxIsFocused = false
             }
         }
-        .modifier(WithContentColorScheme(scheme: colorScheme))
+        .modifier(WithContentColorScheme(scheme: colorScheme, hideBg: emptyPage))
         .clipShape(clipShape)
-        .overlay {
-            if emptyPage {
-                clipShape.strokeBorder(Color.primary)
-                    .padding(-1)
-                    .opacity(0.1)
-            }
-        }
+//        .overlay {
+//            if emptyPage {
+//                clipShape.strokeBorder(Color.primary)
+//                    .padding(-1)
+//                    .opacity(0.1)
+//            }
+//        }
         .compositingGroup()
         .animation(.niceDefault, value: colorScheme)
         .id(webContentID)

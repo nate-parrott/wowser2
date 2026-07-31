@@ -38,7 +38,12 @@ struct PaneView: View {
 //                .opacity(snapshot.searchActive ? 0.1 : 1)
             
             if snapshot.searchActive {
-                SearchResultsOverlay(searchText: $searchText, selectedResultIndex: $selectedResultIndex, searcher: searcher)
+                SearchResultsOverlay(
+                    searchText: $searchText,
+                    selectedResultIndex: $selectedResultIndex,
+                    searcher: searcher,
+                    drawsCenteredBackdropIncludingBehindToolbar: snapshot.emptyPage // in empty-page centered mode, we draw our own backdrop in a parent
+                )
                     .padding(.top, UIConstants.macHeaderHeight)
                     .padding(.horizontal, emptyPageSearchPadding)
                     .padding(.top, emptyPageTopPadding)

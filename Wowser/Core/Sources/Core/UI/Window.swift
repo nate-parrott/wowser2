@@ -296,14 +296,15 @@ public struct BrowserWindow_Previews: PreviewProvider {
 extension View {
     @ViewBuilder
     func withFloatingSidebarContainer() -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        
-        self.background(.regularMaterial)
-            .clipShape(shape)
-            .overlay {
-                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-            }
-            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
+        self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+//        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+//        
+//        self.background(.regularMaterial)
+//            .clipShape(shape)
+//            .overlay {
+//                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+//            }
+//            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
     }
 }
 

@@ -8,10 +8,11 @@ struct ContentColorScheme: Equatable {
 
 struct WithContentColorScheme: ViewModifier {
     var scheme: ContentColorScheme?
+    var hideBg: Bool = false
     
     func body(content: Content) -> some View {
         content
-            .background(scheme?.background.color ?? Color("Background", bundle: .module))
+            .background(hideBg ? Color.clear : (scheme?.background.color ?? Color("Background", bundle: .module)))
             .foregroundColor(scheme?.foreground.color)
     }
 }
