@@ -1,5 +1,5 @@
 {
-  "originHash" : "bf752eb9efc92bb957be0333a0fdb5f9179232818354e3a6ff3b48522cd9ca2d",
+  "originHash" : "18341137a133a6388df04c80396c54b499b6d04facf86ccefd3e58576407647d",
   "pins" : [
     {
       "identity" : "anycodable",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "862808b2070cd908cb04f9aafe7de83d35f81b05",
         "version" : "0.6.7"
+      }
+    },
+    {
+      "identity" : "cefswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Rajaniraiyn/CefSwift.git",
+      "state" : {
+        "revision" : "2dca11e38e5cf12309bb867cb727362d7fb080e8",
+        "version" : "0.1.0"
       }
     },
     {
