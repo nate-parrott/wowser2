@@ -39,6 +39,12 @@ struct NativePageOverlay: View {
                 #else
                 Color.clear
                 #endif
+            case .agent(let key, let query):
+                AgentChatOverlay(
+                    sessionKey: key,
+                    initialQuery: query,
+                    webContent: webContent
+                )
             }
         }
     }

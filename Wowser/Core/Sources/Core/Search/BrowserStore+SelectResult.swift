@@ -52,6 +52,13 @@ extension BrowserStore {
             
         case .searchAction(let action):
             performSearchAction(action: action, windowID: windowID)
+
+        case .askAgent(let query, _):
+            #if os(macOS)
+            Task { @MainActor in
+                AgentChatTabs.ask(query: query, windowID: windowID)
+            }
+            #endif
         }
     }
     

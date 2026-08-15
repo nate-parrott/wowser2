@@ -30,6 +30,8 @@ extension WebContent.Info {
             case .vscode: () // fall thru -- this is a normal webview
             case .fileBrowser:
                 return nil
+            case .agent:
+                return nil
             }
         }
         if let topColor {

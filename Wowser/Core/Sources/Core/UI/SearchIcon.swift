@@ -47,6 +47,10 @@ struct SearchIcon: View {
                 Image(systemName: "arrow.right.circle.fill")
                     .opacity(iconOpacity)
                 
+            case .askAgent:
+                AgentFruitIcon(flavor: .cherry, working: false, size: size)
+                    .opacity(selected ? 1 : 0.7)
+
             case .tab(_, let info):
                 FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
                     .overlay(alignment: .leading) {

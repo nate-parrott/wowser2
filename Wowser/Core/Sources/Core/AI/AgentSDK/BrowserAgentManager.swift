@@ -189,6 +189,15 @@ public actor BrowserAgentManager {
         self.provider = provider
     }
 
+    /// Feature-supplied native tools, resolved by session key whenever an agent
+    /// starts (including resume-from-disk). Lets app features (e.g. agent chat
+    /// tabs) give their agents Swift-implemented tools that survive resume —
+    /// unlike `appTools`, which are answered by JS.
+    private var nativeToolProvider: (@Sendable (_ key: String) -> [AgentToolDefinition])?
+    public func setNativeToolProvider(_ provider: @escaping @Sendable (_ key: String) -> [AgentToolDefinition]) {
+        self.nativeToolProvider = provider
+    }
+
     // MARK: - Operations (BJS surface)
 
     public func create(options: BrowserJSAgentCreateOptions) async throws -> String {
@@ -265,6 +274,9 @@ public actor BrowserAgentManager {
         let id = record.agentID
         for tool in record.appTools {
             spec.tools.append(makeAppTool(tool, agentID: id))
+        }
+        if let nativeToolProvider {
+            spec.tools.append(contentsOf: nativeToolProvider(record.key))
         }
         let agent = provider.makeAgent(spec)
         var entry = Entry(

@@ -11,6 +11,7 @@ struct TabAppearance: Equatable, Codable {
         case terminal(running: Bool) // terminal-glyph chip; dimmed when idle at the prompt
         case vscode  // VS Code-glyph chip
         case files   // file-browser-glyph chip
+        case agentFruit(flavor: AgentFruitFlavor, working: Bool) // agent-tab fruit; eyes open while working
         case empty
     }
     
@@ -154,6 +155,8 @@ struct TabIconView: View {
 
         case .terminal(let running):
             TerminalFavicon(running: running)
+        case .agentFruit(let flavor, let working):
+            AgentFruitIcon(flavor: flavor, working: working)
         case .vscode:
             VSCodeFavicon()
         case .files:

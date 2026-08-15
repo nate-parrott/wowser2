@@ -9,6 +9,7 @@ public enum FocusTarget: Equatable {
     case webContent(ID<WebContent>)
     case terminal(ID<WebContent>)
     case fileBrowser(ID<WebContent>)
+    case agentChat(ID<WebContent>) // input field of a native agent-chat tab
     case reader(ID<WebContent>)
     case findInPage(ID<WebContent>)
     case omnibox(pane: ID<WebContent>)
@@ -18,7 +19,7 @@ public enum FocusTarget: Equatable {
     public var paneID: ID<WebContent>? {
         switch self {
         case .webContent(let id), .terminal(let id), .fileBrowser(let id),
-             .reader(let id), .findInPage(let id), .omnibox(pane: let id):
+             .agentChat(let id), .reader(let id), .findInPage(let id), .omnibox(pane: let id):
             return id
         case .emptyWindowOmnibox, .spaceTitle: return nil
         }
@@ -29,7 +30,7 @@ public enum FocusTarget: Equatable {
             return state.windowContaining(webContentId: paneID)?.id
         }
         switch self {
-        case .webContent, .terminal, .fileBrowser, .reader, .findInPage, .omnibox:
+        case .webContent, .terminal, .fileBrowser, .agentChat, .reader, .findInPage, .omnibox:
             assertionFailure()
             return nil
         case .emptyWindowOmnibox(let winID):
@@ -74,7 +75,7 @@ extension BrowserState {
         case .findInPage:
             windows[windowID]?.searchOverlayActive = false
             windows[windowID]?.findInPageActiveInPaneId = target.paneID
-        case .webContent, .terminal, .fileBrowser, .reader:
+        case .webContent, .terminal, .fileBrowser, .agentChat, .reader:
             windows[windowID]?.searchOverlayActive = false
             windows[windowID]?.findInPageActiveInPaneId = nil
         case .spaceTitle(let profileID, _):
@@ -87,7 +88,7 @@ extension BrowserState {
         // Any target other than spaceTitle ends space-title editing.
         switch target {
         case .spaceTitle: ()
-        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .reader, .emptyWindowOmnibox:
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox:
             windows[windowID]?.editingSpaceTitleForProfile = nil
         }
     }
@@ -111,7 +112,7 @@ extension BrowserState {
             windows[windowID]?.findInPageActiveInPaneId = nil
         case .spaceTitle:
             windows[windowID]?.editingSpaceTitleForProfile = nil
-        case .webContent, .terminal, .fileBrowser, .reader, .emptyWindowOmnibox:
+        case .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox:
             () // Whatever takes focus next will reassert via didFocus.
         }
     }
@@ -156,6 +157,8 @@ extension BrowserState {
                 return .init(target: .terminal(paneID), date: date)
             case .fileBrowser:
                 return .init(target: .fileBrowser(paneID), date: date)
+            case .agent:
+                return .init(target: .agentChat(paneID), date: date)
             case .vscode:
                 () // fall through — vscode is a normal webview; the loading
                    // sentinel page also takes ordinary web focus.

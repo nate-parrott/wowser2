@@ -13,6 +13,9 @@ public enum NativePageKey: Hashable, Codable {
     case terminal(cwd: String?, runCommand: String? = nil)
     case vscode(folder: String?)
     case fileBrowser(path: String?)
+    /// A native AI-agent chat tab. `key` is the stable BrowserAgentManager
+    /// session key; `query` is the question that spawned it (used for the title).
+    case agent(key: String, query: String? = nil)
 
     public init?(url: URL) {
         if VSCodeConfig.isServeWebURL(url) {
@@ -28,6 +31,9 @@ public enum NativePageKey: Hashable, Codable {
 //            self = .vscodeLoading(folder: url.queryParam(name: "folder"))
         case "files":
             self = .fileBrowser(path: url.queryParam(name: "path"))
+        case "agent":
+            guard let key = url.queryParam(name: "key") else { return nil }
+            self = .agent(key: key, query: url.queryParam(name: "q"))
         default:
             return nil
         }
@@ -39,6 +45,7 @@ public enum NativePageKey: Hashable, Codable {
         case .terminal: return "terminal"
         case .vscode: return "vscode"
         case .fileBrowser: return "files"
+        case .agent: return "agent"
         }
     }
 
@@ -67,6 +74,14 @@ public enum NativePageKey: Hashable, Codable {
             if let path { items.append(URLQueryItem(name: "path", value: path)) }
             components.queryItems = items
             return components.url!
+        case .agent(let key, let query):
+            var components = URLComponents()
+            components.scheme = "about"
+            components.path = "blank"
+            var items = [URLQueryItem(name: "native", value: "agent"), URLQueryItem(name: "key", value: key)]
+            if let query { items.append(URLQueryItem(name: "q", value: query)) }
+            components.queryItems = items
+            return components.url!
         }
     }
 
@@ -75,6 +90,7 @@ public enum NativePageKey: Hashable, Codable {
         case .terminal: return "Terminal"
         case .vscode: return "VS Code"
         case .fileBrowser: return "Files"
+        case .agent(_, let query): return query?.nilIfEmpty ?? "Agent"
         }
     }
 
@@ -90,9 +106,12 @@ public enum NativePageKey: Hashable, Codable {
         case .terminal(let cwd, _): return cwd
         case .vscode(let folder): return folder
         case .fileBrowser(let path): return path
+        case .agent: return nil
         }
     }
 
+    public var isAgent: Bool { if case .agent = self { return true } else { return false } }
+    public var agentKey: String? { if case .agent(let key, _) = self { return key } else { return nil } }
     public var isTerminal: Bool { if case .terminal = self { return true } else { return false } }
     public var isVSCode: Bool {
         switch self {
@@ -153,6 +172,8 @@ extension NativePageKey {
             VSCodeFavicon()
         case .fileBrowser:
             FileBrowserFavicon()
+        case .agent(let key, _):
+            AgentFruitIcon(flavor: .flavor(forKey: key), working: false)
         }
     }
     
@@ -164,6 +185,7 @@ extension NativePageKey {
             return "Open Terminal"
         case .vscode: return "Open VS Code"
         case .fileBrowser: return "Open File Browser"
+        case .agent: return "Ask Agent"
         }
     }
     
@@ -181,6 +203,10 @@ extension NativePageKey {
         case .fileBrowser(let path):
             if let path {
                 return path.lastPathComponent
+            }
+        case .agent(_, let query):
+            if let query, !query.isEmpty {
+                return query
             }
         }
         return self.actionTitle
@@ -200,13 +226,15 @@ extension NativePageKey {
             if let path {
                 return "Files in \(path)"
             }
+        case .agent:
+            return "Agent chat"
         }
         return nil
     }
-    
+
     var suppressTitleFromWebview: Bool {
         switch self {
-        case .terminal, .fileBrowser: return true
+        case .terminal, .fileBrowser, .agent: return true
         case .vscode: return false
         }
     }
@@ -247,6 +275,12 @@ extension NativePageKey {
                 return ((path as NSString).expandingTildeInPath as NSString).lastPathComponent.nilIfEmpty
             }()
             appearance.title = liveTitle ?? pathName ?? "Files"
+            appearance.urlFieldTextSelected = appearance.title
+            appearance.urlFieldTextDeselected = appearance.title
+        case .agent(let key, let query):
+            appearance.icon = .agentFruit(flavor: .flavor(forKey: key), working: info.agentIsWorking ?? false)
+            appearance.title = info.title?.nilIfEmpty ?? query?.nilIfEmpty ?? "Agent"
+            appearance.subtitle = (info.agentIsWorking ?? false) ? "Working…" : nil
             appearance.urlFieldTextSelected = appearance.title
             appearance.urlFieldTextDeselected = appearance.title
         }

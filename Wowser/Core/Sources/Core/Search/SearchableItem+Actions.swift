@@ -307,6 +307,8 @@ extension SearchableItem {
             return info.title ?? info.url?.stripped ?? "Tab"
         case .searchAction(let action):
             return action.title
+        case .askAgent(let query, _):
+            return query
         }
     }
     
@@ -335,6 +337,8 @@ extension SearchableItem {
                 return "App · \(appSlug)"
             }
             return "Action"
+        case .askAgent:
+            return "Ask Agent"
         }
     }
     
@@ -355,6 +359,8 @@ extension SearchableItem {
         case .tab(_, _):
             return nil
         case .searchAction:
+            return nil
+        case .askAgent:
             return nil
         }
     }

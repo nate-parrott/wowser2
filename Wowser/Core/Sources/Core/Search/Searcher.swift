@@ -13,6 +13,9 @@ struct SearchableItem: Equatable {
         case chatbot(String)
         case tab(ID<Tab>, WebContent.Info)
         case searchAction(SearchAction)
+        /// Spin up an in-browser agent tab for this query. `explicit` = the
+        /// user invoked it with a ">" prefix, which ranks it at the top.
+        case askAgent(query: String, explicit: Bool)
     }
 
     var id: ID<SearchableItem>
@@ -29,6 +32,7 @@ struct SearchableItem: Equatable {
         case .chatbot(let query): return "chat:\(query)"
         case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
         case .searchAction(let action): return "action:\(action.title)"
+        case .askAgent(let query, _): return "askagent:\(query)"
         }
     }
 }
@@ -107,6 +111,10 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
+        case .askAgent(_, let explicit):
+            // Explicit ">" invocations go to the top (under a literal URL);
+            // implicit triggers sit under the "Search Google" row.
+            return explicit ? 99 : 5
         }
     }
 }
@@ -284,6 +292,19 @@ extension CharacterSet {
 //        }
         results.append(.searchYouTyped(query))
 
+        #if os(macOS)
+        // "Ask agent" — only for queries that look like questions/tasks (or an
+        // explicit ">" prefix); ranked by score like everything else.
+        if let trigger = Searcher.askAgentTrigger(query: query) {
+            let agentResult = SearchResult.askAgent(trigger.query, explicit: trigger.explicit)
+            if let insertBefore = results.firstIndex(where: { agentResult.score > $0.score }) {
+                results.insert(agentResult, at: insertBefore)
+            } else {
+                results.append(agentResult)
+            }
+        }
+        #endif
+
         // Add matching actions
         let model = BrowserStore.shared.model
         let actionMatches = model.matchingActions(query: normQuery, windowID: self.windowID)
@@ -422,6 +443,34 @@ extension CharacterSet {
         return results
     }
     
+    /// Should this query offer an "Ask Agent" result? Yes if it starts with ">"
+    /// (explicit), ends with "?", is longer than four words, or contains a
+    /// task-ish trigger phrase ("summarize", "directions", …).
+    static func askAgentTrigger(query: String) -> (query: String, explicit: Bool)? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return nil }
+        if trimmed.hasPrefix(">") {
+            let q = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+            return q.isEmpty ? nil : (q, true)
+        }
+        // Never hijack something that parses as a URL or filesystem path.
+        if URL.withNaturalString(trimmed) != nil { return nil }
+        if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") { return nil }
+        if trimmed.hasSuffix("?") { return (trimmed, false) }
+        if trimmed.split(separator: " ").count > 4 { return (trimmed, false) }
+        let padded = " " + trimmed.lowercased() + " "
+        let triggerPhrases = [
+            "summarize", "summarise", "explain", "translate", "compare",
+            "directions", "map of", "tell me", "show me", "find me",
+            "look up", "research", "how do", "how to", "what is", "what are",
+            "why is", "who is",
+        ]
+        for phrase in triggerPhrases where padded.contains(" " + phrase + " ") {
+            return (trimmed, false)
+        }
+        return nil
+    }
+
     private func historyMatches(query: NormalizedSearchableString, limit: Int) async -> [SearchResult] {
         guard let historyStore else { return [] }
         return await historyStore.readAsync { state in
@@ -452,6 +501,10 @@ private extension SearchResult {
     
     static func customAction(action: SearchAction) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "action:\(action.title)"), content: .searchAction(action)), matchQuality: .prefixMatchTitle)
+    }
+
+    static func askAgent(_ query: String, explicit: Bool) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "askagent:\(query)"), content: .askAgent(query: query, explicit: explicit)), matchQuality: .prefixMatchTitle)
     }
 }
 
@@ -518,6 +571,8 @@ extension HistoryItem {
                 if let path {
                     return .init(path: path, item: self, keywords: ["folder", "finder"], historyKey: key)
                 }
+            case .agent:
+                () // agent tabs are ephemeral; no special history treatment
             }
         }
         return SearchableItem(
