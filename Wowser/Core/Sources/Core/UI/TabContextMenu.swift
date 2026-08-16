@@ -59,6 +59,16 @@ public struct TabContextMenu: View {
                     }
 
                     if isFavorite {
+                        if let pane = tab.panes.first,
+                           pane.baseInfo != nil,
+                           pane.info.url?.historyKey != pane.baseInfo?.url?.historyKey {
+                            Button(action: {
+                                updatePinnedURL(tabID: tabID)
+                            }) {
+                                Text("Update Pinned URL")
+                            }
+                        }
+
                         // Remove from favorites option
                         Button(action: {
                             removeFromFavorites(tabID: tabID)
@@ -98,6 +108,18 @@ public func removeFromFavorites(tabID: ID<Tab>) {
             } else if profile.autoFavorites.contains(tabID) {
                 state.profiles[profileID]?.autoFavorites.removeAll { $0 == tabID }
                 break
+            }
+        }
+    }
+}
+
+// Re-pin a favorite to its current URL: replace the pane's baseInfo with its
+// current info so "reset" now returns here.
+public func updatePinnedURL(tabID: ID<Tab>) {
+    BrowserStore.shared.modify { state in
+        state.modifyTab(id: tabID) { tab in
+            if let pane = tab.panes.first, pane.baseInfo != nil {
+                tab.panes[0]!.baseInfo = pane.info
             }
         }
     }

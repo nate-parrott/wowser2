@@ -51,6 +51,7 @@ struct AgentFruitIcon: View {
                 TimelineView(.periodic(from: .now, by: 0.7)) { context in
                     fruit(eyes: eyePhase(at: context.date))
                 }
+                WorkingSpinnerRing(color: flavor.bottomColor)
             } else {
                 fruit(eyes: .closed)
             }
@@ -143,6 +144,23 @@ struct AgentFruitIcon: View {
                 .stroke(Color.black.opacity(0.75), style: StrokeStyle(lineWidth: max(1, size * 0.07), lineCap: .round))
                 .frame(width: eyeW, height: eyeW * 0.6)
         }
+    }
+}
+
+/// A spinning partial ring around the fruit while the agent works — reads as
+/// a loading indicator at tab-icon size.
+private struct WorkingSpinnerRing: View {
+    var color: Color
+    @State private var spinning = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.68)
+            .stroke(color.opacity(0.85), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+            .rotationEffect(.degrees(spinning ? 360 : 0))
+            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spinning)
+            .onAppear { spinning = true }
+            .onDisappear { spinning = false }
     }
 }
 

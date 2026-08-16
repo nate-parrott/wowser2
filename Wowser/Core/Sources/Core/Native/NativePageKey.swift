@@ -90,7 +90,7 @@ public enum NativePageKey: Hashable, Codable {
         case .terminal: return "Terminal"
         case .vscode: return "VS Code"
         case .fileBrowser: return "Files"
-        case .agent(_, let query): return query?.nilIfEmpty ?? "Agent"
+        case .agent(_, let query): return query?.nilIfEmpty ?? "Chat"
         }
     }
 
@@ -185,7 +185,7 @@ extension NativePageKey {
             return "Open Terminal"
         case .vscode: return "Open VS Code"
         case .fileBrowser: return "Open File Browser"
-        case .agent: return "Ask Agent"
+        case .agent: return "New Chat"
         }
     }
     
@@ -279,8 +279,8 @@ extension NativePageKey {
             appearance.urlFieldTextDeselected = appearance.title
         case .agent(let key, let query):
             appearance.icon = .agentFruit(flavor: .flavor(forKey: key), working: info.agentIsWorking ?? false)
-            appearance.title = info.title?.nilIfEmpty ?? query?.nilIfEmpty ?? "Agent"
-            appearance.subtitle = (info.agentIsWorking ?? false) ? "Working…" : nil
+            appearance.title = info.title?.nilIfEmpty ?? query?.nilIfEmpty ?? "Chat"
+            appearance.subtitle = (info.agentIsWorking ?? false) ? (info.agentStatusDetail?.nilIfEmpty ?? "Working…") : nil
             appearance.urlFieldTextSelected = appearance.title
             appearance.urlFieldTextDeselected = appearance.title
         }

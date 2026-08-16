@@ -141,3 +141,32 @@ extension Text {
     }
 }
 
+
+//struct DarkModeConditional<X: View>: ViewModifier {
+//    var transform: (Content, Bool) -> X
+//    @Environment(\.colorScheme) private var colorScheme
+//    
+//    func body(content: Content) -> some View {
+//        transform(content, colorScheme == .dark)
+//    }
+//}
+
+private struct _DarkModeConditionalWrapper<X: View>: View {
+    var transform: (Bool) -> X
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        transform(colorScheme == .dark)
+    }
+}
+
+extension View {
+    func darkModeConditional<V: View>(@ViewBuilder _ block: @escaping (Self, Bool) -> V) -> some View {
+        _DarkModeConditionalWrapper { dark in
+            block(self, dark)
+        }
+//        modifier(DarkModeConditional(transform: { content, dark in
+//            block(content, dark)
+//        }))
+    }
+}

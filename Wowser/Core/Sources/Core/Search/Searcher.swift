@@ -3,6 +3,13 @@ import Combine
 import Foundation
 import CoreML
 
+/// How strongly a query matched the "Ask Agent" heuristics.
+enum AskAgentMatchStrength: Equatable {
+    case explicit      // ">" prefix — user asked for the agent by name
+    case trigger       // trailing "?", >4 words, or a full trigger phrase
+    case triggerPrefix // the query is a prefix of a trigger phrase ("summ…")
+}
+
 struct SearchableItem: Equatable {
     enum Content: Equatable {
         case searchWhatYouTyped(String)
@@ -13,9 +20,9 @@ struct SearchableItem: Equatable {
         case chatbot(String)
         case tab(ID<Tab>, WebContent.Info)
         case searchAction(SearchAction)
-        /// Spin up an in-browser agent tab for this query. `explicit` = the
-        /// user invoked it with a ">" prefix, which ranks it at the top.
-        case askAgent(query: String, explicit: Bool)
+        /// Spin up an in-browser agent tab for this query. Match strength
+        /// drives ranking (">" prefix = top of list).
+        case askAgent(query: String, match: AskAgentMatchStrength)
     }
 
     var id: ID<SearchableItem>
@@ -111,10 +118,15 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
-        case .askAgent(_, let explicit):
+        case .askAgent(_, let match):
             // Explicit ">" invocations go to the top (under a literal URL);
-            // implicit triggers sit under the "Search Google" row.
-            return explicit ? 99 : 5
+            // full triggers sit under the "Search Google" row; mere prefixes of
+            // a trigger phrase ("summ…") rank a bit lower still.
+            switch match {
+            case .explicit: return 99
+            case .trigger: return 5
+            case .triggerPrefix: return 3
+            }
         }
     }
 }
@@ -296,7 +308,7 @@ extension CharacterSet {
         // "Ask agent" — only for queries that look like questions/tasks (or an
         // explicit ">" prefix); ranked by score like everything else.
         if let trigger = Searcher.askAgentTrigger(query: query) {
-            let agentResult = SearchResult.askAgent(trigger.query, explicit: trigger.explicit)
+            let agentResult = SearchResult.askAgent(trigger.query, match: trigger.match)
             if let insertBefore = results.firstIndex(where: { agentResult.score > $0.score }) {
                 results.insert(agentResult, at: insertBefore)
             } else {
@@ -444,21 +456,23 @@ extension CharacterSet {
     }
     
     /// Should this query offer an "Ask Agent" result? Yes if it starts with ">"
-    /// (explicit), ends with "?", is longer than four words, or contains a
-    /// task-ish trigger phrase ("summarize", "directions", …).
-    static func askAgentTrigger(query: String) -> (query: String, explicit: Bool)? {
+    /// (explicit), ends with "?", is longer than four words, contains a
+    /// task-ish trigger phrase ("summarize", "directions", …), or — at a lower
+    /// score — is a prefix of one of those phrases ("summ").
+    static func askAgentTrigger(query: String) -> (query: String, match: AskAgentMatchStrength)? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else { return nil }
         if trimmed.hasPrefix(">") {
             let q = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
-            return q.isEmpty ? nil : (q, true)
+            return q.isEmpty ? nil : (q, .explicit)
         }
         // Never hijack something that parses as a URL or filesystem path.
         if URL.withNaturalString(trimmed) != nil { return nil }
         if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") { return nil }
-        if trimmed.hasSuffix("?") { return (trimmed, false) }
-        if trimmed.split(separator: " ").count > 4 { return (trimmed, false) }
-        let padded = " " + trimmed.lowercased() + " "
+        if trimmed.hasSuffix("?") { return (trimmed, .trigger) }
+        if trimmed.split(separator: " ").count > 4 { return (trimmed, .trigger) }
+        let lower = trimmed.lowercased()
+        let padded = " " + lower + " "
         let triggerPhrases = [
             "summarize", "summarise", "explain", "translate", "compare",
             "directions", "map of", "tell me", "show me", "find me",
@@ -466,7 +480,11 @@ extension CharacterSet {
             "why is", "who is",
         ]
         for phrase in triggerPhrases where padded.contains(" " + phrase + " ") {
-            return (trimmed, false)
+            return (trimmed, .trigger)
+        }
+        // Mid-typing: "summ" is a prefix of "summarize", "tell m" of "tell me".
+        if lower.count >= 3, triggerPhrases.contains(where: { $0.hasPrefix(lower) }) {
+            return (trimmed, .triggerPrefix)
         }
         return nil
     }
@@ -503,8 +521,8 @@ private extension SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "action:\(action.title)"), content: .searchAction(action)), matchQuality: .prefixMatchTitle)
     }
 
-    static func askAgent(_ query: String, explicit: Bool) -> SearchResult {
-        return .init(item: SearchableItem(id: .init(raw: "askagent:\(query)"), content: .askAgent(query: query, explicit: explicit)), matchQuality: .prefixMatchTitle)
+    static func askAgent(_ query: String, match: AskAgentMatchStrength) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "askagent:\(query)"), content: .askAgent(query: query, match: match)), matchQuality: .prefixMatchTitle)
     }
 }
 

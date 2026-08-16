@@ -78,7 +78,7 @@ private struct ProfileDotView: View {
             ZStack {
                 // Background circle for consistent sizing
                 Circle()
-                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.01))
+                    .fill(isSelected ? Color.accentColor.opacity(0.3) : Color.white.opacity(0.01))
                     .frame(width: 26, height: 26)
                 
                 if let emoji = profile?.emoji, !emoji.isEmpty {

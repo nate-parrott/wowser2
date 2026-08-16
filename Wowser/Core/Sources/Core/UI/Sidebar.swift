@@ -401,7 +401,9 @@ extension Shape {
                     Color("TabBackground", bundle: .module).opacity(0.7),
                 ], startPoint: .top, endPoint: .bottom)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            .darkModeConditional({ view, dark in
+                view.shadow(color: (dark ? Color.white.opacity(0.2) : Color.black.opacity(0.1)), radius: 2, x: 0, y: 1)
+            })
         } else {
             self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
         }

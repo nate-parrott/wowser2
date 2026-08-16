@@ -34,25 +34,87 @@ public enum AgentChatTabs {
 
         // What was the user looking at when they asked? Capture the pane
         // BEFORE we insert the agent tab.
-        let sourcePaneID = BrowserStore.shared.model.currentPane(forWindow: windowID)?.id
+        let currentPane = BrowserStore.shared.model.currentPane(forWindow: windowID)
+        let url = NativePageKey.agent(key: key, query: query).url
 
         var paneID: ID<WebContent>!
-        BrowserStore.shared.modify { st in
-            let pid = ID<WebContent>.assign()
-            paneID = pid
-            var info = WebContent.Info(url: NativePageKey.agent(key: key, query: query).url)
-            info.agentIsWorking = true
-            var tab = Tab(id: .assign(), panes: [Pane(id: pid, info: info)])
-            // Without this a never-activated tab fails the
-            // validLiveWebContentIds check and gets its WebContent evicted.
-            tab.lastActiveInWindow = windowID
-            let loc = st.insertionIndex(window: windowID, spawningTabId: st.windows[windowID]?.currentTab)
-            st.insertTab(tab, location: loc, inWindow: windowID)
-            // Deliberately not activated — the agent focuses itself if needed.
+        var sourcePaneID: ID<WebContent>?
+        var reusedCurrentTab = false
+        if let currentPane, currentPane.info.isEmptyPage {
+            // The user asked from a new-tab page — take over that tab instead
+            // of spawning another one. It's already focused.
+            paneID = currentPane.id
+            reusedCurrentTab = true
+            BrowserStore.shared.modify { st in
+                st.modifyPaneAndTab(forWebContentId: currentPane.id) { pane, _ in
+                    var info = WebContent.Info(url: url)
+                    info.agentIsWorking = true
+                    pane.info = info
+                }
+            }
+            if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: currentPane.id, toBeActiveInWindow: windowID) {
+                webContent.load(url: url)
+            }
+        } else {
+            sourcePaneID = currentPane?.id
+            BrowserStore.shared.modify { st in
+                let pid = ID<WebContent>.assign()
+                paneID = pid
+                var info = WebContent.Info(url: url)
+                info.agentIsWorking = true
+                var tab = Tab(id: .assign(), panes: [Pane(id: pid, info: info)])
+                // Without this a never-activated tab fails the
+                // validLiveWebContentIds check and gets its WebContent evicted.
+                tab.lastActiveInWindow = windowID
+                let loc = st.insertionIndex(window: windowID, spawningTabId: st.windows[windowID]?.currentTab)
+                st.insertTab(tab, location: loc, inWindow: windowID)
+                // Deliberately not activated — the agent focuses itself if needed.
+            }
         }
 
         let session = AgentChatSession.session(forKey: key)
-        session.begin(query: query, ownPaneID: paneID, sourcePaneID: sourcePaneID)
+        session.begin(query: query, ownPaneID: paneID, sourcePaneID: sourcePaneID, ownTabIsFocused: reusedCurrentTab)
+    }
+
+    /// Open a fresh, empty chat tab (from the "New Chat" command / plus menu).
+    /// Activated immediately — the user asked for it; the agent is created
+    /// lazily when the overlay mounts.
+    public static func newChat(windowID: ID<WindowState>?) {
+        installToolsIfNeeded()
+        let key = keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        BrowserStore.shared.modify { st in
+            st.openTab(url: NativePageKey.agent(key: key, query: nil).url, activate: true, windowID: windowID)
+        }
+    }
+
+    /// Open a link the user clicked inside an agent chat: navigate the chat
+    /// tab's existing split pane if it has one, otherwise open the link in a
+    /// new split beside the chat. Keyboard focus stays on the chat.
+    public static func openLink(_ url: URL, fromAgentPane paneID: ID<WebContent>) {
+        let state = BrowserStore.shared.model
+        guard let tabID = state.paneToTabMapping[paneID],
+              let tab = state.tabs[tabID],
+              let winID = state.windowContaining(tabId: tabID)?.id
+        else {
+            BrowserStore.shared.modify { st in st.openTab(url: url) }
+            return
+        }
+        if let other = tab.panes.first(where: { $0.id != paneID }) {
+            BrowserStore.shared.modify { st in
+                st.modifyPaneAndTab(forWebContentId: other.id) { pane, _ in
+                    pane.info = WebContent.Info(url: url)
+                }
+            }
+            if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: other.id, toBeActiveInWindow: winID) {
+                webContent.load(url: url)
+            }
+        } else {
+            BrowserStore.shared.modify { st in
+                st.modifyTab(id: tabID) { t in
+                    t.panes.append(Pane(id: .assign(), info: .init(url: url)))
+                }
+            }
+        }
     }
 
     /// Close the agent's tab and shut its session down. Called by the `done`
@@ -145,7 +207,7 @@ public final class AgentChatSession: ObservableObject {
     }
 
     /// Spin up a fresh agent for a new "ask" — context capture, create, send.
-    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?) {
+    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool) {
         guard !didBegin else { return }
         didBegin = true
         setWorking(true)
@@ -155,7 +217,13 @@ public final class AgentChatSession: ObservableObject {
                 let options = BrowserJSAgentCreateOptions(
                     key: key,
                     name: query,
-                    systemPrompt: AgentChatSession.systemPrompt(ownPaneID: ownPaneID, pageContext: context)
+                    systemPrompt: AgentChatSession.systemPrompt(
+                        ownPaneID: ownPaneID,
+                        agentURL: NativePageKey.agent(key: key, query: query).url.absoluteString,
+                        sourcePaneID: sourcePaneID,
+                        ownTabIsFocused: ownTabIsFocused,
+                        pageContext: context
+                    )
                 )
                 let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
@@ -168,16 +236,27 @@ public final class AgentChatSession: ObservableObject {
         }
     }
 
-    /// Attach to an existing session (e.g. the overlay mounted for a tab that
-    /// survived an app restart). Resumes the keyed agent; the visible
-    /// transcript starts from whatever the live manager has.
-    func attachIfNeeded() {
+    /// Attach to an existing or brand-new session (a "New Chat" tab, or the
+    /// overlay mounting for a tab that survived an app restart). Resumes the
+    /// keyed agent if it has a saved record — its stored system prompt wins —
+    /// otherwise creates it fresh with a generic prompt naming its own tab.
+    func attachIfNeeded(ownPaneID: ID<WebContent>) {
         guard !didBegin else { return }
         didBegin = true
         AgentChatTabs.installToolsIfNeeded()
         Task {
             do {
-                let id = try await BrowserAgentManager.shared.create(options: BrowserJSAgentCreateOptions(key: key))
+                let options = BrowserJSAgentCreateOptions(
+                    key: key,
+                    systemPrompt: AgentChatSession.systemPrompt(
+                        ownPaneID: ownPaneID,
+                        agentURL: NativePageKey.agent(key: key, query: nil).url.absoluteString,
+                        sourcePaneID: nil,
+                        ownTabIsFocused: true,
+                        pageContext: nil
+                    )
+                )
+                let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
                 let existing = (try? await BrowserAgentManager.shared.messages(id: id, since: 0)) ?? []
                 self.mergeMessages(existing)
@@ -241,17 +320,43 @@ public final class AgentChatSession: ObservableObject {
         messages.append(contentsOf: new.filter { !known.contains($0.index) })
         messages.sort { $0.index < $1.index }
         nextIndex = (messages.last?.index ?? -1) + 1
+        statusDetail = AgentChatSession.statusDetail(for: messages.last)
+        writeTabStatus()
+    }
+
+    private var statusDetail: String?
+
+    private static func statusDetail(for message: BrowserJSAgentMessage?) -> String? {
+        guard let message else { return nil }
+        switch message.role {
+        case "thinking": return "Thinking…"
+        case "assistant": return "Writing…"
+        case "tool_use":
+            switch message.toolName {
+            case "run_browser_js": return "Driving the browser…"
+            case "done": return "Wrapping up…"
+            case .some(let name): return "Using \(name)…"
+            case nil: return "Using a tool…"
+            }
+        default: return "Working…"
+        }
     }
 
     private func setWorking(_ working: Bool) {
         if isWorking != working { isWorking = working }
+        if !working { statusDetail = nil }
+        writeTabStatus()
+    }
+
+    private func writeTabStatus() {
         let key = self.key
+        let working = isWorking
+        let detail = statusDetail
         BrowserStore.shared.modify { st in
             if let pid = st.agentChatPane(forKey: key) {
                 st.modifyPaneAndTab(forWebContentId: pid) { pane, _ in
-                    if pane.info.agentIsWorking != working {
-                        pane.info.agentIsWorking = working
-                    }
+                    if pane.info.agentIsWorking != working { pane.info.agentIsWorking = working }
+                    if pane.info.agentStatusDetail != detail { pane.info.agentStatusDetail = detail }
                 }
             }
         }
@@ -322,27 +427,61 @@ public final class AgentChatSession: ObservableObject {
         return out
     }
 
-    private static func systemPrompt(ownPaneID: ID<WebContent>, pageContext: String?) -> String {
+    private static func systemPrompt(ownPaneID: ID<WebContent>, agentURL: String, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, pageContext: String?) -> String {
+        let own = ownPaneID.raw
         var prompt = """
         You are a quick, helpful in-browser agent inside the Wowser browser. The \
         user asked you something from the address bar. Your chat lives in its own \
-        tab — tab id "\(ownPaneID.raw)" — which is currently OPEN IN THE \
-        BACKGROUND, NOT focused.
+        tab — tab id "\(own)", url "\(agentURL)" — \
+        \(ownTabIsFocused
+            ? "which the user is already looking at."
+            : "which is currently OPEN IN THE BACKGROUND, NOT focused.")
 
-        Decide how to deliver, then act:
+        FIRST choose the right presentation for your response, then act:
 
-        1. The user wants an answer they should read (explain / summarize / \
-        "tell me about this" / compare / questions): FIRST focus your own chat \
-        tab so they can watch you answer, by calling `run_browser_js` with:
-           await browser.tabs.activate("\(ownPaneID.raw)")
-           Then write the answer as normal assistant text in this chat. Do NOT \
-        call `done` afterwards.
+        """
+        if let src = sourcePaneID?.raw {
+            prompt += """
+            1. CHAT ANSWER about the page the user is on (summarize / explain \
+            "this" / questions about what they're reading): show this chat in a \
+            SPLIT beside their page so they can see both. Call `run_browser_js`:
+               await browser.tabs.openSplit("\(agentURL)", { besideTabId: "\(src)", activate: true });
+               await browser.tabs.close("\(own)");
+               (The split pane shows this same chat.) Then write your answer \
+            here. Do NOT call `done`.
 
-        2. The user wants to get somewhere or have something opened ("show me \
-        directions to X", "open Y", "take me to ..."): do NOT focus your chat \
-        tab. Open the destination with `run_browser_js` (e.g. \
-        `await browser.tabs.open("https://www.google.com/maps/dir/?api=1&destination=...")`), \
-        then call the `done` tool so your tab dismisses itself.
+            2. CHAT ANSWER not tied to their current page: focus your own tab \
+            with `run_browser_js`:
+               await browser.tabs.activate("\(own)")
+               Then answer. Do NOT call `done`.
+
+            3. NAVIGATION — the user wants a page or place opened ("show me \
+            directions to X", "open Y", "take me to ..."): do NOT focus your \
+            chat. If the destination complements the page they're on, open it \
+            in a split beside it:
+               await browser.tabs.openSplit(url, { besideTabId: "\(src)", activate: true })
+               Otherwise open it as a full tab: await browser.tabs.open(url)
+               Then call the `done` tool so your chat tab dismisses itself.
+            """
+        } else {
+            prompt += """
+            1. CHAT ANSWER (explain / summarize / compare / questions): \
+            \(ownTabIsFocused
+                ? "your tab is already focused — just write the answer here."
+                : """
+                FIRST focus your own tab with `run_browser_js`:
+                   await browser.tabs.activate("\(own)")
+                   Then write the answer here.
+                """) Do NOT call `done`.
+
+            2. NAVIGATION — the user wants a page or place opened ("show me \
+            directions to X", "open Y"): open the destination as a full tab with \
+            `run_browser_js` (e.g. `await browser.tabs.open("https://www.google.com/maps/dir/?api=1&destination=...")`), \
+            then call the `done` tool so your chat tab dismisses itself.
+            """
+        }
+        prompt += """
+
 
         Be concise and direct — this is a small chat pane, not a document. Use \
         the page context below when the user says "this". Only reach for other \

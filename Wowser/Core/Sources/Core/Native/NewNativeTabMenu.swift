@@ -34,6 +34,12 @@ struct NewNativeTabMenu: View {
         menu.addItem(CallbackMenuItem(title: "New Claude") {
             open { .terminal(cwd: $0, runCommand: "claude") }
         })
+        menu.addItem(CallbackMenuItem(title: "New Chat") {
+            let windowID = self.windowID
+            Task { @MainActor in
+                AgentChatTabs.newChat(windowID: windowID)
+            }
+        })
         // Webapp "new" entry points from installed apps' manifests
         for (app, entry) in TangAppRegistry.shared.entryPoints(.new) {
             menu.addItem(CallbackMenuItem(title: entry.label) {

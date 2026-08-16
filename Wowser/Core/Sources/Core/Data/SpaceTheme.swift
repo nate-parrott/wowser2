@@ -51,18 +51,29 @@ public enum SpacePalette: String, CaseIterable, Codable {
 }
 
 public extension SpaceTheme {
-    /// In-window tint. Also used as the selection background behind white
-    /// text (search results), so its luminance is capped per-hue: yellows and
-    /// greens are far brighter than blues at the same HSB brightness, so we
-    /// walk brightness down until white text clears ~3:1 contrast.
-    var tintColor: Color {
+    // dark-tinted tint color suitable for text on light bg (light mode
+    var tintColorDark: Color {
         let saturation = 0.65
         var brightness = 0.78
         while brightness > 0.35,
               Self.relativeLuminance(hue: hue, saturation: saturation, brightness: brightness) > 0.26 {
-            brightness -= 0.02
+            brightness -= 0.05
         }
         return Color(hue: hue / 360, saturation: saturation, brightness: brightness)
+    }
+    
+    var tintColorLight: Color {
+        let saturation = 0.65
+        var brightness = 0.78
+        while brightness > 0.35,
+              Self.relativeLuminance(hue: hue, saturation: saturation, brightness: brightness) < 0.7 {
+            brightness += 0.05
+        }
+        return Color(hue: hue / 360, saturation: saturation, brightness: brightness)
+    }
+    
+    var tintColor: Color {
+        Color(darkMode: tintColorLight, light: tintColorDark)
     }
 
     /// Subtle, somewhat-transparent background gradient (soft secondary hue

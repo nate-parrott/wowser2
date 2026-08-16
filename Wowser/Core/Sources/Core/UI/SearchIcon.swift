@@ -52,10 +52,16 @@ struct SearchIcon: View {
                     .opacity(selected ? 1 : 0.7)
 
             case .tab(_, let info):
-                FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
-                    .overlay(alignment: .leading) {
-                        SwitchToTabBadge(selected: selected)
+                Group {
+                    if let url = info.url, let nativeKey = NativePageKey(url: url) {
+                        nativeKey.favicon(size: size)
+                    } else {
+                        FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
                     }
+                }
+                .overlay(alignment: .leading) {
+                    SwitchToTabBadge(selected: selected)
+                }
             }
         }
         .frame(width: size, height: size)

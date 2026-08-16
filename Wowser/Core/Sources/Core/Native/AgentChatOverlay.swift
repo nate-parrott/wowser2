@@ -48,8 +48,14 @@ private struct AgentChatContent: View {
             inputBar
         }
         .background(Color("Background", bundle: .module))
+        // Links in the transcript open beside the chat (or navigate the
+        // existing split), never navigating the chat tab itself away.
+        .environment(\.openURL, OpenURLAction { url in
+            AgentChatTabs.openLink(url, fromAgentPane: paneID)
+            return .handled
+        })
         .onAppear {
-            session.attachIfNeeded()
+            session.attachIfNeeded(ownPaneID: paneID)
             if let saved = session.savedScrollY {
                 scrollPos.scrollTo(y: saved)
             }
@@ -80,12 +86,33 @@ private struct AgentChatContent: View {
         visibleMessages.last(where: { $0.role == "user" || $0.role == "assistant" })?.index
     }
 
+    /// Visible messages with runs of adjacent tool calls collapsed into groups.
+    private var rows: [AgentChatRowItem] {
+        var out: [AgentChatRowItem] = []
+        for msg in visibleMessages {
+            if msg.role == "tool_use", case .toolGroup(let id, let calls)? = out.last {
+                out[out.count - 1] = .toolGroup(id: id, calls: calls + [msg])
+            } else if msg.role == "tool_use" {
+                out.append(.toolGroup(id: msg.index, calls: [msg]))
+            } else {
+                out.append(.message(msg))
+            }
+        }
+        return out
+    }
+
     private var transcript: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
-                ForEach(visibleMessages, id: \.index) { msg in
-                    AgentChatRow(message: msg)
-                        .id(msg.index)
+                ForEach(rows) { row in
+                    switch row {
+                    case .message(let msg):
+                        AgentChatRow(message: msg)
+                            .id(msg.index)
+                    case .toolGroup(_, let calls):
+                        ToolGroupRow(calls: calls)
+                            .id(row.id)
+                    }
                 }
                 if session.isWorking {
                     workingIndicator
@@ -193,6 +220,66 @@ private struct ScrollGeometryInfo: Equatable {
 
 // MARK: - Rows
 
+private enum AgentChatRowItem: Identifiable {
+    case message(BrowserJSAgentMessage)
+    case toolGroup(id: Int, calls: [BrowserJSAgentMessage])
+
+    var id: Int {
+        switch self {
+        case .message(let msg): return msg.index
+        case .toolGroup(let id, _): return id
+        }
+    }
+}
+
+/// A run of adjacent tool calls, collapsed to one quiet line; click to expand
+/// and see each call's tool + input.
+private struct ToolGroupRow: View {
+    var calls: [BrowserJSAgentMessage]
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: { expanded.toggle() }) {
+                Text(calls.count == 1 ? "Used 1 tool" : "Used \(calls.count) tools")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .underline(expanded)
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(calls, id: \.index) { call in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(friendlyToolName(call.toolName))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if !call.text.isEmpty {
+                                Text(call.text.prefix(600))
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(8)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
+                .padding(.leading, 10)
+            }
+        }
+    }
+
+    private func friendlyToolName(_ name: String?) -> String {
+        switch name {
+        case "run_browser_js": return "Drove the browser"
+        case "done": return "Wrapped up"
+        case .some(let other): return other
+        case nil: return "Tool"
+        }
+    }
+}
+
 private struct AgentChatRow: View {
     var message: BrowserJSAgentMessage
 
@@ -205,21 +292,13 @@ private struct AgentChatRow: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
-                    .glassEffect(.regular, in: ChatBubbleWithTail())
-                    .padding(.trailing, 2)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         case "assistant":
             markdownText(message.text)
+                .lineSpacing(4.5)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        case "tool_use":
-            HStack(spacing: 6) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 10))
-                Text(friendlyToolName(message.toolName))
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         case "stopped":
             Text("Stopped")
                 .font(.caption)
@@ -234,15 +313,6 @@ private struct AgentChatRow: View {
         }
     }
 
-    private func friendlyToolName(_ name: String?) -> String {
-        switch name {
-        case "run_browser_js": return "Driving the browser"
-        case "done": return "Wrapping up"
-        case .some(let other): return "Using \(other)"
-        case nil: return "Using a tool"
-        }
-    }
-
     private func markdownText(_ string: String) -> Text {
         if let attributed = try? AttributedString(
             markdown: string,
@@ -254,27 +324,3 @@ private struct AgentChatRow: View {
     }
 }
 
-/// A message capsule with an iMessage-style tail curling out of the
-/// bottom-trailing corner. The tail occupies the trailing ~6pt of the rect.
-struct ChatBubbleWithTail: Shape {
-    func path(in rect: CGRect) -> Path {
-        let tail: CGFloat = 6
-        let bubble = CGRect(x: rect.minX, y: rect.minY, width: max(1, rect.width - tail), height: rect.height)
-        let radius = min(19, bubble.height / 2)
-        var path = Path(roundedRect: bubble, cornerRadius: radius, style: .continuous)
-
-        var tailPath = Path()
-        tailPath.move(to: CGPoint(x: bubble.maxX - radius, y: rect.maxY))
-        tailPath.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.maxY),
-            control: CGPoint(x: bubble.maxX - 1, y: rect.maxY)
-        )
-        tailPath.addQuadCurve(
-            to: CGPoint(x: bubble.maxX, y: rect.maxY - radius * 0.85),
-            control: CGPoint(x: bubble.maxX + 1.5, y: rect.maxY - radius * 0.3)
-        )
-        tailPath.closeSubpath()
-        path.addPath(tailPath)
-        return path
-    }
-}

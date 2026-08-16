@@ -131,8 +131,10 @@ struct NewTabCell: View {
     var body: some View {
         HStack(spacing: 8) {
             TabIconView(icon: .sfSymbol("plus"))
-                .saturation(0)
-                .opacity(0.5)
+                .accentColor(Color.primary)
+                .opacity(0.4)
+//                .saturation(0)
+//                .opacity(0.5)
             Text("New Tab")
                 .opacity(0.4)
                 .lineLimit(1)

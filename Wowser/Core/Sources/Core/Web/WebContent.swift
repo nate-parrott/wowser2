@@ -87,8 +87,12 @@ public class WebContent: NSObject, ObservableObject {
         /// Drives the tab subtitle and the lit/dim terminal icon.
         public var terminalForegroundCommand: String?
         /// Native agent tabs only: true while the agent is mid-turn. Drives the
-        /// tab's fruit icon expression and "Working…" subtitle.
+        /// tab's fruit icon expression and working subtitle.
         public var agentIsWorking: Bool?
+        /// Native agent tabs only: granular status while working, e.g.
+        /// "Thinking…" / "Driving the browser…" / "Writing…". Shown as the
+        /// tab subtitle.
+        public var agentStatusDetail: String?
 
         public var committedURL: URL? {
             oldOnscreenURL ?? url

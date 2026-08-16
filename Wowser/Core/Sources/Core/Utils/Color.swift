@@ -12,6 +12,22 @@ extension NSColor {
 }
 #endif
 
+public extension Color {
+    /// Dynamic color that resolves to `darkMode` in dark appearance and `light` otherwise.
+    init(darkMode: Color, light: Color) {
+        #if os(macOS)
+        self.init(NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? NSColor(darkMode) : NSColor(light)
+        })
+        #else
+        self.init(UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(darkMode) : UIColor(light)
+        })
+        #endif
+    }
+}
+
 public struct HSBA: Equatable, Codable {
     public var hue: CGFloat
     public var saturation: CGFloat

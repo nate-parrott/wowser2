@@ -97,23 +97,26 @@ public struct IconButtonStyle: ButtonStyle {
 struct SearchResultButtonStyle: ButtonStyle {
     var isHighlighted: Bool
     @State private var hovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     init(isHighlighted: Bool = false) {
         self.isHighlighted = isHighlighted
     }
 
     func makeBody(configuration: Configuration) -> some View {
-        // Selection follows the window's themed accent (set from the space
-        // theme at the window root); the theme guarantees contrast with the
-        // white selected-row text.
         configuration.label
-            .foregroundColor(isHighlighted ? Color.white : nil)
+//            .darkModeConditional({ v, dark in
+//                let color: Color? = isHighlighted ? (dark ? Color.black : Color.white) : nil
+//                v.foregroundColor(color)
+//            })
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         isHighlighted ? Color.accentColor : (hovered ? Color.accentColor.opacity(0.1) : Color.clear)
                     )
             )
+            .foregroundColor(isHighlighted ? Color.white : nil)
+            .colorScheme(isHighlighted ? ColorScheme.light : colorScheme) // force dark mode if highlighted so we get white text and a dark-tinted variant of the accent
             .contentShape(Rectangle())
             .onHover(perform: { self.hovered = $0 })
     }

@@ -141,7 +141,21 @@ extension BrowserState {
             ]
         )
 
-        return [terminalItem, claudeItem, filesItem, vscodeItem]
+        let chatKey = AgentChatTabs.keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        let chatAction = SearchAction.openURL(NativePageKey.agent(key: chatKey, query: nil).url)
+        let chatItem = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:New Chat"),
+            content: .searchAction(chatAction),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: "New Chat"),
+                NormalizedSearchableString(text: "Chat"),
+                NormalizedSearchableString(text: "New Agent"),
+                NormalizedSearchableString(text: "Agent"),
+                NormalizedSearchableString(text: "Ask Agent"),
+            ]
+        )
+
+        return [terminalItem, claudeItem, filesItem, vscodeItem, chatItem]
         #else
         return []
         #endif

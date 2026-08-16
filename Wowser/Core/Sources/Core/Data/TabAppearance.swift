@@ -34,8 +34,9 @@ struct TabAppearance: Equatable, Codable {
 
 extension Pane {
     func tabAppearance() -> TabAppearance {
+        // Prefer base favicon and title if they exist
         var appearance = TabAppearance(
-            title: info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty ?? info.url?.hostWithoutWWW ?? "",
+            title: baseInfo?.title?.nilIfEmpty ?? info.title?.nilIfEmpty ?? info.url?.hostWithoutWWW ?? "",
             icon: .empty,
             urlFieldTextSelected: info.url?.absoluteString ?? "",
             urlFieldTextDeselected: info.url?.hostWithoutWWW ?? ""
@@ -44,7 +45,8 @@ extension Pane {
             appearance.title = "New"
             appearance.specialTitle = true
         }
-        if let faviconUrl = info.favicon ?? baseInfo?.favicon ?? info.url?.inferredFaviconURL {
+        
+        if let faviconUrl = baseInfo?.favicon ?? info.favicon ?? info.url?.inferredFaviconURL {
             appearance.icon = .favicon(faviconUrl)
         }
                 
