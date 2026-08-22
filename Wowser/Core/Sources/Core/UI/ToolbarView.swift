@@ -13,9 +13,11 @@ public struct ToolbarViewSnapshot: Equatable {
     var hasMultiplePanes: Bool
     var makeRoomForTrafficLights: Bool
     var isEmptyPage: Bool
-    
+    var hasAttachedAgent: Bool
+
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
+        self.hasAttachedAgent = windowID != nil && !state.agentTabsAttached(toWindow: windowID!).isEmpty
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -91,20 +93,34 @@ public struct ToolbarView: View {
                 HStack(spacing: -2) {
                     LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
                         .padding(.leading, 6)
-                    
-                    Omnibox(
-                        focusDate: focusDate,
-                        searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
-                        selectedResultIndex: $selectedResultIndex,
-                        searcher: searcher,
-                        fgColor: colorScheme?.foreground,
-                        onFocus: activateSearchOverlay
-                    )
+
+                    if snapshot.hasAttachedAgent && !searchFocused, let windowID {
+                        // A hidden agent tab is attached to this input box; show its working state
+                        AgentWorkingIndicator(windowID: windowID)
+                    } else {
+                        Omnibox(
+                            focusDate: focusDate,
+                            searchText: searchFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
+                            selectedResultIndex: $selectedResultIndex,
+                            searcher: searcher,
+                            fgColor: colorScheme?.foreground,
+                            onFocus: activateSearchOverlay
+                        )
+                    }
                 }
-                
+                .modifier(DictationOmniboxHighlight())
+
+                // Mic button for the new tab page's large input (its own, subtly different, variant)
+                if emptyPage {
+                    DictationMicButton(style: .newTabPage)
+                        .padding(.trailing, 8)
+                }
+
                 // Trailing buttons container
                 if !emptyPage {
                     HStack(spacing: 0) {
+                        DictationMicButton(style: .page)
+                            .tint(colorScheme?.foreground.color ?? Color.primary)
                         if let webContentID {
                             CleanModeStatusButton(webContentID: webContentID)
                                 .tint(colorScheme?.foreground.color ?? Color.primary)

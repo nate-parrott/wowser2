@@ -181,6 +181,8 @@ extension SearchableItem {
             return info.title ?? info.url?.stripped ?? "Tab"
         case .searchAction(let action):
             return action.title
+        case .askAgent(let query):
+            return query
         }
     }
     
@@ -203,6 +205,8 @@ extension SearchableItem {
             return "Switch to Tab"
         case .searchAction:
             return "Action"
+        case .askAgent:
+            return "Ask Agent"
         }
     }
 }

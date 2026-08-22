@@ -32,6 +32,7 @@ struct WindowSnapshot: Equatable {
         var emptyPage: Bool
         var colorScheme: ContentColorScheme?
         var isPickingSelector: Bool
+        var agentTabID: Core.ID<Tab>? // Set when this pane belongs to an agent-session tab
     }
     
     // Must have at least one, even if empty
@@ -64,6 +65,7 @@ struct WindowSnapshot: Equatable {
             self.panes = [PaneSnapshot(id: "", focused: true, searchActive: window.searchOverlayActive, emptyPage: true, isPickingSelector: false)]
             return
         }
+        let isAgentTab = tab.agentInfo != nil
         self.panes = tab.panes.enumerated().map({ (i, pane) in
             let focused = i == tab.focusedPaneIdx
             return PaneSnapshot(
@@ -71,9 +73,10 @@ struct WindowSnapshot: Equatable {
                 webContentId: pane.id,
                 focused: focused,
                 searchActive: focused && window.searchOverlayActive,
-                emptyPage: pane.info.isEmptyPage,
+                emptyPage: pane.info.isEmptyPage && !isAgentTab,
                 colorScheme: pane.info.colorScheme,
-                isPickingSelector: window.pickingSelectorInPaneId == pane.id)
+                isPickingSelector: window.pickingSelectorInPaneId == pane.id,
+                agentTabID: isAgentTab ? tabId : nil)
         })
     }
 }

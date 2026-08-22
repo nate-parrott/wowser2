@@ -12,6 +12,7 @@ struct SearchableItem: Equatable {
         case chatbot(String)
         case tab(ID<Tab>, WebContent.Info)
         case searchAction(SearchAction)
+        case askAgent(String)
     }
 
     var id: ID<SearchableItem>
@@ -28,6 +29,7 @@ struct SearchableItem: Equatable {
         case .chatbot(let query): return "chat:\(query)"
         case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
         case .searchAction(let action): return "action:\(action.title)"
+        case .askAgent(let query): return "agent:\(query)"
         }
     }
 }
@@ -94,6 +96,11 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
+        case .askAgent:
+            if matchQuality == .prefixMatchTitle {
+                return 9.5
+            }
+            return 0
         case .searchAction:
             // Actions get high priority scores
             switch matchQuality {
@@ -244,6 +251,7 @@ extension CharacterSet {
 //            results.append(.chatbot(query))
 //        }
         results.append(.searchYouTyped(query))
+        results.append(.askAgent(query))
 
         // Add matching actions
         let model = BrowserStore.shared.model
@@ -384,6 +392,10 @@ private extension SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "chat:\(query)"), content: .chatbot(query)), matchQuality: .prefixMatchTitle)
     }
 
+    static func askAgent(_ query: String) -> SearchResult {
+        return .init(item: SearchableItem(id: .init(raw: "agent:\(query)"), content: .askAgent(query)), matchQuality: .prefixMatchTitle)
+    }
+
     static func navItem(_ query: String) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "nav:\(query)"), content: .imFeelingLucky(query)), matchQuality: .prefixMatchTitle)
     }
@@ -398,6 +410,8 @@ extension SearchResult {
         switch item.content {
         case .chatbot:
             return Color.green
+        case .askAgent:
+            return Color.purple
         case .imFeelingLucky:
             return Color.purple
         case .tab:

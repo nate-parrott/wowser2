@@ -7,7 +7,12 @@ public struct BrowserState: Equatable, Codable {
     public fileprivate(set) var tabs = [ID<Tab>: Tab]()
     public var profiles = [ID<Profile>: Profile]() // We should never be allowed to have zero profiles
     public var projects = [ID<Project>: Project]()
-    
+
+    // Optional so that old persisted states (missing these keys) still decode
+    public var scheduledTasks: [ScheduledTask]? // Use `scheduledTasksList` accessor
+    // Agent tabs 'attached to the input box' live under this hidden parent; they don't appear in any sidebar
+    public fileprivate(set) var hiddenAgentTabs: [ID<Tab>]? // Use `hiddenAgentTabIds` accessor
+
     // Lookup table
     public fileprivate(set) var paneToTabMapping = [ID<WebContent>: Tab.ID]()
     
@@ -36,6 +41,7 @@ public struct Tab: Equatable, Identifiable, Codable {
     public var lastActiveInWindow: Core.ID<WindowState>?
     public var aiTags: AITags?
     public var focusedPaneIdx = 0
+    public var agentInfo: AgentTabInfo? // Set for tabs that represent agent sessions
     
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -196,6 +202,7 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
         
         setupAutoArchiving()
+        setupScheduledTasks()
     }
     
     public override func processModelAfterLoad(model: inout BrowserState) {
@@ -244,6 +251,12 @@ public class BrowserStore: DataStore<BrowserState> {
         return wc
     }
     
+    // Returns an existing live WebContent without creating one
+    func liveWebContent(forId id: ID<WebContent>) -> WebContent? {
+        assertOnMainThread()
+        return liveWebContents[id]
+    }
+
     public func close(webContentId id: ID<WebContent>, removeIfPinned: Bool) {
         modify { state in
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
@@ -579,6 +592,45 @@ extension BrowserState {
     }
 }
 
+// MARK: - Hidden agent tabs
+// Agent tabs 'attached to the input box' live under a special hidden parent (hiddenAgentTabs)
+// rather than in any window's sidebar. If a tab has this parent, it's in the attached state.
+extension BrowserState {
+    public var hiddenAgentTabIds: [ID<Tab>] {
+        hiddenAgentTabs ?? []
+    }
+
+    mutating func insertHiddenAgentTab(_ tab: Tab) {
+        tabs[tab.id] = tab
+        for pane in tab.panes {
+            paneToTabMapping[pane.id] = tab.id
+        }
+        hiddenAgentTabs = (hiddenAgentTabs ?? []) + [tab.id]
+    }
+
+    mutating func removeHiddenAgentTab(id: ID<Tab>) {
+        guard hiddenAgentTabIds.contains(id) else { return }
+        hiddenAgentTabs?.removeAll(where: { $0 == id })
+        _removeTab_unsafe_doesntCloseWebContent(tabId: id, removeFromParent: false)
+    }
+
+    // Moves an agent tab out of the hidden parent and into the sidebar as a real tab
+    public mutating func revealAgentTab(id: ID<Tab>, inWindow windowID: ID<WindowState>) {
+        guard hiddenAgentTabIds.contains(id), let tab = tabs[id], windows[windowID] != nil else { return }
+        hiddenAgentTabs?.removeAll(where: { $0 == id })
+        let location = SidebarLocation.ordinaryTabs(windows[windowID]?.tabs.count ?? 0)
+        insertTab(tab, location: location, inWindow: windowID)
+        modifyTab(id: id) { tab in
+            tab.agentInfo?.attachedToWindow = nil
+        }
+        activate(tabId: id, in: windowID)
+    }
+
+    public func agentTabsAttached(toWindow windowID: ID<WindowState>) -> [Tab] {
+        hiddenAgentTabIds.compactMap { tabs[$0] }.filter { $0.agentInfo?.attachedToWindow == windowID }
+    }
+}
+
 private extension BrowserState {
     mutating func processAfterLoad() {
         if DefaultsKeys.preserveWindowsAcrossRestarts.boolValue() {
@@ -588,6 +640,11 @@ private extension BrowserState {
         } else {
             windows = [:]
         }
+        // Hidden agent tabs belong to live agent sessions, which don't survive relaunch
+        for tabId in hiddenAgentTabIds {
+            removeHiddenAgentTab(id: tabId)
+        }
+        seedDefaultScheduledTaskIfNeeded()
     }
 }
 

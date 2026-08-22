@@ -125,13 +125,18 @@ struct PaneView: View {
             
             // Main web content
             ZStack {
-                if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
+                if let agentTabID = snapshot.agentTabID {
+                    AgentTabView(tabID: agentTabID)
+                } else if let webContentId = snapshot.webContentId, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
                     WrappedWebView(webContent: webContent, isFocused: snapshot.focused, shrunk: snapshot.emptyPage)
                         .overlay(alignment: .top) {
                             loader.padding(6)
                         }
                         .overlay {
                             elementPicker
+                        }
+                        .overlay {
+                            DictationWebFieldOverlay(webContentId: webContentId, paneFocused: snapshot.focused)
                         }
                 } else {
                     Color.clear

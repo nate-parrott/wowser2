@@ -145,6 +145,11 @@ extension BrowserViewController {
         }
     }
     
+    @IBAction func toggleDictation(_ sender: Any?) {
+        guard let windowID = self.windowID else { return }
+        DictationController.shared.toggleDictation(windowID: windowID)
+    }
+
     @IBAction func clearAllTabs(_ sender: NSMenuItem) {
         if let windowID {
             BrowserStore.shared.clearAllTabs(in: windowID)

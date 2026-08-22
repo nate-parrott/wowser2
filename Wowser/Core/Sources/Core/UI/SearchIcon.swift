@@ -38,6 +38,10 @@ struct SearchIcon: View {
             case .searchAction:
                 Image(systemName: "arrow.right.circle.fill")
                     .opacity(iconOpacity)
+
+            case .askAgent:
+                Image(systemName: "sparkles")
+                    .opacity(iconOpacity)
                 
             case .tab(_, let info):
                 FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)

@@ -5,6 +5,7 @@ public enum Preheat {
     public static func preheat() {
         _ = ArchiveStore.shared // Force initial load on main
         OmniboxClassifierLabel.preheat()
+        DictationController.shared.setup()
         Task {
             _ = await ThumbnailCache.shared
         }

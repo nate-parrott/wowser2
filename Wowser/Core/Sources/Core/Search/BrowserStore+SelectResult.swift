@@ -52,6 +52,10 @@ extension BrowserStore {
             
         case .searchAction(let action):
             performSearchAction(action: action, windowID: windowID)
+
+        case .askAgent(let query):
+            // Starts a hidden agent session attached to this window's input box
+            BrowserAgentManager.shared.startSession(instructions: query, source: .userInstruction(dictated: false), windowID: windowID)
         }
     }
     

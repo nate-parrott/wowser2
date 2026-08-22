@@ -26,5 +26,9 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Wowser uses the microphone for dictation into text fields and the browser agent.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Wowser uses speech recognition to let you dictate into text fields and the browser agent.</string>
 </dict>
 </plist>

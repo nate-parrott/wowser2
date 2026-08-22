@@ -25,6 +25,7 @@ public struct SettingsView: View {
                 TabView {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
                     SwiftUI.Tab(content: { HomepageSettings() }, label: { Text("Homepage") })
+                    SwiftUI.Tab(content: { TasksSettings() }, label: { Text("Tasks") })
                     SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
                     SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
                 }
@@ -106,9 +107,14 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.openrouterCustomModel.rawValue) private var openrouterCustomModel = ""
     @AppStorage(DefaultsKeys.openAICustomModel.rawValue) private var openAICustomModel = ""
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
-    
+    @AppStorage(DefaultsKeys.dictationAICleanup.rawValue) private var dictationAICleanup = false
+
     var body: some View {
         Form {
+            Section("Dictation") {
+                Toggle("Clean up dictated text with AI", isOn: $dictationAICleanup)
+                    .help("When dictating into a text field, uses AI to remove filler words and fix likely transcription errors before inserting the text")
+            }
             Section("AI Models") {
                 EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { model in
                     switch model {

@@ -82,6 +82,7 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         public var isSecure = false
         public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and false
         public var recipeDetected: Bool? // Always being checked
+        public var focusedTextField: FocusedTextField? // Heuristic: set when a text field/contenteditable is focused in the page
         
         public var committedURL: URL? {
             oldOnscreenURL ?? url
@@ -504,6 +505,8 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
         if injectedCSS != "" || injectedJS != "" || autoDarkMode {
             updateInjectedCode()
         }
+
+        refreshFocusedTextFieldDebounced()
         
 //         Capture the top portion of the page to determine dominant color
         Task {
@@ -519,6 +522,13 @@ public class WebContent: NSObject, WKNavigationDelegate, ObservableObject {
                     self.info = updatedInfo
                 }
             }
+        }
+    }
+
+    // Setter used by WebContent+FocusedField (info's setter is private to this file)
+    func setFocusedTextField(_ value: FocusedTextField?) {
+        if info.focusedTextField != value {
+            info.focusedTextField = value
         }
     }
 

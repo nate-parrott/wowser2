@@ -31,6 +31,7 @@ public enum DefaultsKeys: String {
     case enableGoDirectQueries // bool
     case lastShownWelcomePageForPageVersion
     case searchToolbarEnabled // bool
+    case dictationAICleanup // bool
 }
 
 public extension DefaultsKeys {
