@@ -24,7 +24,7 @@ struct DictationButton: View {
                 Image(systemName: symbol(fieldFocused: fieldFocused))
                     .imageScale(emptyPage ? .large : .medium)
                     .foregroundStyle(isActiveForThisPane ? Color.red : (fgColor?.color ?? Color.primary))
-                    .opacity(isActiveForThisPane ? 1 : (fieldFocused ? 0.85 : 0.6))
+                    .opacity(isActiveForThisPane ? 1 : (emptyPage ? 0.4 : (fieldFocused ? 0.85 : 0.6)))
                     .frame(width: emptyPage ? 34 : 30, height: emptyPage ? 34 : 30)
             }
             .buttonStyle(ToolbarButtonStyle())
@@ -32,7 +32,7 @@ struct DictationButton: View {
             .onHover { hovering in
                 controller.setHoverPreview(paneID: paneID, windowID: windowID, hovering: hovering)
             }
-            .padding(.trailing, emptyPage ? 4 : 0)
+            .offset(x: emptyPage ? 10 : 0)
         }
     }
 
@@ -42,7 +42,7 @@ struct DictationButton: View {
 
     private func symbol(fieldFocused: Bool) -> String {
         if isActiveForThisPane { return "mic.fill" }
-        if emptyPage { return "mic.circle" }
+        if emptyPage { return "mic" }
         return fieldFocused ? "mic.fill" : "mic"
     }
 

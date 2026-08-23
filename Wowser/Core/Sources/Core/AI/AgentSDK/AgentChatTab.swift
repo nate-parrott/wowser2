@@ -107,7 +107,9 @@ public enum AgentChatTabs {
         }
         // Materialize the WebContent so the chat overlay session can mount
         // later without a cold start, and so the pane survives the cleaner.
-        _ = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: windowID)
+        if let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: windowID) {
+            wc.info.agentIsWorking = true
+        }
         return pid
     }
 
@@ -488,12 +490,21 @@ public final class AgentChatSession: ObservableObject {
         let key = self.key
         let working = isWorking
         let detail = statusDetail
+        guard let pid = BrowserStore.shared.model.agentChatPane(forKey: key) else { return }
+        // The live WebContent's `info` is the source of truth: every metadata
+        // refresh copies it wholesale into the pane, so writing only to the
+        // pane gets wiped on the next refresh. Write to the WebContent when it
+        // exists (it propagates to state via infoDidChange), else to state.
+        if let wc = BrowserStore.shared.existingWebContent(forId: pid) {
+            var info = wc.info
+            if info.agentIsWorking != working { info.agentIsWorking = working }
+            if info.agentStatusDetail != detail { info.agentStatusDetail = detail }
+            if info != wc.info { wc.info = info }
+        }
         BrowserStore.shared.modify { st in
-            if let pid = st.agentChatPane(forKey: key) {
-                st.modifyPaneAndTab(forWebContentId: pid) { pane, _ in
-                    if pane.info.agentIsWorking != working { pane.info.agentIsWorking = working }
-                    if pane.info.agentStatusDetail != detail { pane.info.agentStatusDetail = detail }
-                }
+            st.modifyPaneAndTab(forWebContentId: pid) { pane, _ in
+                if pane.info.agentIsWorking != working { pane.info.agentIsWorking = working }
+                if pane.info.agentStatusDetail != detail { pane.info.agentStatusDetail = detail }
             }
         }
     }

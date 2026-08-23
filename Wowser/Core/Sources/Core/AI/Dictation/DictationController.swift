@@ -65,6 +65,11 @@ public final class DictationController: ObservableObject {
     /// The target dictation would use right now for `paneID`, given current state.
     public func resolveTarget(paneID: ID<WebContent>?, windowID: ID<WindowState>) -> Target {
         let state = BrowserStore.shared.model
+        // The user is typing in the search bar: that's where dictation goes,
+        // regardless of what the page last had focused.
+        let focus = state.focusState(windowID: windowID).target
+        if case .omnibox = focus { return .omnibox(pane: paneID, window: windowID) }
+        if case .emptyWindowOmnibox = focus { return .omnibox(pane: paneID, window: windowID) }
         if let paneID, let pane = state.pane(forId: paneID) {
             if let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true {
                 return .terminal(pane: paneID)

@@ -43,7 +43,8 @@ public extension BrowserState {
     }
 
     /// What the omnibox should show for the agents attached to this window,
-    /// or nil when none are attached.
+    /// or nil when none of them is currently working (an attached agent that
+    /// finished either reveals itself or closes — see AgentChatSession).
     func attachedAgentStatus(windowID: ID<WindowState>) -> AttachedAgentStatus? {
         guard let win = windows[windowID] else { return nil }
         let entries: [AttachedAgentStatus.Entry] = win.attachedAgentTabs.compactMap { tabID in
@@ -57,7 +58,7 @@ public extension BrowserState {
                 working: pane.info.agentIsWorking ?? false,
                 detail: pane.info.agentStatusDetail
             )
-        }
+        }.filter(\.working)
         guard !entries.isEmpty else { return nil }
         return AttachedAgentStatus(entries: entries)
     }
@@ -78,10 +79,6 @@ public struct AttachedAgentStatus: Equatable {
     public var othersCount: Int { entries.count - 1 }
 
     public var headline: String {
-        let e = primary
-        if e.working {
-            return e.detail?.nilIfEmpty ?? "Agent is working…"
-        }
-        return "Agent finished"
+        primary.detail?.nilIfEmpty ?? "Agent is working…"
     }
 }
