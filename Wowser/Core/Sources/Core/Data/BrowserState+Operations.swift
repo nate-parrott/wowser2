@@ -239,7 +239,7 @@ extension BrowserState {
                 location = .ordinaryTabs(idx + insertOffset)
             case .project(let projId, let idx):
                 location = .project(projId, idx + insertOffset)
-            case .favorites, nil:
+            case .favorites, .attachedAgent, nil:
                 location = .ordinaryTabs((windows[winId]?.tabs.count ?? 0))
             }
             insertTab(newTab, location: location, inWindow: winId)
@@ -298,6 +298,9 @@ extension BrowserState {
         }
         windows[window]?.currentTab = id
         if let id {
+            // An agent tab hidden behind the omnibox is being brought forward:
+            // restore it to the sidebar first so it has a visible home.
+            detachAgentTab(tabID: id, inWindow: window)
             modifyTab(id: id) { tab in
                 tab.lastAccessed = Date()
                 // Activating a pip tab in a window brings it back to main
@@ -318,6 +321,8 @@ extension BrowserState {
                 return .ordinaryTabs(idx + 1) // TODO: insert below siblings from same parent
             case .project(let id, let idx):
                 return .project(id, idx + 1)
+            case .attachedAgent:
+                return .ordinaryTabs(win.tabs.count)
             }
         }
         if let proj = win.focusedOnProject {
@@ -333,6 +338,9 @@ extension BrowserState {
                 _removeTab_unsafe_doesntCloseWebContent(tabId: tab, removeFromParent: false)
             }
         }
+        for tab in windows[id]?.attachedAgentTabs ?? [] {
+            _removeTab_unsafe_doesntCloseWebContent(tabId: tab, removeFromParent: false)
+        }
         windows.removeValue(forKey: id)
     }
     
@@ -344,6 +352,9 @@ extension BrowserState {
         let faves = favorites(profileId: win.profile)
         if let idx = faves.firstIndex(of: tabId) {
             return .favorites(idx)
+        }
+        if let idx = win.attachedAgentTabs.firstIndex(of: tabId) {
+            return .attachedAgent(idx)
         }
         return nil
     }
@@ -416,6 +427,8 @@ extension BrowserState {
             case .project(let projectId, let idx):
                 let projectTabs = projects[projectId]?.tabs ?? []
                 return idx == 0 ? projectTabs.get(idx + 1) : projectTabs.get(idx - 1)
+            case .attachedAgent:
+                return nil
             }
         }
         return win.tabs.filter({ $0 != id }).max { tab1, tab2 in
@@ -429,6 +442,9 @@ extension BrowserState {
                 return window
             }
             if favorites(profileId: window.profile).contains(id) {
+                return window
+            }
+            if window.attachedAgentTabs.contains(id) {
                 return window
             }
         }
@@ -446,6 +462,8 @@ enum SidebarLocation: Equatable {
     case favorites(Int)
     case ordinaryTabs(Int)
     case project(ID<Project>, Int)
+    /// Hidden agent tab attached to the window's omnibox (see BrowserState+AttachedAgents).
+    case attachedAgent(Int)
 }
 
 extension WindowState {

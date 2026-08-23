@@ -840,6 +840,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can request access to your location.";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can request access to the microphone";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dictation turns your speech into text for the page or the agent.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Websites can request access to device motion.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -881,6 +882,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can request access to your location.";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can request access to the microphone";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dictation turns your speech into text for the page or the agent.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Websites can request access to device motion.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (

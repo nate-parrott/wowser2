@@ -156,6 +156,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
         PipPanelManager.shared.start()
+        ScheduledTasksStore.shared.startScheduler()
 
         Task {
             do {

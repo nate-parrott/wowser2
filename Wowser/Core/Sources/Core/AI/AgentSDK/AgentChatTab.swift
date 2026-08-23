@@ -3,12 +3,19 @@ import SwiftUI
 
 // "Ask agent" tabs: a native chat tab backed by BrowserAgentManager.
 //
-// Spin-up (from the omnibox): we open the agent tab in the background —
-// visible in the sidebar, fruit icon "working", but NOT focused — capture what
-// the user was looking at (URL, selection, viewport text) into the agent's
-// system prompt, and send the query. The agent itself decides how to deliver:
-// it can focus its own tab via `browser.tabs.activate(...)` and answer in
-// chat, or perform a navigation and dismiss itself with the `done` tool.
+// Spin-up (from the omnibox): we open the agent tab *attached to the omnibox*
+// — hidden from the sidebar, surfaced as a working indicator in the address
+// bar (see BrowserState+AttachedAgents) — capture what the user was looking
+// at (URL, selection, viewport text) into the agent's system prompt, and send
+// the query. The agent itself decides how to deliver: it can focus its own
+// tab via `browser.tabs.activate(...)` (which restores it to the sidebar) and
+// answer in chat, or perform a navigation and dismiss itself with the `done`
+// tool. If it ends its turn while still hidden, we pop the tab if it wrote
+// anything worth reading and close it otherwise.
+//
+// Scheduled tasks (see ScheduledTasks.swift) reuse the same machinery in
+// `.scheduledTask` mode: headless by default, surfacing only on error or
+// when the agent deliberately activates itself.
 
 @MainActor
 public enum AgentChatTabs {
@@ -28,7 +35,7 @@ public enum AgentChatTabs {
 
     /// Entry point from the omnibox "Ask Agent" result. Opens the tab in the
     /// background and kicks off the agent.
-    public static func ask(query: String, windowID: ID<WindowState>) {
+    public static func ask(query: String, windowID: ID<WindowState>, dictated: Bool = false) {
         installToolsIfNeeded()
         let key = keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
 
@@ -57,23 +64,59 @@ public enum AgentChatTabs {
             }
         } else {
             sourcePaneID = currentPane?.id
-            BrowserStore.shared.modify { st in
-                let pid = ID<WebContent>.assign()
-                paneID = pid
-                var info = WebContent.Info(url: url)
-                info.agentIsWorking = true
-                var tab = Tab(id: .assign(), panes: [Pane(id: pid, info: info)])
-                // Without this a never-activated tab fails the
-                // validLiveWebContentIds check and gets its WebContent evicted.
-                tab.lastActiveInWindow = windowID
-                let loc = st.insertionIndex(window: windowID, spawningTabId: st.windows[windowID]?.currentTab)
-                st.insertTab(tab, location: loc, inWindow: windowID)
-                // Deliberately not activated — the agent focuses itself if needed.
-            }
+            paneID = insertAttachedTab(key: key, url: url, windowID: windowID)
         }
 
         let session = AgentChatSession.session(forKey: key)
-        session.begin(query: query, ownPaneID: paneID, sourcePaneID: sourcePaneID, ownTabIsFocused: reusedCurrentTab)
+        session.begin(
+            query: query,
+            ownPaneID: paneID,
+            sourcePaneID: sourcePaneID,
+            ownTabIsFocused: reusedCurrentTab,
+            mode: .ask(dictated: dictated)
+        )
+    }
+
+    /// Runs a scheduled task: a headless agent attached to the window's omnibox.
+    /// It surfaces only if it activates itself (to show something) or errors.
+    /// `completion` receives the agent's final text (or error) when the turn ends.
+    public static func runScheduledTask(_ task: ScheduledTask, windowID: ID<WindowState>, completion: @escaping (_ result: ScheduledTaskRunResult) -> Void) {
+        installToolsIfNeeded()
+        let key = keyPrefix + "task-" + String(UUID().uuidString.lowercased().prefix(8))
+        let url = NativePageKey.agent(key: key, query: task.title).url
+        let paneID = insertAttachedTab(key: key, url: url, windowID: windowID)
+        let session = AgentChatSession.session(forKey: key)
+        session.onScheduledTaskFinished = completion
+        session.begin(
+            query: task.instructions,
+            ownPaneID: paneID,
+            sourcePaneID: nil,
+            ownTabIsFocused: false,
+            mode: .scheduledTask
+        )
+    }
+
+    /// Creates a working agent tab hidden behind the omnibox of `windowID`.
+    private static func insertAttachedTab(key: String, url: URL, windowID: ID<WindowState>) -> ID<WebContent> {
+        let pid = ID<WebContent>.assign()
+        BrowserStore.shared.modify { st in
+            var info = WebContent.Info(url: url)
+            info.agentIsWorking = true
+            let tab = Tab(id: .assign(), panes: [Pane(id: pid, info: info)])
+            st.attachAgentTab(tab, toWindow: windowID)
+        }
+        // Materialize the WebContent so the chat overlay session can mount
+        // later without a cold start, and so the pane survives the cleaner.
+        _ = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: windowID)
+        return pid
+    }
+
+    /// Bring a hidden agent tab forward (the user clicked the omnibox
+    /// indicator). Restores it to the sidebar and activates it.
+    public static func reveal(tabID: ID<Tab>, windowID: ID<WindowState>) {
+        BrowserStore.shared.modify { st in
+            st.activate(tabId: tabID, in: windowID)
+        }
     }
 
     /// Open a fresh, empty chat tab (from the "New Chat" command / plus menu).
@@ -189,42 +232,78 @@ public final class AgentChatSession: ObservableObject {
         sessions[key] = nil
     }
 
+    public enum Mode: Equatable {
+        /// A question typed (or dictated) into the omnibox.
+        case ask(dictated: Bool)
+        /// A follow-up "New Chat" tab the user opened deliberately.
+        case chat
+        /// A background run of a scheduled task.
+        case scheduledTask
+    }
+
     public let key: String
+    public private(set) var mode: Mode = .chat
     @Published public private(set) var messages: [BrowserJSAgentMessage] = []
     @Published public private(set) var isWorking = false
     @Published public private(set) var errorText: String?
+    /// Scheduled-task mode only: called once when the first turn ends.
+    var onScheduledTaskFinished: ((ScheduledTaskRunResult) -> Void)?
 
     /// Scroll offset of the transcript, preserved across view remounts.
     public var savedScrollY: CGFloat?
 
     private var agentID: String?
+    private var ownPaneID: ID<WebContent>?
     private var nextIndex = 0
     private var turnLoopTask: Task<Void, Never>?
     private var didBegin = false
+    private var turnsCompleted = 0
 
     private init(key: String) {
         self.key = key
     }
 
     /// Spin up a fresh agent for a new "ask" — context capture, create, send.
-    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool) {
+    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, mode: Mode) {
         guard !didBegin else { return }
         didBegin = true
+        self.mode = mode
+        self.ownPaneID = ownPaneID
         setWorking(true)
         Task {
-            let context = await AgentChatSession.capturePageContext(paneID: sourcePaneID)
+            let context = mode == .scheduledTask ? nil : await AgentChatSession.capturePageContext(paneID: sourcePaneID)
             do {
-                let options = BrowserJSAgentCreateOptions(
-                    key: key,
-                    name: query,
-                    effort: "low",
-                    systemPrompt: AgentChatSession.systemPrompt(
+                let prompt: String
+                switch mode {
+                case .scheduledTask:
+                    prompt = AgentChatSession.scheduledTaskSystemPrompt(
+                        ownPaneID: ownPaneID,
+                        agentURL: NativePageKey.agent(key: key, query: query).url.absoluteString
+                    )
+                case .ask(let dictated):
+                    prompt = AgentChatSession.systemPrompt(
                         ownPaneID: ownPaneID,
                         agentURL: NativePageKey.agent(key: key, query: query).url.absoluteString,
                         sourcePaneID: sourcePaneID,
                         ownTabIsFocused: ownTabIsFocused,
-                        pageContext: context
+                        pageContext: context,
+                        dictated: dictated
                     )
+                case .chat:
+                    prompt = AgentChatSession.systemPrompt(
+                        ownPaneID: ownPaneID,
+                        agentURL: NativePageKey.agent(key: key, query: query).url.absoluteString,
+                        sourcePaneID: sourcePaneID,
+                        ownTabIsFocused: ownTabIsFocused,
+                        pageContext: context,
+                        dictated: false
+                    )
+                }
+                let options = BrowserJSAgentCreateOptions(
+                    key: key,
+                    name: mode == .scheduledTask ? "Task: " + String(query.prefix(60)) : query,
+                    effort: mode == .scheduledTask ? "medium" : "low",
+                    systemPrompt: prompt
                 )
                 let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
@@ -244,6 +323,7 @@ public final class AgentChatSession: ObservableObject {
     func attachIfNeeded(ownPaneID: ID<WebContent>) {
         guard !didBegin else { return }
         didBegin = true
+        self.ownPaneID = ownPaneID
         AgentChatTabs.installToolsIfNeeded()
         Task {
             do {
@@ -255,7 +335,8 @@ public final class AgentChatSession: ObservableObject {
                         agentURL: NativePageKey.agent(key: key, query: nil).url.absoluteString,
                         sourcePaneID: nil,
                         ownTabIsFocused: true,
-                        pageContext: nil
+                        pageContext: nil,
+                        dictated: false
                     )
                 )
                 let id = try await BrowserAgentManager.shared.create(options: options)
@@ -310,10 +391,63 @@ public final class AgentChatSession: ObservableObject {
                 if res.done {
                     self.setWorking(false)
                     if res.isError, let text = res.text { self.errorText = text }
+                    self.turnsCompleted += 1
+                    self.turnDidEnd(result: res)
                     return
                 }
             }
         }
+    }
+
+    /// A turn finished. For a hidden (omnibox-attached) agent that neither
+    /// focused itself nor called `done`, decide for it: surface the tab if
+    /// there's something to read, otherwise clean up.
+    private func turnDidEnd(result: BrowserJSAgentAwaitResult) {
+        guard let ownPaneID else { return }
+        let state = BrowserStore.shared.model
+        guard let tabID = state.paneToTabMapping[ownPaneID],
+              let winID = state.windowContaining(tabId: tabID)?.id else {
+            if mode == .scheduledTask { finishScheduledTask(result: result) }
+            return
+        }
+        let stillAttached = state.isAttachedAgentTab(tabID)
+
+        switch mode {
+        case .scheduledTask:
+            // Headless run. If the agent did not reveal itself and nothing
+            // went wrong, close the tab and dispose the session; otherwise
+            // pop it into the sidebar so the user can see what happened.
+            finishScheduledTask(result: result)
+            if stillAttached {
+                if result.isError || errorText != nil {
+                    BrowserStore.shared.modify { st in st.detachAgentTab(tabID: tabID, inWindow: winID) }
+                } else {
+                    AgentChatTabs.close(key: key)
+                }
+            }
+        case .ask, .chat:
+            guard stillAttached, turnsCompleted == 1 else { return }
+            let hasAnswer = messages.contains { $0.role == "assistant" && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if hasAnswer || result.isError || errorText != nil {
+                // Pop up as a real tab: the agent wrote something for the user.
+                AgentChatTabs.reveal(tabID: tabID, windowID: winID)
+            } else {
+                // Nothing to read; treat like `done`.
+                AgentChatTabs.close(key: key)
+            }
+        }
+    }
+
+    private func finishScheduledTask(result: BrowserJSAgentAwaitResult) {
+        guard let onScheduledTaskFinished else { return }
+        self.onScheduledTaskFinished = nil
+        let lastAssistant = messages.last(where: { $0.role == "assistant" })?.text
+        let summary = (result.text?.nilIfEmpty ?? lastAssistant ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        onScheduledTaskFinished(ScheduledTaskRunResult(
+            finishedAt: Date(),
+            summary: String(summary.prefix(500)),
+            isError: result.isError || errorText != nil
+        ))
     }
 
     private func mergeMessages(_ new: [BrowserJSAgentMessage]) {
@@ -429,7 +563,7 @@ public final class AgentChatSession: ObservableObject {
         return out
     }
 
-    private static func systemPrompt(ownPaneID: ID<WebContent>, agentURL: String, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, pageContext: String?) -> String {
+    private static func systemPrompt(ownPaneID: ID<WebContent>, agentURL: String, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, pageContext: String?, dictated: Bool) -> String {
         let own = ownPaneID.raw
         var prompt = """
         You are a quick, helpful in-browser agent inside the Wowser browser. The \
@@ -437,11 +571,20 @@ public final class AgentChatSession: ObservableObject {
         tab — tab id "\(own)", url "\(agentURL)" — \
         \(ownTabIsFocused
             ? "which the user is already looking at."
-            : "which is currently OPEN IN THE BACKGROUND, NOT focused.")
+            : "which is currently HIDDEN: not in the sidebar and not focused — the address bar just shows that you are working. Activating it (see below) reveals it.")
 
         FIRST choose the right presentation for your response, then act:
 
         """
+        if dictated {
+            prompt += """
+            NOTE: the user's message was DICTATED via speech recognition, so it may \
+            contain transcription errors, missing punctuation, homophones, or filler \
+            words. Interpret what they most plausibly meant rather than reading it \
+            literally, and don't comment on the transcription quality.
+
+            """
+        }
         if let src = sourcePaneID?.raw {
             prompt += """
             1. CHAT ANSWER about the page the user is on (summarize / explain \
@@ -521,4 +664,33 @@ public final class AgentChatSession: ObservableObject {
         }
         return prompt
     }
+
+    private static func scheduledTaskSystemPrompt(ownPaneID: ID<WebContent>, agentURL: String) -> String {
+        """
+        You are a background maintenance agent inside the Wowser browser, running \
+        a SCHEDULED TASK the user set up earlier. The user is not watching and did \
+        not just ask for this — work silently and headlessly.
+
+        Your chat lives in a hidden tab — tab id "\(ownPaneID.raw)", url "\(agentURL)" \
+        — that is NOT shown in the sidebar. The address bar just shows that you \
+        are working. Use `run_browser_js` to read and modify the browser (tabs, \
+        spaces, history, …) and do the task. Do not open new tabs for the user \
+        unless the task requires it, and never steal focus for routine work.
+
+        Only if you genuinely need the user to see something — you hit an error \
+        you cannot resolve, or the task asked you to present a result — reveal \
+        your tab with `await browser.tabs.activate("\(ownPaneID.raw)")` and \
+        write it in chat. Otherwise, when the task is complete, write a one- or \
+        two-sentence summary of what you did as your final message (this is \
+        recorded as the run's status) and stop. Do NOT call `done`; the browser \
+        closes your tab automatically.
+        """
+    }
+}
+
+/// What a scheduled task run reported back when its agent turn ended.
+public struct ScheduledTaskRunResult: Equatable {
+    public var finishedAt: Date
+    public var summary: String
+    public var isError: Bool
 }

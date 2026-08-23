@@ -245,6 +245,9 @@ struct ElementPickerOverlay: View {
     @State private var mousePosition = CGPoint.zero
     @State private var isDragging = false
     @State private var dragStartLocation = CGPoint.zero
+    /// Selector fetch kicked off on mouse-down; awaited on mouse-up so a quick
+    /// click still completes even if the JS hasn't returned yet.
+    @State private var pendingCandidates: Task<[SelectorCandidate], Error>?
 
     var body: some View {
         GeometryReader { geo in
@@ -285,14 +288,7 @@ struct ElementPickerOverlay: View {
                             self.mousePosition = position
                         }
                     }
-                    .onTapGesture { location in
-                        if case .picking = status {
-                            handleMouseDown(at: location, isTap: true)
-                        }
-                    }
-                    .gesture(
-                        dragGesture
-                    )
+                    .gesture(dragGesture)
             }
         }
     }
@@ -327,11 +323,7 @@ struct ElementPickerOverlay: View {
     
     private var selectedCandidate: SelectorCandidate? {
         if case .refining(_, let candidates, let normalizedDragDist) = status {
-            if candidates.count <= 1 {
-                return candidates.get(0)
-            }
-            let index = min(candidates.count - 1, Int(normalizedDragDist * CGFloat(candidates.count - 1)))
-            return candidates.get(index)
+            return candidate(in: candidates, normalizedDragDist: normalizedDragDist)
         }
         return nil
     }
@@ -344,47 +336,75 @@ struct ElementPickerOverlay: View {
                     dragStartLocation = value.startLocation
 
                     if case .picking = status {
-                        handleMouseDown(at: value.startLocation, isTap: false)
+                        beginPick(at: value.startLocation)
                     }
                 }
 
                 if case .refining(let clickPt, let candidates, _) = status {
-                    // Calculate drag distance (vertically)
-                    let dragDistance = sqrt(pow(value.location.y - dragStartLocation.y, 2) + pow(value.location.x - dragStartLocation.x, 2))
-                    // Normalize by screen height
-                    let normalizedDragDist = max(0, min(1, ((dragDistance - 10) / 300)))
-
-                    // Update status with new normalized drag distance
-                    status = .refining(clickPt: clickPt, candidates: candidates, normalizedDragDist: normalizedDragDist)
+                    let dist = normalizedDragDist(from: dragStartLocation, to: value.location)
+                    status = .refining(clickPt: clickPt, candidates: candidates, normalizedDragDist: dist)
                 }
             }
             .onEnded { value in
                 isDragging = false
-
-                if case .refining(_, let candidates, let normalizedDragDist) = status {
-                    let selectedIndex = Int(normalizedDragDist * CGFloat(candidates.count - 1))
-                    let selectedCandidate = candidates[selectedIndex]
-                    onDone(selectedCandidate.selector)
-                }
+                let dist = normalizedDragDist(from: dragStartLocation, to: value.location)
+                finishPick(normalizedDragDist: dist)
             }
     }
 
+    /// Drag distance mapped to 0...1 over ~300pt, with a 10pt dead zone so a
+    /// plain click selects the most specific candidate.
+    private func normalizedDragDist(from start: CGPoint, to end: CGPoint) -> CGFloat {
+        let dragDistance = hypot(end.x - start.x, end.y - start.y)
+        return max(0, min(1, (dragDistance - 10) / 300))
+    }
 
-    private func handleMouseDown(at location: CGPoint, isTap: Bool) {
+    private func candidate(in candidates: [SelectorCandidate], normalizedDragDist: CGFloat) -> SelectorCandidate? {
+        if candidates.count <= 1 {
+            return candidates.first
+        }
+        let index = min(candidates.count - 1, Int(normalizedDragDist * CGFloat(candidates.count - 1)))
+        return candidates.get(index)
+    }
+
+    /// Mouse-down: start fetching candidates for the element under the cursor.
+    /// Once they arrive we enter `.refining` so the highlight tracks the drag.
+    private func beginPick(at location: CGPoint) {
         mousePosition = location
+
+        let task = Task { @MainActor in
+            let candidates = try await webContent.wkWebviewForPicker.selectors(atPoint: location)
+            // Most specific (fewest matches) first
+            return candidates.sorted { $0.matchCount < $1.matchCount }
+        }
+        pendingCandidates = task
+
+        Task { @MainActor in
+            guard let candidates = try? await task.value, pendingCandidates == task else { return }
+            if case .picking = status {
+                let dist = isDragging ? normalizedDragDist(from: dragStartLocation, to: mousePosition) : 0
+                status = .refining(clickPt: location, candidates: candidates, normalizedDragDist: dist)
+            }
+        }
+    }
+
+    /// Mouse-up: wait for the candidates (if still in flight) and report the
+    /// one at the current drag distance.
+    private func finishPick(normalizedDragDist: CGFloat) {
+        guard let task = pendingCandidates else { return }
+        pendingCandidates = nil
 
         Task { @MainActor in
             do {
-                let candidates = try await webContent.wkWebviewForPicker.selectors(atPoint: location)
-                // Sort candidates by match count (more specific/unique selectors first)
-                let sortedCandidates = candidates.sorted { $0.matchCount < $1.matchCount }
-                if isTap, let first = sortedCandidates.first {
-                    onDone(first.selector)
+                let candidates = try await task.value
+                if let picked = candidate(in: candidates, normalizedDragDist: normalizedDragDist) {
+                    onDone(picked.selector)
                 } else {
-                    status = .refining(clickPt: location, candidates: sortedCandidates, normalizedDragDist: 0)
+                    status = .picking
                 }
             } catch {
                 print("Error getting selectors: \(error)")
+                status = .picking
             }
         }
     }

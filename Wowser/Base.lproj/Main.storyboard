@@ -90,7 +90,13 @@
                                                 <action selector="copyCurrentURL:" target="Ady-hI-5gd" id="R7g-z9-Hip"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Toggle Bookmark" keyEquivalent="d" id="ILv-2O-2xf">
+                                        <menuItem title="Dictate" keyEquivalent="d" id="Dct-8K-2xa">
+                                            <connections>
+                                                <action selector="toggleDictation:" target="Ady-hI-5gd" id="Dct-qP-jbA"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Toggle Bookmark" keyEquivalent="D" id="ILv-2O-2xf">
+                                            <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
                                             <connections>
                                                 <action selector="toggleBookmark:" target="Ady-hI-5gd" id="Wgy-qP-jbF"/>
                                             </connections>

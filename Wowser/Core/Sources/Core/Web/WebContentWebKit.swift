@@ -193,6 +193,11 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         webview.onBecomeFirstResponder = { [weak self] in
             guard let self else { return }
             self.delegate?.webContentDidBecomeFirstResponder(self)
+            self.needsFocusedEditableRefresh()
+        }
+
+        webview.onUserInteraction = { [weak self] in
+            self?.needsFocusedEditableRefresh()
         }
 
         // Observe UserDefaults changes for settings
@@ -445,6 +450,68 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
     }
 
+    // MARK: - Focused editable element
+    //
+    // Pull-based: there's no cheap, reliable push signal for "a text field is
+    // focused" across every page, so we re-check after user interaction and
+    // navigation, coalesced to at most one JS eval per ~200ms.
+    private var _focusedEditableRefreshScheduled = false
+    func needsFocusedEditableRefresh() {
+        if _focusedEditableRefreshScheduled { return }
+        _focusedEditableRefreshScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            self._focusedEditableRefreshScheduled = false
+            self.refreshFocusedEditableNow()
+        }
+    }
+
+    private static let focusedEditableJS = """
+    (() => {
+        let el = document.activeElement;
+        // Descend into same-origin iframes when possible.
+        for (let i = 0; i < 4 && el && el.tagName === 'IFRAME'; i++) {
+            try { el = el.contentDocument && el.contentDocument.activeElement; } catch (_) { el = null; }
+        }
+        if (!el || el === document.body || el === document.documentElement) return null;
+        const tag = el.tagName;
+        let kind = null, multiline = false;
+        if (tag === 'TEXTAREA') { kind = 'textarea'; multiline = true; }
+        else if (tag === 'INPUT') {
+            const t = (el.getAttribute('type') || 'text').toLowerCase();
+            const textual = ['text','search','email','url','tel','number','password',''];
+            if (!textual.includes(t)) return null;
+            if (el.readOnly || el.disabled) return null;
+            kind = 'input';
+        } else if (el.isContentEditable) { kind = 'contenteditable'; multiline = true; }
+        else return null;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) return null;
+        return { x: r.left, y: r.top, width: r.width, height: r.height, kind, multiline };
+    })()
+    """
+
+    private func refreshFocusedEditableNow() {
+        // Native overlay tabs have no meaningful DOM focus.
+        if let url = webview.url, NativePageKey(url: url) != nil, !(NativePageKey(url: url)?.isVSCode ?? false) {
+            if info.focusedEditable != nil { info.focusedEditable = nil }
+            return
+        }
+        webview.evaluateJavaScript(Self.focusedEditableJS) { [weak self] result, _ in
+            guard let self else { return }
+            var value: Info.FocusedEditable?
+            if let dict = result as? [String: Any],
+               let x = dict["x"] as? Double, let y = dict["y"] as? Double,
+               let w = dict["width"] as? Double, let h = dict["height"] as? Double,
+               let kind = dict["kind"] as? String {
+                value = Info.FocusedEditable(x: x, y: y, width: w, height: h, kind: kind, multiline: dict["multiline"] as? Bool ?? false)
+            }
+            if self.info.focusedEditable != value {
+                self.info.focusedEditable = value
+            }
+        }
+    }
+
     override func fullContentExtractionModeDidChange() {
         needsMetadataRefresh()
     }
@@ -469,6 +536,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
         info.underPageBackgroundColor = webview.underPageBackgroundColor.hsba
         self.info = info
+        needsFocusedEditableRefresh()
 
         Task {
             let docReadyWithURL: URL?

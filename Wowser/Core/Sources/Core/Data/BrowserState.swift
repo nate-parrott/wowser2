@@ -163,6 +163,13 @@ public struct WindowState: Equatable, Codable {
         get { perProfileData[profile]?.lastClosedTabURL }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.lastClosedTabURL = newValue }
     }
+    /// Agent tabs "attached" to this window's omnibox: hidden from the sidebar
+    /// and surfaced as a working indicator in the address bar instead. See
+    /// `BrowserState+AttachedAgents.swift`.
+    public var attachedAgentTabs: [ID<Tab>] {
+        get { perProfileData[profile]?.attachedAgentTabs ?? [] }
+        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.attachedAgentTabs = newValue.isEmpty ? nil : newValue }
+    }
 
     public var lastActive: Date?
     /// Bumped each time the window becomes key. Drives pane refocus: surface
@@ -197,6 +204,8 @@ public struct WindowState: Equatable, Codable {
         public var focusedOnProject: ID<Project>?
         public var downloads = [ID<Download>: Download]()
         public var lastClosedTabURL: URL?
+        /// Optional for decode-compat with previously persisted states.
+        public var attachedAgentTabs: [ID<Tab>]?
     }
     
     private mutating func ensurePerProfileDataForCurProfile() {
@@ -679,6 +688,8 @@ extension BrowserState {
                     windows[winId]?.tabs.remove(at: idx)
                 case .project(let projId, let idx):
                     projects[projId]?.tabs.remove(at: idx)
+                case .attachedAgent(let idx):
+                    windows[winId]?.attachedAgentTabs.remove(at: idx)
                 }
             }
         }
@@ -723,6 +734,8 @@ extension BrowserState {
             windows[window]?.tabs.insert(tab.id, at: idx)
         case .project(let id, let idx):
             projects[id]?.tabs.insert(tab.id, at: idx)
+        case .attachedAgent(let idx):
+            windows[window]?.attachedAgentTabs.insert(tab.id, at: idx)
         }
     }
     

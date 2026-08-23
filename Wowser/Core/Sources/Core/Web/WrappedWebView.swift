@@ -39,6 +39,10 @@ public struct WrappedWebView: View {
                     .id(webContent)
 
                 findInPageContent
+
+                #if os(macOS)
+                DictationOverlay(webContent: webContent)
+                #endif
             }
 
             if let nativePageKey {

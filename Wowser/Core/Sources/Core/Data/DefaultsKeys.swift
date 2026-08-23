@@ -51,6 +51,8 @@ public enum DefaultsKeys: String {
 
     case lastAIRequest // string — JSON AIRequestRecord; see AIRequestLog.swift
 
+    case dictationCleanup // bool — run dictated text (into web text fields) through the configured LLM before inserting
+
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }
 

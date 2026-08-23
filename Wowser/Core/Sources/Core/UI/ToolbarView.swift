@@ -15,9 +15,12 @@ public struct ToolbarViewSnapshot: Equatable {
     var makeRoomForTrafficLights: Bool
     var isEmptyPage: Bool
     var nativeKey: NativePageKey?
+    /// Agents hidden behind this window's omnibox, if any (see BrowserState+AttachedAgents).
+    var attachedAgents: AttachedAgentStatus?
 
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
+        self.attachedAgents = windowID.flatMap { state.attachedAgentStatus(windowID: $0) }
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -75,6 +78,12 @@ struct ToolbarView: View {
     @ObservedObject private var devModeStore = DevModeStore.shared
     @State private var isBookmarked: Bool = false
     @State private var omniboxIsFocused: Bool = false
+    /// True while a dictation session targeting this pane's omnibox is live.
+    @State private var dictationTranscriptShown = false
+
+    private func showsAttachedAgentIndicator(_ snapshot: ToolbarViewSnapshot) -> Bool {
+        snapshot.attachedAgents != nil && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
+    }
     @AppStorage(DefaultsKeys.hiddenTrailingToolbarItems.rawValue) private var hiddenTrailingItemsRaw = ""
 
     private var hiddenTrailingItems: Set<ToolbarTrailingItem> {
@@ -113,19 +122,39 @@ struct ToolbarView: View {
                             .padding(.leading, 6)
                     }
 
-                    Omnibox(
-                        paneID: webContentID,
-                        searchText: omniboxIsFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
-                        selectedResultIndex: $selectedResultIndex,
-                        searcher: searcher,
-                        fgColor: colorScheme?.foreground,
-                        fontSize: emptyPage ? 14 : 12
-                    )
-                    .onAppearOrChange(of: omniboxIsFocused) { focused in
-                        if focused {
-                            searchText = snapshot.tabAppearance.urlFieldTextSelected
+                    ZStack {
+                        Omnibox(
+                            paneID: webContentID,
+                            searchText: omniboxIsFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
+                            selectedResultIndex: $selectedResultIndex,
+                            searcher: searcher,
+                            fgColor: colorScheme?.foreground,
+                            fontSize: emptyPage ? 14 : 12
+                        )
+                        .onAppearOrChange(of: omniboxIsFocused) { focused in
+                            if focused {
+                                searchText = snapshot.tabAppearance.urlFieldTextSelected
+                            }
                         }
+                        .opacity(showsAttachedAgentIndicator(snapshot) || dictationTranscriptShown ? 0 : 1)
+                        // Hidden-agent indicator replaces the URL while an agent
+                        // attached to this omnibox is working. Click to reveal.
+                        if showsAttachedAgentIndicator(snapshot), let attached = snapshot.attachedAgents, let windowID {
+                            AttachedAgentStatusView(status: attached, fgColor: colorScheme?.foreground, fontSize: 12) {
+                                AgentChatTabs.reveal(tabID: attached.primary.tabID, windowID: windowID)
+                            }
+                        }
+                        #if os(macOS)
+                        // Live transcript while dictating into this omnibox (→ agent).
+                        if dictationTranscriptShown {
+                            DictationTranscriptView(fgColor: colorScheme?.foreground, fontSize: emptyPage ? 14 : 12)
+                        }
+                        #endif
                     }
+                    .modifier(DictationOmniboxHighlightIfAvailable(paneID: webContentID, shown: $dictationTranscriptShown))
+                    #if os(macOS)
+                    DictationButton(paneID: webContentID, emptyPage: emptyPage, fgColor: colorScheme?.foreground)
+                    #endif
                 }
                 
                 // Trailing buttons container
@@ -162,7 +191,7 @@ struct ToolbarView: View {
                             Button(action: toggleBookmark) {
                                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                                     .imageScale(.medium)
-                                    .help(isBookmarked ? "Remove Bookmark (⌘D)" : "Add Bookmark (⌘D)")
+                                    .help(isBookmarked ? "Remove Bookmark (⇧⌘D)" : "Add Bookmark (⇧⌘D)")
                             }
                             .buttonStyle(ToolbarButtonStyle())
                             .disabled(snapshot.url == nil)

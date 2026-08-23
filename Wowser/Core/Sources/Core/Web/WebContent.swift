@@ -97,6 +97,24 @@ public class WebContent: NSObject, ObservableObject {
         /// "Thinking…" / "Driving the browser…" / "Writing…". Shown as the
         /// tab subtitle.
         public var agentStatusDetail: String?
+        /// The editable element (input / textarea / contenteditable) that
+        /// currently has focus in the page, if any — a heuristic, refreshed
+        /// after clicks, keystrokes, scrolls and navigations (debounced).
+        /// Drives the dictation target + its outline overlay.
+        public var focusedEditable: FocusedEditable?
+
+        public struct FocusedEditable: Equatable, Codable {
+            /// Bounding rect in the webview's viewport coordinate space (CSS px).
+            public var x: Double
+            public var y: Double
+            public var width: Double
+            public var height: Double
+            /// "input" | "textarea" | "contenteditable"
+            public var kind: String
+            public var multiline: Bool
+
+            public var frame: CGRect { CGRect(x: x, y: y, width: width, height: height) }
+        }
 
         public var committedURL: URL? {
             oldOnscreenURL ?? url

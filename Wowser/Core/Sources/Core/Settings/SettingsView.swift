@@ -13,6 +13,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = true
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
+    @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var spaceThemeIntensity = 1.0
@@ -28,6 +29,7 @@ public struct SettingsView: View {
                     SwiftUI.Tab(content: { main }, label: { Text("General") })
                     SwiftUI.Tab(content: { ProfilesSettings() }, label: { Text("Profiles") })
                     SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
+                    SwiftUI.Tab(content: { TasksSettings() }, label: { Text("Tasks") })
                     SwiftUI.Tab(content: { MCPSettings() }, label: { Text("MCP") })
                     SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
                 }
@@ -90,6 +92,11 @@ public struct SettingsView: View {
                 }
             }
             
+            Section("Dictation") {
+                Toggle("Clean up dictated text with AI", isOn: $dictationCleanupEnabled)
+                    .help("When dictating into a text field on a page (⌘D), send the transcript through the configured AI model to remove filler words and fix obvious transcription mistakes before inserting it. Dictation to the agent is never cleaned up — the agent is told it was dictated instead.")
+            }
+
             Section("Appearance") {
 //                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)

@@ -4,6 +4,9 @@ import QuartzCore
 public class WebContentWebView: WKWebView {
     var onDarkModeChanged: ((Bool) -> Void)?
     var onBecomeFirstResponder: (() -> Void)?
+    /// Fired on clicks, key presses and scrolls so the owner can re-poll
+    /// page state that has no push notification (e.g. the focused text field).
+    var onUserInteraction: (() -> Void)?
     
     var shrunk: Bool = false {
         didSet {
@@ -117,6 +120,26 @@ public class WebContentWebView: WKWebView {
     /// first, so apps like VS Code (served in a tab) can swallow Cmd+T before
     /// the main menu ever sees it. Route these straight to the menu instead.
     private static let reservedKeyEquivalents: Set<String> = ["t"]
+
+    public override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        onUserInteraction?()
+    }
+
+    public override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        onUserInteraction?()
+    }
+
+    public override func keyDown(with event: NSEvent) {
+        super.keyDown(with: event)
+        onUserInteraction?()
+    }
+
+    public override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        onUserInteraction?()
+    }
 
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)

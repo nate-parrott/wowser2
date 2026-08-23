@@ -53,6 +53,8 @@ extension BrowserState {
                     windows[srcWindow.id]?.tabs.remove(at: idx)
                 case .project(let projId, let idx):
                     projects[projId]?.tabs.remove(at: idx)
+                case .attachedAgent(let idx):
+                    windows[srcWindow.id]?.attachedAgentTabs.remove(at: idx)
                 case .favorites:
                     // Handle removing from favorites if needed
                     let profileId = srcWindow.profile

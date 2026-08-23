@@ -148,7 +148,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     // MARK: - Action Methods
     
     // Gets the ID of the current focused pane
-    private func getCurrentPaneID() -> ID<WebContent>? {
+    func getCurrentPaneID() -> ID<WebContent>? {
         guard let windowID = self.windowID else { return nil }
         let state = BrowserStore.shared.model
         

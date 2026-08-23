@@ -156,6 +156,13 @@ extension BrowserViewController {
         }
     }
     
+    /// Cmd+D: start dictation (into the focused page text field, or to the
+    /// agent via the omnibox); press again while dictating to commit.
+    @IBAction func toggleDictation(_ sender: Any?) {
+        guard let windowID = self.windowID else { return }
+        DictationController.shared.toggle(paneID: getCurrentPaneID(), windowID: windowID)
+    }
+
     @IBAction func clearAllTabs(_ sender: NSMenuItem) {
         if let windowID {
             BrowserStore.shared.clearAllTabs(in: windowID)
