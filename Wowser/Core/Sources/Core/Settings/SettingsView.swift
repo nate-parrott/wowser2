@@ -176,38 +176,24 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.openrouterCustomModel.rawValue) private var openrouterCustomModel = ""
     @AppStorage(DefaultsKeys.openAICustomModel.rawValue) private var openAICustomModel = ""
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
-    
+    @ObservedObject private var requestLog = AIRequestLog.shared
+
     var body: some View {
         Form {
             Section("AI Models") {
-                EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { model in
-                    switch model {
-                    case .openrouter_gpt_5_4_nano: return "OpenRouter - GPT-5.4 Nano"
-                    case .openrouter_gemini_2_flash: return "OpenRouter - Gemini 2 Flash"
-                    case .openrouter_gpt_4o: return "OpenRouter - GPT-4o"
-                    case .openrouter_gpt_4o_mini: return "OpenRouter - GPT-4o Mini"
-                    case .openrouter_llama_33_70b: return "OpenRouter - Llama 3.3 70B"
-                    case .openrouter_haiku_35: return "OpenRouter - Claude 3.5 Haiku"
-                    case .openrouter_custom: return "OpenRouter - Custom"
-                        
-                    case .openai_gpt_5_4_nano: return "OpenAI - GPT-5.4 Nano"
-                    case .openai_gpt4o_mini: return "OpenAI - GPT-4o Mini"
-                    case .openai_gpt4o: return "OpenAI - GPT-4o"
-                    case .openai_custom: return "OpenAI - Custom"
-                        
-                    case .ollama_gemma_3_1b: return "Ollama - Gemma 3 1B"
-                    case .ollama_gemma_3_4b: return "Ollama - Gemma 3 4B"
-                    case .ollama_gemma_3_4b_qat: return "Ollama - Gemma 3 4B Quantized"
-                    case .ollama_gemma_3_12b: return "Ollama - Gemma 3 12B"
-                    case .ollama_custom: return "Ollama - Custom"
-                        
-                    case .anthropic_haiku_35: return "Anthropic - Claude 3.5 Haiku"
-                    case .anthropic_custom: return "Anthropic - Custom"
-                    }
-                }
-                
+                EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { $0.displayName }
+
                 showApiKeyFields()
                 showCustomModelFields()
+            }
+
+            Section("Last Request") {
+                if let request = requestLog.lastRequest {
+                    LastAIRequestDetails(request: request)
+                } else {
+                    Text("No AI requests yet.")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -252,6 +238,47 @@ struct AISettings: View {
                     .help("Model name (e.g. 'claude-3-haiku-20240307')")
             }
         }
+    }
+}
+
+private struct LastAIRequestDetails: View {
+    var request: AIRequestRecord
+
+    var body: some View {
+        LabeledContent("Status", value: statusText)
+        LabeledContent("Model", value: request.modelName)
+        LabeledContent("Time", value: request.date.formatted(date: .abbreviated, time: .standard))
+        if let duration = request.durationSeconds {
+            LabeledContent("Duration", value: String(format: "%.1fs", duration))
+        }
+        if let promptTokens = request.promptTokens, let completionTokens = request.completionTokens {
+            LabeledContent("Tokens", value: tokensText(promptTokens: promptTokens, completionTokens: completionTokens))
+        }
+        if let cost = request.cost {
+            LabeledContent("Cost", value: String(format: "$%.5f", cost))
+        }
+        if let error = request.errorDescription {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+        }
+    }
+
+    private var statusText: String {
+        switch request.status {
+        case .inFlight: return "In progress…"
+        case .succeeded: return "Succeeded"
+        case .failed: return "Failed"
+        }
+    }
+
+    private func tokensText(promptTokens: Int, completionTokens: Int) -> String {
+        var text = "\(promptTokens.formatted()) in, \(completionTokens.formatted()) out"
+        if let cached = request.cachedPromptTokens, cached > 0 {
+            text += " (\(cached.formatted()) cached)"
+        }
+        return text
     }
 }
 

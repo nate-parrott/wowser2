@@ -23,6 +23,10 @@ final class VSCodeServerManager: ObservableObject {
 
     private var process: Process?
     private var stdoutBuffer = Data()
+    private var updateProcess: Process?
+    private var didStartBackgroundUpdate = false
+    private var updateStdoutBuffer = Data()
+    private var updateServerURL: URL?
 
     private init() {}
 
@@ -73,6 +77,7 @@ final class VSCodeServerManager: ObservableObject {
         status = .starting
 
         reclaimPortFromOrphanedCodeServer(VSCodeConfig.serveWebPort)
+        killOrphanedUpdaterFromPreviousRun()
         Self.sweepStuckServerDownloads()
 
         let dataDir = vscodeUserDataDir()
@@ -83,9 +88,22 @@ final class VSCodeServerManager: ObservableObject {
             log("failed to create user-data-dir at \(dataDir.path): \(error)")
         }
 
+        // If we have a previously-downloaded server build cached, pin the launch
+        // to it with --commit-id so serve-web starts instantly instead of
+        // blocking on "downloading the latest version…" every time VS Code
+        // updates. A background, unpinned serve-web (see
+        // startBackgroundUpdateIfNeeded) refreshes the cache so the *next*
+        // launch picks up the new build.
+        let pinnedCommit = Self.mostRecentCachedServeWebCommit()
+        if let pinnedCommit {
+            log("pinning to cached server build \(pinnedCommit)")
+        } else {
+            log("no cached server build — first launch will download (blocking)")
+        }
+
         let p = Process()
         p.executableURL = URL(fileURLWithPath: codePath)
-        p.arguments = [
+        var args = [
             "serve-web",
             "--host", VSCodeConfig.serveWebHost,
             "--port", String(VSCodeConfig.serveWebPort),
@@ -93,6 +111,10 @@ final class VSCodeServerManager: ObservableObject {
             "--accept-server-license-terms",
             "--server-data-dir", dataDir.path,
         ]
+        if let pinnedCommit {
+            args += ["--commit-id", pinnedCommit]
+        }
+        p.arguments = args
         log("launching: \(codePath) \((p.arguments ?? []).joined(separator: " "))")
         let pipe = Pipe()
         p.standardOutput = pipe
@@ -131,10 +153,180 @@ final class VSCodeServerManager: ObservableObject {
             try p.run()
             log("process started; pid=\(p.processIdentifier)")
             self.process = p
+            // Only worth checking for updates when we pinned to a cached build;
+            // an unpinned launch is already downloading the latest itself.
+            if pinnedCommit != nil {
+                startBackgroundUpdateIfNeeded(codePath: codePath, dataDir: dataDir)
+            }
         } catch {
             log("Process.run() threw: \(error)")
             status = .failed("Failed to launch VS Code: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Cached-build pinning + background update
+
+    private static var serveWebCacheDir: URL {
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vscode/cli/serve-web")
+    }
+
+    /// The most recently used fully-downloaded server build in
+    /// `~/.vscode/cli/serve-web`. Prefers the CLI's own `lru.json` ordering
+    /// (front = most recent); falls back to directory mtime. `.staging` dirs
+    /// (interrupted downloads) are never candidates.
+    static func mostRecentCachedServeWebCommit() -> String? {
+        let fm = FileManager.default
+        let dir = serveWebCacheDir
+        let commitDirs: Set<String> = {
+            guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
+            return Set(entries.filter { entry in
+                entry.pathExtension != "staging"
+                    && (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            }.map { $0.lastPathComponent })
+        }()
+        guard !commitDirs.isEmpty else { return nil }
+
+        if let data = try? Data(contentsOf: dir.appendingPathComponent("lru.json")),
+           let lru = try? JSONDecoder().decode([String].self, from: data),
+           let first = lru.first(where: { commitDirs.contains($0) }) {
+            return first
+        }
+        // Fallback: newest directory by modification date (set when the CLI
+        // renames <commit>.staging → <commit> on download completion).
+        return commitDirs.max { a, b in
+            let da = (try? fm.attributesOfItem(atPath: dir.appendingPathComponent(a).path)[.modificationDate] as? Date) ?? .distantPast
+            let db = (try? fm.attributesOfItem(atPath: dir.appendingPathComponent(b).path)[.modificationDate] as? Date) ?? .distantPast
+            return da < db
+        }
+    }
+
+    /// Runs a throwaway, unpinned `code serve-web` on a random port so the CLI
+    /// downloads the latest server build into the shared cache, then kills it.
+    /// The running (pinned) server is untouched; the next cold launch of the
+    /// pinned server picks up the fresh build via the LRU. At most once per
+    /// app run.
+    private func startBackgroundUpdateIfNeeded(codePath: String, dataDir: URL) {
+        guard !didStartBackgroundUpdate else { return }
+        didStartBackgroundUpdate = true
+
+        let commitsBefore = Self.cachedCommitSet()
+
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: codePath)
+        p.arguments = [
+            "serve-web",
+            "--host", "127.0.0.1",
+            "--port", "0",
+            "--without-connection-token",
+            "--accept-server-license-terms",
+            "--server-data-dir", dataDir.path,
+        ]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            Task { @MainActor in self?.handleUpdateOutput(data) }
+        }
+        p.terminationHandler = { _ in
+            // The pid is only stored so a future launch can kill an *orphaned*
+            // updater; once the process actually exits, clear it so a recycled
+            // pid can't be killed by mistake.
+            DefaultsKeys.vscodeUpdaterPID.setInt(0)
+        }
+        do {
+            try p.run()
+            log("bg-update: launched unpinned serve-web pid=\(p.processIdentifier)")
+        } catch {
+            log("bg-update: failed to launch: \(error)")
+            return
+        }
+        updateProcess = p
+        DefaultsKeys.vscodeUpdaterPID.setInt(Int(p.processIdentifier))
+
+        Task { @MainActor [weak self] in
+            await Self.waitForBackgroundDownload(commitsBefore: commitsBefore, log: { self?.log($0) })
+            if p.isRunning { p.terminate() }
+            if self?.updateProcess === p { self?.updateProcess = nil }
+        }
+    }
+
+    /// If a previous app run quit while the background updater was still
+    /// downloading, that `serve-web` process orphans on a random port where the
+    /// fixed-port reclaim can't see it. Its pid is persisted at launch; kill it
+    /// here if it's still alive — guarded by a command-line check so a recycled
+    /// pid belonging to some unrelated process is left alone.
+    private func killOrphanedUpdaterFromPreviousRun() {
+        let stored = DefaultsKeys.vscodeUpdaterPID.intValue()
+        guard stored > 0 else { return }
+        DefaultsKeys.vscodeUpdaterPID.setInt(0)
+        let pid = pid_t(stored)
+        guard kill(pid, 0) == 0 else { return } // already gone
+        let cmd = Self.commandLine(forPID: pid) ?? ""
+        guard Self.looksLikeCodeServer(cmd) else {
+            log("stored updater pid=\(pid) is now an unrelated process — leaving alone. cmd=\(cmd)")
+            return
+        }
+        log("killing orphaned bg-update serve-web from previous run pid=\(pid)")
+        kill(pid, SIGTERM)
+        Self.waitForPIDsToExit([pid], timeout: 1.5)
+        if kill(pid, 0) == 0 {
+            log("orphaned updater pid=\(pid) survived SIGTERM — escalating to SIGKILL")
+            kill(pid, SIGKILL)
+        }
+    }
+
+    private func handleUpdateOutput(_ chunk: Data) {
+        updateStdoutBuffer.append(chunk)
+        guard updateServerURL == nil,
+              let s = String(data: updateStdoutBuffer, encoding: .utf8),
+              let url = VSCodeServerManager.parseServeWebURL(from: s) else { return }
+        updateServerURL = url
+        updateStdoutBuffer = Data()
+        log("bg-update: server up at \(url); requesting / to trigger download")
+        // The CLI can defer the server download until the first request, so
+        // poke it once.
+        Task { _ = try? await URLSession.shared.data(from: url) }
+    }
+
+    private static func cachedCommitSet() -> Set<String> {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: serveWebCacheDir, includingPropertiesForKeys: nil) else { return [] }
+        return Set(entries.filter { $0.pathExtension != "staging" }.map { $0.lastPathComponent })
+    }
+
+    private static func hasStagingDownload() -> Bool {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: serveWebCacheDir, includingPropertiesForKeys: nil) else { return false }
+        return entries.contains { $0.pathExtension == "staging" }
+    }
+
+    /// Polls the serve-web cache until the background updater either finishes
+    /// downloading a new build (a fresh commit dir appears), turns out to be a
+    /// no-op (no `.staging` dir shows up within the grace period — cache is
+    /// already current), or times out.
+    private static func waitForBackgroundDownload(commitsBefore: Set<String>, log: @escaping (String) -> Void) async {
+        let start = Date()
+        let noDownloadGracePeriod: TimeInterval = 90
+        let timeout: TimeInterval = 15 * 60
+        var sawStaging = false
+        while Date().timeIntervalSince(start) < timeout {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            let current = cachedCommitSet()
+            let new = current.subtracting(commitsBefore).subtracting(["lru.json"])
+            if !new.isEmpty {
+                log("bg-update: downloaded new server build(s): \(new.sorted().joined(separator: ", "))")
+                return
+            }
+            if hasStagingDownload() {
+                sawStaging = true
+            } else if !sawStaging, Date().timeIntervalSince(start) > noDownloadGracePeriod {
+                log("bg-update: no download started — cache already current")
+                return
+            }
+        }
+        log("bg-update: timed out waiting for download; killing updater")
     }
 
     private func handleOutput(_ chunk: Data) {

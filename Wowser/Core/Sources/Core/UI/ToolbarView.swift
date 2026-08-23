@@ -75,6 +75,17 @@ struct ToolbarView: View {
     @ObservedObject private var devModeStore = DevModeStore.shared
     @State private var isBookmarked: Bool = false
     @State private var omniboxIsFocused: Bool = false
+    @AppStorage(DefaultsKeys.hiddenTrailingToolbarItems.rawValue) private var hiddenTrailingItemsRaw = ""
+
+    private var hiddenTrailingItems: Set<ToolbarTrailingItem> {
+        Set(hiddenTrailingItemsRaw.split(separator: ",").compactMap { ToolbarTrailingItem(rawValue: String($0)) })
+    }
+
+    private func setTrailingItem(_ item: ToolbarTrailingItem, hidden: Bool) {
+        var set = hiddenTrailingItems
+        if hidden { set.insert(item) } else { set.remove(item) }
+        hiddenTrailingItemsRaw = ToolbarTrailingItem.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
 
     var body: some View {
         let topRadius: CGFloat = emptyPage ? 10 : 0
@@ -119,26 +130,25 @@ struct ToolbarView: View {
                 
                 // Trailing buttons container
                 if !emptyPage {
+                    let hidden = hiddenTrailingItems
                     HStack(spacing: 0) {
                         if let nativeKey = snapshot.nativeKey {
                             #if os(macOS)
                             OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
                             #endif
-                        } else if let webContentID {
+                        } else if let webContentID, !hidden.contains(.cleanMode) {
                             CleanModeStatusButton(webContentID: webContentID)
-//                                .tint(colorScheme?.foreground.color ?? Color.primary)
-//                                .padding(.trailing)
                         }
 
                         #if os(macOS)
                         // Webapp "tab" entry points (hidden when none installed)
-                        if let webContentID, snapshot.nativeKey == nil {
+                        if let webContentID, snapshot.nativeKey == nil, !hidden.contains(.extensions) {
                             TabExtensionsMenuButton(webContentID: webContentID, url: snapshot.url)
                         }
                         #endif
                                             
                         // Dev mode's one extra control: mobile viewport on/off.
-                        if let devDomain = devModeDomain(snapshot: snapshot), devModeStore.isEnabled(for: devDomain) {
+                        if !hidden.contains(.mobileViewport), let devDomain = devModeDomain(snapshot: snapshot), devModeStore.isEnabled(for: devDomain) {
                             let mobile = devModeStore.config(for: devDomain).mobile
                             Button(action: { devModeStore.modify(devDomain) { $0.mobile.toggle() } }) {
                                 Image(systemName: mobile ? "iphone.gen3" : "iphone.gen3.slash")
@@ -148,17 +158,19 @@ struct ToolbarView: View {
                             .help(mobile ? "Turn off mobile viewport" : "Turn on mobile viewport")
                         }
 
-                        Button(action: toggleBookmark) {
-                            Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                                .imageScale(.medium)
-                                .help(isBookmarked ? "Remove Bookmark" : "Add Bookmark")
+                        if !hidden.contains(.bookmark) {
+                            Button(action: toggleBookmark) {
+                                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                                    .imageScale(.medium)
+                                    .help(isBookmarked ? "Remove Bookmark (⌘D)" : "Add Bookmark (⌘D)")
+                            }
+                            .buttonStyle(ToolbarButtonStyle())
+                            .disabled(snapshot.url == nil)
+                            .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
                         }
-                        .buttonStyle(ToolbarButtonStyle())
-                        .disabled(snapshot.url == nil)
-                        .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
                         
                         // Close pane button (only visible in split view)
-                        if snapshot.hasMultiplePanes {
+                        if snapshot.hasMultiplePanes, !hidden.contains(.closePane) {
                             Button(action: closeCurrentPane) {
                                 Image(systemName: "xmark")
                                     .imageScale(.medium)
@@ -168,7 +180,7 @@ struct ToolbarView: View {
                         }
 
                         // New split pane button (only on the last pane)
-                        if snapshot.isLastPane {
+                        if snapshot.isLastPane, !hidden.contains(.newSplitPane) {
                             Button(action: addSplitPane) {
                                 Image(systemName: "plus")
                                     .imageScale(.medium)
@@ -176,8 +188,22 @@ struct ToolbarView: View {
                             .buttonStyle(ToolbarButtonStyle())
                             .help("New split pane")
                         }
+
+                        // Always-present grab area so the customization menu is reachable even when every button is hidden.
+                        Color.clear.frame(width: 8, height: UIConstants.macHeaderHeight)
                     }
                     .padding(.trailing, 8)
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        Section("Toolbar Buttons") {
+                            ForEach(ToolbarTrailingItem.allCases, id: \.self) { item in
+                                Toggle(item.title, isOn: Binding(
+                                    get: { !hidden.contains(item) },
+                                    set: { setTrailingItem(item, hidden: !$0) }
+                                ))
+                            }
+                        }
+                    }
                 }
             }
             .frame(height: UIConstants.macHeaderHeight)
@@ -237,6 +263,7 @@ struct ToolbarView: View {
             }
             .buttonStyle(ToolbarButtonStyle())
             .disabled(!snapshot.canGoBack)
+            .help("Back (⌘[)")
 
             // Forward button
             Button(action: goForward) {
@@ -245,6 +272,7 @@ struct ToolbarView: View {
             }
             .buttonStyle(ToolbarButtonStyle())
             .disabled(!snapshot.canGoForward)
+            .help("Forward (⌘])")
 
             if case .fileBrowser(let path) = snapshot.nativeKey {
                 let parent = fileBrowserParentPath(path)
@@ -262,6 +290,7 @@ struct ToolbarView: View {
                         .imageScale(.medium)
                 }
                 .buttonStyle(ToolbarButtonStyle())
+                .help("Reload (⌘R)")
             }
         }
     }
@@ -345,6 +374,28 @@ struct ToolbarView: View {
     private func addSplitPane() {
         guard let windowID else { return }
         browserStore.createTab(withURL: nil, in: windowID, activate: true, inCurrentSplit: true)
+    }
+}
+
+/// Buttons on the toolbar's trailing edge that the user can hide via right-click.
+/// Persisted in `DefaultsKeys.hiddenTrailingToolbarItems`.
+enum ToolbarTrailingItem: String, CaseIterable {
+    case cleanMode
+    case extensions
+    case mobileViewport
+    case bookmark
+    case closePane
+    case newSplitPane
+
+    var title: String {
+        switch self {
+        case .cleanMode: return "Clean Mode"
+        case .extensions: return "Extensions"
+        case .mobileViewport: return "Mobile Viewport (Dev Mode)"
+        case .bookmark: return "Bookmark"
+        case .closePane: return "Close Pane"
+        case .newSplitPane: return "New Split Pane"
+        }
     }
 }
 

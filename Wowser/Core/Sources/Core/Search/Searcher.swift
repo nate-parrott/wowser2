@@ -6,8 +6,10 @@ import CoreML
 /// How strongly a query matched the "Ask Agent" heuristics.
 enum AskAgentMatchStrength: Equatable {
     case explicit      // ">" prefix — user asked for the agent by name
+    case classified    // the ML classifier says this needs an AI answer
     case trigger       // trailing "?", >4 words, or a full trigger phrase
     case triggerPrefix // the query is a prefix of a trigger phrase ("summ…")
+    case fallback      // any multi-word query gets an agent row at the bottom
 }
 
 struct SearchableItem: Equatable {
@@ -120,12 +122,16 @@ struct SearchResult: Equatable, Identifiable {
             }
         case .askAgent(_, let match):
             // Explicit ">" invocations go to the top (under a literal URL);
-            // full triggers sit under the "Search Google" row; mere prefixes of
-            // a trigger phrase ("summ…") rank a bit lower still.
+            // classifier-detected AI queries beat the "Search Google" row;
+            // full triggers sit under it; mere prefixes of a trigger phrase
+            // ("summ…") rank a bit lower still; the always-on multi-word
+            // fallback sits at the very bottom.
             switch match {
             case .explicit: return 99
+            case .classified: return 11
             case .trigger: return 5
             case .triggerPrefix: return 3
+            case .fallback: return 0.1
             }
         }
     }
@@ -233,8 +239,8 @@ extension CharacterSet {
             for oldItem in prevResults.dropFirst(fastPath.count) {
                 showNow.append(oldItem)
             }
-            self.results = Array(showNow.deduplicate({ $0.item.dedupeKey }).prefix(n))
-            
+            self.results = ensuringAskAgentResult(Array(showNow.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query)
+
             // Now do slow path:
             Task {
                 // Run more comprehensive slow path search
@@ -242,7 +248,7 @@ extension CharacterSet {
                 if self.query != query {
                     return
                 }
-                self.results = Array(slowResults.deduplicate({ $0.item.dedupeKey }).prefix(n))
+                self.results = ensuringAskAgentResult(Array(slowResults.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query)
             }
         }
     }
@@ -299,16 +305,21 @@ extension CharacterSet {
             results.append(.navItem(query))
         }
         
-//        if classification == .chat {
-//            results.append(.chatbot(query))
-//        }
         results.append(.searchYouTyped(query))
 
         #if os(macOS)
-        // "Ask agent" — only for queries that look like questions/tasks (or an
-        // explicit ">" prefix); ranked by score like everything else.
+        // "Ask agent" (instachat) — explicit ">" prefix, question/task
+        // heuristics, or the ML classifier saying the query needs an AI
+        // answer (which upranks it above the plain search row). Ranked by
+        // score like everything else.
+        var agentResult: SearchResult?
         if let trigger = Searcher.askAgentTrigger(query: query) {
-            let agentResult = SearchResult.askAgent(trigger.query, match: trigger.match)
+            let match: AskAgentMatchStrength = (classification == .chat && trigger.match != .explicit) ? .classified : trigger.match
+            agentResult = SearchResult.askAgent(trigger.query, match: match)
+        } else if classification == .chat, let fallbackQuery = Searcher.askAgentFallbackQuery(query) {
+            agentResult = SearchResult.askAgent(fallbackQuery, match: .classified)
+        }
+        if let agentResult {
             if let insertBefore = results.firstIndex(where: { agentResult.score > $0.score }) {
                 results.insert(agentResult, at: insertBefore)
             } else {
@@ -487,6 +498,40 @@ extension CharacterSet {
             return (trimmed, .triggerPrefix)
         }
         return nil
+    }
+
+    /// The query to use for the always-available "Ask Agent" (instachat) row:
+    /// any 2+ word query that isn't a URL, path, or explicit ">" invocation.
+    static func askAgentFallbackQuery(_ query: String) -> String? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.split(separator: " ").count >= 2 else { return nil }
+        if trimmed.hasPrefix(">") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") { return nil }
+        if URL.withNaturalString(trimmed) != nil { return nil }
+        return trimmed
+    }
+
+    /// Instachat is always reachable: every multi-word query keeps an
+    /// "Ask Agent" row in the final list — at the bottom, unless the
+    /// heuristics/classifier already ranked one higher.
+    func ensuringAskAgentResult(_ results: [SearchResult], query: String) -> [SearchResult] {
+        #if os(macOS)
+        guard let fallbackQuery = Searcher.askAgentFallbackQuery(query) else { return results }
+        let hasAgentRow = results.contains(where: {
+            if case .askAgent = $0.item.content { return true }
+            return false
+        })
+        if hasAgentRow { return results }
+        var results = results
+        let fallback = SearchResult.askAgent(fallbackQuery, match: .fallback)
+        if results.count >= n, !results.isEmpty {
+            results[results.count - 1] = fallback
+        } else {
+            results.append(fallback)
+        }
+        return results
+        #else
+        return results
+        #endif
     }
 
     private func historyMatches(query: NormalizedSearchableString, limit: Int) async -> [SearchResult] {

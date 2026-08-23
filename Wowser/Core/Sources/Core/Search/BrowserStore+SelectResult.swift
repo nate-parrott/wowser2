@@ -62,30 +62,38 @@ extension BrowserStore {
         }
     }
     
-    // Load a URL in the current tab or create a new one
-    private func loadURL(_ url: URL, windowID: ID<WindowState>, forceNewTab: Bool) {
+    // Load a URL in the current tab or create a new one.
+    // If `via` is given, it's loaded first so it lands in the back stack
+    // (e.g. the search results page behind a go-direct navigation).
+    private func loadURL(_ url: URL, via: URL? = nil, windowID: ID<WindowState>, forceNewTab: Bool) {
         BrowserStore.shared.modify { state in
+            let paneId: ID<WebContent>
             if !forceNewTab,
                let currentTabId = state.windows[windowID]?.currentTab,
                let tab = state.tabs[currentTabId],
-               let paneId = tab.panes[tab.focusedPaneIdx]?.id {
-                
+               let focusedPaneId = tab.panes[tab.focusedPaneIdx]?.id {
+                paneId = focusedPaneId
                 state.modifyPaneAndTab(forWebContentId: paneId) { pane, _ in
-                    pane.info = WebContent.Info(url: url)
-                }
-                
-                // After state update, we need to load the URL in the WebContent
-                DispatchQueue.main.async {
-                    if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneId, toBeActiveInWindow: windowID) {
-                        webContent.load(url: url)
-                    }
+                    pane.info = WebContent.Info(url: via ?? url)
                 }
             } else {
                 // Create a new tab with the URL
-                let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: url))])
+                paneId = .assign()
+                let tab = Tab(id: .assign(), panes: [.init(id: paneId, info: .init(url: via ?? url))])
                 let location = state.insertionIndex(window: windowID, spawningTabId: nil)
                 state.insertTab(tab, location: location, inWindow: windowID)
                 state.activate(tabId: tab.id, in: windowID)
+            }
+
+            // After state update, load the URL in the WebContent
+            DispatchQueue.main.async {
+                if let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneId, toBeActiveInWindow: windowID) {
+                    if let via {
+                        webContent.load(url: via, thenLoad: url)
+                    } else {
+                        webContent.load(url: url)
+                    }
+                }
             }
         }
     }
@@ -110,7 +118,9 @@ extension BrowserStore {
     // Perform "I'm feeling lucky" search
     private func performImFeelingLucky(_ query: String, windowID: ID<WindowState>, forceNewTab: Bool) {
         if let luckyURL = URL.duckDuckGoLuckyURL(for: query) {
-            loadURL(luckyURL, windowID: windowID, forceNewTab: forceNewTab)
+            // Put the search results page in the back stack first, so the user
+            // can hit Back if the guess was wrong.
+            loadURL(luckyURL, via: SearchEngine.current.urlForQuery(query), windowID: windowID, forceNewTab: forceNewTab)
         }
     }
     

@@ -52,6 +52,21 @@ extension BrowserState {
         return id
     }
 
+    /// Reorders profiles by moving `movingID` to `targetID`'s position.
+    /// Rewrites `creationOrder` for all profiles (hidden ones keep their relative order).
+    public mutating func moveProfile(_ movingID: ID<Profile>, toPositionOf targetID: ID<Profile>) {
+        guard movingID != targetID, profiles[movingID] != nil, profiles[targetID] != nil else { return }
+        var ordered = profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }).map(\.id)
+        guard let fromIdx = ordered.firstIndex(of: movingID) else { return }
+        ordered.remove(at: fromIdx)
+        guard let toIdx = ordered.firstIndex(of: targetID) else { return }
+        // Dragging rightward lands after the target; leftward lands before it.
+        ordered.insert(movingID, at: fromIdx <= toIdx ? toIdx + 1 : toIdx)
+        for (idx, id) in ordered.enumerated() {
+            profiles[id]?.creationOrder = idx
+        }
+    }
+
     // MARK: - Hiding profiles
 
     /// Profiles the user can currently see, in creation order.
@@ -285,6 +300,10 @@ extension BrowserState {
         if let id {
             modifyTab(id: id) { tab in
                 tab.lastAccessed = Date()
+                // Activating a pip tab in a window brings it back to main
+                // content — the same webview can't live in both places.
+                tab.pipMode = nil
+                tab.pipOpen = nil
             }
         }
     }

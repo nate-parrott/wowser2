@@ -6,6 +6,9 @@ public enum GeneratedPageKey: Hashable, Codable {
 
     init?(url: URL) {
         guard url.absoluteString.hasPrefix("about:blank") else { return nil }
+        // Native pages (e.g. agent chat tabs) also live on about:blank and can
+        // carry a `q` param — those aren't ours.
+        guard url.queryParam(name: "native") == nil else { return nil }
         if let q = url.queryParam(name: "q") {
             let page = Int(url.queryParam(name: "page") ?? "0") ?? 0
             if url.queryParam(name: "images") != nil {

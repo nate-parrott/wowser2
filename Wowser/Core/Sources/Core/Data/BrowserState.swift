@@ -38,6 +38,13 @@ public struct Tab: Equatable, Identifiable, Codable {
     public var focusedPaneIdx = 0
     public var customTitle: String?
     public var customEmoji: String? // User-chosen emoji shown in place of the favicon
+    /// Picture-in-picture mode: the tab doesn't open in the window's main
+    /// content; instead it shows as a floating panel. Optional for
+    /// decode-compat with previously persisted states — read via `isPip`.
+    public var pipMode: Bool?
+    /// Whether the floating pip panel is currently shown (only meaningful when
+    /// `pipMode == true`). Toggled by clicking the tab in the sidebar.
+    public var pipOpen: Bool?
 
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -51,6 +58,9 @@ public struct Tab: Equatable, Identifiable, Codable {
 
     /// True when this tab is showing more than one pane side-by-side.
     public var isSplit: Bool { panes.count > 1 }
+
+    /// True when this tab is in picture-in-picture mode (see `pipMode`).
+    public var isPip: Bool { pipMode == true }
 }
 
 public struct AITags: Equatable, Codable {
@@ -731,6 +741,11 @@ extension BrowserState {
     
     var validLiveWebContentIds: Set<ID<WebContent>> {
         return tabs.values.flatMap { tab -> [ID<WebContent>] in
+            // Pip tabs live in a floating panel, not a window; keep them alive
+            // regardless of lastActiveInWindow.
+            if tab.isPip {
+                return tab.panes.map(\.id)
+            }
             // Was this tab last active in a living window?
             if let winId = tab.lastActiveInWindow, self.windows[winId] != nil {
                 return tab.panes.map(\.id)

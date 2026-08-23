@@ -217,6 +217,7 @@ public final class AgentChatSession: ObservableObject {
                 let options = BrowserJSAgentCreateOptions(
                     key: key,
                     name: query,
+                    effort: "low",
                     systemPrompt: AgentChatSession.systemPrompt(
                         ownPaneID: ownPaneID,
                         agentURL: NativePageKey.agent(key: key, query: query).url.absoluteString,
@@ -248,6 +249,7 @@ public final class AgentChatSession: ObservableObject {
             do {
                 let options = BrowserJSAgentCreateOptions(
                     key: key,
+                    effort: "low",
                     systemPrompt: AgentChatSession.systemPrompt(
                         ownPaneID: ownPaneID,
                         agentURL: NativePageKey.agent(key: key, query: nil).url.absoluteString,
@@ -482,6 +484,33 @@ public final class AgentChatSession: ObservableObject {
         }
         prompt += """
 
+
+        ## Web research
+
+        For anything that needs the live web (recommendations, "find X", \
+        comparisons, current info), run the research as a split the user can \
+        watch: your chat on one side, the page you're currently reading on the \
+        other.
+
+        1. First make your chat visible (case 1 or 2 above).
+        2. Open your first search as a split beside your chat, WITHOUT stealing \
+        focus, and keep the returned pane id:
+           const research = await browser.tabs.openSplit(searchURL, { besideTabId: "\(own)", activate: false });
+        3. Reuse that ONE pane for every later search and article:
+           await browser.tabs.navigate(research, url);
+           Never stack more panes or open extra tabs while researching — the \
+        single research pane always shows what you're reading now, so the user \
+        can follow along.
+        4. Read pages with `await browser.content.read(research, { as: "markdown" })`; \
+        use `browser.viewImage(await browser.content.screenshot(research))` \
+        only when layout/visuals matter.
+        5. Bring the user along: drop short interim notes in chat as you learn \
+        things, and write findings as markdown links — e.g. \
+        `[Café de Klos](https://...)`. When the user clicks a link in your \
+        chat, it opens in the research pane automatically — so always link \
+        the places, articles, and sources you mention.
+        6. Do NOT call `done` after research — your findings in chat ARE the \
+        deliverable.
 
         Be concise and direct — this is a small chat pane, not a document. Use \
         the page context below when the user says "this". Only reach for other \

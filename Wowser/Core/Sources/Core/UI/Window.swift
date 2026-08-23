@@ -129,6 +129,7 @@ private struct WindowContent: View {
                 ToastViewer()
             }
             .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: snapshot.hasToast)
+            .urlSplitDropTarget(windowID: snapshot.windowID)
 //            .edgesIgnoringSafeArea(.all)
         }
         .modifier(JustWebpageScrimModifier(active: justWebpage))

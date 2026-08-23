@@ -81,6 +81,10 @@ public class WebContent: NSObject, ObservableObject {
         public var isSecure = false
         public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and false
         public var recipeDetected: Bool? // Always being checked
+        /// True when the page's viewport meta tag declares width=device-width,
+        /// i.e. the page is mobile-responsive. Drives the pip panel's logical
+        /// rendering width.
+        public var mobileViewport: Bool?
         public var failedNavToURL: FailedNav?
         /// Native terminal tabs only: the command the PTY's foreground process
         /// group is running (e.g. "npm run dev"), or nil at the shell prompt.
@@ -154,6 +158,11 @@ public class WebContent: NSObject, ObservableObject {
 
     public func load(url: URL) {}
     public func load(request: URLRequest) {}
+    /// Loads `url`, and as soon as it commits (so it has a back/forward
+    /// entry), loads `next`. Used to seed a back-stack entry (e.g. the search
+    /// results page) when the omnibox jumps straight to a site. Engines that
+    /// don't support this just load `next`.
+    public func load(url: URL, thenLoad next: URL) { load(url: next) }
     public func load(html: String, baseURL: URL?) {}
     public func goBack() {}
     public func goForward() {}
@@ -166,6 +175,9 @@ public class WebContent: NSObject, ObservableObject {
     public func zoomOut() {}
     /// Resets the zoom level to the default value
     public func resetZoom() {}
+    /// Sets an absolute page zoom (used by pip panels to render the page at a
+    /// fixed logical width and scale it to fill the panel).
+    public func setPageZoom(_ zoom: CGFloat) {}
 
     public var silenced = false {
         didSet(old) {

@@ -236,6 +236,13 @@ struct PlaceholderFavoriteCell: View {
 
 // Helper functions
 func didClickTabToSelect(tabID: ID<Tab>, windowID: ID<WindowState>) {
+    // Pip tabs never open in main content; clicking toggles the floating panel
+    if BrowserStore.shared.model.tabs[tabID]?.isPip == true {
+        BrowserStore.shared.modify { state in
+            state.togglePipOpen(tabId: tabID)
+        }
+        return
+    }
     if isOpenInSplitViewModifierKeyPressed() || multiSelectModifierPressed(),
        let curTab = BrowserStore.shared.model.windows[windowID]?.currentTab,
        curTab != tabID

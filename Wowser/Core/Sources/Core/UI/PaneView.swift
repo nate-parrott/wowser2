@@ -6,6 +6,9 @@ struct PaneView: View {
     var singlePane: Bool
     var topbarVisible: Bool
     var toolbarColorScheme: ContentColorScheme?
+    /// Don't mount the toolbar at all (pip panels). `topbarVisible: false`
+    /// only offsets it up offscreen, which leaves it hit-testable.
+    var toolbarHidden = false
 
     @State private var searchText: String = ""
     @State private var selectedResultIndex = 0
@@ -49,27 +52,29 @@ struct PaneView: View {
                     .padding(.top, emptyPageTopPadding)
             }
             
-            ToolbarView(
-                webContentID: snapshot.webContentId,
-                searcher: searcher,
-                searchText: $searchText,
-                selectedResultIndex: $selectedResultIndex,
-                colorScheme: toolbarColorScheme,
-                emptyPage: snapshot.emptyPage
-            )
-            .overlay(alignment: .bottom) {
-                if !snapshot.emptyPage {
-                    (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
-                        .frame(height: 1)
+            if !toolbarHidden {
+                ToolbarView(
+                    webContentID: snapshot.webContentId,
+                    searcher: searcher,
+                    searchText: $searchText,
+                    selectedResultIndex: $selectedResultIndex,
+                    colorScheme: toolbarColorScheme,
+                    emptyPage: snapshot.emptyPage
+                )
+                .overlay(alignment: .bottom) {
+                    if !snapshot.emptyPage {
+                        (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
+                            .frame(height: 1)
+                    }
                 }
-            }
 //            .blur(radius: !topbarVisible ? 5 : 0)
-            .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
-                .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
-                .padding(.horizontal, emptyPageSearchPadding)
-                .padding(.top, emptyPageTopPadding)
-                .id(snapshot.emptyPage)
+                .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
+                    .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
+                    .padding(.horizontal, emptyPageSearchPadding)
+                    .padding(.top, emptyPageTopPadding)
+                    .id(snapshot.emptyPage)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
+            }
             
             if snapshot.emptyPage, !singlePane {
                 closeButton.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)

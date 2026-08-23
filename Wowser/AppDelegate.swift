@@ -155,6 +155,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }.store(in: &subscriptions)
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
+        PipPanelManager.shared.start()
 
         Task {
             do {

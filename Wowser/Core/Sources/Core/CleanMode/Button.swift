@@ -14,7 +14,7 @@ struct CleanModeStatusButton: View {
         Button(action: { status.toggle(paneID: webContentID) }) {
             Image(systemName: status.style.active ? "book.fill" : "book")
                 .imageScale(.medium)
-                .help(status.style.title)
+                .help("\(status.style.title) (⌘K)")
         }
         .buttonStyle(ToolbarButtonStyle())
         .disabled(status.disabled)

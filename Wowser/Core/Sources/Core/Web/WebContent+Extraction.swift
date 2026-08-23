@@ -7,7 +7,8 @@ struct WebContentExtractedData: Equatable, Codable {
     var readyState: String?
     var jsURL: URL?
     var isRecipe: Bool?
-    
+    var mobileViewport: Bool?
+
     var isReady: Bool {
         readyState == "interactive" || readyState == "complete"
     }
@@ -34,6 +35,10 @@ extension WebContentWebKit {
         }
         
         result.isRecipe = \(RecipeExtraction.recipeCheckExpression)
+
+        // Mobile-responsive detection via the viewport meta tag
+        const viewportMeta = document.querySelector('meta[name="viewport"]');
+        result.mobileViewport = !!(viewportMeta && /width\\s*=\\s*device-width/i.test(viewportMeta.content || ''));
         
         return result;
         """.wrappedInSelfCallingJSFunction, resultType: WebContentExtractedData.self)

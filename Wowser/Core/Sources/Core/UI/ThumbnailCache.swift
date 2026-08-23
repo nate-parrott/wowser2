@@ -48,17 +48,33 @@ public class ThumbnailCache {
     
     private func captureAllPaneThumbnails(tabId: ID<Tab>) {
         guard let tab = BrowserStore.shared.model.tabs[tabId] else { return }
-        
+
         // Take screenshots of all panes in the tab
         for pane in tab.panes {
             let paneId = pane.id
-            
-            Task {
-                // Only thumbnail panes that are already loaded — an unloaded pane has
-                // nothing on screen to capture, and forcing one to load here would
-                // instantiate a WKWebView that never gets reclaimed.
-                guard let webContent = BrowserStore.shared.existingWebContent(forId: paneId) else { return }
 
+            // Only thumbnail panes that are already loaded — an unloaded pane has
+            // nothing on screen to capture, and forcing one to load here would
+            // instantiate a WKWebView that never gets reclaimed.
+            guard let webContent = BrowserStore.shared.existingWebContent(forId: paneId) else { continue }
+
+            // Native pages (terminal, chat, file browser) render as overlays on top
+            // of the WKWebView, so a WK snapshot captures a blank page. Snapshot the
+            // pane's on-screen region instead — synchronously, because this runs
+            // from the store's publisher before SwiftUI tears the outgoing tab's
+            // views down. (VS Code renders inside the webview itself, so it takes
+            // the WK path.)
+            #if os(macOS)
+            if let key = webContent.info.url.flatMap(NativePageKey.init(url:)), !key.isVSCode {
+                if let image = Self.captureNativePaneImage(webContent: webContent) {
+                    cache.setObject(image, forKey: paneId.raw as NSString)
+                    cacheUpdateCount += 1
+                }
+                continue
+            }
+            #endif
+
+            Task {
                 // High-performance screenshot configuration
                 let config = WKSnapshotConfiguration()
                 config.afterScreenUpdates = false // Don't wait for screen updates for better performance
@@ -79,6 +95,23 @@ public class ThumbnailCache {
         }
     }
     
+    #if os(macOS)
+    /// Snapshots the pane's on-screen region (native overlays included) by
+    /// drawing the window's content view within the webview's frame. Only valid
+    /// while the pane is still in a window.
+    private static func captureNativePaneImage(webContent: WebContent) -> NSImage? {
+        guard let wkWebview = webContent.wkWebview,
+              let root = wkWebview.window?.contentView,
+              wkWebview.bounds.width > 1, wkWebview.bounds.height > 1 else { return nil }
+        let rect = wkWebview.convert(wkWebview.bounds, to: root)
+        guard let rep = root.bitmapImageRepForCachingDisplay(in: rect) else { return nil }
+        root.cacheDisplay(in: rect, to: rep)
+        let image = NSImage(size: rect.size)
+        image.addRepresentation(rep)
+        return image
+    }
+    #endif
+
     public func getThumbnail(for contentId: ID<WebContent>) -> UINSImage? {
         return cache.object(forKey: contentId.raw as NSString)
     }

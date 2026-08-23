@@ -53,6 +53,27 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         webview.load(request)
     }
 
+    /// (navigation, next): once `navigation` commits or fails, load `next`.
+    private var loadAfterCommit: (WKNavigation, URL)?
+
+    public override func load(url: URL, thenLoad next: URL) {
+        loadAfterCommit = nil
+        if let nav = webview.load(.init(url: url)) {
+            loadAfterCommit = (nav, next)
+        } else {
+            webview.load(.init(url: next))
+        }
+    }
+
+    /// Returns true if a queued follow-up load was kicked off for `navigation`.
+    private func performLoadAfterCommitIfNeeded(for navigation: WKNavigation?) -> Bool {
+        guard let (nav, next) = loadAfterCommit else { return false }
+        if let navigation, nav !== navigation { return false }
+        loadAfterCommit = nil
+        webview.load(.init(url: next))
+        return true
+    }
+
     public override func load(html: String, baseURL: URL?) {
         webview.loadHTMLString(html, baseURL: baseURL)
     }
@@ -301,8 +322,17 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         #endif
     }
 
+    public override func setPageZoom(_ zoom: CGFloat) {
+        #if os(macOS)
+        if webview.pageZoom != zoom {
+            webview.pageZoom = zoom
+        }
+        #endif
+    }
+
     // MARK: - WKNavigationDelegate
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
+        if performLoadAfterCommitIfNeeded(for: navigation) { return }
         if let failedURL = info.oldOnscreenURL {
             self.info.failedNavToURL = .init(url: failedURL, error: .generic("\(error)"))
         }
@@ -326,6 +356,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         info.oldOnscreenURL = nil
         info.failedNavToURL = nil
         needsMetadataRefresh()
+        _ = performLoadAfterCommitIfNeeded(for: navigation)
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -448,6 +479,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
                     self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
                     self.info.ogImage = extracted.ogImage
                     self.info.recipeDetected = extracted.isRecipe?.nilIfFalse
+                    self.info.mobileViewport = extracted.mobileViewport
 //                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
                 }
             } catch {

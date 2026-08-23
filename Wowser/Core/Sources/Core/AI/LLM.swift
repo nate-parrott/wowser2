@@ -27,6 +27,34 @@ public enum LLMChoice: String, Equatable, Codable, CaseIterable {
     case anthropic_custom
 }
 
+public extension LLMChoice {
+    var displayName: String {
+        switch self {
+        case .openrouter_gpt_5_4_nano: return "OpenRouter - GPT-5.4 Nano"
+        case .openrouter_gemini_2_flash: return "OpenRouter - Gemini 2 Flash"
+        case .openrouter_gpt_4o: return "OpenRouter - GPT-4o"
+        case .openrouter_gpt_4o_mini: return "OpenRouter - GPT-4o Mini"
+        case .openrouter_llama_33_70b: return "OpenRouter - Llama 3.3 70B"
+        case .openrouter_haiku_35: return "OpenRouter - Claude 3.5 Haiku"
+        case .openrouter_custom: return "OpenRouter - Custom"
+
+        case .openai_gpt_5_4_nano: return "OpenAI - GPT-5.4 Nano"
+        case .openai_gpt4o_mini: return "OpenAI - GPT-4o Mini"
+        case .openai_gpt4o: return "OpenAI - GPT-4o"
+        case .openai_custom: return "OpenAI - Custom"
+
+        case .ollama_gemma_3_1b: return "Ollama - Gemma 3 1B"
+        case .ollama_gemma_3_4b: return "Ollama - Gemma 3 4B"
+        case .ollama_gemma_3_4b_qat: return "Ollama - Gemma 3 4B Quantized"
+        case .ollama_gemma_3_12b: return "Ollama - Gemma 3 12B"
+        case .ollama_custom: return "Ollama - Custom"
+
+        case .anthropic_haiku_35: return "Anthropic - Claude 3.5 Haiku"
+        case .anthropic_custom: return "Anthropic - Custom"
+        }
+    }
+}
+
 enum LLMs {
     static func currentOrThrow(json: Bool) throws -> any ChatLLM {
         if let cur = current(json: json) {
@@ -43,9 +71,36 @@ enum LLMs {
     }
     
     static func current(json: Bool) -> (any ChatLLM)? {
-        guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue(defaultValue: LLMChoice.openai_gpt_5_4_nano.rawValue)) else {
+        guard let choice = LLMChoice(rawValue: DefaultsKeys.llmChoice.stringValue(defaultValue: LLMChoice.openai_gpt_5_4_nano.rawValue)),
+              var model = model(for: choice, json: json) else {
             return nil
         }
+        if var gpt = model as? ChatGPT {
+            if gpt.options.baseURL == .openRouterOpenAIChatEndpoint {
+                gpt.options.requestUsageAccounting = true // OpenRouter reports tokens + cost in the final stream chunk
+            }
+            gpt.reportUsage = { AIRequestLog.shared.recordUsage($0) }
+            model = gpt
+        }
+        return LoggingLLM(inner: model, modelName: modelDescription(for: choice))
+    }
+
+    private static func modelDescription(for choice: LLMChoice) -> String {
+        switch choice {
+        case .openrouter_custom:
+            return DefaultsKeys.openrouterCustomModel.stringValue().nilIfEmpty.map { "OpenRouter - \($0)" } ?? choice.displayName
+        case .openai_custom:
+            return DefaultsKeys.openAICustomModel.stringValue().nilIfEmpty.map { "OpenAI - \($0)" } ?? choice.displayName
+        case .ollama_custom:
+            return DefaultsKeys.ollamaCustomModel.stringValue().nilIfEmpty.map { "Ollama - \($0)" } ?? choice.displayName
+        case .anthropic_custom:
+            return DefaultsKeys.anthropicCustomModel.stringValue().nilIfEmpty.map { "Anthropic - \($0)" } ?? choice.displayName
+        default:
+            return choice.displayName
+        }
+    }
+
+    private static func model(for choice: LLMChoice, json: Bool) -> (any ChatLLM)? {
         switch choice {
         case .openrouter_gpt_5_4_nano:
             if let key = DefaultsKeys.openrouterKey.stringValue().nilIfEmpty {
@@ -187,8 +242,9 @@ enum LLMs {
     }
     
     static func current_fnCalling() -> (any FunctionCallingLLM)? {
-        guard let model = self.current(json: false) else { return nil }
-        return model as? FunctionCallingLLM
+        // LoggingLLM always conforms to FunctionCallingLLM, so check the wrapped model
+        guard let model = self.current(json: false) as? LoggingLLM, model.inner is FunctionCallingLLM else { return nil }
+        return model
     }
 }
 

@@ -39,6 +39,11 @@ private struct AgentChatContent: View {
     @State private var viewportHeight: CGFloat = 400
     @State private var distanceFromBottom: CGFloat = 0
     @State private var lastJumpedToIndex: Int?
+    @State private var didAppear = false
+    // Saved offset we still owe the scroll view: applied once the transcript has
+    // laid out enough height to honor it. Until then, don't overwrite
+    // session.savedScrollY with the clamped-to-top offset.
+    @State private var pendingScrollRestoreY: CGFloat?
     @State private var inputText = ""
     @FocusState private var inputFocused: Bool
 
@@ -56,9 +61,16 @@ private struct AgentChatContent: View {
         })
         .onAppear {
             session.attachIfNeeded(ownPaneID: paneID)
+            lastJumpedToIndex = latestJumpTarget
             if let saved = session.savedScrollY {
+                pendingScrollRestoreY = saved
                 scrollPos.scrollTo(y: saved)
+            } else if let target = latestJumpTarget {
+                // Reopening an existing transcript with no remembered position:
+                // land on the latest message immediately, no animation.
+                scrollPos.scrollTo(id: target, anchor: .top)
             }
+            didAppear = true
         }
         .onReceiveFocusSnap(windowID: windowID) { snap in
             if snap.target == .agentChat(paneID) {
@@ -140,9 +152,20 @@ private struct AgentChatContent: View {
                 distanceFromBottom: geo.contentSize.height - geo.containerSize.height - geo.contentOffset.y
             )
         } action: { _, info in
-            session.savedScrollY = info.offsetY
             viewportHeight = info.viewportHeight
             distanceFromBottom = info.distanceFromBottom
+            guard didAppear else { return }
+            if let pending = pendingScrollRestoreY {
+                let maxOffset = info.offsetY + info.distanceFromBottom
+                guard maxOffset > 0 else { return } // transcript hasn't laid out yet
+                pendingScrollRestoreY = nil
+                let target = min(pending, maxOffset)
+                if abs(info.offsetY - target) >= 2 {
+                    scrollPos.scrollTo(y: target)
+                    return
+                }
+            }
+            session.savedScrollY = info.offsetY
         }
         .onChange(of: latestJumpTarget) { _, newValue in
             guard let newValue, newValue != lastJumpedToIndex else { return }
@@ -164,6 +187,11 @@ private struct AgentChatContent: View {
             Text("Working…")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            Button("Stop") { session.interrupt() }
+                .buttonStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .underline()
         }
     }
 

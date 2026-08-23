@@ -108,7 +108,12 @@ private struct SearchResultRow: View {
             .contentShape(Rectangle())
             .lineLimit(1)
         }
-        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected))
+        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, desaturatedHighlight: isDirectToSite))
+    }
+
+    private var isDirectToSite: Bool {
+        if case .imFeelingLucky = result.item.content { return true }
+        return false
     }
     
     private var titleSubtitle: (String?, String?) {

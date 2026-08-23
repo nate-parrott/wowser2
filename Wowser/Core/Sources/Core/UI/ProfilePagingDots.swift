@@ -65,6 +65,8 @@ private struct ProfileDotView: View {
     let windowID: ID<WindowState>
     let profile: Profile?
     
+    static let profileDragPrefix = "wowser-profile-drag:"
+
     @State private var showingEmojiMenu = false
     @State private var hovered = false
     @State private var dropTargeted = false
@@ -106,16 +108,26 @@ private struct ProfileDotView: View {
                     .frame(width: 24, height: 24)
             }
         }
+        .onDrag {
+            NSItemProvider(object: (Self.profileDragPrefix + profileID.raw) as NSString)
+        }
         .onDrop(of: ["public.text"], isTargeted: $dropTargeted) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: String.self) { string, _ in
                 guard let string else { return }
                 DispatchQueue.main.async {
-                    BrowserStore.shared.move(
-                        tab: ID<Tab>(raw: string),
-                        toSpace: profileID,
-                        inWindow: windowID
-                    )
+                    if string.hasPrefix(Self.profileDragPrefix) {
+                        let draggedID = ID<Profile>(raw: String(string.dropFirst(Self.profileDragPrefix.count)))
+                        BrowserStore.shared.modify { state in
+                            state.moveProfile(draggedID, toPositionOf: profileID)
+                        }
+                    } else {
+                        BrowserStore.shared.move(
+                            tab: ID<Tab>(raw: string),
+                            toSpace: profileID,
+                            inWindow: windowID
+                        )
+                    }
                 }
             }
             return true

@@ -49,10 +49,11 @@ struct TabSnapshot: Equatable {
     var tabID: ID<Tab>
     var appearance: TabAppearance
     var showSeparateSplitButton: Bool
-    
+    var isPip: Bool
+
     // Factory method to create a snapshot from a tab
     static func from(tab: Tab) -> TabSnapshot {
-        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1)
+        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1, isPip: tab.isPip)
     }
 }
 
@@ -113,6 +114,8 @@ private struct RegularTabButton: View {
                     }
                     CloseTabButton(tabID: snapshot.tabID)
                 }
+            } else if snapshot.isPip {
+                PipIndicatorButton(tabID: snapshot.tabID)
             }
         }
         .padding(.leading, isMobile() ? 14 : 8)
@@ -174,6 +177,25 @@ private struct CloseTabButton: View {
         }) {
             Image(systemName: "xmark")
                 .help("Close Tab")
+        }
+        .buttonStyle(TabAccessoryButtonStyle())
+    }
+}
+
+// Shown in the trailing position (same metrics as the close button) when a
+// tab is in pip mode. Clicking toggles the floating panel, same as clicking
+// the row itself.
+private struct PipIndicatorButton: View {
+    var tabID: ID<Tab>
+
+    var body: some View {
+        Button(action: {
+            BrowserStore.shared.modify { state in
+                state.togglePipOpen(tabId: tabID)
+            }
+        }) {
+            Image(systemName: "pip")
+                .help("Picture in Picture")
         }
         .buttonStyle(TabAccessoryButtonStyle())
     }

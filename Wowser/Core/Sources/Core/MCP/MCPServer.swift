@@ -215,7 +215,56 @@ public actor MCPServer {
                 "properties": .object([:]),
             ])
         )
-        return [runBrowserJS, saveHelper, readHelper, getDocs]
+        let reportBug = MCP.Tool(
+            name: "report_bug",
+            description: """
+            Report a bug, papercut, or point of friction you hit while using
+            this browser's tools (BrowserJS API gaps, wrong results, flaky
+            behavior, confusing docs, missing features). Call it whenever
+            something doesn't work the way you expected — even if you worked
+            around it. Entries are appended to a log the developer reads.
+            """,
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "title": .object(["type": .string("string"), "description": .string("One-line summary.")]),
+                    "details": .object(["type": .string("string"), "description": .string("What you tried, what happened, what you expected. Include the code/call that misbehaved and any workaround.")]),
+                ]),
+                "required": .array([.string("title"), .string("details")]),
+            ])
+        )
+        return [runBrowserJS, saveHelper, readHelper, getDocs, reportBug]
+    }
+
+    // MARK: - report_bug
+
+    /// Dev-only: the bug log lives in the Wowser source checkout. Returns nil
+    /// if that directory isn't present on this machine.
+    private static var agentBugLogURL: URL? {
+        // Real home dir (not a sandbox container), in case that ever changes.
+        guard let home = getpwuid(getuid())?.pointee.pw_dir.map({ String(cString: $0) }) else { return nil }
+        let repo = URL(fileURLWithPath: home).appendingPathComponent("Documents/SW/Wowser", isDirectory: true)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: repo.path, isDirectory: &isDir), isDir.boolValue else { return nil }
+        return repo.appendingPathComponent("agent_reported_bugs.md")
+    }
+
+    private static func appendBugReport(title: String, details: String) throws -> Bool {
+        guard let url = agentBugLogURL else { return false }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        let entry = "\n\n## \(formatter.string(from: Date())) — \(title.trimmingCharacters(in: .whitespacesAndNewlines))\n\n\(details.trimmingCharacters(in: .whitespacesAndNewlines))\n"
+        if FileManager.default.fileExists(atPath: url.path) {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(entry.utf8))
+        } else {
+            let header = "# Agent-reported bugs & friction (Tangerine MCP / BrowserJS)\n"
+            try Data((header + entry).utf8).write(to: url)
+        }
+        return true
     }
 
     private func handleToolCall(name: String, arguments: [String: MCP.Value]?) async -> CallTool.Result {
@@ -262,6 +311,17 @@ public actor MCPServer {
                     let json: [String: Any] = ["files": entries.map { ["name": $0.name, "content": $0.content] }]
                     let data = try JSONSerialization.data(withJSONObject: json)
                     return CallTool.Result(content: [.text(String(data: data, encoding: .utf8) ?? "{}")])
+                }
+
+            case "report_bug":
+                guard let args = arguments,
+                      case .string(let title) = args["title"] ?? .null,
+                      case .string(let details) = args["details"] ?? .null
+                else { throw BrowserJSError.invalidArgs("title, details") }
+                if try Self.appendBugReport(title: title, details: details) {
+                    return CallTool.Result(content: [.text("{\"ok\":true}")])
+                } else {
+                    return CallTool.Result(content: [.text("report_bug is unavailable on this machine (no dev checkout found)")], isError: true)
                 }
 
             case "get_browser_js_docs":

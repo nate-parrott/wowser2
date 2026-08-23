@@ -58,6 +58,16 @@ public struct TabContextMenu: View {
                         }
                     }
 
+                    if !tab.isSplit || tab.isPip {
+                        Button(action: {
+                            BrowserStore.shared.modify { state in
+                                state.setPipMode(!tab.isPip, tabId: tabID)
+                            }
+                        }) {
+                            Text(tab.isPip ? "Turn Off Picture in Picture" : "Open as Picture in Picture")
+                        }
+                    }
+
                     if isFavorite {
                         if let pane = tab.panes.first,
                            pane.baseInfo != nil,

@@ -30,6 +30,7 @@ public enum DefaultsKeys: String {
     case enableGoDirectQueries // bool
     case lastShownWelcomePageForPageVersion // int
     case searchToolbarEnabled // bool
+    case hiddenTrailingToolbarItems // string — comma-separated ToolbarTrailingItem raw values hidden from the toolbar's trailing edge (right-click the trailing buttons to toggle)
 
     case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
 
@@ -47,6 +48,10 @@ public enum DefaultsKeys: String {
     case spaceBackgroundDebugView // bool — outline the space background image's blur regions + show the recompute counter
 
     case devModeDomains // string — JSON [domain: DevModeDomainConfig]; see DevMode.swift
+
+    case lastAIRequest // string — JSON AIRequestRecord; see AIRequestLog.swift
+
+    case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }
 
 public extension DefaultsKeys {
