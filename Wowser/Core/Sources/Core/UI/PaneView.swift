@@ -47,6 +47,10 @@ struct PaneView: View {
                     searcher: searcher,
                     drawsCenteredBackdropIncludingBehindToolbar: snapshot.emptyPage // in empty-page centered mode, we draw our own backdrop in a parent
                 )
+                    // Dictation-to-agent outline around the whole new-tab card
+                    // (backdrop + toolbar). Drawn here when results are showing;
+                    // otherwise the toolbar's own highlight covers the card.
+                    .environment(\.dictationHighlightPaneID, snapshot.webContentId)
                     .padding(.top, UIConstants.macHeaderHeight)
                     .padding(.horizontal, emptyPageSearchPadding)
                     .padding(.top, emptyPageTopPadding)
@@ -69,6 +73,13 @@ struct PaneView: View {
                 }
 //            .blur(radius: !topbarVisible ? 5 : 0)
                 .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
+                    .modifier(DictationCardHighlightIfAvailable(
+                        paneID: snapshot.webContentId,
+                        cornerRadius: snapshot.emptyPage ? 10 : 0,
+                        // With results showing on the new-tab page, the results
+                        // overlay outlines the full card instead.
+                        enabled: !(snapshot.emptyPage && snapshot.searchActive && !searcher.results.isEmpty)
+                    ))
                     .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
                     .padding(.horizontal, emptyPageSearchPadding)
                     .padding(.top, emptyPageTopPadding)

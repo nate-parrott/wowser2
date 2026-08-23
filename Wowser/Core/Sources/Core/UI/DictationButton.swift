@@ -17,6 +17,7 @@ struct DictationButton: View {
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { state -> Bool in
             guard let paneID, let pane = state.pane(forId: paneID) else { return false }
+            if let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true { return true }
             return pane.info.focusedEditable != nil && !pane.info.isEmptyPage
         }) { fieldFocused in
             Button(action: toggle) {
@@ -47,7 +48,7 @@ struct DictationButton: View {
 
     private func helpText(fieldFocused: Bool) -> String {
         if isActiveForThisPane { return "Finish dictating (⌘D or Return; Esc to cancel)" }
-        if fieldFocused { return "Dictate into the focused text field (⌘D)" }
+        if fieldFocused { return "Dictate into the focused text field or terminal (⌘D)" }
         return "Dictate a question for the agent (⌘D)"
     }
 

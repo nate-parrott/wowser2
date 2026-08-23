@@ -22,9 +22,27 @@ struct DictationOverlay: View {
         controller.isActive && controller.target?.paneID == webContent.id && controller.target?.isOmnibox == false
     }
 
+    /// Terminal tabs: the whole pane is the target.
+    private var isTerminalTarget: Bool {
+        if let t = controller.target, case .terminal(let pane) = t, pane == webContent.id { return true }
+        if let t = controller.hoverPreview, case .terminal(let pane) = t, pane == webContent.id { return true }
+        return false
+    }
+
     var body: some View {
         GeometryReader { geo in
-            if let field {
+            if isTerminalTarget {
+                ZStack(alignment: .bottomLeading) {
+                    DictationOutline(active: isActive, cornerRadius: 6)
+                        .padding(3)
+                    if isActive {
+                        DictationTranscriptBubble(text: controller.transcript, phase: controller.phase)
+                            .frame(maxWidth: min(520, geo.size.width - 32), alignment: .leading)
+                            .padding(16)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+            } else if let field {
                 let zoom = webContent.wkWebview?.pageZoom ?? 1
                 let raw = CGRect(x: field.x * zoom, y: field.y * zoom, width: field.width * zoom, height: field.height * zoom)
                 let frame = raw.intersection(CGRect(origin: .zero, size: geo.size)).insetBy(dx: -4, dy: -4)
@@ -146,12 +164,33 @@ struct DictationTranscriptView: View {
     }
 }
 
-/// Applied to the omnibox container: outlines it while the mic is hovered with
-/// the omnibox as target, or while dictating to the agent from this pane. Also
-/// reports whether the live transcript should replace the omnibox text.
+/// Applied to the omnibox text area: reports whether the live transcript
+/// should replace the omnibox text (dictating to the agent from this pane).
+/// The outline itself is drawn around the whole toolbar / new-tab card by
+/// `DictationCardHighlight`.
 struct DictationOmniboxHighlight: ViewModifier {
     var paneID: ID<WebContent>?
     @Binding var shown: Bool
+
+    @ObservedObject private var controller = DictationController.shared
+
+    private var isActiveHere: Bool {
+        if let t = controller.target, case .omnibox(let pane, _) = t { return pane == paneID }
+        return false
+    }
+
+    func body(content: Content) -> some View {
+        content.onAppearOrChange(of: isActiveHere) { shown = $0 }
+    }
+}
+
+/// Outlines its content (the whole toolbar, or the new-tab page's backdrop
+/// card) while the mic is hovered with this pane's omnibox as target, or while
+/// dictating to the agent from this pane.
+struct DictationCardHighlight: ViewModifier {
+    var paneID: ID<WebContent>?
+    var cornerRadius: CGFloat
+    var enabled = true
 
     @ObservedObject private var controller = DictationController.shared
 
@@ -166,18 +205,30 @@ struct DictationOmniboxHighlight: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content
-            .overlay {
-                if isActiveHere || isPreviewHere {
-                    DictationOutline(active: isActiveHere, cornerRadius: 8)
-                        .padding(2)
-                        .allowsHitTesting(false)
-                }
+        content.overlay {
+            if enabled, isActiveHere || isPreviewHere {
+                DictationOutline(active: isActiveHere, cornerRadius: cornerRadius)
+                    .allowsHitTesting(false)
             }
-            .onAppearOrChange(of: isActiveHere) { shown = $0 }
+        }
     }
 }
 #endif
+
+/// Cross-platform shim for `DictationCardHighlight`.
+struct DictationCardHighlightIfAvailable: ViewModifier {
+    var paneID: ID<WebContent>?
+    var cornerRadius: CGFloat
+    var enabled = true
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.modifier(DictationCardHighlight(paneID: paneID, cornerRadius: cornerRadius, enabled: enabled))
+        #else
+        content
+        #endif
+    }
+}
 
 /// Cross-platform shim so ToolbarView can apply the highlight unconditionally.
 struct DictationOmniboxHighlightIfAvailable: ViewModifier {

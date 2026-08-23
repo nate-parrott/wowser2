@@ -26,11 +26,14 @@ public final class DictationController: ObservableObject {
         case webField(pane: ID<WebContent>, field: WebContent.Info.FocusedEditable)
         /// The address bar of `pane` (nil pane = window with no tab) → agent.
         case omnibox(pane: ID<WebContent>?, window: ID<WindowState>)
+        /// A native terminal tab: text is typed into its PTY.
+        case terminal(pane: ID<WebContent>)
 
         public var paneID: ID<WebContent>? {
             switch self {
             case .webField(let pane, _): return pane
             case .omnibox(let pane, _): return pane
+            case .terminal(let pane): return pane
             }
         }
         public var isOmnibox: Bool { if case .omnibox = self { return true } else { return false } }
@@ -62,10 +65,13 @@ public final class DictationController: ObservableObject {
     /// The target dictation would use right now for `paneID`, given current state.
     public func resolveTarget(paneID: ID<WebContent>?, windowID: ID<WindowState>) -> Target {
         let state = BrowserStore.shared.model
-        if let paneID, let pane = state.pane(forId: paneID),
-           let field = pane.info.focusedEditable,
-           !pane.info.isEmptyPage {
-            return .webField(pane: paneID, field: field)
+        if let paneID, let pane = state.pane(forId: paneID) {
+            if let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true {
+                return .terminal(pane: paneID)
+            }
+            if let field = pane.info.focusedEditable, !pane.info.isEmptyPage {
+                return .webField(pane: paneID, field: field)
+            }
         }
         return .omnibox(pane: paneID, window: windowID)
     }
@@ -145,6 +151,9 @@ public final class DictationController: ObservableObject {
             case .webField(let paneID, _):
                 await deliverToWebField(paneID: paneID, raw: trimmed)
                 finish()
+            case .terminal(let paneID):
+                deliverToTerminal(paneID: paneID, text: trimmed)
+                finish()
             }
         }
     }
@@ -203,6 +212,17 @@ public final class DictationController: ObservableObject {
     private func removeKeyMonitor() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+    }
+
+    // MARK: - Typing into a terminal
+
+    /// Sends the transcript to the terminal's PTY as typed input (no newline —
+    /// the user reviews and presses Return themselves).
+    private func deliverToTerminal(paneID: ID<WebContent>, text: String) {
+        guard let wc = BrowserStore.shared.existingWebContent(forId: paneID),
+              let session = wc.overlayObject as? TerminalSession else { return }
+        wc.focus()
+        session.view.send(txt: text)
     }
 
     // MARK: - Inserting into a page

@@ -9,6 +9,7 @@ public struct SearchResultsOverlay: View {
     
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
+    @Environment(\.dictationHighlightPaneID) private var dictationHighlightPaneID
     private let browserStore = BrowserStore.shared
             
     public var body: some View {
@@ -32,6 +33,7 @@ public struct SearchResultsOverlay: View {
                         if drawsCenteredBackdropIncludingBehindToolbar {
                             Color.clear
                                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .modifier(DictationCardHighlightIfAvailable(paneID: dictationHighlightPaneID, cornerRadius: 10))
                                 .padding(.top, -UIConstants.macHeaderHeight - 8)
                         } else {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -73,6 +75,19 @@ public struct SearchResultsOverlay: View {
                 state.windows[windowID]?.searchOverlayActive = false
             }
         }
+    }
+}
+
+/// The pane whose omnibox a SearchResultsOverlay belongs to, so it can draw
+/// the dictation outline around the whole new-tab card.
+private struct DictationHighlightPaneIDKey: EnvironmentKey {
+    static let defaultValue: ID<WebContent>? = nil
+}
+
+extension EnvironmentValues {
+    var dictationHighlightPaneID: ID<WebContent>? {
+        get { self[DictationHighlightPaneIDKey.self] }
+        set { self[DictationHighlightPaneIDKey.self] = newValue }
     }
 }
 
