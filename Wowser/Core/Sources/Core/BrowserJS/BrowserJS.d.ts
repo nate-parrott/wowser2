@@ -17,6 +17,8 @@
 // `page.eval` all work exactly as on a visible tab). Only use `tabs.open` /
 // `tabs.activate` when the user has asked to SEE the page or you're handing a
 // result over to them, and `tabs.close` ghost tabs when you're done with them.
+// To drive a tab the USER opened without bringing it forward, lease it first
+// with `tabs.use(id)` — it keeps rendering offscreen for an hour.
 //
 // Typical computer-use loop on a ghost tab:
 //   const id = await browser.tabs.openGhost("https://example.com");
@@ -56,6 +58,12 @@ declare global {
     kind: string;
     /** True for agent-opened "ghost" tabs (live but not selected, muted). */
     isGhost: boolean;
+    /**
+     * Unix seconds until which an agent holds this tab "in use" (see
+     * `tabs.use`). While set, the tab keeps rendering offscreen and the
+     * sidebar shows "Agent is using this tab".
+     */
+    agentActiveUntil?: number;
     /** The split this pane belongs to. Unsplit tabs still have one. */
     splitId?: SplitId;
     /** All pane ids in this pane's split, in display order (includes `id`).
@@ -177,6 +185,18 @@ declare global {
        * `tabs.activate(id)` to show it to the user.
        */
       openGhost(url: string, opts?: { windowId?: WindowId }): Promise<TabId>;
+      /**
+       * Lease a tab for active agent use. While leased the page is kept
+       * mounted in the offscreen stage with `document.visibilityState ===
+       * 'visible'`, so timers, rAF and "pause when hidden" sites keep running
+       * even though the user isn't looking, and the sidebar labels it
+       * "Agent is using this tab". Default lease: 60 minutes. `openGhost` and
+       * every `page.*` / `content.*` call renew the lease implicitly, so you
+       * only need this to (a) lease a tab the USER opened before driving it,
+       * (b) hold a tab you'll come back to later without touching it, or
+       * (c) release early with `{ minutes: 0 }`. Returns the expiry (unix s).
+       */
+      use(id: TabId, opts?: { minutes?: number }): Promise<number>;
       /** Loads inline HTML in a new tab. The page does NOT get window.browser. */
       openHTML(html: string, opts?: { title?: string; windowId?: WindowId }): Promise<TabId>;
       close(id: TabId): Promise<void>;

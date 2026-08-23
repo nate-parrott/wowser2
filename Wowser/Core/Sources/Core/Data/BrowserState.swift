@@ -110,6 +110,12 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// sidebar with an "Agent tab" subtitle. Cleared when the user activates
     /// the tab directly so it becomes a normal pane.
     public var isGhost: Bool = false
+    /// While set (and in the future), an agent is actively driving this pane:
+    /// it's kept mounted and visible-to-WebKit in the offscreen agent stage
+    /// even though the user isn't looking at it, and the sidebar says so.
+    /// Bumped by `browser.tabs.use` and implicitly by page/content calls;
+    /// cleared by the stage's expiry sweep. Default lease is one hour.
+    public var agentActiveUntil: Date?
     /// Which engine backs this pane. Stamped when the live WebContent is first
     /// created (nil until then, and for panes persisted before this existed).
     /// Lives on Pane rather than Info because `pane.info` gets wholesale-reset
@@ -332,6 +338,12 @@ public class BrowserStore: DataStore<BrowserState> {
     public func unloadWebContent(forId id: ID<WebContent>) {
         assertOnMainThread()
         liveWebContents.removeValue(forKey: id)
+    }
+
+    /// The live WebContent for `id`, if one exists. Never creates one.
+    public func liveWebContent(forId id: ID<WebContent>) -> WebContent? {
+        assertOnMainThread()
+        return liveWebContents[id]
     }
 
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
@@ -807,5 +819,48 @@ private extension WindowState {
         searchOverlayActive = false
         swipeGestureOffset = nil
         findInPageActiveInPaneId = nil
+    }
+}
+
+// MARK: - Agent "in use" lease
+
+public extension BrowserState {
+    /// Default lease for `tabs.use` and implicit agent activity.
+    static let agentUseLeaseSeconds: TimeInterval = 60 * 60
+
+    /// Mark `paneID` as actively used by an agent until `until`. Pass nil to
+    /// release it. Returns false if the pane doesn't exist.
+    @discardableResult
+    mutating func setAgentUse(paneID: ID<WebContent>, until: Date?) -> Bool {
+        guard let tabID = paneToTabMapping[paneID], tabs[tabID]?.panes[paneID] != nil else { return false }
+        modifyTab(id: tabID) { tab in
+            if var pane = tab.panes[paneID] {
+                pane.agentActiveUntil = until
+                tab.panes[pane.id] = pane
+            }
+        }
+        return true
+    }
+
+    /// Extend the lease to `now + lease` unless it already runs past
+    /// `now + lease - slack`, so chatty callers don't rewrite state on every
+    /// call. Returns true if state changed.
+    @discardableResult
+    mutating func touchAgentUse(paneID: ID<WebContent>, now: Date = Date(), lease: TimeInterval = BrowserState.agentUseLeaseSeconds, slack: TimeInterval = 10 * 60) -> Bool {
+        guard let tabID = paneToTabMapping[paneID], let pane = tabs[tabID]?.panes[paneID] else { return false }
+        if let until = pane.agentActiveUntil, until > now.addingTimeInterval(lease - slack) { return false }
+        return setAgentUse(paneID: paneID, until: now.addingTimeInterval(lease))
+    }
+
+    /// Clear every expired lease; returns the panes that were released.
+    mutating func sweepExpiredAgentUse(now: Date = Date()) -> [ID<WebContent>] {
+        var released: [ID<WebContent>] = []
+        for tab in tabs.values {
+            for pane in tab.panes.asArray where pane.agentActiveUntil.map({ $0 <= now }) == true {
+                released.append(pane.id)
+            }
+        }
+        for id in released { setAgentUse(paneID: id, until: nil) }
+        return released
     }
 }

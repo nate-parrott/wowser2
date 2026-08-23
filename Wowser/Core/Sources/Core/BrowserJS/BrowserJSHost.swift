@@ -28,6 +28,10 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// cleared as soon as the user activates the tab from the sidebar.
     func tabsOpenGhost(url: String, windowId: String?) async throws -> String
     func tabsOpenHTML(html: String, title: String?, windowId: String?) async throws -> String
+    /// Lease a pane for active agent use for `minutes` (default 60): keeps it
+    /// rendering offscreen and flags it in the sidebar. `minutes <= 0`
+    /// releases it. Returns the lease expiry as unix seconds (0 if released).
+    func tabsUse(id: String, minutes: Double?) async throws -> Double
     /// Open `url` as a NEW PANE inside an existing split, rather than as a new
     /// tab. The pane joins the tab containing `besideTabId` (default: the
     /// window's current tab). Returns the new pane's tabId — navigate that id
@@ -242,6 +246,8 @@ public struct BrowserJSTabInfo: Codable, Equatable, Sendable {
     public var index: Int?
     public var kind: String   // "web" | "terminal" | "webapp" (for now: web|terminal)
     public var isGhost: Bool
+    /// Unix seconds until which an agent holds this pane "in use" (see `tabs.use`).
+    public var agentActiveUntil: Double?
     /// The split (`ID<Tab>`) this pane belongs to. Unsplit tabs still have one.
     public var splitId: String?
     /// All pane ids in this pane's split, in display order (includes `id`).
@@ -252,8 +258,8 @@ public struct BrowserJSTabInfo: Codable, Equatable, Sendable {
     /// The space (`ID<Profile>`) whose tab list contains this pane's tab.
     public var spaceId: String?
 
-    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false, splitId: String? = nil, splitTabIds: [String] = [], isFocusedInSplit: Bool = true, spaceId: String? = nil) {
-        self.id = id; self.windowId = windowId; self.url = url; self.title = title; self.index = index; self.kind = kind; self.isGhost = isGhost
+    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false, agentActiveUntil: Double? = nil, splitId: String? = nil, splitTabIds: [String] = [], isFocusedInSplit: Bool = true, spaceId: String? = nil) {
+        self.id = id; self.windowId = windowId; self.url = url; self.title = title; self.index = index; self.kind = kind; self.isGhost = isGhost; self.agentActiveUntil = agentActiveUntil
         self.splitId = splitId; self.splitTabIds = splitTabIds; self.isFocusedInSplit = isFocusedInSplit; self.spaceId = spaceId
     }
 }
@@ -353,5 +359,12 @@ public enum BrowserJSError: LocalizedError, Equatable {
         case .notImplemented(let what): return "not implemented in v1: \(what)"
         case .underlying(let msg): return msg
         }
+    }
+}
+
+public extension BrowserJSHost {
+    /// Hosts without a stage (tests, iOS) don't support leases.
+    func tabsUse(id: String, minutes: Double?) async throws -> Double {
+        throw BrowserJSError.notImplemented("tabs.use")
     }
 }

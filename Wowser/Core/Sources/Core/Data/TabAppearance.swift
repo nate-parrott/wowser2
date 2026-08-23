@@ -76,6 +76,9 @@ extension Pane {
             appearance.subtitle = "Agent tab"
             appearance.isGhost = true
         }
+        if agentActiveUntil != nil {
+            appearance.subtitle = "Agent is using this tab"
+        }
 
         if let url = info.url, let nativeKey = NativePageKey(url: url) {
             appearance = nativeKey.tabAppearance(info: info, baseInfo: baseInfo)

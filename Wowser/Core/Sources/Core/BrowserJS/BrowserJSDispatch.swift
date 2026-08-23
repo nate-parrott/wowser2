@@ -60,6 +60,10 @@ enum BrowserJSDispatch {
             guard let url = str("url") else { throw BrowserJSError.invalidArgs("url") }
             let id = try await host.tabsOpenGhost(url: url, windowId: optStr("windowId"))
             return try encodeValue(id)
+        case "tabs.use":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            let until = try await host.tabsUse(id: id, minutes: raw["minutes"] as? Double)
+            return try encodeValue(until)
         case "tabs.openHTML":
             guard let html = str("html") else { throw BrowserJSError.invalidArgs("html") }
             let id = try await host.tabsOpenHTML(html: html, title: optStr("title"), windowId: optStr("windowId"))
@@ -290,6 +294,7 @@ enum BrowserJSBridgeSource {
             list:     function(opts) { opts = opts || {}; return __browserCall('tabs.list', { windowId: opts.windowId, spaceId: opts.spaceId }); },
             open:     function(url, opts) { opts = opts || {}; return __browserCall('tabs.open', { url: url, background: !!opts.background, windowId: opts.windowId }); },
             openGhost:function(url, opts) { opts = opts || {}; return __browserCall('tabs.openGhost', { url: url, windowId: opts.windowId }); },
+            use:function(id, opts) { opts = opts || {}; return __browserCall('tabs.use', { id: id, minutes: opts.minutes }); },
             openSplit:function(url, opts) { opts = opts || {}; return __browserCall('tabs.openSplit', { url: url, besideTabId: opts.besideTabId, activate: opts.activate !== false, windowId: opts.windowId }); },
             openHTML: function(html, opts) { opts = opts || {}; return __browserCall('tabs.openHTML', { html: html, title: opts.title, windowId: opts.windowId }); },
             close:    function(id) { return __browserCall('tabs.close', { id: id }); },

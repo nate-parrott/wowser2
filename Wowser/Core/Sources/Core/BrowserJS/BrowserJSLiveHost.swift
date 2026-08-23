@@ -60,6 +60,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                 paneID = pid
                 var pane = Pane(id: pid, info: .init(url: url))
                 pane.isGhost = ghost
+                if ghost { pane.agentActiveUntil = Date().addingTimeInterval(BrowserState.agentUseLeaseSeconds) }
                 let tab = Tab(id: .assign(), panes: [pane])
                 let loc = st.insertionIndex(window: win, spawningTabId: st.windows[win]?.currentTab)
                 st.insertTab(tab, location: loc, inWindow: win)
@@ -91,6 +92,40 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             }
             return paneID.raw
         }
+    }
+
+    public func tabsUse(id: String, minutes: Double?) async throws -> Double {
+        try await mainAsync { @MainActor in
+            let pid = ID<WebContent>(raw: id)
+            let mins = minutes ?? (BrowserState.agentUseLeaseSeconds / 60)
+            if mins <= 0 {
+                var ok = false
+                BrowserStore.shared.modify { st in ok = st.setAgentUse(paneID: pid, until: nil) }
+                guard ok else { throw BrowserJSError.tabNotFound(id) }
+                #if os(macOS)
+                if let wc = BrowserStore.shared.liveWebContent(forId: pid) { AgentStageWindow.shared.unmount(wc.view) }
+                #endif
+                return 0
+            }
+            let until = Date().addingTimeInterval(mins * 60)
+            var ok = false
+            BrowserStore.shared.modify { st in ok = st.setAgentUse(paneID: pid, until: until) }
+            guard ok else { throw BrowserJSError.tabNotFound(id) }
+            // Make sure it's live and rendering.
+            if let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
+               let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID) {
+                #if os(macOS)
+                AgentStageWindow.shared.ensureRenderable(wc.view)
+                #endif
+            }
+            return until.timeIntervalSince1970
+        }
+    }
+
+    /// Implicit lease: any agent interaction with a pane counts as "using" it.
+    @MainActor
+    private func touchAgentUse(_ pid: ID<WebContent>) {
+        BrowserStore.shared.modify { st in st.touchAgentUse(paneID: pid) }
     }
 
     public func tabsOpenSplit(url urlStr: String, besideTabId: String?, activate: Bool, windowId: String?) async throws -> String {
@@ -265,6 +300,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             else { throw BrowserJSError.tabNotFound(id) }
             #if os(macOS)
             let webview = try wc.wkWebviewOrThrow
+            self.touchAgentUse(pid)
             // A webview that isn't in any window has no viewport and snapshots
             // to a zero-sized image. Background / ghost tabs are parked in the
             // offscreen stage window so they render without being shown.
@@ -322,6 +358,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { throw BrowserJSError.tabNotFound(id) }
             let webview = try wc.wkWebviewOrThrow
+            self.touchAgentUse(pid)
             #if os(macOS)
             AgentStageWindow.shared.ensureRenderable(webview)
             #endif
@@ -399,6 +436,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
               let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
         else { throw BrowserJSError.tabNotFound(id) }
         let webview = try wc.wkWebviewOrThrow
+        touchAgentUse(pid)
         #if os(macOS)
         AgentStageWindow.shared.ensureRenderable(webview)
         #endif
@@ -641,6 +679,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             index: indexInWindow,
             kind: kind,
             isGhost: pane.isGhost,
+            agentActiveUntil: pane.agentActiveUntil?.timeIntervalSince1970,
             splitId: tab.id.raw,
             splitTabIds: paneIDs,
             isFocusedInSplit: tab.focusedPane?.id == pane.id,

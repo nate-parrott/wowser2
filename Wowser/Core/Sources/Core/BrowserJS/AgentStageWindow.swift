@@ -24,6 +24,7 @@ final class AgentStageWindow {
     static let viewportSize = NSSize(width: 1280, height: 800)
 
     private var window: NSWindow?
+    private var sweepTimer: Timer?
 
     private init() {}
 
@@ -43,11 +44,41 @@ final class AgentStageWindow {
         guard let content = win.contentView else { return false }
         view.frame = content.bounds
         view.autoresizingMask = [.width, .height]
-        content.addSubview(view)
+        // Order matters: WebKit computes its activity state (which drives
+        // `document.visibilityState`, rAF and timer throttling) when the view
+        // joins a window, and the occlusion flag is read at that moment. Set
+        // it first, then mount.
         if let wk = view as? WKWebView {
             Self.disableOcclusionDetection(wk)
         }
+        content.addSubview(view)
+        // Belt and braces: a hide/unhide cycle makes WebKit recompute activity
+        // state even if it cached "occluded" from an earlier mount.
+        view.isHidden = true
+        view.isHidden = false
+        startSweepIfNeeded()
         return true
+    }
+
+    /// Release panes whose agent lease expired: clear the flag and, if their
+    /// webview is parked here (not in a real window), unmount it so the page
+    /// goes back to ordinary background-tab behaviour.
+    func sweepExpiredLeases(now: Date = Date()) {
+        var released: [ID<WebContent>] = []
+        BrowserStore.shared.modify { st in released = st.sweepExpiredAgentUse(now: now) }
+        for id in released {
+            if let wc = BrowserStore.shared.liveWebContent(forId: id) { unmount(wc.view) }
+        }
+    }
+
+    private func startSweepIfNeeded() {
+        guard sweepTimer == nil else { return }
+        let t = Timer(timeInterval: 60, repeats: true) { _ in
+            Task { @MainActor in AgentStageWindow.shared.sweepExpiredLeases() }
+        }
+        t.tolerance = 10
+        RunLoop.main.add(t, forMode: .common)
+        sweepTimer = t
     }
 
     /// Remove `view` from the stage if it's parked here. Safe to call for any
