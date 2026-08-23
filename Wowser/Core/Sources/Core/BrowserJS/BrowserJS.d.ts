@@ -7,6 +7,28 @@
 // This declaration file is the source of truth — it is what `get_browser_js_docs`
 // returns. Persisted helper files (saved via `save_browser_helper_file`) are
 // concatenated in alphabetical order and prepended to every evaluation.
+//
+// ## Work in the background by default
+//
+// The user is usually doing something else in this browser while you work.
+// Don't disturb them: open pages with `tabs.openGhost(url)` — a hidden "agent
+// tab" that is fully functional (it renders at a 1280×800 viewport offscreen,
+// so `content.read`, `content.screenshot`, `page.click/type/key/scroll` and
+// `page.eval` all work exactly as on a visible tab). Only use `tabs.open` /
+// `tabs.activate` when the user has asked to SEE the page or you're handing a
+// result over to them, and `tabs.close` ghost tabs when you're done with them.
+//
+// Typical computer-use loop on a ghost tab:
+//   const id = await browser.tabs.openGhost("https://example.com");
+//   await browser.page.waitFor(id, "document.readyState === 'complete'", 10000);
+//   browser.viewImage(await browser.content.screenshot(id));   // look
+//   const r = await browser.page.eval(id, "document.querySelector('input[name=q]').getBoundingClientRect().toJSON()");
+//   await browser.page.click(id, r.x + r.width / 2, r.y + r.height / 2);   // act
+//   await browser.page.type(id, "hello");
+//   await browser.page.key(id, "Enter");
+//   await browser.sleep(1500);
+//   browser.viewImage(await browser.content.screenshot(id));   // verify
+//   await browser.tabs.close(id);
 
 declare global {
   /** A tab id (= per-pane WKWebView id). */
@@ -127,6 +149,12 @@ declare global {
        * tabs sitting in a background space.
        */
       list(opts?: { windowId?: WindowId; spaceId?: SpaceId }): Promise<TabInfo[]>;
+      /**
+       * Open a VISIBLE tab the user will see (it becomes the current tab unless
+       * `background`). Use this only when the user asked to see the page or
+       * you're presenting a finished result — for your own browsing, research,
+       * or form-filling prefer `openGhost`, which the user isn't interrupted by.
+       */
       open(url: string, opts?: { background?: boolean; windowId?: WindowId }): Promise<TabId>;
       /**
        * Open `url` as a new PANE beside an existing tab (split view), rather
@@ -139,10 +167,14 @@ declare global {
        */
       openSplit(url: string, opts?: { besideTabId?: TabId; activate?: boolean; windowId?: WindowId }): Promise<TabId>;
       /**
-       * Open a "ghost" agent tab — live but not selected, audio/mic/camera muted,
-       * dimmed in the sidebar with an "Agent tab" subtitle. As soon as the user
-       * activates the tab themselves, the ghost flag is cleared and the tab is
-       * promoted to a normal foreground tab.
+       * PREFERRED way for an agent to open a page. Opens a hidden "ghost" agent
+       * tab — live but not selected, audio/mic/camera muted, dimmed in the
+       * sidebar with an "Agent tab" subtitle. The page renders offscreen at a
+       * real 1280×800 viewport, so every `content.*` and `page.*` call
+       * (screenshot, click, type, key, scroll, eval) works on it without the
+       * user ever seeing it. If the user activates the tab themselves it's
+       * promoted to a normal tab. Call `tabs.close(id)` when you're done, or
+       * `tabs.activate(id)` to show it to the user.
        */
       openGhost(url: string, opts?: { windowId?: WindowId }): Promise<TabId>;
       /** Loads inline HTML in a new tab. The page does NOT get window.browser. */
@@ -159,28 +191,47 @@ declare global {
       /** Read the tab content. `as: 'text' | 'html' | 'markdown'` — default 'text'. */
       read(id: TabId, opts?: { as?: 'text' | 'html' | 'markdown' }): Promise<string>;
       /**
-       * Capture the tab's visible content as an image. Pass the result to
-       * `browser.viewImage(...)` to surface it back to the calling model.
+       * Capture the tab's viewport as an image (works on hidden/ghost tabs too).
+       * Pass the result to `browser.viewImage(...)` to surface it back to the
+       * calling model. Coordinates you read off the screenshot are the same
+       * CSS-pixel coordinates `page.click` takes.
        */
       screenshot(id: TabId): Promise<Image>;
       /** Only valid for openHTML / webapp tabs. (v1: not implemented.) */
       write(id: TabId, html: string): Promise<void>;
     };
 
-    /** In-page JS execution — runs inside the page's WKWebView. */
+    /**
+     * In-page JS execution and computer-use input — runs against the page's
+     * WKWebView, visible or not. Input is dispatched as real native events
+     * (WebKit hit-testing, focus, default actions: Enter submits forms, clicking
+     * a link navigates, framework handlers fire), so it behaves like a user.
+     */
     page: {
+      /**
+       * Evaluate `js` in the page and return its value. A bare expression
+       * (`document.title`, `(() => ({...}))()`, `JSON.stringify(x)`) is returned
+       * directly; a multi-statement body needs its own `return`. Results must
+       * be JSON-serializable (e.g. call `.toJSON()` on a DOMRect).
+       */
       eval(id: TabId, js: string): Promise<any>;
       /** Polls `predicateJs` until it evaluates truthy or `timeoutMs` elapses. */
       waitFor(id: TabId, predicateJs: string, timeoutMs?: number): Promise<any>;
       /**
-       * Click the page at content coordinates (x, y). Dispatches synthetic
-       * mousedown/mouseup/click events to whatever element is at that point.
-       * Pass `clickCount: 2` for a double-click.
+       * Click the page at CSS-pixel coordinates (x, y) from the viewport's
+       * top-left — the same coordinates as a screenshot or
+       * `getBoundingClientRect()`. Pass `clickCount: 2` for a double-click.
+       * Clicking an input focuses it, so follow with `type`.
        */
       click(id: TabId, x: number, y: number, opts?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void>;
-      /** Type a string of text into whatever input is currently focused. */
+      /** Type text into the focused element as real keystrokes ("\n" presses Enter). */
       type(id: TabId, text: string): Promise<void>;
-      /** Press a single named key with optional modifiers. */
+      /**
+       * Press one key: a character ("a", "/") or a name — "Enter", "Tab",
+       * "Escape", "Backspace", "Delete", "ArrowUp/Down/Left/Right", "Home",
+       * "End", "PageUp", "PageDown", "F1"… — with optional modifiers, e.g.
+       * `key(id, "a", ["command"])` to select all.
+       */
       key(id: TabId, key: string, modifiers?: Array<'shift' | 'control' | 'option' | 'command'>): Promise<void>;
       /** Scroll the page by (dx, dy) content pixels. */
       scroll(id: TabId, dx: number, dy: number): Promise<void>;

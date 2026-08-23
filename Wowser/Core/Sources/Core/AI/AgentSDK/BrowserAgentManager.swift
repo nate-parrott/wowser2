@@ -264,6 +264,12 @@ public actor BrowserAgentManager {
             `browser.viewImage(await browser.content.screenshot(tabId))`; the \
             screenshot comes back to you as an image.
 
+            Work in the background by default: the user is using this browser \
+            while you work. Open pages with `browser.tabs.openGhost(url)` — a \
+            hidden agent tab on which read, screenshot, click, type, key and \
+            eval all work — rather than `tabs.open`, unless the user asked to \
+            see the page. Close ghost tabs when you're done with them.
+
             The full BrowserJS API (TypeScript declarations):
 
             ```typescript

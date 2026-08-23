@@ -247,7 +247,22 @@ public struct Project: Equatable, Codable {
 public class BrowserStore: DataStore<BrowserState> {
     public static let shared = BrowserStore(persistenceKey: "BrowserStore", defaultModel: .defaultState, queue: .main)
     
-    private var liveWebContents = [ID<WebContent>: WebContent]()
+    private var liveWebContents = [ID<WebContent>: WebContent]() {
+        didSet {
+            #if os(macOS)
+            // Agent-driven background tabs are parked in the offscreen stage
+            // window, which retains their views. Unmount anything that was just
+            // dropped so the page actually tears down.
+            // liveWebContents is only ever mutated on the main thread (see the
+            // assertOnMainThread() calls on every mutation path).
+            MainActor.assumeIsolated {
+                for (id, wc) in oldValue where liveWebContents[id] == nil {
+                    AgentStageWindow.shared.unmount(wc.view)
+                }
+            }
+            #endif
+        }
+    }
     var subscriptions = Set<AnyCancellable>()
     
     public override func setup() {

@@ -261,7 +261,7 @@ final class ContextBox {
             let arg: Any = json ?? NSNull()
             context.objectForKeyedSubscript("__nativeResolve")?.call(withArguments: [id, arg])
         case .failure(let err):
-            context.objectForKeyedSubscript("__nativeReject")?.call(withArguments: [id, err.localizedDescription])
+            context.objectForKeyedSubscript("__nativeReject")?.call(withArguments: [id, BrowserJSRuntime.describe(err)])
         }
     }
 
@@ -350,5 +350,23 @@ final class ContextBox {
 extension BrowserJSRuntime {
     fileprivate func _resolveOnContext(_ box: ContextBox, id: Int, result: Result<String?, Error>) {
         box.deliver(id: id, result: result)
+    }
+}
+
+extension BrowserJSRuntime {
+    /// Human-readable error text for a rejected native call. WebKit wraps
+    /// in-page exceptions in a generic "A JavaScript exception occurred"; pull
+    /// the real message (and line, if any) out of `userInfo` so the caller sees
+    /// e.g. `TypeError: null is not an object (evaluating 'x.getBoundingClientRect')`.
+    static func describe(_ err: Error) -> String {
+        let ns = err as NSError
+        if let msg = ns.userInfo["WKJavaScriptExceptionMessage"] as? String, !msg.isEmpty {
+            var out = msg
+            if let line = ns.userInfo["WKJavaScriptExceptionLineNumber"] as? Int, line > 0 {
+                out += " (page script line \(line))"
+            }
+            return out
+        }
+        return err.localizedDescription
     }
 }

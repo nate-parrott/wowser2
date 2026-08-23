@@ -176,6 +176,12 @@ public actor MCPServer {
             in `result` (a bare trailing expression yields nothing).
             To see screenshots, call `browser.viewImage(await browser.content.screenshot(tabId))`
             — they're attached as image content blocks alongside the result.
+
+            Work in the BACKGROUND by default: the user is using this browser
+            right now. Open pages with `browser.tabs.openGhost(url)` (a hidden
+            agent tab that still supports read/screenshot/click/type/key/eval),
+            not `tabs.open`, unless the user asked to see the page. Close ghost
+            tabs when done. Call `get_browser_js_docs` first if you haven't.
             """,
             inputSchema: .object([
                 "type": .string("object"),

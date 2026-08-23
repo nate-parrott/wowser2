@@ -69,8 +69,25 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             }
             // Ghost panes need a live WebContent so the page actually loads in
             // the background. Materialize it eagerly.
-            if ghost {
-                _ = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: win)
+            if ghost, let wc = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: win) {
+                #if os(macOS)
+                // Park it in the offscreen stage so it lays out at a real
+                // viewport and can be screenshotted / clicked while hidden.
+                AgentStageWindow.shared.ensureRenderable(wc.view)
+                #endif
+                // Don't hand the id back while the webview is still showing the
+                // initial about:blank — a `page.waitFor(readyState === 'complete')`
+                // would resolve against the wrong document. Wait (briefly) for
+                // the real navigation to commit.
+                // (`webview.url` is set as soon as the load is *provisional*,
+                // so it can't be the signal; the back/forward list only gets its
+                // current item once the navigation commits.)
+                if let webview = wc.wkWebview {
+                    let deadline = Date().addingTimeInterval(8)
+                    while webview.backForwardList.currentItem == nil, Date() < deadline {
+                        try await Task.sleep(nanoseconds: 50_000_000)
+                    }
+                }
             }
             return paneID.raw
         }
@@ -247,25 +264,54 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { throw BrowserJSError.tabNotFound(id) }
             #if os(macOS)
+            let webview = try wc.wkWebviewOrThrow
+            // A webview that isn't in any window has no viewport and snapshots
+            // to a zero-sized image. Background / ghost tabs are parked in the
+            // offscreen stage window so they render without being shown.
+            let wasDetached = webview.window == nil
+            AgentStageWindow.shared.ensureRenderable(webview)
+            if wasDetached {
+                // Give WebKit a moment to lay out at the new size and paint.
+                try await Task.sleep(nanoseconds: 250_000_000)
+            }
             let cfg = WKSnapshotConfiguration()
             cfg.afterScreenUpdates = true
-            // A tab that has never been rendered (e.g. opened with
-            // `{background:true}`) snapshots to a zero-sized image. Surface that
-            // as an explicit error instead of a silent 0-byte PNG, so callers
-            // know to `tabs.activate(id)` first.
-            let img: NSImage = try await wc.wkWebviewOrThrow.takeSnapshot(configuration: cfg)
+            // Render at 1× (CSS pixels) rather than the Retina backing scale, so
+            // pixel coordinates read off the image are exactly the coordinates
+            // `page.click` expects — and the image is a quarter the size.
+            let img: NSImage = try await webview.takeSnapshot(configuration: cfg)
             guard img.size.width > 0, img.size.height > 0,
-                  let tiff = img.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:]),
+                  let png = Self.png1x(from: img),
                   !png.isEmpty
-            else { throw BrowserJSError.underlying("screenshot unavailable — tab not rendered (activate it first)") }
+            else { throw BrowserJSError.underlying("screenshot unavailable — tab has no rendered content yet (is it still loading?)") }
             return BrowserJSImage(mime: "image/png", data: png.base64EncodedString())
             #else
             throw BrowserJSError.notImplemented("contentScreenshot (macOS only)")
             #endif
         }
     }
+
+    #if os(macOS)
+    /// Re-render `img` (whose bitmap is at the display's backing scale, 2× on
+    /// Retina) into a bitmap with one pixel per point, then PNG-encode it.
+    private static func png1x(from img: NSImage) -> Data? {
+        let w = Int(img.size.width.rounded()), h = Int(img.size.height.rounded())
+        guard w > 0, h > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+        else { return nil }
+        rep.size = img.size
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.current = ctx
+        ctx.imageInterpolation = .high
+        img.draw(in: NSRect(origin: .zero, size: img.size), from: .zero, operation: .copy, fraction: 1)
+        ctx.flushGraphics()
+        return rep.representation(using: .png, properties: [:])
+    }
+    #endif
 
     // MARK: - Page eval
 
@@ -275,7 +321,11 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
                   let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
             else { throw BrowserJSError.tabNotFound(id) }
-            return try await wc.wkWebviewOrThrow.evalReturningValue(js)
+            let webview = try wc.wkWebviewOrThrow
+            #if os(macOS)
+            AgentStageWindow.shared.ensureRenderable(webview)
+            #endif
+            return try await webview.evalReturningValue(js)
         }
     }
 
@@ -293,7 +343,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             }
             try await Task.sleep(nanoseconds: 100_000_000) // 100ms
         }
-        throw BrowserJSError.timeout
+        throw BrowserJSError.underlying("page.waitFor timed out after \(timeoutMs)ms; predicate never became truthy: \(predicateJs)")
     }
 
     // MARK: - Computer use
@@ -348,7 +398,11 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
               let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
         else { throw BrowserJSError.tabNotFound(id) }
-        return try wc.wkWebviewOrThrow
+        let webview = try wc.wkWebviewOrThrow
+        #if os(macOS)
+        AgentStageWindow.shared.ensureRenderable(webview)
+        #endif
+        return webview
     }
 
     // MARK: - Windows
@@ -717,37 +771,37 @@ extension WKWebView {
     }
 
     /// REPL-style eval for `page.eval`: returns the value of the snippet's final
-    /// expression so a bare `document.title` or `1+2` yields a value without an
-    /// explicit `return`.
+    /// expression so a bare `document.title`, `1+2`, or an IIFE yields a value
+    /// without an explicit `return`.
     ///
     /// `callAsyncJavaScript` treats the snippet as an async-function *body*, so a
-    /// bare expression returns nothing (→ null). To fix that we wrap a single
-    /// trailing expression in `return (...)`. Snippets that already manage their
-    /// own control flow (a top-level `return`, or multiple statements) are run
-    /// verbatim — that path still requires an explicit `return`, as before.
+    /// bare expression returns nothing (→ null). We first try the snippet as a
+    /// single expression — `return (<snippet>);` — which covers everything from
+    /// `innerWidth` to `(function(){ ... })()` and `JSON.stringify({...})`. If
+    /// that is a *syntax* error (the snippet is really a statement list: `const
+    /// x = ...; return x`), it runs verbatim and needs its own `return`.
+    /// Runtime errors from the expression form are NOT retried — they're real.
     func evalReturningValue(_ js: String) async throws -> Any? {
         var expr = js.trimmingCharacters(in: .whitespacesAndNewlines)
-        if expr.hasSuffix(";") { expr.removeLast() }
-
-        let looksLikeSingleExpression =
-            !expr.isEmpty &&
-            !expr.contains(";") &&
-            !expr.contains("\n") &&
-            !Self.statementPrefixes.contains { expr == $0 || expr.hasPrefix($0 + " ") || expr.hasPrefix($0 + "(") } &&
-            !expr.hasPrefix("{")
-
-        if looksLikeSingleExpression {
-            return try await evaluateAsyncJS("return (\(expr));")
+        while expr.hasSuffix(";") {
+            expr.removeLast()
+            expr = expr.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return try await evaluateAsyncJS(js)
+        if expr.isEmpty { return nil }
+        do {
+            return try await evaluateAsyncJS("return (\n\(expr)\n);")
+        } catch let err as NSError where Self.isSyntaxError(err) {
+            return try await evaluateAsyncJS(js)
+        }
     }
 
-    /// Leading tokens that mark a statement (not an expression) — if a snippet
-    /// starts with one of these we must NOT wrap it in `return (...)`.
-    private static let statementPrefixes = [
-        "return", "var", "let", "const", "if", "for", "while", "switch",
-        "function", "throw", "do", "try", "class", "async",
-    ]
+    private static func isSyntaxError(_ err: NSError) -> Bool {
+        if err.domain == WKError.errorDomain, err.code == WKError.javaScriptExceptionOccurred.rawValue {
+            let msg = (err.userInfo["WKJavaScriptExceptionMessage"] as? String) ?? ""
+            return msg.contains("SyntaxError")
+        }
+        return err.localizedDescription.contains("SyntaxError")
+    }
 }
 
 private extension WebContent {
