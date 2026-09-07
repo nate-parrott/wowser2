@@ -114,7 +114,7 @@ class _InputTextFieldView: NSView, NSTextViewDelegate {
 //        scrollView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scrollView)
         
-        if #available(macOS 15.0, *) {
+        if #available(macOS 15.0, *), DefaultsKeys.hideSiriAIOnTextSelection.boolValue() {
             textView.writingToolsBehavior = .none
         }
     }

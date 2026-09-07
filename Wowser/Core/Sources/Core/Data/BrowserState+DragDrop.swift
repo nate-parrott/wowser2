@@ -161,3 +161,22 @@ extension BrowserStore {
         }
     }
 }
+
+extension BrowserState {
+    /// Opens a (background) file-browser tab for a file/folder on disk — e.g.
+    /// something dropped into the sidebar from Finder — and places it at the
+    /// given drop destination (end of the window's ordinary tabs if nil).
+    @discardableResult
+    mutating func openFileTab(path: String, windowID: ID<WindowState>, at dest: TabDropDestination?) -> ID<Tab> {
+        let tab = openTab(url: NativePageKey.fileBrowser(path: path).url, activate: false, windowID: windowID)
+        let target = dest ?? .ordinaryTabs(window: windowID, before: nil)
+        if canMove(tab: tab.id, to: target) {
+            move(tab: tab.id, to: target, makeActiveInWindow: nil)
+        }
+        return tab.id
+    }
+
+    mutating func popTab(id: ID<Tab>) {
+        modifyTab(id: id) { $0.animationCount = ($0.animationCount ?? 0) + 1 }
+    }
+}

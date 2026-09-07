@@ -88,12 +88,11 @@ private struct SidebarSnapshot: Equatable {
     // Current tab ID
     let currentTabID: ID<Tab>?
     
-    // Downloads
-    let hasDownloads: Bool
-
     // Whether the current space has a dropped background image (for the
     // "Remove Background Image" context menu item)
     let hasBackgroundImage: Bool
+    // Folder attached to the current space ("Add Folder…" / "Change Folder…")
+    let folderPath: String?
 
     init(windowID: ID<WindowState>, 
          profileID: ID<Profile>?, // Can be nil, will use window's current profile
@@ -121,6 +120,7 @@ private struct SidebarSnapshot: Equatable {
         }
         self.favoriteTabIDs = favoriteIDs
         self.hasBackgroundImage = profiles[effectiveProfileID]?.imageInfo != nil
+        self.folderPath = profiles[effectiveProfileID]?.folderPath
 
         // Process tabs in their original order but add headers when group changes
         let regularTabIDs = perProfileData?.tabs ?? []
@@ -168,9 +168,6 @@ private struct SidebarSnapshot: Equatable {
         }
         
         self.regularTabGroups = tabGroups
-        
-        // Check if there are downloads
-        self.hasDownloads = !(perProfileData?.downloads.isEmpty ?? true)
     }
 }
 
@@ -197,12 +194,6 @@ private struct SidebarContent: View {
             // Swipeable profile content (favorites and tabs)
             SidebarSwipeView(windowID: snapshot.windowID)
 
-            // Downloads section
-            if snapshot.hasDownloads {
-                DownloadsSidebar(windowID: snapshot.windowID)
-                    .reportsSpaceBackgroundRegion("downloads", edge: .bottom)
-            }
-            
             Spacer()
             
 //            // Bottom buttons
@@ -214,6 +205,12 @@ private struct SidebarContent: View {
                 currentProfileID: snapshot.profileID,
                 windowID: snapshot.windowID
             )
+            #if os(macOS)
+            Divider()
+            Button(snapshot.folderPath == nil ? "Add Folder…" : "Change Folder…") {
+                SpaceMenu.pickFolder(profileID: snapshot.profileID, currentPath: snapshot.folderPath)
+            }
+            #endif
             if snapshot.hasBackgroundImage {
                 Divider()
                 Button("Remove Background Image") {
@@ -222,6 +219,7 @@ private struct SidebarContent: View {
             }
         }
     }
+
     
     @ViewBuilder private var topButtons: some View {
         HStack {

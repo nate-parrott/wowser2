@@ -359,6 +359,28 @@ declare global {
     };
 
     /**
+     * Local filesystem (the user's Mac, no sandbox). Paths are absolute or
+     * `~`-relative. Text is read/written as UTF-8 strings by default; for
+     * binary files pass `{ encoding: 'base64' }` and exchange base64 strings
+     * (e.g. `fs.write('~/Desktop/shot.png', img.data, { encoding: 'base64' })`
+     * with an `Image` from `content.screenshot`).
+     */
+    fs: {
+      /** Read a file. Throws if it's missing, or if it isn't valid UTF-8 and you didn't ask for base64. */
+      read(path: string, opts?: { encoding?: 'utf8' | 'base64' }): Promise<string>;
+      /** Write (or `append` to) a file, creating parent directories as needed. */
+      write(path: string, data: string, opts?: { encoding?: 'utf8' | 'base64'; append?: boolean }): Promise<void>;
+      /** Directory entries, sorted by name. */
+      list(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; size?: number; modified?: number }>>;
+      /** `exists: false` (rather than a throw) for a missing path. `modified` is unix seconds. */
+      stat(path: string): Promise<{ path: string; exists: boolean; isDirectory: boolean; size?: number; modified?: number }>;
+      /** Moves the file or directory to the Trash (recoverable). */
+      remove(path: string): Promise<void>;
+      /** mkdir -p. */
+      mkdir(path: string): Promise<void>;
+    };
+
+    /**
      * AI agents. Create an agent session, send it messages (with optional
      * images — e.g. from `content.screenshot`), and read back its transcript.
      * Turns run asynchronously: `send` returns immediately; use `await` (waits

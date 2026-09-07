@@ -85,15 +85,10 @@ struct ToolbarView: View {
         snapshot.attachedAgents != nil && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
     }
     @AppStorage(DefaultsKeys.hiddenTrailingToolbarItems.rawValue) private var hiddenTrailingItemsRaw = ""
+    @AppStorage(DefaultsKeys.dictationButton.rawValue) private var dictationButtonEnabled = false
 
     private var hiddenTrailingItems: Set<ToolbarTrailingItem> {
-        Set(hiddenTrailingItemsRaw.split(separator: ",").compactMap { ToolbarTrailingItem(rawValue: String($0)) })
-    }
-
-    private func setTrailingItem(_ item: ToolbarTrailingItem, hidden: Bool) {
-        var set = hiddenTrailingItems
-        if hidden { set.insert(item) } else { set.remove(item) }
-        hiddenTrailingItemsRaw = ToolbarTrailingItem.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
+        ToolbarTrailingItem.hiddenItems(fromRaw: hiddenTrailingItemsRaw)
     }
 
     var body: some View {
@@ -153,7 +148,9 @@ struct ToolbarView: View {
                     }
                     .modifier(DictationOmniboxHighlightIfAvailable(paneID: webContentID, shown: $dictationTranscriptShown))
                     #if os(macOS)
-                    DictationButton(paneID: webContentID, emptyPage: emptyPage, fgColor: colorScheme?.foreground)
+                    if dictationButtonEnabled {
+                        DictationButton(paneID: webContentID, emptyPage: emptyPage, fgColor: colorScheme?.foreground)
+                    }
                     #endif
                 }
                 
@@ -163,7 +160,11 @@ struct ToolbarView: View {
                     HStack(spacing: 0) {
                         if let nativeKey = snapshot.nativeKey {
                             #if os(macOS)
-                            OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
+                            if case .fileBrowser(let path) = nativeKey, let path, !path.isEmpty {
+                                FileBrowserToolbarItems(path: path, nativeKey: nativeKey, openInOtherType: openNativeTabInOtherType)
+                            } else {
+                                OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
+                            }
                             #endif
                         } else if let webContentID, !hidden.contains(.cleanMode) {
                             CleanModeStatusButton(webContentID: webContentID)
@@ -218,20 +219,19 @@ struct ToolbarView: View {
                             .help("New split pane")
                         }
 
-                        // Always-present grab area so the customization menu is reachable even when every button is hidden.
-                        Color.clear.frame(width: 8, height: UIConstants.macHeaderHeight)
+//                        // Always-present grab area so the customization menu is reachable even when every button is hidden.
+//                        Color.clear.frame(width: 8, height: UIConstants.macHeaderHeight)
                     }
                     .padding(.trailing, 8)
                     .contentShape(Rectangle())
                     .contextMenu {
-                        Section("Toolbar Buttons") {
-                            ForEach(ToolbarTrailingItem.allCases, id: \.self) { item in
-                                Toggle(item.title, isOn: Binding(
-                                    get: { !hidden.contains(item) },
-                                    set: { setTrailingItem(item, hidden: !$0) }
-                                ))
+                        ForEach(ToolbarTrailingItem.Group.allCases, id: \.self) { group in
+                            Section(group.title) {
+                                ToolbarTrailingItemToggles(items: group.items)
                             }
                         }
+                        Divider()
+                        Button("Customize Toolbar…") { SettingsTab.toolbar.open() }
                     }
                 }
             }
@@ -406,29 +406,74 @@ struct ToolbarView: View {
     }
 }
 
-/// Buttons on the toolbar's trailing edge that the user can hide via right-click.
-/// Persisted in `DefaultsKeys.hiddenTrailingToolbarItems`.
-enum ToolbarTrailingItem: String, CaseIterable {
-    case cleanMode
-    case extensions
-    case mobileViewport
-    case bookmark
-    case closePane
-    case newSplitPane
+// Style for toolbar buttons with consistent appearance
+#if os(macOS)
+/// File-browser toolbar cluster: reveal/open always; the "open this folder
+/// in…" menu only while viewing a folder (it's meaningless for a single file).
+/// Folder-vs-file is checked on disk here in the view layer, once per path.
+struct FileBrowserToolbarItems: View {
+    var path: String
+    var nativeKey: NativePageKey
+    var openInOtherType: (NativePageKey) -> Void
 
-    var title: String {
-        switch self {
-        case .cleanMode: return "Clean Mode"
-        case .extensions: return "Extensions"
-        case .mobileViewport: return "Mobile Viewport (Dev Mode)"
-        case .bookmark: return "Bookmark"
-        case .closePane: return "Close Pane"
-        case .newSplitPane: return "New Split Pane"
+    @State private var isDirectory = true
+
+    var body: some View {
+        FileRevealAndOpenButtons(path: path)
+        if isDirectory {
+            OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openInOtherType)
         }
+        Color.clear.frame(width: 0, height: 0)
+            .onAppearOrChange(of: path) { path in
+                let expanded = (path as NSString).expandingTildeInPath
+                DispatchQueue.global(qos: .userInitiated).async {
+                    var isDir: ObjCBool = false
+                    let exists = FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir)
+                    let result = !exists || isDir.boolValue
+                    DispatchQueue.main.async { isDirectory = result }
+                }
+            }
     }
 }
 
-// Style for toolbar buttons with consistent appearance
+/// "Reveal in Finder" + "Open in Default App" for the file-browser toolbar.
+struct FileRevealAndOpenButtons: View {
+    var path: String
+
+    private var url: URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath) }
+
+    var body: some View {
+        Button(action: { NSWorkspace.shared.activateFileViewerSelecting([url]) }) {
+            RevealInFinderGlyph()
+        }
+        .buttonStyle(ToolbarButtonStyle())
+        .help("Reveal in Finder")
+
+        Button(action: { NSWorkspace.shared.open(url) }) {
+            Image(systemName: "arrow.up.forward.app")
+                .imageScale(.medium)
+        }
+        .buttonStyle(ToolbarButtonStyle())
+        .help("Open in Default App")
+    }
+}
+
+/// Folder with a small outward arrow badge (SF Symbols has no such glyph).
+struct RevealInFinderGlyph: View {
+    var body: some View {
+        Image(systemName: "folder")
+            .imageScale(.medium)
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: 7, weight: .heavy))
+                    .padding(1)
+                    .background(Circle().fill(.background))
+                    .offset(x: 3, y: 2)
+            }
+    }
+}
+#endif
+
 struct ToolbarButtonStyle: ButtonStyle {
     @State private var hovered = false
     

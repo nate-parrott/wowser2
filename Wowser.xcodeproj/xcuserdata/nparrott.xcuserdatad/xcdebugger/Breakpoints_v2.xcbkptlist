@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "198"
             endingLineNumber = "198"
-            landmarkName = "separateSplitTabs(tabId:)"
+            landmarkName = "moveToSplitView(sourceTabId:sourcePaneId:destinationTabId:activatePane:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -96,8 +96,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "114"
             endingLineNumber = "114"
-            landmarkName = "moveToSplitView(sourceTabId:sourcePaneId:destinationTabId:activatePane:)"
-            landmarkType = "7">
+            landmarkName = "BrowserState"
+            landmarkType = "21">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -246,7 +246,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "435"
             endingLineNumber = "435"
-            landmarkName = "createTab(withURL:in:activate:inCurrentSplit:)"
+            landmarkName = "removeWebContentNotInIds(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -276,7 +276,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "213"
             endingLineNumber = "213"
-            landmarkName = "fullContentExtractionStatus"
+            landmarkName = "usesMobileUserAgent"
             landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
@@ -532,8 +532,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "79"
             endingLineNumber = "79"
-            landmarkName = "webView(_:navigationResponse:didBecome:windowID:)"
-            landmarkType = "7">
+            landmarkName = "Active"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -740,7 +740,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "203"
             endingLineNumber = "203"
-            landmarkName = "fullContentExtractionMode"
+            landmarkName = "silenced"
             landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
@@ -748,7 +748,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "A09DBAAD-62A7-4C74-B818-6FFDE7D483D3"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "Wowser/Core/Sources/Core/Downloads/DownloadManager.swift"
@@ -756,24 +756,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "149"
             endingLineNumber = "149"
-            landmarkName = "DownloadManager"
-            landmarkType = "3">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "26505343-A7CA-4DE0-8282-FAE91C8D6FD1"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Wowser/Core/Sources/Core/Downloads/DownloadManager.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "136"
-            endingLineNumber = "136"
-            landmarkName = "DownloadManager"
-            landmarkType = "3">
+            landmarkName = "progressDidChange(_:progress:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -804,7 +788,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "207"
             endingLineNumber = "207"
-            landmarkName = "download(_:didFailWithError:resumeData:)"
+            landmarkName = "cancelDownload(paneID:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -819,9 +803,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "214"
-            endingLineNumber = "214"
-            landmarkName = "download(_:didFailWithError:resumeData:)"
-            landmarkType = "7">
+            endingLineNumber = "214">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -836,7 +818,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "206"
             endingLineNumber = "206"
-            landmarkName = "download(_:didFailWithError:resumeData:)"
+            landmarkName = "cancelDownload(paneID:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1010,9 +992,9 @@
             filePath = "Wowser/Core/Sources/Core/Data/BrowserState.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "527"
-            endingLineNumber = "527"
-            landmarkName = "webContent(_:didSpawnNewWebContent:shouldActivate:)"
+            startingLineNumber = "528"
+            endingLineNumber = "528"
+            landmarkName = "webContent(_:decidePolicyFor:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

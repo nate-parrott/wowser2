@@ -36,10 +36,18 @@ struct WindowDragView: NSViewRepresentable {
             return true
         }
         
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+        
         override func mouseDown(with event: NSEvent) {
-            super.mouseDown(with: event)
             // Store the initial location in screen coordinates
             mouseDownLocation = NSEvent.mouseLocation
+            // Start the drag explicitly. `mouseDownCanMoveWindow` alone only
+            // works in titled windows; borderless / non-activating panels
+            // (pip) never enter AppKit's move-by-background path when the
+            // event lands inside an NSHostingView.
+            window?.performDrag(with: event)
         }
         
         override func mouseUp(with event: NSEvent) {

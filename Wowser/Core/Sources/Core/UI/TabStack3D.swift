@@ -102,7 +102,7 @@ struct TabStack3D: View {
             if !card.isLive, let tabId = card.tabId {
                 WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
                     if let pane {
-                        FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
+                        FakePaneView(webContentId: pane.id, nativeKey: pane.info.url.flatMap(NativePageKey.init(url:)), focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
                             .overlay {
                                 TabStackCardOverlay(tabId: tabId)
                                     .transition(.opacity)

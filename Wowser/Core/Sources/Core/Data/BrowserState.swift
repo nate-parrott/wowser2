@@ -45,6 +45,9 @@ public struct Tab: Equatable, Identifiable, Codable {
     /// Whether the floating pip panel is currently shown (only meaningful when
     /// `pipMode == true`). Toggled by clicking the tab in the sidebar.
     public var pipOpen: Bool?
+    /// Bumped to ask the sidebar row to "pop" (call attention to the tab, e.g.
+    /// a new download). Rows observe it and animate on change.
+    public var animationCount: Int?
 
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -121,6 +124,10 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// Lives on Pane rather than Info because `pane.info` gets wholesale-reset
     /// on navigation.
     public var engine: BrowserEngine?
+    /// Set on file-browser panes that were opened to show a download. The
+    /// pane's URL points at the destination file; this record carries the
+    /// live status/progress so the tab and the overlay can show it.
+    public var download: Download?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -161,10 +168,6 @@ public struct WindowState: Equatable, Codable {
         get { perProfileData[profile]?.focusedOnProject }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.focusedOnProject = newValue }
     }
-    public var downloads: [ID<Download>: Download] {
-        get { perProfileData[profile]?.downloads ?? [:] }
-        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.downloads = newValue }
-    }
     public var lastClosedTabURL: URL? {
         get { perProfileData[profile]?.lastClosedTabURL }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.lastClosedTabURL = newValue }
@@ -200,7 +203,8 @@ public struct WindowState: Equatable, Codable {
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
-    public var pickingSelectorInPaneId: ID<WebContent>?
+    /// Active element-picker session (transient UI state). See BrowserState+SelectorPicker.swift.
+    public var selectorPicker: SelectorPickerSession?
     public var perProfileData = [ID<Profile>: PerProfileData]()
     public var tabsOpened = 0
     
@@ -208,7 +212,6 @@ public struct WindowState: Equatable, Codable {
         public var tabs: [ID<Tab>]
         public var currentTab: ID<Tab>?
         public var focusedOnProject: ID<Project>?
-        public var downloads = [ID<Download>: Download]()
         public var lastClosedTabURL: URL?
         /// Optional for decode-compat with previously persisted states.
         public var attachedAgentTabs: [ID<Tab>]?
@@ -237,6 +240,9 @@ public struct Profile: Equatable, Codable {
     /// Hidden profiles keep their tabs but are omitted from the sidebar carousel
     /// and paging dots. Restorable from Settings. Optional so old persisted state decodes.
     public var hidden: Bool?
+    /// Folder this space is attached to (see "Add Folder…" in the space menu).
+    /// Attaching a folder pins VS Code / terminal / files tabs for it.
+    public var folderPath: String?
 
     public var isHidden: Bool { hidden == true }
 }
@@ -482,6 +488,7 @@ public class BrowserStore: DataStore<BrowserState> {
                 // Activate the tab if requested
                 if activate {
                     state.activate(tabId: tab.id, in: windowID)
+                    state.closeUnactivatedNewTabPages(in: windowID)
                 }
                 tabID = tab.id
             }

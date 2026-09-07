@@ -143,11 +143,11 @@ struct PaneView: View {
     }
     
     @ViewBuilder private var elementPicker: some View {
-        if snapshot.isPickingSelector,
+        if let mode = snapshot.selectorPickerMode,
            let webContentId = snapshot.webContentId,
            let windowID = windowID,
            let webContent = BrowserStore.shared.getOrCreateWebContent(forId: webContentId, toBeActiveInWindow: windowID) {
-            ElementPickerOverlay(webContent: webContent) { selector in
+            ElementPickerOverlay(webContent: webContent, mode: mode) { selector in
                 if let selector = selector {
                     #if os(macOS)
                     let pasteboard = NSPasteboard.general
@@ -162,12 +162,12 @@ struct PaneView: View {
                             icon: "doc.on.clipboard"
                         )
                         state.windows[windowID]?.toasts.append(toast)
-                        state.windows[windowID]?.pickingSelectorInPaneId = nil
+                        state.windows[windowID]?.selectorPicker = nil
                     }
                 } else {
                     // User cancelled
                     BrowserStore.shared.modify { state in
-                        state.windows[windowID]?.pickingSelectorInPaneId = nil
+                        state.windows[windowID]?.selectorPicker = nil
                     }
                 }
             }

@@ -73,6 +73,7 @@ let package = Package(
                 .copy("Adblock/easylist.min.json"),
                 .copy("Adblock/easycookie.min.json"),
                 .copy("ElementPicker/elementPicker.js"),
+                .copy("ElementPicker/styleSelectors.js"),
                 .copy("BrowserJS/BrowserJS.d.ts"),
                 .process("Assets.xcassets"),
             ]

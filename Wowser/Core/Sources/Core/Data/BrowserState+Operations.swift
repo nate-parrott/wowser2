@@ -39,17 +39,51 @@ extension BrowserState {
     // terminal and file-browser tabs pointed at that folder.
     public mutating func createNewProfile(forFolderPath folderPath: String, sharingLoginsWith sourceProfileID: ID<Profile>? = nil) -> ID<Profile> {
         let id = createNewProfile(sharingLoginsWith: sourceProfileID)
-        profiles[id]?.title = (folderPath as NSString).lastPathComponent
-        let keys: [NativePageKey] = [
+        attachFolder(path: folderPath, toProfile: id)
+        return id
+    }
+
+    /// The "core" native tabs pinned for a space's folder.
+    static func coreFolderKeys(_ folderPath: String) -> [NativePageKey] {
+        [
             .vscode(folder: folderPath),
             .terminal(cwd: folderPath),
             .fileBrowser(path: folderPath),
         ]
-        for key in keys {
-            let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: key.url))])
-            insertTab(tab, intoProfileFavoritesAtIndex: profiles[id]?.manualFavorites.count ?? 0, profile: id)
+    }
+
+    /// Attaches `path` to the profile (replacing any previous folder). Pinned
+    /// native tabs that pointed at the previous folder are re-pointed at the
+    /// new one; any of the core kinds (VS Code / terminal / files) that aren't
+    /// pinned yet get added. Names the space after the folder if it has no
+    /// title yet.
+    public mutating func attachFolder(path folderPath: String, toProfile profileID: ID<Profile>) {
+        guard var profile = profiles[profileID] else { return }
+        let oldPath = profile.folderPath
+        profile.folderPath = folderPath
+        if profile.title?.nilIfEmpty == nil {
+            profile.title = (folderPath as NSString).lastPathComponent
         }
-        return id
+        profiles[profileID] = profile
+
+        for key in BrowserState.coreFolderKeys(folderPath) {
+            // An existing pinned tab of this kind on the old folder → re-point it.
+            let existing: ID<Tab>? = oldPath == nil ? nil : profile.manualFavorites.first { tabID in
+                guard let tab = tabs[tabID], tab.panes.count == 1, let pane = tab.panes.first,
+                      let url = pane.baseInfo?.url ?? pane.info.url,
+                      let k = NativePageKey(url: url) else { return false }
+                return k.kindString == key.kindString && k.folderPath == oldPath
+            }
+            if let existing, let paneID = tabs[existing]?.panes.first?.id {
+                modifyPaneAndTab(forWebContentId: paneID) { pane, _ in
+                    pane.info = .init(url: key.url)
+                    pane.baseInfo = pane.info
+                }
+            } else {
+                let tab = Tab(id: .assign(), panes: [.init(id: .assign(), info: .init(url: key.url))])
+                insertTab(tab, intoProfileFavoritesAtIndex: profiles[profileID]?.manualFavorites.count ?? 0, profile: profileID)
+            }
+        }
     }
 
     /// Reorders profiles by moving `movingID` to `targetID`'s position.
@@ -96,6 +130,30 @@ extension BrowserState {
 
     public mutating func unhideProfile(_ id: ID<Profile>) {
         profiles[id]?.hidden = false
+    }
+
+    /// Removes a profile and all of its tabs, moving any window sitting on it
+    /// to another profile. Never deletes the last remaining profile.
+    public mutating func deleteProfile(_ id: ID<Profile>) {
+        guard profiles.count > 1, profiles[id] != nil else { return }
+        for window in windows.values {
+            for tabID in window.perProfileData[id]?.tabs ?? [] {
+                _removeTab_unsafe_doesntCloseWebContent(tabId: tabID)
+            }
+            if window.profile == id {
+                windows[window.id]?.profile = profiles.values.first(where: { $0.id != id })?.id ?? .defaultProfile
+            }
+            windows[window.id]?.perProfileData.removeValue(forKey: id)
+        }
+        profiles.removeValue(forKey: id)
+    }
+
+    /// Records `path` as the space's folder if it doesn't have one yet. Unlike
+    /// `attachFolder`, this doesn't pin tabs or rename the space; it's used
+    /// when the user opens a native tab in a folder from the "…" menu.
+    public mutating func setFolderIfMissing(path: String, forProfile id: ID<Profile>) {
+        guard let profile = profiles[id], profile.folderPath?.nilIfEmpty == nil else { return }
+        profiles[id]?.folderPath = path
     }
 
     /// Moves a tab's pane into another tab's split view
@@ -552,6 +610,40 @@ extension BrowserState {
             let newSelectedTabId = tabsInRecencyOrder(inWindow: windowID, max: oldOffset + 1).get(oldOffset)
             if let newSelectedTabId {
                 activate(tabId: newSelectedTabId, in: windowID)
+            }
+        }
+    }
+    
+    // We don't want to allow >1 new tab page in sidebar
+    mutating func closeUnactivatedNewTabPages(in windowID: ID<WindowState>) {
+        // dont close anything pinned
+        guard let window = windows[windowID] else { return }
+        
+        var visibleTabs: [ID<Tab>] = []
+        // Then add either project tabs or main tabs
+        if let focusedProjectID = window.focusedOnProject,
+           let project = projects[focusedProjectID] {
+            // Add project tabs if a project is focused
+            visibleTabs.append(contentsOf: project.tabs)
+        } else {
+            // Otherwise add main tabs
+            visibleTabs.append(contentsOf: window.tabs)
+        }
+        
+        let toClose = visibleTabs
+            .filter({ $0 != window.currentTab })
+            .filter { id in
+                if let tab = self.tabs[id], let pane = tab.panes.first, tab.panes.count == 1 {
+                    return pane.info.isEmptyPage
+                }
+                return false
+            }
+        
+        if toClose.isEmpty { return }
+        DispatchQueue.main.async {
+            // do this outside modify()
+            for id in toClose {
+                closeTab(tabID: id)
             }
         }
     }

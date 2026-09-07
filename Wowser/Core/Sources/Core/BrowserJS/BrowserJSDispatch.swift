@@ -275,6 +275,29 @@ enum BrowserJSDispatch {
             try await host.agentDispose(id: id)
             return nil
 
+        case "fs.read":
+            guard let path = str("path") else { throw BrowserJSError.invalidArgs("path") }
+            let result = try await host.fsRead(path: path, encoding: optStr("encoding") ?? "utf8")
+            return try encodeValue(result)
+        case "fs.write":
+            guard let path = str("path"), let data = str("data") else { throw BrowserJSError.invalidArgs("path, data") }
+            try await host.fsWrite(path: path, data: data, encoding: optStr("encoding") ?? "utf8", append: bool("append"))
+            return nil
+        case "fs.list":
+            guard let path = str("path") else { throw BrowserJSError.invalidArgs("path") }
+            return try encodeValue(try await host.fsList(path: path))
+        case "fs.stat":
+            guard let path = str("path") else { throw BrowserJSError.invalidArgs("path") }
+            return try encodeValue(try await host.fsStat(path: path))
+        case "fs.remove":
+            guard let path = str("path") else { throw BrowserJSError.invalidArgs("path") }
+            try await host.fsRemove(path: path)
+            return nil
+        case "fs.mkdir":
+            guard let path = str("path") else { throw BrowserJSError.invalidArgs("path") }
+            try await host.fsMkdir(path: path)
+            return nil
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -340,6 +363,14 @@ enum BrowserJSBridgeSource {
         },
         webapp: {
             create: function(opts) { return __browserCall('webapp.create', opts || {}); },
+        },
+        fs: {
+            read:   function(path, opts) { opts = opts || {}; return __browserCall('fs.read', { path: path, encoding: opts.encoding || 'utf8' }); },
+            write:  function(path, data, opts) { opts = opts || {}; return __browserCall('fs.write', { path: path, data: String(data), encoding: opts.encoding || 'utf8', append: !!opts.append }); },
+            list:   function(path) { return __browserCall('fs.list', { path: path }); },
+            stat:   function(path) { return __browserCall('fs.stat', { path: path }); },
+            remove: function(path) { return __browserCall('fs.remove', { path: path }); },
+            mkdir:  function(path) { return __browserCall('fs.mkdir', { path: path }); },
         },
         agent: {
             create:      function(opts) { return __browserCall('agent.create', opts || {}); },

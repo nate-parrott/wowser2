@@ -441,16 +441,7 @@ private struct NewProfileContent: View {
     // pre-pinned with VS Code / terminal / files tabs for that folder.
     private func createProfileFromFolder() {
         let sourceID = sourceProfileIDForSharing
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Create Profile"
-        panel.message = "Choose a folder for the new profile"
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-        panel.begin { response in
-            guard response == .OK, let path = panel.url?.path else { return }
+        FolderPicker.pick(prompt: "Create Profile", message: "Choose a folder for the new profile") { path in
             BrowserStore.shared.modify { state in
                 let newProfileId = state.createNewProfile(forFolderPath: path, sharingLoginsWith: sourceID)
                 state.windows[windowID]?.profile = newProfileId

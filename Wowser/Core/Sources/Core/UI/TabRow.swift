@@ -6,6 +6,7 @@ struct RegularTabRow: View {
     let isSelected: Bool
     let windowID: ID<WindowState>
     @State private var isHovered = false
+    @State private var popScale: CGFloat = 1
     
     var body: some View {
         // Look up the data from BrowserStore and generate a TabSnapshot
@@ -30,10 +31,19 @@ struct RegularTabRow: View {
                 }
                 .onDrag {
                     // WARNING: onDrag appears to leak the hosting view when clicked
-                    // Create a drag item with the tab ID as text
-                    NSItemProvider(object: tabID.raw as NSString)
+                    NSItemProvider.tabDrag(tabID: tabID, fileURL: snapshot.fileURL)
                 }
+                .scaleEffect(popScale)
+                .onChange(of: snapshot.animationCount) { _ in pop() }
             }
+        }
+    }
+
+    /// Quick scale-up-and-settle to call attention to the row.
+    private func pop() {
+        withAnimation(.easeOut(duration: 0.12)) { popScale = 1.12 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(.spring(duration: 0.35, bounce: 0.45)) { popScale = 1 }
         }
     }
 }
@@ -50,10 +60,17 @@ struct TabSnapshot: Equatable {
     var appearance: TabAppearance
     var showSeparateSplitButton: Bool
     var isPip: Bool
+    /// For file tabs: the file on disk, so dragging the tab also drags the file.
+    var fileURL: URL?
+    /// See `Tab.animationCount` — the row pops when this changes.
+    var animationCount: Int?
+    /// A finished file (download or file-browser file target) that the hover
+    /// "open" button can hand to the default app.
+    var openableFileURL: URL?
 
     // Factory method to create a snapshot from a tab
     static func from(tab: Tab) -> TabSnapshot {
-        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1, isPip: tab.isPip)
+        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1, isPip: tab.isPip, fileURL: tab.draggableFileURL, animationCount: tab.animationCount, openableFileURL: tab.openableFileURL)
     }
 }
 
@@ -112,6 +129,11 @@ private struct RegularTabButton: View {
                     if snapshot.showSeparateSplitButton {
                         SeparateSplitTabsButton(tabID: snapshot.tabID)
                     }
+                    #if os(macOS)
+                    if let fileURL = snapshot.openableFileURL {
+                        OpenFileButton(url: fileURL)
+                    }
+                    #endif
                     CloseTabButton(tabID: snapshot.tabID)
                 }
             } else if snapshot.isPip {
@@ -167,6 +189,20 @@ struct NewTabCell: View {
     }
 }
 
+
+#if os(macOS)
+private struct OpenFileButton: View {
+    var url: URL
+
+    var body: some View {
+        Button(action: { NSWorkspace.shared.open(url) }) {
+            Image(systemName: "arrow.up.forward.app")
+                .help("Open in Default App")
+        }
+        .buttonStyle(TabAccessoryButtonStyle())
+    }
+}
+#endif
 
 private struct CloseTabButton: View {
     var tabID: ID<Tab>

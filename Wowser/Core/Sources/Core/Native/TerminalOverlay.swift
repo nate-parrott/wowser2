@@ -332,6 +332,55 @@ final class TerminalSession: ObservableObject {
 final class WowserTerminalView: LocalProcessTerminalView {
     var onClearRequested: (() -> Void)?
 
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    // MARK: Drag & drop — dropping Finder files types their paths at the cursor
+
+    private func droppedFileURLs(_ sender: NSDraggingInfo) -> [URL] {
+        (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedFileURLs(sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedFileURLs(sender).isEmpty ? [] : .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = droppedFileURLs(sender)
+        guard !urls.isEmpty else { return false }
+        let text = urls.map { Self.shellEscape($0.path) }.joined(separator: " ") + " "
+        if let terminal, terminal.bracketedPasteMode {
+            send(data: Array("\u{1B}[200~".utf8)[...])
+            send(txt: text)
+            send(data: Array("\u{1B}[201~".utf8)[...])
+        } else {
+            send(txt: text)
+        }
+        window?.makeFirstResponder(self)
+        return true
+    }
+
+    /// Quote a path the way Terminal.app does on drop: leave plain paths
+    /// alone, single-quote anything with shell-significant characters.
+    static func shellEscape(_ path: String) -> String {
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "/._-+=:@%,~"))
+        if !path.isEmpty, path.unicodeScalars.allSatisfy({ safe.contains($0) }) {
+            return path
+        }
+        return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
            event.charactersIgnoringModifiers?.lowercased() == "k",

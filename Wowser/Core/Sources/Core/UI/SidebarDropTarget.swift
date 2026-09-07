@@ -2,9 +2,9 @@ import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
 
-// View modifier for handling tab drag and drop. Also accepts image drops
-// (files from Finder, images dragged out of web pages), which set the dropped
-// image as the space's background.
+// View modifier for handling tab drag and drop. Files dropped from Finder
+// become file tabs at the drop position; images dragged out of web pages set
+// the space's background.
 struct SidebarDropTarget: ViewModifier {
     typealias DropDestinationProvider = (CGPoint, CGSize) -> TabDropDestination?
 
@@ -18,10 +18,14 @@ struct SidebarDropTarget: ViewModifier {
         content
             .measureSize({ self.size = $0 })
             .onDrop(of: ["public.text", "public.file-url", "public.image"], isTargeted: $isTargeted) { providers, point in
-                if let imageProvider = providers.first(where: {
-                    $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-                        || $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
-                }) {
+                // Tab drags carry a file URL too when the tab shows a file, so
+                // check for our tab marker before treating this as a file drop.
+                let foreign = providers.filter { !$0.isTabDrag }
+                let fileProviders = foreign.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+                if !fileProviders.isEmpty {
+                    return handleFileDrop(providers: fileProviders, at: point)
+                }
+                if let imageProvider = foreign.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) {
                     return handleImageDrop(provider: imageProvider)
                 }
 
@@ -54,27 +58,38 @@ struct SidebarDropTarget: ViewModifier {
         }
     }
 
+    // MARK: - File drops → file tabs
+
+    private func handleFileDrop(providers: [NSItemProvider], at point: CGPoint) -> Bool {
+        guard let windowID else { return false }
+        // Resolve the destination now, on the main thread; provider loading
+        // completes later on an arbitrary queue.
+        let dest = dropDestinationForPoint(point, size)
+        for provider in providers {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                guard let url = Self.url(fromDropItem: item), url.isFileURL else { return }
+                DispatchQueue.main.async {
+                    var tabID: ID<Tab>?
+                    BrowserStore.shared.modify { state in
+                        tabID = state.openFileTab(path: url.path, windowID: windowID, at: dest)
+                    }
+                    // Pop on the next turn so the row exists before the change it animates on.
+                    if let tabID {
+                        DispatchQueue.main.async {
+                            BrowserStore.shared.modify { $0.popTab(id: tabID) }
+                        }
+                    }
+                }
+            }
+        }
+        return true
+    }
+
     // MARK: - Image drops → space background
 
-    private static let imageFileExtensions: Set<String> = [
-        "png", "jpg", "jpeg", "heic", "heif", "webp", "tiff", "tif", "gif", "bmp",
-    ]
-
     private func handleImageDrop(provider: NSItemProvider) -> Bool {
-        // Resolve the target space now, on the main thread; provider loading
-        // completes later on an arbitrary queue.
         guard let targetProfileID = profileID
             ?? windowID.flatMap({ BrowserStore.shared.model.windows[$0]?.profile }) else { return false }
-
-        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                guard let url = Self.url(fromDropItem: item),
-                      Self.imageFileExtensions.contains(url.pathExtension.lowercased()),
-                      let data = try? Data(contentsOf: url) else { return }
-                BrowserStore.shared.setSpaceBackgroundImage(data: data, profileID: targetProfileID)
-            }
-            return true
-        }
 
         // In-page image drags: load the raw data of the first image-conforming
         // representation.

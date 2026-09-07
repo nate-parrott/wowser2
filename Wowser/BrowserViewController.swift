@@ -61,6 +61,15 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
                 return event
             }
 
+            // Escape cancels an active element-picker session and is consumed.
+            if let windowID = self.windowID,
+               BrowserStore.shared.model.windows[windowID]?.selectorPicker != nil {
+                BrowserStore.shared.modify { state in
+                    _ = state.cancelSelectorPicker(windowID: windowID)
+                }
+                return nil
+            }
+
             // Dismiss toast inline
             if let windowID = self.windowID,
                let currentToast = BrowserStore.shared.model.windows[windowID]?.currentToast {

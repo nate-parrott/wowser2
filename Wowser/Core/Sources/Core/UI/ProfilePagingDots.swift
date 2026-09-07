@@ -67,7 +67,6 @@ private struct ProfileDotView: View {
     
     static let profileDragPrefix = "wowser-profile-drag:"
 
-    @State private var showingEmojiMenu = false
     @State private var hovered = false
     @State private var dropTargeted = false
 
@@ -133,182 +132,13 @@ private struct ProfileDotView: View {
             return true
         }
         .contextMenu {
-            Button(action: {}) {
-                Text("Set Profile Icon")
-            }
-            .disabled(true)
-            
-            Button(action: {
-                setProfileEmoji("📓")
-                setProfileTitle("School")
-            }) {
-                Text("📓 School")
-            }
-            
-            Button(action: {
-                setProfileEmoji("💼")
-                setProfileTitle("Work")
-            }) {
-                Text("💼 Work")
-            }
-            
-            Button(action: {
-                setProfileEmoji("🎮")
-                setProfileTitle("Gaming")
-            }) {
-                Text("🎮 Gaming")
-            }
-            
-            Button(action: {
-                setProfileEmoji("🎬")
-                setProfileTitle("Streaming")
-            }) {
-                Text("🎬 Streaming")
-            }
-            
-            Button(action: {
-                setProfileEmoji("📚")
-                setProfileTitle("Research")
-            }) {
-                Text("📚 Research")
-            }
-            
-            Button(action: {
-                setProfileEmoji("✈️")
-                setProfileTitle("Travel")
-            }) {
-                Text("✈️ Travel")
-            }
-            
-            Button(action: {
-                setProfileEmoji("🏠")
-                setProfileTitle("Home")
-            }) {
-                Text("🏠 Home")
-            }
-            
-            Button(action: {
-                setProfileEmoji("💵")
-                setProfileTitle("Money")
-            }) {
-                Text("💵 Money")
-            }
-            
-            Button(action: {
-                setProfileEmoji("🔒")
-                setProfileTitle("Private")
-            }) {
-                Text("🔒 Private")
-            }
-            
-            Button(action: {
-                setProfileEmoji("😀")
-                setProfileTitle("Just Browsing")
-            }) {
-                Text("😀 Just Browsing")
-            }
-            
-            Divider()
-            
-            Button(action: {
-                // Clear emoji and title
-                setProfileEmoji(nil)
-                setProfileTitle(nil)
-            }) {
-                Text("Clear Icon")
-            }
-            
-            Divider()
-
-            if canHideProfile() {
-                Button(action: {
-                    hideProfile()
-                }) {
-                    Text("Hide Profile")
-                }
-            }
-
-            // Only show Delete Profile if we have more than one profile
-            if canDeleteProfile() {
-                Button(action: {
-                    deleteProfile()
-                }) {
-                    Text("Delete Profile")
-                        .foregroundColor(.red)
-                }
-            }
+            SpaceMenuItems(profileID: profileID, windowID: windowID)
         }
     }
     
     private func switchToProfile() {
         BrowserStore.shared.modify { state in
             state.windows[windowID]?.profile = profileID
-        }
-    }
-    
-    private func setProfileEmoji(_ emoji: String?) {
-        BrowserStore.shared.modify { state in
-            state.profiles[profileID]?.emoji = emoji
-        }
-    }
-    
-    private func setProfileTitle(_ title: String?) {
-        BrowserStore.shared.modify { state in
-            state.profiles[profileID]?.title = title
-        }
-    }
-    
-    private func canHideProfile() -> Bool {
-        BrowserStore.shared.model.canHideProfile(profileID)
-    }
-
-    private func hideProfile() {
-        BrowserStore.shared.modify { state in
-            guard state.canHideProfile(profileID) else { return }
-            state.hideProfile(profileID)
-            state.addToast(message: "Profile hidden — restore it in Settings", icon: "eye.slash", in: windowID)
-        }
-    }
-
-    private func canDeleteProfile() -> Bool {
-        // Check if we have more than one profile (we never want to delete the last profile)
-        let profileCount = BrowserStore.shared.model.profiles.count
-        return profileCount > 1
-    }
-    
-    private func deleteProfile() {
-        // We need to:
-        // 1. Close all tabs in this profile
-        // 2. Switch to another profile if this is the current one
-        // 3. Remove the profile
-        BrowserStore.shared.modify { state in
-            // Find all tabs that belong to this profile
-            let windowsUsingThisProfile = state.windows.values.filter { $0.profile == profileID }
-            for window in windowsUsingThisProfile {
-                // Get all tabs in this window for this profile
-                let tabsToClose = window.perProfileData[profileID]?.tabs ?? []
-                
-                // Remove the tabs from state
-                for tabID in tabsToClose {
-                    state._removeTab_unsafe_doesntCloseWebContent(tabId: tabID)
-                }
-                
-                // If this is the current profile in the window, switch to another profile
-                if window.profile == profileID {
-                    // Find another profile to switch to
-                    let anotherProfile = state.profiles.values
-                        .first(where: { $0.id != profileID })?.id ?? .defaultProfile
-                    
-                    // Switch to the other profile
-                    state.windows[window.id]?.profile = anotherProfile
-                }
-                
-                // Clear per-profile data
-                state.windows[window.id]?.perProfileData.removeValue(forKey: profileID)
-            }
-            
-            // Remove the profile itself
-            state.profiles.removeValue(forKey: profileID)
         }
     }
 }

@@ -82,6 +82,10 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         let isFreshConfig = config == nil
         let config = config ?? WKWebViewConfiguration()
         config.preferences.isElementFullscreenEnabled = true
+        if #available(macOS 15.0, iOS 18.0, *), DefaultsKeys.hideSiriAIOnTextSelection.boolValue() {
+            // Also hides macOS 27's floating Siri button that appears on text selection.
+            config.writingToolsBehavior = .none
+        }
         // Register the tang:// scheme + BrowserJS bridge on configs we own.
         // (Popup-inherited configs are skipped to avoid double-registration,
         // which would throw; tang apps are opened with fresh configs.)
@@ -338,6 +342,16 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     // MARK: - WKNavigationDelegate
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
         if performLoadAfterCommitIfNeeded(for: navigation) { return }
+        // A navigation that turned into a download (WebKitErrorDomain 102,
+        // "Frame load interrupted") or was cancelled isn't a failure of the
+        // page still onscreen — Safari/Chrome keep showing it. `info.url` is
+        // KVO-synced with the webview, which has already reverted.
+        let nsError = error as NSError
+        if (nsError.domain == "WebKitErrorDomain" && nsError.code == 102)
+            || (nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) {
+            info.oldOnscreenURL = nil
+            return
+        }
         if let failedURL = info.oldOnscreenURL {
             self.info.failedNavToURL = .init(url: failedURL, error: .generic("\(error)"))
         }

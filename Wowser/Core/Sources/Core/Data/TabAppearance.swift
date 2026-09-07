@@ -11,6 +11,7 @@ struct TabAppearance: Equatable, Codable {
         case terminal(running: Bool) // terminal-glyph chip; dimmed when idle at the prompt
         case vscode  // VS Code-glyph chip
         case files   // file-browser-glyph chip
+        case fileIcon(path: String) // the Finder icon for a specific file on disk
         case agentFruit(flavor: AgentFruitFlavor, working: Bool) // agent-tab fruit; eyes open while working
         case empty
     }
@@ -82,6 +83,23 @@ extension Pane {
 
         if let url = info.url, let nativeKey = NativePageKey(url: url) {
             appearance = nativeKey.tabAppearance(info: info, baseInfo: baseInfo)
+        }
+
+        if let download {
+            appearance.title = download.suggestedFilename
+            appearance.icon = .fileIcon(path: download.destinationURL.path)
+            switch download.status {
+            case .inProgress:
+                appearance.subtitle = download.estimatedSize > 0
+                    ? "Downloading… \(Int(download.progress * 100))%"
+                    : "Downloading…"
+            case .failed:
+                appearance.subtitle = "Download failed"
+            case .cancelled:
+                appearance.subtitle = "Download cancelled"
+            case .completed:
+                break
+            }
         }
 
         if let url = info.url, let genKey = GeneratedPageKey(url: url) {
@@ -166,6 +184,8 @@ struct TabIconView: View {
             VSCodeFavicon()
         case .files:
             FileBrowserFavicon()
+        case .fileIcon(let path):
+            FileIconView(path: path)
         case .empty:
             Circle()
                 .fill(.primary)
@@ -195,6 +215,32 @@ struct FileBrowserFavicon: View {
     var size: CGFloat = 16
     var body: some View {
         TabIconView(icon: .sfSymbol("folder"))
+    }
+}
+
+/// The Finder icon for a file. Looked up off the body path (on appear / path
+/// change) so the syscall doesn't run on every re-render.
+struct FileIconView: View {
+    var path: String
+    #if os(macOS)
+    @State private var image: NSImage?
+    #endif
+
+    var body: some View {
+        #if os(macOS)
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().frame(width: 16, height: 16)
+            } else {
+                Color.clear.frame(width: 16, height: 16)
+            }
+        }
+        .onAppearOrChange(of: path) { path in
+            image = NSWorkspace.shared.icon(forFile: path)
+        }
+        #else
+        TabIconView(icon: .sfSymbol("doc"))
+        #endif
     }
 }
 

@@ -47,12 +47,13 @@ extension WKWebView {
      (window as any).__selectors_for_pt = selectorsForElementAtPoint;
      */
     
-    func selectors(atPoint point: CGPoint) async throws -> [SelectorCandidate] {
+    func selectors(atPoint point: CGPoint, mode: SelectorPickerMode) async throws -> [SelectorCandidate] {
         try await injectElementPickerLib()
 
+        let augmented = mode == .augmented ? "true" : "false"
         let js = """
         (function() {
-            const result = __selectors_for_pt(\(point.x), \(point.y));
+            const result = __selectors_for_pt(\(point.x), \(point.y), { augmented: \(augmented) });
             return result;
         })()
         """
@@ -64,7 +65,7 @@ extension WKWebView {
         let js = """
         (function() {
             try {
-                const elements = document.querySelectorAll(\(selector.encodedAsJSONString));
+                const elements = \(AugmentedSelector.matchesJS(for: selector));
                 const rects = [];
 
                 for (const element of elements) {
@@ -234,6 +235,7 @@ private struct HoveredElementPreview: View {
 // Used to let picking a selector
 struct ElementPickerOverlay: View {
     var webContent: WebContent
+    var mode: SelectorPickerMode
     var onDone: (String?) -> Void
 
     enum Status: Equatable {
@@ -297,7 +299,7 @@ struct ElementPickerOverlay: View {
         ZStack {
             switch status {
             case .picking:
-                Text("Tap to pick or drag to refine")
+                Text(mode == .augmented ? "Tap to pick or drag to refine (style-aware)" : "Tap to pick or drag to refine")
                     .font(.system(size: 14, weight: .medium))
             case .refining(_, _, _):
                 VStack {
@@ -373,7 +375,7 @@ struct ElementPickerOverlay: View {
         mousePosition = location
 
         let task = Task { @MainActor in
-            let candidates = try await webContent.wkWebviewForPicker.selectors(atPoint: location)
+            let candidates = try await webContent.wkWebviewForPicker.selectors(atPoint: location, mode: mode)
             // Most specific (fewest matches) first
             return candidates.sorted { $0.matchCount < $1.matchCount }
         }
