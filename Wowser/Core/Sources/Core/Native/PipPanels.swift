@@ -174,11 +174,11 @@ private struct PipPanelView: View {
                     searchActive: false,
                     emptyPage: pane.info.isEmptyPage,
                     colorScheme: pane.info.colorScheme,
-                    isPickingSelector: false,
+                    selectorPickerMode: nil,
                     weight: 1,
                     topbarLocked: false
                 ),
-                mobileViewport: pane.info.mobileViewport == true,
+                mobileViewport: pane.info.fitsSmallPipViewportWithoutScaling,
                 title: tab.customTitle ?? pane.info.title
             )
         } main: { snapshot in
@@ -217,8 +217,8 @@ private struct PipPanelView: View {
 }
 
 /// Small draggable strip at the top of a pip panel, tinted like the command
-/// bar. Close, expand, and the page title. Dragging the strip moves the
-/// window (isMovableByWindowBackground).
+/// bar. Close, expand, and the page title. Dragging anywhere on the strip
+/// (title or empty space) moves the window via WindowDragView.
 private struct PipHeader: View {
     var tabID: ID<Tab>
     var windowID: ID<WindowState>
@@ -232,28 +232,39 @@ private struct PipHeader: View {
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .help("Close Pip")
+                    .foregroundColor(colorScheme?.foreground.color)
             }
             .buttonStyle(TabAccessoryButtonStyle())
 
             Button(action: expand) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .help("Expand to Full Tab")
+                    .foregroundColor(colorScheme?.foreground.color)
             }
             .buttonStyle(TabAccessoryButtonStyle())
+            
+            HStack {
+                Text(title ?? "")
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .opacity(0.8)
+                    .padding(.leading, 4)
+                    .allowsHitTesting(false)
 
-            Text(title ?? "")
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .opacity(0.8)
-                .padding(.leading, 4)
-
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
+            .frame(height: Self.height - 4)
         }
         .padding(.horizontal, 4)
         .frame(height: Self.height)
         .frame(maxWidth: .infinity)
-        .background(colorScheme?.background.color ?? Color("Background", bundle: .module))
+        .background {
+            // Drag region for the whole header; buttons sit above and still
+            // take their own clicks.
+            WindowDragView()
+                .background(colorScheme?.background.color ?? Color("Background", bundle: .module))
+        }
         .foregroundColor(colorScheme?.foreground.color)
         .contentShape(Rectangle())
     }
@@ -270,6 +281,23 @@ private struct PipHeader: View {
             state.unghostTab(id: tabID)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+extension WebContent.Info {
+    var fitsSmallPipViewportWithoutScaling: Bool {
+        if mobileViewport == true {
+            return true
+        }
+        if let url = committedURL ?? url, let key = NativePageKey(url: url) {
+            switch key {
+            case .terminal: return true
+            case .vscode: return false
+            case .fileBrowser: return false
+            case .agent: return true
+            }
+        }
+        return false
     }
 }
 

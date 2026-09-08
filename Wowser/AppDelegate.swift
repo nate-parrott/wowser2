@@ -113,6 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.disableNetworkProxy.rawValue: true, // network capture is opt-in
             DefaultsKeys.spaceThemeIntensity.rawValue: 1.0,
             DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt_5_4_nano.rawValue,
+            DefaultsKeys.hideSiriAIOnTextSelection.rawValue: true,
         ])
         
         #if os(macOS)
@@ -138,6 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        SettingsWindow.observeShowSettingsRequests()
         // Start the local capturing proxy *before* any webview is created so its
         // data store can be pointed at it (WebContent reads the bound port
         // synchronously at init). Binding to loopback is fast; wait briefly.

@@ -1,4 +1,12 @@
 import { scoreForAttr, scoreForClassName, scoreForTag, SCORING } from "./scoring";
+import { cssEscape, escapeAttrValue } from "./cssEscape";
+import { buildClassStats, ClassStats } from "./classHashing";
+import { isStyleClassName, STYLE_KINDS, styleTokensForElement, toQueryable, withStyleClassesApplied } from "./styleSelectors";
+
+/** querySelectorAll that understands augmented (style) selectors while temp classes are applied. */
+export function queryAll(selector: string): NodeListOf<Element> {
+    return document.querySelectorAll(toQueryable(selector));
+}
 
 // Our candidates have at most 3 terms
 interface Candidate {
@@ -23,13 +31,15 @@ interface Term {
     nthChild?: number;
 
     directChild?: boolean; // do we prepend > before this term?
+
+    has?: Term[]; // rendered as `:has(<term>)` suffixes; inner terms may set directChild for `:has(> x)`
 } 
 
-function termToString(term: Term): string {
+export function termToString(term: Term): string {
     let selectors: string[] = [];
 
     if (term.directChild) {
-        selectors.push('>');
+        selectors.push('> ');
     }
 
     if (term.tag) {
@@ -39,18 +49,21 @@ function termToString(term: Term): string {
     }
 
     if (term.id) {
-        selectors.push(`#${term.id}`);
+        selectors.push(`#${cssEscape(term.id)}`);
     }
 
     if (term.className) {
-        selectors.push(`.${term.className}`);
+        // Style-selector tokens are emitted verbatim (they aren't valid CSS anyway;
+        // `queryAll` escapes them at query time).
+        selectors.push(`.${isStyleClassName(term.className) ? term.className : cssEscape(term.className)}`);
     }
 
     if (term.hasAttr) {
+        const name = cssEscape(term.hasAttr);
         if (term.attrVal) {
-            selectors.push(`[${term.hasAttr}="${term.attrVal}"]`);
+            selectors.push(`[${name}="${escapeAttrValue(term.attrVal)}"]`);
         } else {
-            selectors.push(`[${term.hasAttr}]`);
+            selectors.push(`[${name}]`);
         }
     }
 
@@ -58,6 +71,12 @@ function termToString(term: Term): string {
         selectors.push(`:nth-child(${term.nthChild})`);
     } else if (term.lastChild) {
         selectors.push(':last-child');
+    }
+
+    if (term.has) {
+        for (const inner of term.has) {
+            selectors.push(`:has(${termToString(inner)})`);
+        }
     }
 
     return selectors.join('');
@@ -69,10 +88,12 @@ function candidateToString(cand: Candidate): string {
 
 function matchCount(terms: Term[]): number {
     let sel = terms.map(t => termToString(t)).join(' ');
-    return document.querySelectorAll(sel).length;
+    return queryAll(sel).length;
 }
 
-function baseCandidates(element: HTMLElement): Candidate[] {
+/// `allowStyleClasses`: whether synthetic `__sss__` classes may become terms. Only
+/// the picked element itself gets style terms for now — not its ancestors.
+function baseCandidates(element: HTMLElement, allowStyleClasses: boolean, stats: ClassStats): Candidate[] {
     const candidates: Candidate[] = [];
 
     function addCandidate(terms: Term[], score: number): void {
@@ -129,10 +150,11 @@ function baseCandidates(element: HTMLElement): Candidate[] {
     // Class candidates (add one candidate per class)
     if (element.classList && element.classList.length > 0) {
         Array.from(element.classList).forEach(className => {
+            if (isStyleClassName(className) && !allowStyleClasses) { return; }
             const classTerm: Term = {
                 className: className
             };
-            addCandidate([classTerm], SCORING.TERM_PENALITY + scoreForClassName(className));
+            addCandidate([classTerm], SCORING.TERM_PENALITY + scoreForClassName(className, stats));
         });
     }
 
@@ -209,7 +231,7 @@ function reduceCandidateCount(cands: Candidate[], keepCandidates: number): Candi
 
 const DEBUG = true;
 
-function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string]: true}, origElement: HTMLElement): Candidate[] {
+function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string]: true}, origElement: HTMLElement, stats: ClassStats): Candidate[] {
     if (candidate.terms.filter(x => !!x.id).length > 0) {
         // Don't expand candidates with IDs
         return [];
@@ -232,7 +254,7 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
     // Process each parent level
     for (let i = 0; i < parents.length; i++) {
         const currentParent = parents[i];
-        const parentCandidates = baseCandidates(currentParent);
+        const parentCandidates = baseCandidates(currentParent, false, stats);
 
         // Create new candidates by combining parent with current candidate
         for (const parentCandidate of parentCandidates) {
@@ -265,6 +287,75 @@ function expandCandidate(candidate: Candidate, seenSelectorsToSkip: {[id: string
     return result;
 }
 
+// Downward expansion limits
+const HAS_MAX_DESCENDANTS_SCANNED = 30;
+const HAS_MAX_VARIANTS_PER_CANDIDATE = 6;
+
+/**
+ * Expand *downward*: attach `:has(> child)` / `:has(descendant)` to the picked
+ * element's term. Only semantic child terms qualify (semantic tags, semantic
+ * classes, role/aria attributes), and a candidate gets at most one `:has`.
+ */
+function expandCandidateDown(candidate: Candidate, seenSelectorsToSkip: {[id: string]: true}, origElement: HTMLElement, stats: ClassStats): Candidate[] {
+    if (candidate.terms.some(t => !!t.has)) return [];
+    if (candidate.terms.filter(x => !!x.id).length > 0) return [];
+
+    // Children (depth 1) then grandchildren (depth 2), capped.
+    const descendants: { el: HTMLElement; depth: number }[] = [];
+    const children = Array.from(origElement.children) as HTMLElement[];
+    for (const c of children) {
+        if (descendants.length >= HAS_MAX_DESCENDANTS_SCANNED) break;
+        descendants.push({ el: c, depth: 1 });
+    }
+    for (const c of children) {
+        for (const g of Array.from(c.children) as HTMLElement[]) {
+            if (descendants.length >= HAS_MAX_DESCENDANTS_SCANNED) break;
+            descendants.push({ el: g, depth: 2 });
+        }
+    }
+    if (descendants.length === 0) return [];
+
+    // Collect semantic single-term candidates from the descendants.
+    const inner: { term: Term; score: number }[] = [];
+    const innerSeen: {[id: string]: true} = {};
+    for (const { el, depth } of descendants) {
+        for (const c of baseCandidates(el, false, stats)) {
+            const t = c.terms[0];
+            if (t.nthChild || t.lastChild) continue; // positional terms aren't semantic
+            if (t.tag && !t.className && !t.id && !t.hasAttr && scoreForTag(t.tag) <= 0) continue; // `div`, `span`...
+            if (!t.tag && c.score < 0) continue; // random classes / attrs
+            const term: Term = { ...t, directChild: depth === 1 };
+            const key = termToString(term);
+            if (innerSeen[key]) continue;
+            innerSeen[key] = true;
+            inner.push({ term, score: c.score });
+        }
+    }
+    inner.sort((a, b) => b.score - a.score);
+
+    const result: Candidate[] = [];
+    const lastIdx = candidate.terms.length - 1;
+    for (const { term, score } of inner.slice(0, HAS_MAX_VARIANTS_PER_CANDIDATE)) {
+        const newTerms = candidate.terms.slice();
+        newTerms[lastIdx] = { ...newTerms[lastIdx], has: [term] };
+        const newCandidate: Candidate = {
+            terms: newTerms,
+            topMatch: candidate.topMatch,
+            score: candidate.score + score + SCORING.HAS_PENALTY,
+            matchCount: -1,
+        };
+        newCandidate.matchCount = matchCount(newCandidate.terms);
+        const selector = candidateToString(newCandidate);
+        if (seenSelectorsToSkip[selector]) continue;
+        seenSelectorsToSkip[selector] = true;
+        result.push(newCandidate);
+        if (DEBUG) {
+            assertCandidateMatches(selector, origElement);
+        }
+    }
+    return result;
+}
+
 function printCandidates(candidates: Candidate[]): void {
     // print count and selector, in order of count
     const sortedCandidates = candidates.sort((a, b) => a.matchCount - b.matchCount);
@@ -274,10 +365,26 @@ function printCandidates(candidates: Candidate[]): void {
     });
 }
 
-export function generateSelectorList(element: HTMLElement): string[] {
+export interface GenerateOptions {
+    /// Opt-in: also generate synthetic style selectors (`.__sss__...`) for the
+    /// picked element. These are not valid CSS; resolve them with
+    /// `resolveAugmentedSelector`.
+    augmented?: boolean;
+}
+
+export function generateSelectorList(element: HTMLElement, options: GenerateOptions = {}): string[] {
+    if (!options.augmented) {
+        return generateSelectorListInner(element, false);
+    }
+    const tokens = Object.values(styleTokensForElement(element, STYLE_KINDS));
+    return withStyleClassesApplied(tokens, document.querySelectorAll('*'), () => generateSelectorListInner(element, true));
+}
+
+function generateSelectorListInner(element: HTMLElement, allowStyleClasses: boolean): string[] {
     const iterationCount = 3;
+    const stats = buildClassStats(document);
     
-    let pool = reduceCandidateCount(baseCandidates(element), 40);
+    let pool = reduceCandidateCount(baseCandidates(element, allowStyleClasses, stats), 40);
     if (DEBUG) {
         console.log("BASE CANDIDATES:");
         printCandidates(pool);
@@ -296,8 +403,9 @@ export function generateSelectorList(element: HTMLElement): string[] {
             const id = candidateToString(candidate);
             if (expandedIds[id]) { continue; }
             expandedIds[id] = true;
-            const expansions = expandCandidate(candidate, seen, element); // will be unseen
+            const expansions = expandCandidate(candidate, seen, element, stats); // will be unseen
             nextPool.push(...expansions);
+            nextPool.push(...expandCandidateDown(candidate, seen, element, stats));
         }
         const isFinal = i === iterationCount - 1;
         if (isFinal) {
@@ -315,7 +423,7 @@ export function generateSelectorList(element: HTMLElement): string[] {
 }
 
 function assertCandidateMatches(selector: string, origElement: HTMLElement): void {
-    const matches = document.querySelectorAll(selector);
+    const matches = queryAll(selector);
     const found = Array.from(matches).some((el: Element) => el === origElement);
     if (!found) {
         // throw
@@ -336,7 +444,7 @@ function sortByMatchCountThenScore(candidates: Candidate[]): Candidate[] {
 function removeCandidatesMatchingParentsOfElement(candidates: Candidate[], element: HTMLElement): Candidate[] {
     const parents = getParents(element);
     return candidates.filter(candidate => {
-        const matches = document.querySelectorAll(candidateToString(candidate));
+        const matches = queryAll(candidateToString(candidate));
         return !Array.from(matches).some((el: Element) => {
             return parents.some(parent => parent === el);
         }

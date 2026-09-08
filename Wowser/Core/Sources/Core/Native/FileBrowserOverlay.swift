@@ -78,8 +78,16 @@ struct FileBrowserOverlay: View {
         } else if pathIsDirectory {
             fileTable
         } else {
-            QuickLookPreview(url: currentURL)
-                .id(currentURL)
+            // A pane opened for a download shows progress/status until the
+            // file is complete, then falls through to the regular Quick Look.
+            WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.pane(forId: paneID)?.download }) { (download: Download??) in
+                if let download = download ?? nil, download.status != .completed {
+                    DownloadStatusView(download: download, paneID: paneID)
+                } else {
+                    QuickLookPreview(url: currentURL)
+                        .id(currentURL)
+                }
+            }
         }
     }
 
@@ -414,6 +422,85 @@ private struct FolderDropModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Full-pane status for a file-browser tab attached to a download that
+/// hasn't finished: progress while downloading, or the failure/cancel reason.
+private struct DownloadStatusView: View {
+    var download: Download
+    var paneID: ID<WebContent>
+
+    /// WebKit's download object doesn't survive a relaunch; a persisted
+    /// "in progress" record with no live download behind it is interrupted.
+    @State private var isLive = true
+
+    private var interrupted: Bool { download.status == .inProgress && !isLive }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: download.destinationURL.path))
+                .resizable()
+                .frame(width: 64, height: 64)
+                .opacity(download.status == .inProgress && !interrupted ? 1 : 0.5)
+
+            Text(download.suggestedFilename)
+                .font(.headline)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+
+            Text(download.url.absoluteString)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            statusBody
+        }
+        .padding(32)
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            isLive = DownloadManager.shared.isActive(paneID: paneID)
+        }
+    }
+
+    @ViewBuilder private var statusBody: some View {
+        switch download.status {
+        case .inProgress where interrupted:
+            Label("Download interrupted", systemImage: "exclamationmark.circle")
+                .foregroundStyle(.secondary)
+        case .inProgress:
+            VStack(spacing: 8) {
+                if download.estimatedSize > 0 {
+                    ProgressView(value: download.progress)
+                } else {
+                    ProgressView()
+                }
+                Text(progressText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Button("Cancel") {
+                DownloadManager.shared.cancelDownload(paneID: paneID)
+            }
+        case .failed:
+            Label(download.error ?? "Download failed", systemImage: "exclamationmark.circle")
+                .foregroundStyle(.red)
+        case .cancelled:
+            Label("Download cancelled", systemImage: "xmark.circle")
+                .foregroundStyle(.secondary)
+        case .completed:
+            EmptyView()
+        }
+    }
+
+    private var progressText: String {
+        if download.estimatedSize > 0 {
+            return "\(formattedSize(download.currentSize)) of \(formattedSize(download.estimatedSize))"
+        }
+        return download.currentSize > 0 ? formattedSize(download.currentSize) : "Starting…"
     }
 }
 

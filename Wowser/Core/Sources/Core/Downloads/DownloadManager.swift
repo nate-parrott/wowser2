@@ -2,27 +2,28 @@ import Foundation
 import WebKit
 import Combine
 
-public struct Download: Identifiable, Codable, Equatable {
-    public let id: ID<Download>
-    public let url: URL
-    public let destinationURL: URL
-    public let suggestedFilename: String
-    public let startDate: Date
+/// A download's status record. Lives on the file-browser `Pane` that was
+/// opened to show the download (`Pane.download`); the pane's URL points at
+/// `destinationURL`.
+public struct Download: Codable, Equatable {
+    public var url: URL
+    public var destinationURL: URL
+    public var suggestedFilename: String
+    public var startDate: Date
     public var progress: Double
     public var estimatedSize: Int64
     public var currentSize: Int64
     public var status: DownloadStatus
     public var error: String?
-    
+
     public enum DownloadStatus: String, Codable {
         case inProgress
         case completed
         case failed
         case cancelled
     }
-    
+
     public init(
-        id: ID<Download>,
         url: URL,
         destinationURL: URL,
         suggestedFilename: String,
@@ -33,7 +34,6 @@ public struct Download: Identifiable, Codable, Equatable {
         status: DownloadStatus = .inProgress,
         error: String? = nil
     ) {
-        self.id = id
         self.url = url
         self.destinationURL = destinationURL
         self.suggestedFilename = suggestedFilename
@@ -46,260 +46,175 @@ public struct Download: Identifiable, Codable, Equatable {
     }
 }
 
+extension BrowserState {
+    /// Opens a (background) file-browser tab pointed at the download's
+    /// destination file, tagged with the download record. Returns the pane ID
+    /// the record lives on.
+    @discardableResult
+    public mutating func openDownloadTab(_ download: Download, windowID: ID<WindowState>) -> ID<WebContent>? {
+        let key = NativePageKey.fileBrowser(path: download.destinationURL.path)
+        let tab = openTab(url: key.url, activate: false, windowID: windowID)
+        guard let paneID = tab.panes.first?.id else { return nil }
+        modifyPaneAndTab(forWebContentId: paneID) { pane, _ in
+            pane.download = download
+        }
+        return paneID
+    }
+
+    /// Asks the sidebar row for the tab containing `paneID` to pop.
+    public mutating func popTab(containingPaneID paneID: ID<WebContent>) {
+        if let tabID = paneToTabMapping[paneID] { popTab(id: tabID) }
+    }
+
+    public mutating func modifyDownload(paneID: ID<WebContent>, _ block: (inout Download) -> Void) {
+        modifyPaneAndTab(forWebContentId: paneID) { pane, _ in
+            guard var d = pane.download else { return }
+            block(&d)
+            pane.download = d
+        }
+    }
+}
+
 public class DownloadManager: NSObject, WKDownloadDelegate {
-    
-    // Singleton instance
     public static let shared = DownloadManager()
-    
-    // Maps download object to its associated info
-    private var activeDownloads = [WKDownload: (windowID: ID<WindowState>, downloadID: ID<Download>)]()
-    
-    // Maps download IDs to the last time progress was updated
-    private var lastProgressUpdateTime = [ID<Download>: Date]()
-    
-    // Minimum time between progress updates (0.5 seconds)
-    private let progressUpdateThreshold: TimeInterval = 0.5
-    
-    // Create the standard downloads directory path
+
+    private struct Active {
+        var windowID: ID<WindowState>
+        var paneID: ID<WebContent>?
+        var progressObservation: NSKeyValueObservation?
+        var lastProgressUpdate: Date = .distantPast
+    }
+
+    private var activeDownloads = [WKDownload: Active]()
+
+    // Minimum time between progress writes into the store
+    private let progressUpdateThreshold: TimeInterval = 0.3
+
     private let downloadsDirectory: URL = {
         return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
     }()
-    
+
     private override init() {
         super.init()
     }
-    
-    // Handle download from navigation action
+
+    /// True while WebKit is still actively downloading into this pane. Lets
+    /// the UI tell "in progress" apart from "interrupted by a relaunch".
+    public func isActive(paneID: ID<WebContent>) -> Bool {
+        activeDownloads.values.contains(where: { $0.paneID == paneID })
+    }
+
     public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload, windowID: ID<WindowState>) {
         setupDownload(download, windowID: windowID)
     }
-    
-    // Handle download from navigation response
+
     public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload, windowID: ID<WindowState>) {
         setupDownload(download, windowID: windowID)
     }
-    
+
     private func setupDownload(_ download: WKDownload, windowID: ID<WindowState>) {
         download.delegate = self
-        
-        // Create unique ID for this download
-        let downloadID = ID<Download>.assign()
-        
-        // Store the download association
-        activeDownloads[download] = (windowID: windowID, downloadID: downloadID)
-        
-        // Check if sidebar is locked and show toast if it's not
-        if let window = BrowserStore.shared.model.windows[windowID], !window.sidebarLocked {
-            // Create a toast notification for the download start
-            let toast = Toast(
-                message: "Download started",
-                icon: "arrow.down.circle",
-                location: .nearSidebar
-            )
-            
-            // Add toast to window state
-            BrowserStore.shared.modify { state in
-                state.windows[windowID]?.toasts.append(toast)
-            }
-        }
+        activeDownloads[download] = Active(windowID: windowID)
     }
-    
+
     // MARK: - WKDownloadDelegate
-    
+
     public func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-        guard let (windowID, downloadID) = activeDownloads[download] else {
+        guard let active = activeDownloads[download] else {
             completionHandler(nil)
             return
         }
-        
-        // Create unique destination URL in ~/Downloads directory
         let destinationURL = URL.unique(folder: downloadsDirectory, name: suggestedFilename)
-        
-        // Create and add the download to browser state
-        let newDownload = Download(
-            id: downloadID,
+        let record = Download(
             url: response.url ?? URL(string: "about:blank")!,
             destinationURL: destinationURL,
-            suggestedFilename: suggestedFilename
+            suggestedFilename: suggestedFilename,
+            estimatedSize: response.expectedContentLength
         )
-        
+
+        var paneID: ID<WebContent>?
         BrowserStore.shared.modify { state in
-            // Add the download to the window's state
-            state.windows[windowID]?.downloads[downloadID] = newDownload
+            paneID = state.openDownloadTab(record, windowID: active.windowID)
         }
-        
+        activeDownloads[download]?.paneID = paneID
+        // Pop the new tab on the next runloop turn so the row exists (and has
+        // seen its initial count) before the change it animates on.
+        if let paneID {
+            DispatchQueue.main.async {
+                BrowserStore.shared.modify { $0.popTab(containingPaneID: paneID) }
+            }
+        }
+
+        // WKDownloadDelegate has no public per-chunk callback; observe the
+        // download's Progress instead and throttle writes into the store.
+        activeDownloads[download]?.progressObservation = download.progress.observe(\.fractionCompleted, options: [.new]) { [weak self] progress, _ in
+            DispatchQueue.main.async {
+                self?.progressDidChange(download, progress: progress)
+            }
+        }
+
         completionHandler(destinationURL)
-        // TODO: Can we read from disk
     }
-    
-//    public func download(_ download: WKDownload, didReceive response: URLResponse) {
-//        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-//        
-//        BrowserStore.shared.modify { state in
-//            guard let window = state.windows[windowID],
-//                  var downloadInfo = window.downloads[downloadID] else { return }
-//            
-//            // Update estimated size
-//            downloadInfo.estimatedSize = response.expectedContentLength
-//            state.windows[windowID]?.downloads[downloadID] = downloadInfo
-//        }
-//    }
-//    
-//    public func download(_ download: WKDownload, didReceiveData totalBytesReceived: Int64, totalBytesExpected: Int64) {
-//        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-//        
-//        let now = Date()
-//        let lastUpdate = lastProgressUpdateTime[downloadID] ?? Date(timeIntervalSince1970: 0)
-//        let timeElapsed = now.timeIntervalSince(lastUpdate)
-//        let progress = totalBytesExpected > 0 ? Double(totalBytesReceived) / Double(totalBytesExpected) : 0
-//        
-//        // Only update the progress if enough time has elapsed or if it's the first update or if progress is 100%
-//        if timeElapsed >= progressUpdateThreshold || lastUpdate.timeIntervalSince1970 == 0 || progress >= 1.0 {
-//            lastProgressUpdateTime[downloadID] = now
-//            
-//            BrowserStore.shared.modify { state in
-//                guard let window = state.windows[windowID],
-//                      var downloadInfo = window.downloads[downloadID] else { return }
-//                
-//                // Update progress and size info
-//                downloadInfo.progress = progress
-//                downloadInfo.currentSize = totalBytesReceived
-//                downloadInfo.estimatedSize = totalBytesExpected
-//                
-//                state.windows[windowID]?.downloads[downloadID] = downloadInfo
-//            }
-//        }
-//    }
-    
+
+    private func progressDidChange(_ download: WKDownload, progress: Progress) {
+        guard let active = activeDownloads[download], let paneID = active.paneID else { return }
+        let now = Date()
+        let fraction = progress.fractionCompleted
+        if now.timeIntervalSince(active.lastProgressUpdate) < progressUpdateThreshold && fraction < 1.0 { return }
+        activeDownloads[download]?.lastProgressUpdate = now
+        let completed = progress.completedUnitCount
+        let total = progress.totalUnitCount
+        BrowserStore.shared.modify { state in
+            state.modifyDownload(paneID: paneID) { d in
+                guard d.status == .inProgress else { return }
+                d.progress = fraction
+                d.currentSize = completed
+                if total > 0 { d.estimatedSize = total }
+            }
+        }
+    }
+
     public func downloadDidFinish(_ download: WKDownload) {
-        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-        
-        BrowserStore.shared.modify { state in
-            guard let window = state.windows[windowID],
-                  var downloadInfo = window.downloads[downloadID] else { return }
-            
-            // Mark download as completed
-            downloadInfo.status = .completed
-            downloadInfo.progress = 1.0
-            
-            // Get actual file size from disk
-            do {
-                let fileAttributes = try FileManager.default.attributesOfItem(atPath: downloadInfo.destinationURL.path)
-                if let fileSize = fileAttributes[.size] as? NSNumber {
-                    downloadInfo.currentSize = fileSize.int64Value
-                    downloadInfo.estimatedSize = fileSize.int64Value
+        guard let active = activeDownloads[download] else { return }
+        if let paneID = active.paneID {
+            BrowserStore.shared.modify { state in
+                state.modifyDownload(paneID: paneID) { d in
+                    d.status = .completed
+                    d.progress = 1.0
+                    if let size = (try? FileManager.default.attributesOfItem(atPath: d.destinationURL.path)[.size] as? NSNumber)?.int64Value {
+                        d.currentSize = size
+                        d.estimatedSize = size
+                    }
                 }
-            } catch {
-                print("Error reading file size: \(error)")
             }
-            
-            state.windows[windowID]?.downloads[downloadID] = downloadInfo
-        }
-        
-        // Clean up
-        if let (_, downloadID) = activeDownloads[download] {
-            lastProgressUpdateTime.removeValue(forKey: downloadID)
         }
         activeDownloads.removeValue(forKey: download)
     }
-    
+
     public func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        guard let (windowID, downloadID) = activeDownloads[download] else { return }
-        
-        BrowserStore.shared.modify { state in
-            guard let window = state.windows[windowID],
-                  var downloadInfo = window.downloads[downloadID] else { return }
-            
-            // Mark download as failed
-            downloadInfo.status = .failed
-            downloadInfo.error = error.localizedDescription
-            
-            state.windows[windowID]?.downloads[downloadID] = downloadInfo
-        }
-        
-        // Clean up
-        if let (_, downloadID) = activeDownloads[download] {
-            lastProgressUpdateTime.removeValue(forKey: downloadID)
+        guard let active = activeDownloads[download] else { return }
+        if let paneID = active.paneID {
+            BrowserStore.shared.modify { state in
+                state.modifyDownload(paneID: paneID) { d in
+                    d.status = .failed
+                    d.error = error.localizedDescription
+                }
+            }
         }
         activeDownloads.removeValue(forKey: download)
     }
-    
-    // Cancel a download
-    public func cancelDownload(id: ID<Download>, windowID: ID<WindowState>) {
-        // Find the WKDownload associated with this downloadID
-        if let (download, _) = activeDownloads.first(where: { $0.value.downloadID == id }) {
+
+    // MARK: - Actions
+
+    public func cancelDownload(paneID: ID<WebContent>) {
+        if let (download, _) = activeDownloads.first(where: { $0.value.paneID == paneID }) {
             download.cancel()
-            
-            BrowserStore.shared.modify { state in
-                guard let window = state.windows[windowID],
-                      var downloadInfo = window.downloads[id] else { return }
-                
-                // Mark download as cancelled
-                downloadInfo.status = .cancelled
-                
-                state.windows[windowID]?.downloads[id] = downloadInfo
-            }
-            
-            // Clean up
-            lastProgressUpdateTime.removeValue(forKey: id)
             activeDownloads.removeValue(forKey: download)
-        } else {
-            // Already completed or failed, just update the state
-            BrowserStore.shared.modify { state in
-                guard let window = state.windows[windowID],
-                      var downloadInfo = window.downloads[id] else { return }
-                
-                // Update status only if it was in progress
-                if downloadInfo.status == .inProgress {
-                    downloadInfo.status = .cancelled
-                    state.windows[windowID]?.downloads[id] = downloadInfo
-                }
-            }
         }
-    }
-    
-    // Remove a download from the list
-    public func removeDownload(id: ID<Download>, windowID: ID<WindowState>) {
-        // If download is in progress, cancel it first
-        if activeDownloads.values.contains(where: { $0.downloadID == id }) {
-            cancelDownload(id: id, windowID: windowID)
-        }
-        
-        // Remove from the state and cleanup
-        lastProgressUpdateTime.removeValue(forKey: id)
-        
         BrowserStore.shared.modify { state in
-            state.windows[windowID]?.downloads.removeValue(forKey: id)
-        }
-    }
-    
-    // Delete the downloaded file from disk
-    public func deleteDownloadedFile(id: ID<Download>, windowID: ID<WindowState>) {
-        if let window = BrowserStore.shared.model.windows[windowID], 
-           let download = window.downloads[id] {
-            
-            if download.status == .completed {
-                do {
-                    try FileManager.default.removeItem(at: download.destinationURL)
-                } catch {
-                    print("Error deleting file: \(error)")
-                }
+            state.modifyDownload(paneID: paneID) { d in
+                if d.status == .inProgress { d.status = .cancelled }
             }
-            
-            // Then remove the download from the list
-            removeDownload(id: id, windowID: windowID)
-        }
-    }
-    
-    // Open the downloaded file
-    public func openDownloadedFile(id: ID<Download>, windowID: ID<WindowState>) {
-        if let window = BrowserStore.shared.model.windows[windowID], 
-           let download = window.downloads[id], 
-           download.status == .completed {
-            
-            #if os(macOS)
-            NSWorkspace.shared.open(download.destinationURL)
-            #endif
         }
     }
 }

@@ -52,6 +52,9 @@ public enum DefaultsKeys: String {
     case lastAIRequest // string — JSON AIRequestRecord; see AIRequestLog.swift
 
     case dictationCleanup // bool — run dictated text (into web text fields) through the configured LLM before inserting
+    case dictationButton // bool — experimental: show the microphone button in the toolbar (default off)
+
+    case hideSiriAIOnTextSelection // bool (default on) — opt out of Writing Tools (writingToolsBehavior = .none) in webviews + native text fields, which also suppresses macOS 27's floating Siri button on text selection
 
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }

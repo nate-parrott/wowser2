@@ -35,7 +35,8 @@ struct WindowSnapshot: Equatable {
         var searchActive: Bool
         var emptyPage: Bool
         var colorScheme: ContentColorScheme?
-        var isPickingSelector: Bool
+        /// Non-nil while the element picker is active in this pane.
+        var selectorPickerMode: SelectorPickerMode?
         var weight: Double = 1.0
         var topbarLocked: Bool
     }
@@ -57,7 +58,7 @@ struct WindowSnapshot: Equatable {
     init(state: BrowserState, id: ID<WindowState>) {
         self.windowID = id
         guard let window = state.windows[id] else {
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true, isPickingSelector: false, topbarLocked: false)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: false, emptyPage: true, selectorPickerMode: nil, topbarLocked: false)]
             self.profileID = .defaultProfile
             self.sidebarLocked = false
             self.hasToast = false
@@ -75,7 +76,7 @@ struct WindowSnapshot: Equatable {
 //            let emptyOmnibox: Bool
 //            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
             let searchActive = focusSnap.target == .emptyWindowOmnibox(windowID)
-            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: searchActive, emptyPage: true, isPickingSelector: false, topbarLocked: window.sidebarLocked)]
+            self.panes = [PaneSnapshot(id: "", focused: true, searchActive: searchActive, emptyPage: true, selectorPickerMode: nil, topbarLocked: window.sidebarLocked)]
             return
         }
         self.panes = tab.panes.enumerated().map({ (i, pane) in
@@ -90,7 +91,7 @@ struct WindowSnapshot: Equatable {
                 searchActive: searchActive,
                 emptyPage: pane.info.isEmptyPage,
                 colorScheme: pane.info.colorScheme,
-                isPickingSelector: window.pickingSelectorInPaneId == pane.id,
+                selectorPickerMode: window.selectorPicker?.paneId == pane.id ? window.selectorPicker?.mode : nil,
                 weight: pane.weight ?? 1.0,
                 topbarLocked: window.sidebarLocked
             )
@@ -297,15 +298,18 @@ public struct BrowserWindow_Previews: PreviewProvider {
 extension View {
     @ViewBuilder
     func withFloatingSidebarContainer() -> some View {
-        self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-//        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-//        
-//        self.background(.regularMaterial)
-//            .clipShape(shape)
-//            .overlay {
-//                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-//            }
-//            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
+        // Glass effect doesnt look so good
+//        self
+//            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        
+        self.background(.ultraThickMaterial)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+            }
+            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 0)
     }
 }
 

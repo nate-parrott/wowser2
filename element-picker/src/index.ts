@@ -1,5 +1,6 @@
 import { PickerDebugUI } from './pickerDebugUI';
-import { generateSelectorList } from './selectorGen';
+import { generateSelectorList, GenerateOptions, queryAll } from './selectorGen';
+import { resolveAugmentedSelector } from './styleSelectors';
 
 // Initialize when the script loads
 if (typeof document !== 'undefined') {
@@ -12,14 +13,14 @@ interface SelectorDetails {
   selector: string;
   matchCount: number;
 }
-function selectorsForElementAtPoint(x: number, y: number): SelectorDetails[] {
+function selectorsForElementAtPoint(x: number, y: number, options: GenerateOptions = {}): SelectorDetails[] {
   const element = document.elementFromPoint(x, y);
   if (!element) {
     return [];
   }
-  const selector = generateSelectorList(element as HTMLElement);
+  const selector = generateSelectorList(element as HTMLElement, options);
   const selectorDetails: SelectorDetails[] = selector.map((s) => {
-    const matches = document.querySelectorAll(s);
+    const matches = resolveAugmentedSelector(s);
     return {
       selector: s,
       matchCount: matches.length,
@@ -30,4 +31,5 @@ function selectorsForElementAtPoint(x: number, y: number): SelectorDetails[] {
 }
 
 (window as any).__selectors_for_pt = selectorsForElementAtPoint;
+(window as any).__sss_resolve = resolveAugmentedSelector;
 

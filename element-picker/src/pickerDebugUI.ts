@@ -1,4 +1,5 @@
 import { generateSelectorList } from "./selectorGen";
+import { resolveAugmentedSelector } from "./styleSelectors";
 
 // Picker mode types
 export enum PickerMode {
@@ -267,11 +268,11 @@ export class PickerDebugUI {
 
   private generateSelectors(element: HTMLElement): void {
     // Get raw selectors
-    const selectorStrings = generateSelectorList(element);
+    const selectorStrings = generateSelectorList(element, { augmented: document.body.classList.contains("picker-test-augmented") });
 
     // Create selector objects with match counts
     this.state.selectors = selectorStrings.map(selector => {
-      const matchCount = document.querySelectorAll(selector).length;
+      const matchCount = resolveAugmentedSelector(selector).length;
       return { selector, matchCount };
     });
 
@@ -320,7 +321,7 @@ export class PickerDebugUI {
     this.clearHighlightedElements();
 
     // Find all matching elements
-    const matches = document.querySelectorAll(selector);
+    const matches = resolveAugmentedSelector(selector);
 
     // Highlight each match
     matches.forEach((element) => {

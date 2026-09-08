@@ -124,12 +124,15 @@ private struct ProfilePageSnapshot: Equatable {
     let regularTabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
     let showSpaceTitle: Bool
+    /// Chat mode: the tab list is replaced by the coordinator thread.
+    let chatMode: Bool
 
     init(windowID: ID<WindowState>, profileID: ID<Profile>, state: BrowserState) {
         self.windowID = windowID
         self.profileID = profileID
         // Only surface the editable space name when there's more than one space.
         self.showSpaceTitle = state.visibleProfiles.count > 1
+        self.chatMode = state.profiles[profileID]?.isChatMode ?? false
         
         // Extract favorites from profile
         var favoriteIDs = [ID<Tab>]()
@@ -221,13 +224,17 @@ private struct ProfilePageContent: View {
             }
             .reportsSpaceBackgroundRegion("top-favorites-\(snapshot.profileID.raw)", edge: .top)
 
-            // Regular tabs section with group headers
-            GroupedTabsView(
-                tabGroups: snapshot.regularTabGroups,
-                currentTabID: snapshot.currentTabID,
-                windowID: windowID,
-                profileID: snapshot.profileID
-            )
+            if snapshot.chatMode {
+                ChatSpaceSidebar(windowID: windowID, profileID: snapshot.profileID)
+            } else {
+                // Regular tabs section with group headers
+                GroupedTabsView(
+                    tabGroups: snapshot.regularTabGroups,
+                    currentTabID: snapshot.currentTabID,
+                    windowID: windowID,
+                    profileID: snapshot.profileID
+                )
+            }
         }
     }
 }
@@ -441,16 +448,7 @@ private struct NewProfileContent: View {
     // pre-pinned with VS Code / terminal / files tabs for that folder.
     private func createProfileFromFolder() {
         let sourceID = sourceProfileIDForSharing
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Create Profile"
-        panel.message = "Choose a folder for the new profile"
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-        panel.begin { response in
-            guard response == .OK, let path = panel.url?.path else { return }
+        FolderPicker.pick(prompt: "Create Profile", message: "Choose a folder for the new profile") { path in
             BrowserStore.shared.modify { state in
                 let newProfileId = state.createNewProfile(forFolderPath: path, sharingLoginsWith: sourceID)
                 state.windows[windowID]?.profile = newProfileId

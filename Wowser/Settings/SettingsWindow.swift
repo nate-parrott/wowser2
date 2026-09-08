@@ -5,9 +5,9 @@ import Cocoa
 class SettingsWindow: NSWindow {
     // Singleton instance for the settings window
     
-    init() {
+    init(initialTab: SettingsTab = .general) {
         // Create the SwiftUI view
-        let settingsView = SettingsView()
+        let settingsView = SettingsView(initialTab: initialTab)
         
         // Create a hosting controller for the view
         let hostingController = NSHostingController(rootView: settingsView)
@@ -24,7 +24,7 @@ class SettingsWindow: NSWindow {
 //        self.center()
         self.title = "Preferences"
         self.contentViewController = hostingController
-        self.setFrame(CGRect(x: 200, y: 200, width: 700, height: 500), display: false)
+        self.setFrame(CGRect(x: 200, y: 200, width: 820, height: 560), display: false)
 //        self.setFrameAutosaveName("WowserPreferences")
         self.isReleasedWhenClosed = false
         
@@ -36,16 +36,30 @@ class SettingsWindow: NSWindow {
     }
     
     // Static method to show the settings window
-    static func showSettings() {
+    static func showSettings(tab: SettingsTab? = nil) {
         // If window exists, bring it to front
         if let window = NSApp.windows.compactMap({ $0 as? SettingsWindow  }).first {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            if let tab { tab.open() } // SettingsView listens for .showSettings and switches tabs
             return
         }
         
         // Otherwise create a new window
-        let window = SettingsWindow()
+        let window = SettingsWindow(initialTab: tab ?? .general)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Core posts `.showSettings` (e.g. from the toolbar's "Customize Toolbar…" menu item).
+    static func observeShowSettingsRequests() {
+        NotificationCenter.default.addObserver(forName: .showSettings, object: nil, queue: .main) { note in
+            // Only create/raise the window here; if it already exists SettingsView handles the tab switch itself.
+            if NSApp.windows.contains(where: { $0 is SettingsWindow }) {
+                NSApp.windows.compactMap({ $0 as? SettingsWindow }).first?.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            } else {
+                showSettings(tab: SettingsTab.from(note))
+            }
+        }
     }
 }

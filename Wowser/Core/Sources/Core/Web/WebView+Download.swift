@@ -2,65 +2,39 @@ import WebKit
 import Foundation
 
 extension WKWebView {
-    /// Starts a download of the content at the given URL request
-    /// - Parameters:
-    ///   - request: The URL request to download
-    ///   - windowID: The window ID where the download will be tracked
+    /// Downloads the content at `request` via URLSession (used for downloads
+    /// WebKit can't drive itself) and opens a file-browser tab for the result.
     public func downloadUsingRequest(_ request: URLRequest, windowID: ID<WindowState>) {
-        let config = URLSessionConfiguration.default
-        let session = URLSession(configuration: config)
-        
-        // Create a download task for the URL
+        let session = URLSession(configuration: .default)
         let task = session.downloadTask(with: request) { fileURL, response, error in
-            guard let fileURL = fileURL,
-                  let response = response,
-                  error == nil else {
+            guard let fileURL, let response, error == nil else {
                 print("Download failed: \(error?.localizedDescription ?? "Unknown error")")
                 return
             }
-            
-            // Generate a suggested filename based on the response or URL
             let suggestedFilename = response.suggestedFilename ?? request.url?.lastPathComponent ?? "download"
-            
-            // Get downloads directory
             let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-            
-            // Create a unique destination path
             let destinationURL = URL.unique(folder: downloadsURL, name: suggestedFilename)
-            
             do {
-                // Create a unique download ID
-                let downloadID = ID<Download>.assign()
-                
-                // Move the downloaded file to the destination
                 try FileManager.default.moveItem(at: fileURL, to: destinationURL)
-                
-                // Create the download object
+                let size = (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? NSNumber)?.int64Value ?? 0
                 let download = Download(
-                    id: downloadID,
                     url: request.url ?? URL(string: "about:blank")!,
                     destinationURL: destinationURL,
                     suggestedFilename: suggestedFilename,
                     progress: 1.0,
-                    estimatedSize: (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64) ?? 0,
-                    currentSize: (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64) ?? 0,
+                    estimatedSize: size,
+                    currentSize: size,
                     status: .completed
                 )
-                
-                // Add the download to the browser store
                 DispatchQueue.main.async {
                     BrowserStore.shared.modify { state in
-                        state.windows[windowID]?.downloads[downloadID] = download
+                        state.openDownloadTab(download, windowID: windowID)
                     }
                 }
-                
-                print("Downloaded file to: \(destinationURL.path)")
             } catch {
                 print("Error saving downloaded file: \(error)")
             }
         }
-        
-        // Start the download
         task.resume()
     }
 }

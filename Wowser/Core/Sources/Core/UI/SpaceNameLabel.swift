@@ -63,10 +63,7 @@ private struct SpaceNameField: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            if let emoji = snapshot.emoji {
-                Text(emoji)
-                    .font(.system(size: 13))
-            }
+            SpaceIconMenuButton(profileID: profileID, windowID: windowID, emoji: snapshot.emoji)
             InputTextField(
                 text: $text,
                 options: InputTextFieldOptions(

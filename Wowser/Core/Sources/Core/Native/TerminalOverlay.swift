@@ -73,13 +73,7 @@ struct TerminalOverlay: View {
     }
 
     private func sessionForWebContent() -> TerminalSession {
-        if let existing = webContent.overlayObject as? TerminalSession {
-            return existing
-        }
-        let s = TerminalSession()
-        s.webContent = webContent
-        webContent.overlayObject = s
-        return s
+        TerminalSession.ensure(for: webContent)
     }
 }
 
@@ -163,6 +157,90 @@ final class TerminalSession: ObservableObject {
     var paneID: ID<WebContent>?
     weak var webContent: WebContent?
 
+    /// The session owned by `webContent`, created (but not started) if there
+    /// isn't one. The overlay starts it on appear; BrowserJS's `terminal.*`
+    /// calls `startIfNeededFromURL` so a shell runs even in a tab the user
+    /// never opened.
+    static func ensure(for webContent: WebContent) -> TerminalSession {
+        if let existing = webContent.overlayObject as? TerminalSession {
+            return existing
+        }
+        let s = TerminalSession()
+        s.webContent = webContent
+        webContent.overlayObject = s
+        return s
+    }
+
+    /// Start the shell using the cwd / command encoded in the pane's native URL.
+    func startIfNeededFromURL() {
+        guard !started, let webContent,
+              let url = webContent.info.url ?? BrowserStore.shared.model.pane(forId: webContent.id)?.info.url,
+              case .terminal(let cwd, let cmd)? = NativePageKey(url: url) else { return }
+        start(cwd: cwd, runCommand: cmd, paneID: webContent.id)
+    }
+
+    var isStarted: Bool { started }
+
+    // MARK: - Agent access (BrowserJS `terminal.read` / `terminal.write`)
+
+    /// Snapshots handed out by `read`, keyed by token, so a later `read(since:)`
+    /// can return only what changed. Bounded; oldest tokens are forgotten.
+    private var readSnapshots: [(token: String, text: String)] = []
+
+    /// Everything currently in the terminal: scrollback plus the visible
+    /// screen, as plain text with trailing blank lines trimmed.
+    func snapshotText() -> String {
+        let terminal = view.getTerminal()
+        var lines: [String] = []
+        // Scroll-invariant rows: nil below the (trimmed) top of scrollback and
+        // past the end. Probe upward from 0 until we find the first row, then
+        // read until rows run out.
+        var row = 0
+        var started = false
+        let hardCap = 200_000
+        while row < hardCap {
+            if let line = terminal.getScrollInvariantLine(row: row) {
+                started = true
+                lines.append(line.translateToString(trimRight: true))
+            } else if started {
+                break
+            }
+            row += 1
+        }
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Read the terminal text. With `since` (a token from an earlier read),
+    /// returns only the text appended after that snapshot — or the whole
+    /// buffer if the earlier text is no longer a prefix (screen was cleared,
+    /// a TUI redrew, or the token is unknown).
+    func read(since token: String?, maxChars: Int?) -> (text: String, token: String) {
+        let full = snapshotText()
+        let newToken = UUID().uuidString.lowercased()
+        readSnapshots.append((newToken, full))
+        if readSnapshots.count > 16 { readSnapshots.removeFirst(readSnapshots.count - 16) }
+        var out = full
+        if let token, let prev = readSnapshots.first(where: { $0.token == token })?.text, full.hasPrefix(prev) {
+            out = String(full.dropFirst(prev.count))
+        }
+        if let maxChars, maxChars > 0, out.count > maxChars {
+            out = "…[truncated]\n" + String(out.suffix(maxChars))
+        }
+        return (out, newToken)
+    }
+
+    /// Type into the PTY as if the user had.
+    func write(_ text: String) {
+        let bytes = Array(text.utf8)
+        view.process.send(data: bytes[...])
+    }
+
+    var foregroundCommandForAgents: String? { foregroundCommand }
+    var shellIsAtPrompt: Bool { shellIsForeground }
+
     func start(cwd: String?, runCommand: String? = nil, paneID: ID<WebContent>) {
         self.paneID = paneID
         guard !started else { return }
@@ -174,6 +252,15 @@ final class TerminalSession: ObservableObject {
         // be a no-op the first time if paneID was nil before this call.
         refreshTitle()
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+        // A session started headlessly (BrowserJS `terminal.open`, before any
+        // overlay has laid us out) has a zero frame, which SwiftTerm turns
+        // into a ~2-column terminal. Give it a plausible size; the overlay
+        // resizes it when the tab is shown.
+        if containerView.frame.isEmpty {
+            containerView.frame = CGRect(x: 0, y: 0, width: 960, height: 600)
+            view.frame = containerView.bounds.insetBy(dx: 6, dy: 6)
+            containerView.layoutSubtreeIfNeeded()
+        }
         view.startProcess(
             executable: shell,
             args: ["-l"],
@@ -331,6 +418,55 @@ final class TerminalSession: ObservableObject {
 /// intercept it here and clear scrollback the way every other terminal does.
 final class WowserTerminalView: LocalProcessTerminalView {
     var onClearRequested: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    // MARK: Drag & drop — dropping Finder files types their paths at the cursor
+
+    private func droppedFileURLs(_ sender: NSDraggingInfo) -> [URL] {
+        (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedFileURLs(sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedFileURLs(sender).isEmpty ? [] : .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = droppedFileURLs(sender)
+        guard !urls.isEmpty else { return false }
+        let text = urls.map { Self.shellEscape($0.path) }.joined(separator: " ") + " "
+        if let terminal, terminal.bracketedPasteMode {
+            send(data: Array("\u{1B}[200~".utf8)[...])
+            send(txt: text)
+            send(data: Array("\u{1B}[201~".utf8)[...])
+        } else {
+            send(txt: text)
+        }
+        window?.makeFirstResponder(self)
+        return true
+    }
+
+    /// Quote a path the way Terminal.app does on drop: leave plain paths
+    /// alone, single-quote anything with shell-significant characters.
+    static func shellEscape(_ path: String) -> String {
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "/._-+=:@%,~"))
+        if !path.isEmpty, path.unicodeScalars.allSatisfy({ safe.contains($0) }) {
+            return path
+        }
+        return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,

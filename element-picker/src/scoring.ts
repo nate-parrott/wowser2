@@ -1,16 +1,28 @@
+import { isStyleClassName } from "./styleSelectors";
+import { ClassStats, isHashedClassName } from "./classHashing";
 
 export const SCORING = {
     TERM_PENALITY: -2, // Discourage unnecessarily long selectors (which are unnecessarily fragile)
 
     SEMANTIC_CLASS: 4,
     RANDOM_CLASS: -2,
+    // Generated/hashed classes (see classHashing.ts) will break on the next deploy:
+    // rank them below even a bare attribute.
+    HASH_CLASS: -4,
 
     ID: 10,
+
+    // Synthetic computed-style classes (`.__sss__...`): strong signal, but below an ID.
+    STYLE_CLASS: 7,
 
     SEMANTIC_ATTR: 6,
     RANDOM_ATTR: -1,
 
     NTH_CHILD: 0,
+
+    // `:has(...)` adds structure the page author probably meant; slight penalty on
+    // top of the child term's own score so it only wins when the child is semantic.
+    HAS_PENALTY: -1,
 
     SEMANTIC_TAG: 1,
     RANDOM_TAG: -1,
@@ -28,7 +40,15 @@ export function scoreForAttr(name: string, hasValue: boolean): number {
     return SCORING.RANDOM_ATTR;
 }
 
-export function scoreForClassName(className: string): number {
+export function scoreForClassName(className: string, stats?: ClassStats): number {
+    if (isStyleClassName(className)) {
+        return SCORING.STYLE_CLASS;
+    }
+
+    if (isHashedClassName(className, stats)) {
+        return SCORING.HASH_CLASS;
+    }
+
     // gibberish classes detract from score; non-gibberish classes increase it
 
     // If the class name is too short, it's probably not meaningful

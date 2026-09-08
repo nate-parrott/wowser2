@@ -7,6 +7,10 @@ extension Notification.Name {
     /// Posted to commit/end the keyboard tab-stack cycle (e.g. cmd released).
     /// userInfo["windowID"] = ID<WindowState>
     public static let endTabStackCycle = Notification.Name("endTabStackCycle")
+    /// Posted to open the 3D stack as a click/scroll-driven switcher (no
+    /// gesture or held key). Dismissed by clicking a card, Escape, or
+    /// clicking outside. userInfo["windowID"] = ID<WindowState>
+    public static let beginTabStackBrowse = Notification.Name("beginTabStackBrowse")
 }
 
 public let tabStackCycleWindowIDKey = "windowID"
@@ -26,6 +30,14 @@ struct TabStack3D: View {
                 let idx = cards.firstIndex(of: card) ?? 0
 
                 render(card: card)
+                    .overlay {
+                        // In browse mode every card is a button: click to switch.
+                        if model.isBrowsing {
+                            Color.black.opacity(0.0001)
+                                .contentShape(Rectangle())
+                                .onTapGesture { commitBrowse(selecting: card) }
+                        }
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: model.isActive3D ? 8 : 0))
                     .shadow(color: Color.black.opacity(model.isActive3D ? 0.07 : 0), radius: 4, x: 0, y: 0)
                     .rotation3DEffect(Angle(degrees: model.isActive3D ? -15 : 0), axis: (x: 1, y: 0, z: 0), anchor: .top, anchorZ: 0, perspective: 1)
@@ -36,6 +48,17 @@ struct TabStack3D: View {
             }
         }
         .measureSize({ self.size = $0 })
+        #if os(macOS)
+        .overlay {
+            if model.isBrowsing, let windowID {
+                TabStackBrowseInputCatcher(
+                    onScroll: { steps in model.browseScroll(by: steps, windowID: windowID) },
+                    onEscape: { model.swipeGestureOffsetChanged(offset: nil, windowID: windowID) }
+                )
+                .allowsHitTesting(false)
+            }
+        }
+        #endif
         .animation(.spring(), value: model.animCount)
 //        .animation(.spring(), value: snapshot.swipeGestureOffset)
 //        .animation(.spring(), value: cards.map(\.id))
@@ -52,6 +75,10 @@ struct TabStack3D: View {
             guard let windowID, note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
             model.swipeGestureOffsetChanged(offset: model.keyboardCycleNextOffset, windowID: windowID)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .beginTabStackBrowse)) { note in
+            guard let windowID, note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
+            model.beginBrowse(windowID: windowID)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .endTabStackCycle)) { note in
             guard let windowID, note.userInfo?[tabStackCycleWindowIDKey] as? ID<WindowState> == windowID else { return }
             // Commit the visually-selected tab before dismissing the stack.
@@ -65,6 +92,17 @@ struct TabStack3D: View {
         }
     }
     
+    private func commitBrowse(selecting card: TabStack3DModel.Card) {
+        guard let windowID else { return }
+        if let tabId = card.tabId {
+            BrowserStore.shared.modify { state in
+                state.activate(tabId: tabId, in: windowID)
+                state.unghostTab(id: tabId)
+            }
+        }
+        model.swipeGestureOffsetChanged(offset: nil, windowID: windowID)
+    }
+
     func yOffset(forIndexOffset offset: Int) -> CGFloat {
         let height = size?.height ?? 0
         let baseOffset: CGFloat = min(100, height * 0.2)
@@ -102,7 +140,7 @@ struct TabStack3D: View {
             if !card.isLive, let tabId = card.tabId {
                 WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
                     if let pane {
-                        FakePaneView(webContentId: pane.id, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
+                        FakePaneView(webContentId: pane.id, nativeKey: pane.info.url.flatMap(NativePageKey.init(url:)), focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
                             .overlay {
                                 TabStackCardOverlay(tabId: tabId)
                                     .transition(.opacity)
@@ -137,14 +175,44 @@ private class TabStack3DModel: ObservableObject {
     }
     @Published private(set) var state: State = .normal(.emptyCard)
     @Published private(set) var animCount = 0
+    /// Browse mode: the stack was opened from a button rather than a gesture,
+    /// so it stays up until a card is clicked, Escape, or a click outside.
+    @Published private(set) var isBrowsing = false
+    private var browseScrollAccumulator: CGFloat = 0
+
+    /// Open the stack for browsing: current tab selected, more cards than a
+    /// gesture shows, and no auto-dismiss.
+    func beginBrowse(windowID: ID<WindowState>) {
+        guard case .normal = state else { return }
+        isBrowsing = true
+        browseScrollAccumulator = 0
+        swipeGestureOffsetChanged(offset: 0, windowID: windowID, maxCards: 12)
+    }
+
+    /// Scroll-wheel steps while browsing: positive = further back in history.
+    func browseScroll(by delta: CGFloat, windowID: ID<WindowState>) {
+        guard isBrowsing else { return }
+        browseScrollAccumulator += delta
+        let stepSize: CGFloat = 40
+        while abs(browseScrollAccumulator) >= stepSize {
+            let dir = browseScrollAccumulator > 0 ? 1 : -1
+            browseScrollAccumulator -= CGFloat(dir) * stepSize
+            switch state {
+            case .active3d(_, let cards, let offset), .pre3d(_, let cards, let offset), .post3d(_, let cards, let offset):
+                let next = max(0, min(cards.count - 1, offset + dir))
+                if next != offset { swipeGestureOffsetChanged(offset: next, windowID: windowID) }
+            case .normal: return
+            }
+        }
+    }
     
-    func swipeGestureOffsetChanged(offset: Int?, windowID: ID<WindowState>) {
+    func swipeGestureOffsetChanged(offset: Int?, windowID: ID<WindowState>, maxCards: Int = 5) {
         if let offset {
             // Gesture should be active
             switch state {
             case .normal(let card):
                 // Transition to pre3d, then active 3d
-                let newCards = BrowserStore.shared.model.tabsInRecencyOrder(inWindow: windowID, max: 5)
+                let newCards = BrowserStore.shared.model.tabsInRecencyOrder(inWindow: windowID, max: maxCards)
                     .map { tabId in
                         if card.tabId == tabId {
                             return card
@@ -170,6 +238,7 @@ private class TabStack3DModel: ObservableObject {
             }
         } else {
             // Gesture should end
+            isBrowsing = false
             switch state {
             case .normal(_): () // Already in correct state
             case .pre3d(_, let orderedCards, _):
@@ -410,3 +479,62 @@ private struct TabStackCardOverlay: View {
         }
     }
 }
+
+
+#if os(macOS)
+import AppKit
+
+/// While the stack is open for browsing, this catches scroll-wheel events
+/// and Escape anywhere in the window, so the user can flip through cards
+/// without a trackpad gesture. Installed as a local event monitor; the view
+/// itself never intercepts clicks (cards handle those).
+private struct TabStackBrowseInputCatcher: NSViewRepresentable {
+    var onScroll: (CGFloat) -> Void
+    var onEscape: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.install(onScroll: onScroll, onEscape: onEscape)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onScroll = onScroll
+        context.coordinator.onEscape = onEscape
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var onScroll: ((CGFloat) -> Void)?
+        var onEscape: (() -> Void)?
+        private var monitors: [Any] = []
+
+        func install(onScroll: @escaping (CGFloat) -> Void, onEscape: @escaping () -> Void) {
+            self.onScroll = onScroll
+            self.onEscape = onEscape
+            monitors.append(NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                // Trackpad deltas are in points; wheel clicks are coarse.
+                let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 10
+                self?.onScroll?(-delta)
+                return nil
+            } as Any)
+            monitors.append(NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                if event.keyCode == 53 { self?.onEscape?(); return nil }
+                return event
+            } as Any)
+        }
+
+        func uninstall() {
+            for m in monitors { NSEvent.removeMonitor(m) }
+            monitors.removeAll()
+        }
+
+        deinit { uninstall() }
+    }
+}
+#endif

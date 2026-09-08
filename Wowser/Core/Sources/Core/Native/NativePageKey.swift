@@ -268,6 +268,11 @@ extension NativePageKey {
             appearance.urlFieldTextDeselected = appearance.title
         case .fileBrowser(let path):
             appearance.icon = .files
+            // Pure-data heuristic (no disk access here): a path with an
+            // extension is a file → show its Finder icon instead of the folder chip.
+            if let path, !(path as NSString).pathExtension.isEmpty {
+                appearance.icon = .fileIcon(path: (path as NSString).expandingTildeInPath)
+            }
             let liveTitle = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
             let pathName: String? = {
                 guard let path else { return nil }

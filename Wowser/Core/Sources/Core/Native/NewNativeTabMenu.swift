@@ -53,22 +53,29 @@ struct NewNativeTabMenu: View {
         return menu
     }
 
-    /// Resolve the folder for the new native tab, then open it. Uses the most
-    /// recently used native folder in this space; if there is none, prompts the
-    /// user to pick a folder before opening.
+    /// Resolve the folder for the new native tab, then open it. Uses the
+    /// space's folder; failing that, the most recently used native folder in
+    /// this space, or a folder the user picks. Whatever folder is chosen
+    /// becomes the space's folder if it doesn't have one yet.
     private func open(_ makeKey: @escaping (String?) -> NativePageKey) {
-        if let folder = BrowserStore.shared.model.mostRecentNativeFolderPath(windowID: windowID) {
-            openTab(makeKey(folder))
+        let state = BrowserStore.shared.model
+        let profileID = state.windows[windowID]?.profile
+        if let folder = profileID.flatMap({ state.profiles[$0]?.folderPath?.nilIfEmpty })
+            ?? state.mostRecentNativeFolderPath(windowID: windowID) {
+            openTab(makeKey(folder), folder: folder)
         } else {
             pickFolder { picked in
                 guard let picked else { return }
-                openTab(makeKey(picked))
+                openTab(makeKey(picked), folder: picked)
             }
         }
     }
 
-    private func openTab(_ key: NativePageKey) {
+    private func openTab(_ key: NativePageKey, folder: String) {
         BrowserStore.shared.modify { state in
+            if let profileID = state.windows[windowID]?.profile {
+                state.setFolderIfMissing(path: folder, forProfile: profileID)
+            }
             state.openTab(url: key.url, windowID: windowID)
         }
     }

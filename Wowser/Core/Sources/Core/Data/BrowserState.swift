@@ -45,6 +45,9 @@ public struct Tab: Equatable, Identifiable, Codable {
     /// Whether the floating pip panel is currently shown (only meaningful when
     /// `pipMode == true`). Toggled by clicking the tab in the sidebar.
     public var pipOpen: Bool?
+    /// Bumped to ask the sidebar row to "pop" (call attention to the tab, e.g.
+    /// a new download). Rows observe it and animate on change.
+    public var animationCount: Int?
 
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -121,6 +124,14 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// Lives on Pane rather than Info because `pane.info` gets wholesale-reset
     /// on navigation.
     public var engine: BrowserEngine?
+    /// Set on file-browser panes that were opened to show a download. The
+    /// pane's URL points at the destination file; this record carries the
+    /// live status/progress so the tab and the overlay can show it.
+    public var download: Download?
+    /// True after the LRU unloader dropped this pane's live web content to
+    /// save memory (chat-mode spaces only). The page reloads from `info.url`
+    /// the next time it's shown; cleared when the WebContent is recreated.
+    public var unloaded: Bool?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -161,10 +172,6 @@ public struct WindowState: Equatable, Codable {
         get { perProfileData[profile]?.focusedOnProject }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.focusedOnProject = newValue }
     }
-    public var downloads: [ID<Download>: Download] {
-        get { perProfileData[profile]?.downloads ?? [:] }
-        set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.downloads = newValue }
-    }
     public var lastClosedTabURL: URL? {
         get { perProfileData[profile]?.lastClosedTabURL }
         set { ensurePerProfileDataForCurProfile(); perProfileData[profile]!.lastClosedTabURL = newValue }
@@ -197,10 +204,15 @@ public struct WindowState: Equatable, Codable {
     /// Drives `focusState` toward `.spaceTitle`. Set/cleared only via
     /// `didFocus`/`didLoseFocus` — never in two places at once.
     public var editingSpaceTitleForProfile: ID<Profile>?
+    /// Chat-mode space whose sidebar chat input currently holds focus (if any).
+    /// Drives `focusState` toward `.chatSpaceInput`. Commands (Cmd+T / Cmd+L
+    /// in a chat-mode space) set it directly; blur clears it via `didLoseFocus`.
+    public var chatInputActiveForProfile: ID<Profile>?
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
-    public var pickingSelectorInPaneId: ID<WebContent>?
+    /// Active element-picker session (transient UI state). See BrowserState+SelectorPicker.swift.
+    public var selectorPicker: SelectorPickerSession?
     public var perProfileData = [ID<Profile>: PerProfileData]()
     public var tabsOpened = 0
     
@@ -208,7 +220,6 @@ public struct WindowState: Equatable, Codable {
         public var tabs: [ID<Tab>]
         public var currentTab: ID<Tab>?
         public var focusedOnProject: ID<Project>?
-        public var downloads = [ID<Download>: Download]()
         public var lastClosedTabURL: URL?
         /// Optional for decode-compat with previously persisted states.
         public var attachedAgentTabs: [ID<Tab>]?
@@ -237,8 +248,16 @@ public struct Profile: Equatable, Codable {
     /// Hidden profiles keep their tabs but are omitted from the sidebar carousel
     /// and paging dots. Restorable from Settings. Optional so old persisted state decodes.
     public var hidden: Bool?
+    /// Folder this space is attached to (see "Add Folder…" in the space menu).
+    /// Attaching a folder pins VS Code / terminal / files tabs for it.
+    public var folderPath: String?
+    /// Chat mode: the sidebar shows a coordinator-agent chat thread instead of
+    /// the tab list, and tabs surface as cards inside that thread. See
+    /// ChatSpaceSession. Optional so old persisted state decodes.
+    public var chatMode: Bool?
 
     public var isHidden: Bool { hidden == true }
+    public var isChatMode: Bool { chatMode == true }
 }
 
 public struct Project: Equatable, Codable {
@@ -302,6 +321,7 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
 
         setupAutoArchiving()
+        setupChatModeUnloader()
         
         // setupSearchFieldDismissOnSwitch
         addChangeHook { prev, next in
@@ -346,6 +366,12 @@ public class BrowserStore: DataStore<BrowserState> {
         return liveWebContents[id]
     }
 
+    /// Every pane that currently has a live WebContent.
+    public var liveWebContentIDs: [ID<WebContent>] {
+        assertOnMainThread()
+        return Array(liveWebContents.keys)
+    }
+
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         assertOnMainThread()
         let model = self.model
@@ -381,6 +407,7 @@ public class BrowserStore: DataStore<BrowserState> {
             // Must set this otherwise tab will be unloaded
             state.tabs[tabId]?.lastActiveInWindow = windowID
             state.tabs[tabId]?.panes[id]?.engine = engine
+            state.tabs[tabId]?.panes[id]?.unloaded = nil
         }
 
         let wc: WebContent
@@ -819,6 +846,7 @@ private extension WindowState {
         searchOverlayActive = false
         swipeGestureOffset = nil
         findInPageActiveInPaneId = nil
+        chatInputActiveForProfile = nil
     }
 }
 

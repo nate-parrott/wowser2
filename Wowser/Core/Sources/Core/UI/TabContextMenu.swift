@@ -68,6 +68,10 @@ public struct TabContextMenu: View {
                         }
                     }
 
+                    #if os(macOS)
+                    FileTabMenuItems(tab: tab)
+                    #endif
+
                     if isFavorite {
                         if let pane = tab.panes.first,
                            pane.baseInfo != nil,
@@ -96,9 +100,14 @@ public struct TabContextMenu: View {
 
                     Menu("Advanced") {
                         Button(action: {
-                            startPickingSelector(tabID: tabID)
+                            BrowserStore.shared.modify { $0.startSelectorPicker(tabID: tabID, mode: .normal) }
                         }) {
                             Text("Pick CSS Selector")
+                        }
+                        Button(action: {
+                            BrowserStore.shared.modify { $0.startSelectorPicker(tabID: tabID, mode: .augmented) }
+                        }) {
+                            Text("Pick Augmented Selector")
                         }
                     }
                 }
@@ -149,6 +158,40 @@ public func copyURLToClipboard(url: URL?) {
 }
 
 // Helper function to close a tab
+#if os(macOS)
+/// Open / Reveal in Finder / Delete for file tabs, plus Cancel Download while
+/// a download is still running.
+private struct FileTabMenuItems: View {
+    var tab: Tab
+
+    var body: some View {
+        if let fileURL = tab.draggableFileURL {
+            let download = tab.panes.first?.download
+            let inProgress = download?.status == .inProgress
+            Divider()
+            if inProgress, let paneID = tab.panes.first?.id {
+                Button("Cancel Download") {
+                    DownloadManager.shared.cancelDownload(paneID: paneID)
+                }
+            }
+            if let openable = tab.openableFileURL {
+                Button("Open") { NSWorkspace.shared.open(openable) }
+            }
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            }
+            if !inProgress {
+                Button(download == nil ? "Delete" : "Delete File", role: .destructive) {
+                    try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
+                    closeTab(tabID: tab.id)
+                }
+            }
+            Divider()
+        }
+    }
+}
+#endif
+
 public func closeTab(tabID: ID<Tab>) {
     // First read the state to get the pane ID
     guard let tab = BrowserStore.shared.model.tabs[tabID],
@@ -193,24 +236,5 @@ public func setTabEmoji(tabID: ID<Tab>) {
         BrowserStore.shared.modify { state in
             state.modifyTab(id: tabID) { $0.customEmoji = result.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
         }
-    }
-}
-
-// Helper function to start CSS selector picker
-public func startPickingSelector(tabID: ID<Tab>) {
-    // Get the tab data from the store
-    let state = BrowserStore.shared.model
-    guard let tab = state.tabs[tabID] else { return }
-
-    // Use the focused pane or first pane if none focused
-    let focusedPaneIdx = min(tab.focusedPaneIdx, tab.panes.count - 1)
-    guard let pane = tab.panes[focusedPaneIdx] else { return }
-
-    // Find which window this tab is in
-    guard let window = state.windowContaining(tabId: tabID) else { return }
-
-    // Set the picking selector mode for the window
-    BrowserStore.shared.modify { state in
-        state.windows[window.id]?.pickingSelectorInPaneId = pane.id
     }
 }

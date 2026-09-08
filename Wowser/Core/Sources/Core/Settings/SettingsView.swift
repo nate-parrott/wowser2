@@ -14,32 +14,48 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
     @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
+    @AppStorage(DefaultsKeys.hideSiriAIOnTextSelection.rawValue) private var hideSiriAIOnTextSelection = true
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var spaceThemeIntensity = 1.0
     
-    public init() {
-        
+    @State private var selectedTab: SettingsTab
+
+    public init(initialTab: SettingsTab = .general) {
+        _selectedTab = State(initialValue: initialTab)
     }
     
     public var body: some View {
-        Group {
-            if #available(macOS 15.0, iOS 18.0, *) {
-                TabView {
-                    SwiftUI.Tab(content: { main }, label: { Text("General") })
-                    SwiftUI.Tab(content: { ProfilesSettings() }, label: { Text("Profiles") })
-                    SwiftUI.Tab(content: { AISettings() }, label: { Text("AI") })
-                    SwiftUI.Tab(content: { TasksSettings() }, label: { Text("Tasks") })
-                    SwiftUI.Tab(content: { MCPSettings() }, label: { Text("MCP") })
-                    SwiftUI.Tab(content: { DebugSettings() }, label: { Text("Internal") })
-                }
-            } else {
-                Color.red
-                EmptyView()
+        NavigationSplitView {
+            List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
+                Label(tab.title, systemImage: tab.systemImage)
+                    .tag(tab)
             }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+        } detail: {
+            detail(for: selectedTab)
+                .navigationTitle(selectedTab.title)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { note in
+            if let tab = SettingsTab.from(note) { selectedTab = tab }
         }
         .formStyle(.grouped)
-        .frame(minWidth: isDesktop() ? 500 : nil)
+        .frame(minWidth: isDesktop() ? 640 : nil, minHeight: isDesktop() ? 400 : nil)
+    }
+
+    @ViewBuilder private func detail(for tab: SettingsTab) -> some View {
+        switch tab {
+        case .general: main
+        case .toolbar: ToolbarSettings()
+        case .profiles: ProfilesSettings()
+        case .ai: AISettings()
+        case .tasks: TasksSettings()
+        case .mcp: MCPSettings()
+        case .experimental: ExperimentalSettings()
+        case .debug: DebugSettings()
+        }
     }
     
     @ViewBuilder private var main: some View {
@@ -101,6 +117,8 @@ public struct SettingsView: View {
 //                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
+                Toggle("Hide Siri AI on text selection", isOn: $hideSiriAIOnTextSelection)
+                    .help("Disables Writing Tools and the floating Siri button that appears when selecting text in pages. Takes effect for newly opened tabs.")
 
                 Slider(value: $spaceThemeIntensity, in: 0...2) {
                     Text("Space color intensity")
@@ -110,6 +128,17 @@ public struct SettingsView: View {
                     Text("Vivid").font(.caption).foregroundStyle(.secondary)
                 }
                 .help("How strongly each space's auto-generated color scheme washes over the window background")
+            }
+        }
+    }
+}
+
+struct ExperimentalSettings: View {
+    var body: some View {
+        Form {
+            Section {
+                Text("Nothing experimental right now.")
+                    .foregroundStyle(.secondary)
             }
         }
     }
