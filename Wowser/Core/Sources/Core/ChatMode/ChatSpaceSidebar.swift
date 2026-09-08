@@ -25,10 +25,11 @@ private struct ChatSpaceSidebarContent: View {
     @State private var lastJumpedToID: String?
     @State private var didAppear = false
     @State private var pendingScrollRestoreY: CGFloat?
+    @State private var clipsTop = false
+    @State private var clipsBottom = false
 
     var body: some View {
         VStack(spacing: 0) {
-            header
             transcript
             ChatOmniboxInput(session: session, windowID: windowID, profileID: profileID)
         }
@@ -45,41 +46,15 @@ private struct ChatSpaceSidebarContent: View {
         }
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: 2) {
-            Spacer()
-            Button(action: showRecentTabs) {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(both: 24)
-            }
-            .buttonStyle(GhostButtonStyle())
-            .help("Recent tabs")
-
-            Button(action: { session.clearThread() }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(both: 24)
-            }
-            .buttonStyle(GhostButtonStyle())
-            .help("Clear thread")
-        }
-        .padding(.horizontal, 8)
-        .padding(.bottom, 2)
-    }
-
-    private func showRecentTabs() {
-        NotificationCenter.default.post(name: .beginTabStackBrowse, object: nil, userInfo: [tabStackCycleWindowIDKey: windowID])
-    }
-
     // MARK: - Transcript
 
+    /// Tool-call chips are hidden here: the coordinator's work shows up as
+    /// tab cards and replies, not as a log.
     private var rows: [ChatRowItem] {
-        ChatRowBuilder.rows(fromThreadEntries: session.entries)
+        ChatRowBuilder.rows(fromThreadEntries: session.entries).filter {
+            if case .toolGroup = $0 { return false }
+            return true
+        }
     }
 
     /// Consecutive tab cards are grouped so a run of cards can be closed
@@ -159,6 +134,8 @@ private struct ChatSpaceSidebarContent: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollPosition($scrollPos)
+        .overlay(alignment: .top) { if clipsTop { edgeDivider } }
+        .overlay(alignment: .bottom) { if clipsBottom { edgeDivider } }
         .onScrollGeometryChange(for: ChatScrollGeometryInfo.self) { geo in
             ChatScrollGeometryInfo(
                 offsetY: geo.contentOffset.y,
@@ -168,6 +145,8 @@ private struct ChatSpaceSidebarContent: View {
         } action: { _, info in
             viewportHeight = info.viewportHeight
             distanceFromBottom = info.distanceFromBottom
+            clipsTop = info.offsetY > 1
+            clipsBottom = info.distanceFromBottom > 1
             guard didAppear else { return }
             if let pending = pendingScrollRestoreY {
                 let maxOffset = info.offsetY + info.distanceFromBottom
@@ -202,6 +181,11 @@ private struct ChatSpaceSidebarContent: View {
                 }
             }
         }
+    }
+
+    /// Subtle line where the transcript is clipped by the scroll viewport.
+    private var edgeDivider: some View {
+        Color.primary.opacity(0.1).frame(height: 1)
     }
 
     private var emptyState: some View {
@@ -300,20 +284,27 @@ private struct ChatOmniboxInput: View {
 
     private var results: [SearchResult] {
         // Only while there's a query — no top-sites list on an empty field.
-        text.trimmingCharacters(in: .whitespaces).isEmpty ? [] : searcher.results
+        // Quick-nav ("jump to site") and "ask agent" rows are dropped: plain
+        // Enter already sends the text to the agent, and a guessed site is
+        // a worse default than a search. Capped at 3 so the stack above the
+        // field stays short.
+        if text.trimmingCharacters(in: .whitespaces).isEmpty { return [] }
+        return Array(searcher.results.filter { r in
+            switch r.item.content {
+            case .imFeelingLucky, .askAgent: return false
+            default: return true
+            }
+        }.prefix(3))
     }
 
     /// A result confident enough that plain Enter should open it rather than
     /// send the text to the agent.
     private var strongIndex: Int? {
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = query.split(separator: " ").count
         for (i, r) in results.enumerated() {
             switch r.item.content {
             case .urlYouTyped: return i
             case .tab where r.matchQuality == .prefixMatchURL: return i
             case .historyItem where r.matchQuality == .prefixMatchURL && r.score >= 30: return i
-            case .imFeelingLucky where words <= 2: return i
             default: continue
             }
         }
@@ -455,14 +446,9 @@ private struct ChatOmniboxInput: View {
     private func select(_ result: SearchResult) {
         text = ""
         selectedIndex = -1
-        switch result.item.content {
-        case .askAgent(let query, _):
-            session.send(text: query)
-        default:
-            // Open in a NEW tab: in chat mode the field is the new-tab entry
-            // point, never an edit of the current page's URL.
-            BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
-        }
+        // Open in a NEW tab: in chat mode the field is the new-tab entry
+        // point, never an edit of the current page's URL.
+        BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
     }
 
     private func focus() {

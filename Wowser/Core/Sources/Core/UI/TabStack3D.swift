@@ -138,9 +138,9 @@ struct TabStack3D: View {
             }
             
             if !card.isLive, let tabId = card.tabId {
-                WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first }) { pane in
+                WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabId]?.panes.first.map(TabStackCardSnapshot.init(pane:)) }) { pane in
                     if let pane {
-                        FakePaneView(webContentId: pane.id, nativeKey: pane.info.url.flatMap(NativePageKey.init(url:)), focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.info.colorScheme, topbarLocked: snapshot.sidebarLocked)
+                        FakePaneView(webContentId: pane.webContentId, nativeKey: pane.nativeKey, focused: true, singlePane: true, topbarVisible: topbarVisible, toolbarColorScheme: pane.colorScheme, topbarLocked: snapshot.sidebarLocked)
                             .overlay {
                                 TabStackCardOverlay(tabId: tabId)
                                     .transition(.opacity)
@@ -154,6 +154,18 @@ struct TabStack3D: View {
 //            }
         }
         .compositingGroup()
+    }
+}
+
+private struct TabStackCardSnapshot: Equatable {
+    var webContentId: ID<WebContent>
+    var nativeKey: NativePageKey?
+    var colorScheme: ContentColorScheme?
+
+    init(pane: Pane) {
+        webContentId = pane.id
+        nativeKey = pane.info.url.flatMap(NativePageKey.init(url:))
+        colorScheme = pane.info.colorScheme
     }
 }
 

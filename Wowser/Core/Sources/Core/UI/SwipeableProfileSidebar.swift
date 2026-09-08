@@ -11,8 +11,7 @@ public struct SidebarSwipeView: View {
     public var body: some View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
             SidebarSwipeSnapshot(
-                windowID: windowID,
-                profiles: state.profiles,
+                profileIDs: state.visibleProfiles.map(\.id),
                 currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0")
             )
         } main: { snapshot in
@@ -26,13 +25,9 @@ public struct SidebarSwipeView: View {
 }
 
 private struct SidebarSwipeSnapshot: Equatable {
-    let windowID: ID<WindowState>
-    let profiles: [ID<Profile>: Profile]
+    /// Visible profiles in carousel order.
+    let profileIDs: [ID<Profile>]
     let currentProfileID: ID<Profile>
-    
-    var profileIDs: [ID<Profile>] {
-        profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder }).map({ $0.id })
-    }
 }
 
 private struct SidebarSwipeContent: View {
@@ -245,7 +240,7 @@ private struct NewProfileView: View {
 
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
-            NewProfileSnapshot(profiles: state.profiles)
+            NewProfileSnapshot(state: state)
         } main: { snapshot in
             NewProfileContent(snapshot: snapshot, windowID: windowID)
         }
@@ -253,30 +248,49 @@ private struct NewProfileView: View {
 }
 
 private struct NewProfileSnapshot: Equatable {
-    var profiles: [ID<Profile>: Profile]
+    /// Just what the sharing menu needs from each visible profile.
+    struct Entry: Equatable {
+        var id: ID<Profile>
+        var displayName: String
+        var dataStoreUUID: UUID
+    }
+    /// Visible profiles in creation order.
+    var profiles: [Entry]
 
-    var sortedProfiles: [Profile] {
-        profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
+    init(state: BrowserState) {
+        profiles = state.visibleProfiles.map { profile in
+            Entry(
+                id: profile.id,
+                displayName: profile.title ?? profile.autoTitle ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)",
+                dataStoreUUID: profile.dataStoreUUID
+            )
+        }
     }
 
-    var lastProfile: Profile? { sortedProfiles.last }
+    var lastProfile: Entry? { profiles.last }
+
+    func contains(_ id: ID<Profile>) -> Bool { profiles.contains(where: { $0.id == id }) }
 
     // Profiles grouped by the data store they share (i.e. profiles that already
     // share logins). Each group is ordered by creation; groups are ordered by
     // their earliest-created member.
-    var loginGroups: [[Profile]] {
-        var groups = [UUID: [Profile]]()
-        for profile in sortedProfiles {
-            groups[profile.dataStoreUUID, default: []].append(profile)
+    var loginGroups: [[Entry]] {
+        var groups = [[Entry]]()
+        var indexByStore = [UUID: Int]()
+        for profile in profiles {
+            if let i = indexByStore[profile.dataStoreUUID] {
+                groups[i].append(profile)
+            } else {
+                indexByStore[profile.dataStoreUUID] = groups.count
+                groups.append([profile])
+            }
         }
-        return groups.values.sorted(by: {
-            ($0.first?.creationOrder ?? 0) < ($1.first?.creationOrder ?? 0)
-        })
+        return groups
     }
 
     // The group of profiles that share logins with the given profile.
-    func loginGroup(for id: ID<Profile>) -> [Profile]? {
-        guard let dataStoreUUID = profiles[id]?.dataStoreUUID else { return nil }
+    func loginGroup(for id: ID<Profile>) -> [Entry]? {
+        guard let dataStoreUUID = profiles.first(where: { $0.id == id })?.dataStoreUUID else { return nil }
         return loginGroups.first(where: { $0.contains(where: { $0.dataStoreUUID == dataStoreUUID }) })
     }
 }
@@ -295,7 +309,7 @@ private struct NewProfileContent: View {
     private var resolvedChoice: NewProfileSharingChoice {
         if let pickedChoice {
             // If the picked profile no longer exists, fall back.
-            if case .shareLogins(let id) = pickedChoice, snapshot.profiles[id] == nil {
+            if case .shareLogins(let id) = pickedChoice, !snapshot.contains(id) {
                 return defaultChoice
             }
             return pickedChoice
@@ -392,12 +406,8 @@ private struct NewProfileContent: View {
         .controlSize(.small)
     }
 
-    private func displayName(for profile: Profile) -> String {
-        profile.title ?? profile.autoTitle ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)"
-    }
-
-    private func shareLoginsLabel(for group: [Profile]) -> String {
-        let names = group.map { displayName(for: $0) }
+    private func shareLoginsLabel(for group: [NewProfileSnapshot.Entry]) -> String {
+        let names = group.map(\.displayName)
         return "Share logins with \(joinedNames(names))"
     }
 

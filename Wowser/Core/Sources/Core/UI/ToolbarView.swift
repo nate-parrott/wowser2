@@ -15,12 +15,15 @@ public struct ToolbarViewSnapshot: Equatable {
     var makeRoomForTrafficLights: Bool
     var isEmptyPage: Bool
     var nativeKey: NativePageKey?
-    /// Agents hidden behind this window's omnibox, if any (see BrowserState+AttachedAgents).
-    var attachedAgents: AttachedAgentStatus?
+    /// Whether an agent hidden behind this window's omnibox is working (see
+    /// BrowserState+AttachedAgents). Just a flag: the indicator observes the
+    /// full status itself so its per-step detail text doesn't re-render the toolbar.
+    var hasWorkingAttachedAgent: Bool
+    var canOpenChat: Bool
 
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
-        self.attachedAgents = windowID.flatMap { state.attachedAgentStatus(windowID: $0) }
+        self.hasWorkingAttachedAgent = windowID.map { state.attachedAgentStatus(windowID: $0) != nil } ?? false
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -38,6 +41,7 @@ public struct ToolbarViewSnapshot: Equatable {
             self.makeRoomForTrafficLights = false
             self.isEmptyPage = true
             self.nativeKey = nil
+            canOpenChat = false
             return
         }
 
@@ -57,6 +61,7 @@ public struct ToolbarViewSnapshot: Equatable {
         // Display traffic lights only if top-docked (ie not empty page)
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked && !self.isEmptyPage
         self.nativeKey = paneData.info.url.flatMap(NativePageKey.init(url:))
+        self.canOpenChat = tab.panes.filter({ $0.info.isAgent }).count == 0 && !self.isEmptyPage
     }
 }
 
@@ -82,7 +87,7 @@ struct ToolbarView: View {
     @State private var dictationTranscriptShown = false
 
     private func showsAttachedAgentIndicator(_ snapshot: ToolbarViewSnapshot) -> Bool {
-        snapshot.attachedAgents != nil && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
+        snapshot.hasWorkingAttachedAgent && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
     }
     @AppStorage(DefaultsKeys.hiddenTrailingToolbarItems.rawValue) private var hiddenTrailingItemsRaw = ""
     @AppStorage(DefaultsKeys.dictationButton.rawValue) private var dictationButtonEnabled = false
@@ -134,10 +139,8 @@ struct ToolbarView: View {
                         .opacity(showsAttachedAgentIndicator(snapshot) || dictationTranscriptShown ? 0 : 1)
                         // Hidden-agent indicator replaces the URL while an agent
                         // attached to this omnibox is working. Click to reveal.
-                        if showsAttachedAgentIndicator(snapshot), let attached = snapshot.attachedAgents, let windowID {
-                            AttachedAgentStatusView(status: attached, fgColor: colorScheme?.foreground, fontSize: 12) {
-                                AgentChatTabs.reveal(tabID: attached.primary.tabID, windowID: windowID)
-                            }
+                        if showsAttachedAgentIndicator(snapshot), let windowID {
+                            AttachedAgentStatusView(windowID: windowID, fgColor: colorScheme?.foreground, fontSize: 12)
                         }
                         #if os(macOS)
                         // Live transcript while dictating into this omnibox (→ agent).
@@ -197,6 +200,15 @@ struct ToolbarView: View {
                             .buttonStyle(ToolbarButtonStyle())
                             .disabled(snapshot.url == nil)
                             .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
+                        }
+                        
+                        if snapshot.canOpenChat, !hidden.contains(.openChat) {
+                            Button(action: openChatSplit) {
+                                Image(systemName: "bubble.left")
+                                    .imageScale(.medium)
+                            }
+                            .buttonStyle(ToolbarButtonStyle())
+                            .help("Open chat in split view")
                         }
                         
                         // Close pane button (only visible in split view)
@@ -321,6 +333,12 @@ struct ToolbarView: View {
                 .buttonStyle(ToolbarButtonStyle())
                 .help("Reload (⌘R)")
             }
+        }
+    }
+    
+    func openChatSplit() {
+        if let windowID {
+            AgentChatTabs.openChatSplit(windowID: windowID)
         }
     }
 
@@ -535,5 +553,14 @@ private struct LeadingIcon: View {
         .accessibilityHidden(isSecure == nil)
         .buttonStyle(ToolbarButtonStyle())
         .padding(.trailing, -8)
+    }
+}
+
+extension WebContent.Info {
+    var isAgent: Bool {
+        if let url = committedURL ?? url, let native = NativePageKey(url: url) {
+            return native.isAgent
+        }
+        return false
     }
 }

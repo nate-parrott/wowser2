@@ -93,6 +93,8 @@ private struct SidebarSnapshot: Equatable {
     let hasBackgroundImage: Bool
     // Folder attached to the current space ("Add Folder…" / "Change Folder…")
     let folderPath: String?
+    // Chat-mode spaces have the coordinator thread in the sidebar; no split-chat button there.
+    let isChatMode: Bool
 
     init(windowID: ID<WindowState>, 
          profileID: ID<Profile>?, // Can be nil, will use window's current profile
@@ -121,6 +123,7 @@ private struct SidebarSnapshot: Equatable {
         self.favoriteTabIDs = favoriteIDs
         self.hasBackgroundImage = profiles[effectiveProfileID]?.imageInfo != nil
         self.folderPath = profiles[effectiveProfileID]?.folderPath
+        self.isChatMode = profiles[effectiveProfileID]?.isChatMode ?? false
 
         // Process tabs in their original order but add headers when group changes
         let regularTabIDs = perProfileData?.tabs ?? []
@@ -174,7 +177,7 @@ private struct SidebarSnapshot: Equatable {
 private struct SidebarContent: View {
     var snapshot: SidebarSnapshot
     var floating: Bool
-        
+
     var body: some View {
         VStack(spacing: 0) {
 //            if floating {
@@ -223,6 +226,16 @@ private struct SidebarContent: View {
     
     @ViewBuilder private var topButtons: some View {
         HStack {
+//            if showChatButton, !snapshot.isChatMode {
+//                Button(action: openChatSplit) {
+//                    Image(systemName: "bubble.left")
+//                        .font(.system(size: 12, weight: .medium))
+//                        .foregroundStyle(.secondary)
+//                        .help("Open Chat Beside This Tab")
+//                        .frame(both: 26)
+//                }
+//                .buttonStyle(GhostButtonStyle())
+//            }
             Button(action: toggleSidebarLocked) {
                 Image(systemName: "sidebar.left")
                     .font(.system(size: 12, weight: .medium))
@@ -415,14 +428,14 @@ private struct ProfilePicker: View {
     
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
-            state.profiles
-        } main: { profiles in
+            state.visibleProfiles.map(\.id)
+        } main: { profileIDs in
             Group {
-                ForEach(profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder }), id: \.id.raw) { profile in
+                ForEach(profileIDs, id: \.raw) { profileID in
                     Button {
-                        switchToProfile(profileID: profile.id)
+                        switchToProfile(profileID: profileID)
                     } label: {
-                        Text(profile.id.raw)
+                        Text(profileID.raw)
                     }
                 }
                 

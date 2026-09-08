@@ -8,8 +8,7 @@ public struct ProfilePagingDots: View {
     public var body: some View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
             ProfilePagingDotsSnapshot(
-                windowID: windowID,
-                profiles: state.profiles,
+                dots: state.visibleProfiles.map { ProfilePagingDotsSnapshot.Dot(id: $0.id, emoji: $0.emoji?.nilIfEmpty) },
                 currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0")
             )
         } main: { snapshot in
@@ -22,16 +21,13 @@ public struct ProfilePagingDots: View {
 }
 
 private struct ProfilePagingDotsSnapshot: Equatable {
-    let windowID: ID<WindowState>
-    let profiles: [ID<Profile>: Profile]
-    let currentProfileID: ID<Profile>
-    
-    var orderedProfileIDs: [ID<Profile>] {
-        profiles.values
-            .filter({ !$0.isHidden })
-            .sorted(by: { $0.creationOrder < $1.creationOrder })
-            .map(\.id)
+    struct Dot: Equatable {
+        var id: ID<Profile>
+        var emoji: String?
     }
+    /// Visible profiles in carousel order.
+    var dots: [Dot]
+    var currentProfileID: ID<Profile>
 }
 
 private struct ProfilePagingDotsContent: View {
@@ -40,14 +36,14 @@ private struct ProfilePagingDotsContent: View {
     
     var body: some View {
         // Only show paging dots if we have more than one profile
-        if snapshot.orderedProfileIDs.count > 1 {
+        if snapshot.dots.count > 1 {
             HStack(spacing: 0) {
-                ForEach(snapshot.orderedProfileIDs, id: \.raw) { profileID in
+                ForEach(snapshot.dots, id: \.id.raw) { dot in
                     ProfileDotView(
-                        profileID: profileID,
-                        isSelected: profileID == snapshot.currentProfileID,
+                        profileID: dot.id,
+                        isSelected: dot.id == snapshot.currentProfileID,
                         windowID: windowID,
-                        profile: snapshot.profiles[profileID]
+                        emoji: dot.emoji
                     )
                 }
             }
@@ -63,7 +59,7 @@ private struct ProfileDotView: View {
     let profileID: ID<Profile>
     let isSelected: Bool
     let windowID: ID<WindowState>
-    let profile: Profile?
+    let emoji: String?
     
     static let profileDragPrefix = "wowser-profile-drag:"
 
@@ -82,7 +78,7 @@ private struct ProfileDotView: View {
                     .fill(isSelected ? Color.accentColor.opacity(0.3) : Color.white.opacity(0.01))
                     .frame(width: 26, height: 26)
                 
-                if let emoji = profile?.emoji, !emoji.isEmpty {
+                if let emoji {
                     // Display the emoji if it's been set
                     Text(emoji)
                         .font(.system(size: 12))

@@ -61,7 +61,7 @@ public enum DefaultsKeys: String {
 
 public extension DefaultsKeys {
     func boolValue(defaultValue def: Bool = false) -> Bool {
-        return UserDefaults.standard.bool(forKey: rawValue)
+        return UserDefaults.standard.object(forKey: rawValue) as? Bool ?? def
     }
 
     func stringValue(defaultValue def: String = "") -> String {

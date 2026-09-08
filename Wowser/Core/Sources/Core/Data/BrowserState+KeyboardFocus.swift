@@ -161,8 +161,11 @@ extension BrowserState {
         let paneID = pane.id
 
         // Priority order — the first match wins:
-        // 1. Omnibox is open (user opened it deliberately, or the pane is empty so it auto-opens).
-        if window.searchOverlayActive || pane.info.isEmptyPage {
+        // 1. Omnibox is open (user opened it deliberately, or the pane is empty so it
+        //    auto-opens — except in chat mode, where blank tabs stay blank and the
+        //    sidebar's chat box is the entry point).
+        let chatMode = profiles[window.profile]?.isChatMode == true
+        if window.searchOverlayActive || (pane.info.isEmptyPage && !chatMode) {
             return .init(target: .omnibox(pane: paneID), date: date)
         }
         // 2. Find-in-page bar is up on this pane.

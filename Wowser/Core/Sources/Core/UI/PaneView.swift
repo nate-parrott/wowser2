@@ -86,7 +86,7 @@ struct PaneView: View {
                     .id(snapshot.emptyPage)
 //                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
             }
-            
+                        
             if snapshot.emptyPage, !singlePane {
                 closeButton.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(8)
@@ -221,6 +221,6 @@ struct PaneView: View {
                 .imageScale(.medium)
         }
         .buttonStyle(ToolbarButtonStyle())
-        .help("Close pane")
+        .help("Close Pane")
     }
 }

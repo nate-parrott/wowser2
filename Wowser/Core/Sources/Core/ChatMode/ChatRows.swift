@@ -112,7 +112,7 @@ struct ChatRowView: View {
         case .toolGroup(_, let calls):
             ChatToolGroupRow(calls: calls)
         case .tabCard(_, let tabID, let url, let title, let note):
-            ChatTabCard(tabID: tabID, url: url, title: title, note: note, windowID: windowID)
+            ChatTabCard(tabID: tabID, url: url, title: title, note: note, windowID: windowID, hideIfClosed: compact)
         case .peer(_, let from, let text):
             VStack(alignment: .leading, spacing: 3) {
                 Text(from.map { "From \($0)" } ?? "From another agent")
@@ -301,15 +301,34 @@ struct ChatToolGroupRow: View {
 
 /// A tab, rendered with the real sidebar tab row so it looks and behaves like
 /// one (click to activate, hover for close, drag, context menu). If the tab
-/// has since been closed, a muted stub is shown; clicking it reopens the URL.
+/// has since been closed, a muted stub is shown (clicking it reopens the URL)
+/// — or, with `hideIfClosed`, the card disappears entirely.
 struct ChatTabCard: View {
     var tabID: ID<Tab>?
     var url: URL?
     var title: String?
     var note: String?
     var windowID: ID<WindowState>?
+    var hideIfClosed = false
 
     var body: some View {
+        if let tabID, let windowID {
+            WithSnapshotMain(store: BrowserStore.shared, snapshot: { state -> Bool? in
+                guard state.tabs[tabID] != nil else { return nil }
+                return state.windows[windowID]?.currentTab == tabID
+            }) { isSelected in
+                if let isSelected {
+                    card { RegularTabRow(tabID: tabID, isSelected: isSelected, windowID: windowID) }
+                } else if !hideIfClosed {
+                    card { ClosedTabStub(url: url, title: title, windowID: windowID) }
+                }
+            }
+        } else if !hideIfClosed {
+            card { ClosedTabStub(url: url, title: title, windowID: windowID) }
+        }
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let note {
                 Text(note)
@@ -317,20 +336,7 @@ struct ChatTabCard: View {
                     .foregroundStyle(.secondary)
                     .padding(.leading, 6)
             }
-            if let tabID, let windowID {
-                WithSnapshotMain(store: BrowserStore.shared, snapshot: { state -> Bool? in
-                    guard state.tabs[tabID] != nil else { return nil }
-                    return state.windows[windowID]?.currentTab == tabID
-                }) { isSelected in
-                    if let isSelected {
-                        RegularTabRow(tabID: tabID, isSelected: isSelected, windowID: windowID)
-                    } else {
-                        ClosedTabStub(url: url, title: title, windowID: windowID)
-                    }
-                }
-            } else {
-                ClosedTabStub(url: url, title: title, windowID: windowID)
-            }
+            content()
         }
     }
 }

@@ -132,6 +132,23 @@ public enum AgentChatTabs {
         }
     }
 
+    /// Sidebar "chat" button: open a fresh chat in a split beside the window's
+    /// current tab and focus it. If that tab already has a chat pane, focus it
+    /// instead; if the current pane is an empty new tab, take it over.
+    public static func openChatSplit(windowID: ID<WindowState>) {
+        installToolsIfNeeded()
+        let key = keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        let url = NativePageKey.agent(key: key, query: nil).url
+        var paneID: ID<WebContent>?
+        BrowserStore.shared.modify { st in
+            paneID = st.openChatSplit(url: url, inWindow: windowID)
+        }
+        if let paneID, let wc = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID),
+           wc.info.url != url {
+            wc.load(url: url)
+        }
+    }
+
     /// Open a link the user clicked inside an agent chat: navigate the chat
     /// tab's existing split pane if it has one, otherwise open the link in a
     /// new split beside the chat. Keyboard focus stays on the chat.
@@ -234,6 +251,41 @@ public enum AgentChatTabs {
 }
 
 extension BrowserState {
+    /// Puts an agent chat at `url` beside the window's current tab and focuses
+    /// it. Reuses an existing chat pane in that split, or takes over an empty
+    /// new-tab pane. Returns the pane showing the chat (nil if the window has
+    /// no current tab; then a new tab is opened instead).
+    mutating func openChatSplit(url: URL, inWindow windowID: ID<WindowState>) -> ID<WebContent>? {
+        guard let tabID = windows[windowID]?.currentTab, let tab = tabs[tabID] else {
+            return openTab(url: url, activate: true, windowID: windowID).panes.first?.id
+        }
+        if let existing = tab.panes.elements.firstIndex(where: { $0.info.url.flatMap(NativePageKey.init)?.isAgent == true }) {
+            modifyTab(id: tabID) { $0.focusedPaneIdx = existing }
+            return tab.panes[existing]?.id
+        }
+        if let current = tab.panes[tab.focusedPaneIdx], current.info.isEmptyPage {
+            modifyPaneAndTab(forWebContentId: current.id) { pane, _ in pane.info = WebContent.Info(url: url) }
+            return current.id
+        }
+        let pane = Pane(id: .assign(), info: .init(url: url))
+        modifyTab(id: tabID) { t in
+            t.panes.append(pane)
+            t.focusedPaneIdx = t.panes.count - 1
+        }
+        // In a chat-mode space the sidebar is the coordinator thread; collapse
+        // it so the split has room.
+        if profiles[windows[windowID]?.profile ?? .defaultProfile]?.isChatMode == true {
+            windows[windowID]?.sidebarLocked = false
+        }
+        return pane.id
+    }
+
+    /// The first non-chat pane sharing a split with `paneID`, if any.
+    func splitSibling(ofPane paneID: ID<WebContent>) -> Pane? {
+        guard let tabID = paneToTabMapping[paneID], let tab = tabs[tabID] else { return nil }
+        return tab.panes.elements.first { $0.id != paneID && $0.info.url.flatMap(NativePageKey.init)?.isAgent != true }
+    }
+
     /// The pane hosting the agent chat tab with this session key, if open.
     public func agentChatPane(forKey key: String) -> ID<WebContent>? {
         for tab in tabs.values {
@@ -309,6 +361,12 @@ public final class AgentChatSession: ObservableObject {
     private var turnsCompleted = 0
 
     private var notificationToken: NSObjectProtocol?
+
+    /// The split sibling the agent was last told about (nil = told there is
+    /// none, or never told). Compared at send time so the agent hears about a
+    /// change exactly once, with the sibling's URL as of that moment.
+    private var reportedSiblingID: ID<WebContent>?
+    private var didReportSibling = false
 
     private init(key: String) {
         self.key = key
@@ -400,10 +458,17 @@ public final class AgentChatSession: ObservableObject {
     /// keyed agent if it has a saved record — its stored system prompt wins —
     /// otherwise creates it fresh with a generic prompt naming its own tab.
     func attachIfNeeded(ownPaneID: ID<WebContent>) {
+        // The same chat can move panes (the agent re-opens itself as a split
+        // and closes the original) — always track the pane that's showing it.
+        self.ownPaneID = ownPaneID
         guard !didBegin else { return }
         didBegin = true
-        self.ownPaneID = ownPaneID
         AgentChatTabs.installToolsIfNeeded()
+        // A chat opened straight into a split (sidebar button) learns its
+        // sibling up front; later changes arrive as events on the next message.
+        let sibling = BrowserStore.shared.model.splitSibling(ofPane: ownPaneID)
+        reportedSiblingID = sibling?.id
+        didReportSibling = true
         Task {
             do {
                 let options = BrowserJSAgentCreateOptions(
@@ -414,7 +479,7 @@ public final class AgentChatSession: ObservableObject {
                         agentURL: NativePageKey.agent(key: key, query: nil).url.absoluteString,
                         sourcePaneID: nil,
                         ownTabIsFocused: true,
-                        pageContext: nil,
+                        pageContext: sibling.map(AgentChatSession.splitSiblingContext),
                         dictated: false
                     )
                 )
@@ -447,9 +512,15 @@ public final class AgentChatSession: ObservableObject {
         errorText = nil
         setWorking(true)
         ChatAgentRegistry.resetTurnFlags(key: key)
+        let event = takeSplitSiblingEvent()
         Task {
             do {
-                try await BrowserAgentManager.shared.send(id: agentID, text: trimmed, images: [])
+                try await BrowserAgentManager.shared.send(
+                    id: agentID,
+                    text: event.map { $0 + "\n\n" + trimmed } ?? trimmed,
+                    images: [],
+                    displayText: trimmed
+                )
                 self.runTurnLoop()
             } catch {
                 self.errorText = error.localizedDescription
@@ -461,6 +532,31 @@ public final class AgentChatSession: ObservableObject {
     public func interrupt() {
         guard let agentID else { return }
         Task { try? await BrowserAgentManager.shared.interrupt(id: agentID) }
+    }
+
+    // MARK: - Split sibling events
+
+    /// If the pane beside this chat differs from the one the agent last heard
+    /// about, an event line describing the change (the first time, and
+    /// whenever it changes). Marks it reported.
+    private func takeSplitSiblingEvent() -> String? {
+        guard let ownPaneID else { return nil }
+        let sibling = BrowserStore.shared.model.splitSibling(ofPane: ownPaneID)
+        guard !didReportSibling || sibling?.id != reportedSiblingID else { return nil }
+        didReportSibling = true
+        reportedSiblingID = sibling?.id
+        if let sibling {
+            return "[Browser event] " + AgentChatSession.splitSiblingContext(sibling)
+        }
+        return "[Browser event] This chat is no longer in a split — there is no page beside it."
+    }
+
+    static func splitSiblingContext(_ pane: Pane) -> String {
+        let url = pane.info.url?.absoluteString ?? ""
+        let title = pane.info.title?.nilIfEmpty
+        return "This chat is shown in a SPLIT beside the user's page: tab id \"\(pane.id.raw)\"" +
+            (title.map { ", \"\($0)\"" } ?? "") + (url.isEmpty ? "" : ", \(url)") +
+            ". Use that id with browser.content.read / browser.page.* / browser.tabs.navigate to read or act on it when the user says \"this\"."
     }
 
     // MARK: - Internals

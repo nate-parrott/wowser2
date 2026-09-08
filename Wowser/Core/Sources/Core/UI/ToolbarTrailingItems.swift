@@ -9,6 +9,7 @@ enum ToolbarTrailingItem: String, CaseIterable {
     case bookmark
     case closePane
     case newSplitPane
+    case openChat
 
     var title: String {
         switch self {
@@ -18,12 +19,13 @@ enum ToolbarTrailingItem: String, CaseIterable {
         case .bookmark: return "Bookmark"
         case .closePane: return "Close Pane"
         case .newSplitPane: return "New Split Pane"
+        case .openChat: return "Open Chat in Split"
         }
     }
 
     var group: Group {
         switch self {
-        case .cleanMode, .extensions, .mobileViewport, .bookmark: return .page
+        case .cleanMode, .extensions, .mobileViewport, .bookmark, .openChat: return .page
         case .closePane, .newSplitPane: return .splitView
         }
     }

@@ -3,7 +3,27 @@ import SwiftUI
 /// Replaces the URL in the omnibox while an agent attached to this window's
 /// omnibox is working: a shimmering status line over a soft, slowly drifting
 /// blurred gradient. Clicking reveals the agent's tab in the sidebar.
+///
+/// Observes the attached-agent status itself (rather than receiving it from
+/// the toolbar's snapshot) so the frequently-changing detail text only
+/// re-renders this view.
 struct AttachedAgentStatusView: View {
+    var windowID: ID<WindowState>
+    var fgColor: HSBA?
+    var fontSize: CGFloat = 12
+
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.attachedAgentStatus(windowID: windowID) }) { status in
+            if let status {
+                AttachedAgentStatusContent(status: status, fgColor: fgColor, fontSize: fontSize) {
+                    AgentChatTabs.reveal(tabID: status.primary.tabID, windowID: windowID)
+                }
+            }
+        }
+    }
+}
+
+private struct AttachedAgentStatusContent: View {
     var status: AttachedAgentStatus
     var fgColor: HSBA?
     var fontSize: CGFloat = 12

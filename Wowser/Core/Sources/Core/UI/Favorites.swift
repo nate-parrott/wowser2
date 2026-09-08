@@ -148,17 +148,12 @@ struct FavoriteCell: View {
     
     var body: some View {
         // Look up the data from BrowserStore
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID] }) { tab in
-            if let tab = tab ?? nil {
-                let appearance = tab.appearance()
-                let pane = tab.panes.first
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID].map(FavoriteCellSnapshot.init(tab:)) }) { snapshot in
+            if let snapshot {
+                // Reset is available only when selected and the base URL differs from the current URL.
+                let canReset = isSelected && snapshot.urlDiffersFromBase
                 
-                // Check if reset is available (only when selected and baseInfo URL differs from current URL)
-                let canReset = isSelected && 
-                    pane?.baseInfo != nil && 
-                    pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
-                
-                TabIconView(icon: appearance.icon)
+                TabIconView(icon: snapshot.icon)
                     .frame(width: 24, height: 24)
                     .overlay(alignment: .trailing) {
                         if canReset {
@@ -189,15 +184,32 @@ struct FavoriteCell: View {
                 }
                 .onDrag {
                     // WARNING: onDrag appears to leak the hosting view when clicked
-                    NSItemProvider.tabDrag(tabID: tabID, fileURL: tab.draggableFileURL)
+                    NSItemProvider.tabDrag(tabID: tabID, fileURL: snapshot.draggableFileURL)
                 }
                 .contextMenu {
                     TabContextMenu(tabID: tabID, isFavorite: true)
                 }
-                .help(canReset && isHovered ? "Reset to original URL" : appearance.title)
+                .help(canReset && isHovered ? "Reset to original URL" : snapshot.title)
             }
         }
         .id(tabID)
+    }
+}
+
+private struct FavoriteCellSnapshot: Equatable {
+    var icon: TabAppearance.Icon
+    var title: String
+    var draggableFileURL: URL?
+    /// The pane has a base URL and has navigated away from it.
+    var urlDiffersFromBase: Bool
+
+    init(tab: Tab) {
+        let appearance = tab.appearance()
+        icon = appearance.icon
+        title = appearance.title
+        draggableFileURL = tab.draggableFileURL
+        let pane = tab.panes.first
+        urlDiffersFromBase = pane?.baseInfo != nil && pane?.info.url?.historyKey != pane?.baseInfo?.url?.historyKey
     }
 }
 
