@@ -25,6 +25,9 @@ struct TabAppearance: Equatable, Codable {
     var subtitle: String?
     /// Ghost panes are shown muted/dimmed.
     var isGhost = false
+    /// The LRU unloader dropped this pane's web content (chat-mode spaces);
+    /// shown dimmed until it's reopened.
+    var isUnloaded = false
     /// Title is a user-provided custom name; rendered italic.
     var isCustomTitle = false
 
@@ -79,6 +82,9 @@ extension Pane {
         }
         if agentActiveUntil != nil {
             appearance.subtitle = "Agent is using this tab"
+        }
+        if unloaded == true {
+            appearance.isUnloaded = true
         }
 
         if let url = info.url, let nativeKey = NativePageKey(url: url) {

@@ -22,12 +22,14 @@ private struct SpaceMenuSnapshot: Equatable {
     var folderPath: String?
     var canHide: Bool
     var canDelete: Bool
+    var chatMode: Bool
 
     init(state: BrowserState, profileID: ID<Profile>) {
         let profile = state.profiles[profileID]
         title = profile?.title?.nilIfEmpty ?? profile?.autoTitle ?? "Space \((profile?.creationOrder ?? 0) + 1)"
         emoji = profile?.emoji
         folderPath = profile?.folderPath
+        chatMode = profile?.isChatMode ?? false
         canHide = state.canHideProfile(profileID)
         canDelete = state.profiles.count > 1
     }
@@ -82,12 +84,22 @@ private struct SpaceMenuItemsContent: View {
         }
 
         Section {
+            Toggle("Chat Mode", isOn: Binding(get: { snapshot.chatMode }, set: { setChatMode($0) }))
+        }
+
+        Section {
             if snapshot.canHide {
                 Button("Hide Space") { hide() }
             }
             if snapshot.canDelete {
                 Button("Delete Space", role: .destructive) { delete() }
             }
+        }
+    }
+
+    private func setChatMode(_ on: Bool) {
+        BrowserStore.shared.modify { state in
+            state.profiles[profileID]?.chatMode = on ? true : nil
         }
     }
 

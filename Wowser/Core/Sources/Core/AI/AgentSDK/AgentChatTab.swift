@@ -158,8 +158,42 @@ public enum AgentChatTabs {
                 st.modifyTab(id: tabID) { t in
                     t.panes.append(Pane(id: .assign(), info: .init(url: url)))
                 }
+                // In a chat-mode space the sidebar is the coordinator thread;
+                // collapse it so the split has room.
+                if st.profiles[st.windows[winID]?.profile ?? .defaultProfile]?.isChatMode == true {
+                    st.windows[winID]?.sidebarLocked = false
+                }
             }
         }
+    }
+
+    /// Spawn a subagent as a new agent tab in `windowID` and start it on `task`.
+    /// Returns the session key and pane. See `browser.agents.spawn`.
+    static func spawnSubagent(task: String, spec: AgentChatSession.SubagentSpec, windowID: ID<WindowState>, background: Bool, ghost: Bool) -> (key: String, paneID: ID<WebContent>) {
+        installToolsIfNeeded()
+        let key = ChatAgentRegistry.subagentPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        let url = NativePageKey.agent(key: key, query: spec.name).url
+        let pid = ID<WebContent>.assign()
+        BrowserStore.shared.modify { st in
+            var info = WebContent.Info(url: url)
+            info.agentIsWorking = true
+            var pane = Pane(id: pid, info: info)
+            pane.isGhost = ghost
+            var tab = Tab(id: .assign(), panes: [pane])
+            tab.lastActiveInWindow = windowID
+            let loc = st.insertionIndex(window: windowID, spawningTabId: st.windows[windowID]?.currentTab)
+            st.insertTab(tab, location: loc, inWindow: windowID)
+            if !background {
+                st.activate(tabId: tab.id, in: windowID)
+            }
+        }
+        if let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: windowID) {
+            wc.info.agentIsWorking = true
+        }
+        ChatAgentRegistry.register(key: key, name: spec.name, parentKey: spec.parentKey, paneID: pid)
+        let session = AgentChatSession.session(forKey: key)
+        session.begin(query: task, ownPaneID: pid, sourcePaneID: nil, ownTabIsFocused: !background, mode: .subagent(spec))
+        return (key, pid)
     }
 
     /// Close the agent's tab and shut its session down. Called by the `done`
@@ -231,7 +265,9 @@ public final class AgentChatSession: ObservableObject {
 
     static func remove(forKey key: String) {
         sessions[key]?.turnLoopTask?.cancel()
+        if let token = sessions[key]?.notificationToken { NotificationCenter.default.removeObserver(token) }
         sessions[key] = nil
+        ChatAgentRegistry.unregister(key: key)
     }
 
     public enum Mode: Equatable {
@@ -241,6 +277,17 @@ public final class AgentChatSession: ObservableObject {
         case chat
         /// A background run of a scheduled task.
         case scheduledTask
+        /// A subagent spawned by another agent via `browser.agents.spawn`.
+        case subagent(SubagentSpec)
+    }
+
+    public struct SubagentSpec: Equatable {
+        public var parentKey: String
+        public var name: String
+        public var model: String?
+        public var effort: String?
+        public var fileSystemTools: Bool
+        public var workingDirectory: String?
     }
 
     public let key: String
@@ -261,8 +308,24 @@ public final class AgentChatSession: ObservableObject {
     private var didBegin = false
     private var turnsCompleted = 0
 
+    private var notificationToken: NSObjectProtocol?
+
     private init(key: String) {
         self.key = key
+        notificationToken = NotificationCenter.default.addObserver(forName: .browserAgentDidUpdate, object: nil, queue: .main) { [weak self] note in
+            guard let self, note.userInfo?["key"] as? String == key else { return }
+            Task { @MainActor in
+                guard let id = self.agentID else { return }
+                let status = await BrowserAgentManager.shared.status(id: id)
+                if status == "running", !self.isWorking {
+                    self.externalTurnDidStart()
+                } else if self.turnLoopTask == nil {
+                    // Not mid-turn: pick up locally appended entries (tab cards).
+                    let new = (try? await BrowserAgentManager.shared.messages(id: id, since: self.nextIndex)) ?? []
+                    self.mergeMessages(new)
+                }
+            }
+        }
     }
 
     /// Spin up a fresh agent for a new "ask" — context capture, create, send.
@@ -300,13 +363,27 @@ public final class AgentChatSession: ObservableObject {
                         pageContext: context,
                         dictated: false
                     )
+                case .subagent(let spec):
+                    prompt = AgentChatSession.subagentSystemPrompt(
+                        key: key,
+                        ownPaneID: ownPaneID,
+                        agentURL: NativePageKey.agent(key: key, query: spec.name).url.absoluteString,
+                        spec: spec
+                    )
                 }
-                let options = BrowserJSAgentCreateOptions(
+                var options = BrowserJSAgentCreateOptions(
                     key: key,
                     name: mode == .scheduledTask ? "Task: " + String(query.prefix(60)) : query,
                     effort: mode == .scheduledTask ? "medium" : "low",
                     systemPrompt: prompt
                 )
+                if case .subagent(let spec) = mode {
+                    options.name = spec.name
+                    options.model = spec.model
+                    options.effort = spec.effort ?? "medium"
+                    options.fileSystemTools = spec.fileSystemTools
+                    options.workingDirectory = spec.workingDirectory
+                }
                 let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
                 try await BrowserAgentManager.shared.send(id: id, text: query, images: [])
@@ -352,6 +429,16 @@ public final class AgentChatSession: ObservableObject {
         }
     }
 
+    /// A turn was started on this agent from outside the chat UI (a peer
+    /// agent's `agents.send`, or the coordinator). Show it as working and
+    /// stream its transcript.
+    func externalTurnDidStart() {
+        guard agentID != nil else { return }
+        errorText = nil
+        setWorking(true)
+        runTurnLoop()
+    }
+
     /// Send a follow-up message typed in the chat.
     public func send(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -359,6 +446,7 @@ public final class AgentChatSession: ObservableObject {
         guard let agentID else { return }
         errorText = nil
         setWorking(true)
+        ChatAgentRegistry.resetTurnFlags(key: key)
         Task {
             do {
                 try await BrowserAgentManager.shared.send(id: agentID, text: trimmed, images: [])
@@ -425,6 +513,18 @@ public final class AgentChatSession: ObservableObject {
                     BrowserStore.shared.modify { st in st.detachAgentTab(tabID: tabID, inWindow: winID) }
                 } else {
                     AgentChatTabs.close(key: key)
+                }
+            }
+        case .subagent(let spec):
+            // Safety net: a subagent that finished without reporting to its
+            // parent gets its final answer forwarded, so the parent (and the
+            // user, via the coordinator) always hears back.
+            let reported = ChatAgentRegistry.record(forKey: key)?.reportedToParentThisTurn ?? false
+            ChatAgentRegistry.resetTurnFlags(key: key)
+            let final = (result.text?.nilIfEmpty ?? messages.last(where: { $0.role == "assistant" })?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !reported, !final.isEmpty {
+                Task {
+                    try? await BrowserJSLiveHost.shared.agentsSend(agentKey: key, toKey: spec.parentKey, text: (result.isError ? "[failed] " : "[finished] ") + final)
                 }
             }
         case .ask, .chat:
@@ -674,6 +774,32 @@ public final class AgentChatSession: ObservableObject {
             prompt += "\n\n" + pageContext
         }
         return prompt
+    }
+
+    private static func subagentSystemPrompt(key: String, ownPaneID: ID<WebContent>, agentURL: String, spec: SubagentSpec) -> String {
+        """
+        You are "\(spec.name)", a SUBAGENT inside the Wowser browser, spawned by another agent \
+        (your parent, session key "\(spec.parentKey)") to do one task. Your session key is "\(key)". \
+        Your chat lives in its own tab — tab id "\(ownPaneID.raw)", url "\(agentURL)" — which the \
+        user may or may not be looking at. The task is the first message you receive.
+
+        ## How to work
+        - Do the task fully; you're the one meant to take time. Research with `browser.tabs.openGhost` \
+        + `browser.content.read`, drive pages with `browser.page.*`, run shell work in terminal tabs \
+        (`browser.terminal.open/read/write`), and for coding you can open a terminal running `claude` \
+        and steer it by reading its output and typing into it.\(spec.fileSystemTools ? " You also have real file/shell tools in `\(spec.workingDirectory ?? "your working directory")`." : "")
+        - Show the user pages with `browser.present({ url | tabId, show })`: 'card' drops a tab card into \
+        your own chat; 'main' shows it in the main view (if the user is looking at YOUR tab, it opens \
+        as a split beside you). Present the pages your result rests on.
+        - REPORT BACK: when done (or blocked), call \
+        `browser.agents.send({ key: "\(spec.parentKey)", text: <your result> })` with a concise result \
+        the parent can relay to the user — findings, links, what you opened, and anything left \
+        undone. Then write the same result here in chat and end your turn. Send interim progress \
+        the same way for long jobs.
+        - Messages starting with "[Message from agent …]" come from your parent (or another agent), \
+        not the user; follow them.
+        - Keep chat text concise; use markdown links for pages you mention.
+        """
     }
 
     private static func scheduledTaskSystemPrompt(ownPaneID: ID<WebContent>, agentURL: String) -> String {

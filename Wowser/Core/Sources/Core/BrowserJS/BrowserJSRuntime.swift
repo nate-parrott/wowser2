@@ -40,8 +40,14 @@ public actor BrowserJSRuntime {
         self.caps = caps
     }
 
-    public func run(code: String) async -> BrowserJSResult {
+    /// `preamble` is extra JS evaluated ahead of the helpers and user code —
+    /// e.g. an identity declaration (`var __agentKey = ...`) for the caller.
+    public func run(code: String, preamble: String = "") async -> BrowserJSResult {
         let ctx = ensureContext()
+        // Global scope, so the `browser` object's helpers (`__selfKey`) can see it.
+        if !preamble.isEmpty {
+            ctx.context.evaluateScript(preamble)
+        }
         let helperPreamble = (try? helpers.concatenatedHelpers()) ?? ""
 
         // Pass helpers and user code to the JS-side runner as string literals.

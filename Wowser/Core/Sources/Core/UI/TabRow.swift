@@ -103,7 +103,7 @@ private struct RegularTabButton: View {
         HStack(spacing: 8) {
             // Icon based on the type in the snapshot
             TabIconView(icon: snapshot.appearance.icon)
-                .opacity(snapshot.appearance.isGhost ? 0.55 : 1)
+                .opacity(snapshot.appearance.isGhost || snapshot.appearance.isUnloaded ? 0.55 : 1)
 
             // Title (and optional subtitle) with truncation
             VStack(alignment: .leading, spacing: 1) {
@@ -119,7 +119,7 @@ private struct RegularTabButton: View {
                         .lineLimit(1)
                 }
             }
-            .opacity(snapshot.appearance.isGhost ? 0.65 : 1)
+            .opacity(snapshot.appearance.isGhost || snapshot.appearance.isUnloaded ? 0.65 : 1)
 
             Spacer()
 

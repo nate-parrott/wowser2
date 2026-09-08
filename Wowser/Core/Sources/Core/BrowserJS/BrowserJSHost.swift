@@ -61,6 +61,8 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func spacesGetCurrent(windowId: String?) async throws -> BrowserJSSpaceInfo?
     /// Switch a window to display `spaceId`.
     func spacesActivate(spaceId: String, windowId: String?) async throws
+    /// Toggle chat mode for a space.
+    func spacesSetChatMode(spaceId: String, enabled: Bool) async throws
 
     func contentRead(id: String, as kind: String) async throws -> String
     func contentScreenshot(id: String) async throws -> BrowserJSImage
@@ -121,6 +123,50 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func agentList() async throws -> [BrowserJSAgentInfo]
     func agentInterrupt(id: String) async throws
     func agentDispose(id: String) async throws
+
+    // MARK: - Chat mode (see ChatModeHost.swift)
+
+    /// `agentKey` identifies the calling agent (nil for the MCP runtime).
+    /// Shows a page as a card in the caller's thread and/or in the main view.
+    func chatPresent(agentKey: String?, tabId: String?, url: String?, show: String, note: String?) async throws -> String
+    func agentsSpawn(agentKey: String?, task: String, name: String?, model: String?, effort: String?, fileSystemTools: Bool, workingDirectory: String?, show: String) async throws -> BrowserJSSpawnedAgentInfo
+    func agentsSend(agentKey: String?, toKey: String, text: String) async throws
+    func agentsList(agentKey: String?) async throws -> [BrowserJSPeerAgentInfo]
+    func agentsTranscript(key: String, since: Int) async throws -> [BrowserJSAgentMessage]
+    func terminalOpen(agentKey: String?, cwd: String?, command: String?, show: String) async throws -> String
+    func terminalRead(id: String, since: String?, maxChars: Int?) async throws -> BrowserJSTerminalRead
+    func terminalWrite(id: String, text: String) async throws
+}
+
+public struct BrowserJSSpawnedAgentInfo: Codable, Equatable, Sendable {
+    public var key: String
+    public var tabId: String
+    public var url: String
+    public init(key: String, tabId: String, url: String) { self.key = key; self.tabId = tabId; self.url = url }
+}
+
+public struct BrowserJSPeerAgentInfo: Codable, Equatable, Sendable {
+    public var key: String
+    public var name: String?
+    public var status: String
+    public var tabId: String?
+    public var url: String?
+    public var parentKey: String?
+    public var isSelf: Bool
+    public init(key: String, name: String? = nil, status: String, tabId: String? = nil, url: String? = nil, parentKey: String? = nil, isSelf: Bool = false) {
+        self.key = key; self.name = name; self.status = status; self.tabId = tabId; self.url = url; self.parentKey = parentKey; self.isSelf = isSelf
+    }
+}
+
+public struct BrowserJSTerminalRead: Codable, Equatable, Sendable {
+    public var text: String
+    public var token: String
+    public var running: Bool
+    public var command: String?
+    public var cwd: String?
+    public init(text: String, token: String, running: Bool, command: String? = nil, cwd: String? = nil) {
+        self.text = text; self.token = token; self.running = running; self.command = command; self.cwd = cwd
+    }
 }
 
 public extension BrowserJSHost {
@@ -151,6 +197,9 @@ public extension BrowserJSHost {
     func spacesActivate(spaceId: String, windowId: String?) async throws {
         throw BrowserJSError.notImplemented("spaces.activate")
     }
+    func spacesSetChatMode(spaceId: String, enabled: Bool) async throws {
+        throw BrowserJSError.notImplemented("spaces.setChatMode")
+    }
     func agentCreate(options: BrowserJSAgentCreateOptions) async throws -> String {
         throw BrowserJSError.notImplemented("agent.create")
     }
@@ -174,6 +223,30 @@ public extension BrowserJSHost {
     }
     func agentDispose(id: String) async throws {
         throw BrowserJSError.notImplemented("agent.dispose")
+    }
+    func chatPresent(agentKey: String?, tabId: String?, url: String?, show: String, note: String?) async throws -> String {
+        throw BrowserJSError.notImplemented("present")
+    }
+    func agentsSpawn(agentKey: String?, task: String, name: String?, model: String?, effort: String?, fileSystemTools: Bool, workingDirectory: String?, show: String) async throws -> BrowserJSSpawnedAgentInfo {
+        throw BrowserJSError.notImplemented("agents.spawn")
+    }
+    func agentsSend(agentKey: String?, toKey: String, text: String) async throws {
+        throw BrowserJSError.notImplemented("agents.send")
+    }
+    func agentsList(agentKey: String?) async throws -> [BrowserJSPeerAgentInfo] {
+        throw BrowserJSError.notImplemented("agents.list")
+    }
+    func agentsTranscript(key: String, since: Int) async throws -> [BrowserJSAgentMessage] {
+        throw BrowserJSError.notImplemented("agents.transcript")
+    }
+    func terminalOpen(agentKey: String?, cwd: String?, command: String?, show: String) async throws -> String {
+        throw BrowserJSError.notImplemented("terminal.open")
+    }
+    func terminalRead(id: String, since: String?, maxChars: Int?) async throws -> BrowserJSTerminalRead {
+        throw BrowserJSError.notImplemented("terminal.read")
+    }
+    func terminalWrite(id: String, text: String) async throws {
+        throw BrowserJSError.notImplemented("terminal.write")
     }
 }
 
@@ -297,6 +370,8 @@ public struct BrowserJSSpaceInfo: Codable, Equatable, Sendable {
     /// Creation order — the space's position in the sidebar carousel.
     public var index: Int
     public var hidden: Bool
+    /// Chat mode: the sidebar is a coordinator thread (see `present`).
+    public var chatMode: Bool
     /// True if `windowId` is currently displaying this space.
     public var isCurrent: Bool
     /// Every window currently displaying this space.
@@ -306,9 +381,9 @@ public struct BrowserJSSpaceInfo: Codable, Equatable, Sendable {
     /// Split (`ID<Tab>`) ids of this space's tabs, in the resolved window.
     public var splitIds: [String]
 
-    public init(id: String, title: String? = nil, autoTitle: String? = nil, displayName: String, emoji: String? = nil, index: Int = 0, hidden: Bool = false, isCurrent: Bool = false, windowIds: [String] = [], tabIds: [String] = [], splitIds: [String] = []) {
+    public init(id: String, title: String? = nil, autoTitle: String? = nil, displayName: String, emoji: String? = nil, index: Int = 0, hidden: Bool = false, chatMode: Bool = false, isCurrent: Bool = false, windowIds: [String] = [], tabIds: [String] = [], splitIds: [String] = []) {
         self.id = id; self.title = title; self.autoTitle = autoTitle; self.displayName = displayName
-        self.emoji = emoji; self.index = index; self.hidden = hidden; self.isCurrent = isCurrent
+        self.emoji = emoji; self.index = index; self.hidden = hidden; self.chatMode = chatMode; self.isCurrent = isCurrent
         self.windowIds = windowIds; self.tabIds = tabIds; self.splitIds = splitIds
     }
 }

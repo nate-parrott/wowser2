@@ -124,6 +124,14 @@ public struct BrowserJSAgentAwaitResult: Codable, Equatable, Sendable {
 
 // MARK: - Manager
 
+public extension Notification.Name {
+    /// Posted (on any thread) whenever an agent's transcript or status changes —
+    /// new entries, a turn starting or ending, a peer agent's message landing.
+    /// userInfo: `agentID` (String), `key` (String, when the agent is keyed).
+    /// Lets chat UIs stay in sync without long-polling `await`.
+    static let browserAgentDidUpdate = Notification.Name("BrowserAgentManager.didUpdate")
+}
+
 public actor BrowserAgentManager {
     public static let shared = BrowserAgentManager(
         provider: BrowserAgentManager.platformDefaultProvider(),
@@ -159,7 +167,9 @@ public actor BrowserAgentManager {
     private let host: any BrowserJSHost
     private let helpers: BrowserJSHelpersProvider
     private let store: any AgentSessionStoring
-    private var runtime: BrowserJSRuntime?
+    /// One BrowserJS runtime per agent, so each agent's JS environment can
+    /// carry its own identity (`__agentKey`) for the chat-mode tools.
+    private var runtimes: [String: BrowserJSRuntime] = [:]
     private var entries: [String: Entry] = [:]
     private var keyToAgentID: [String: String] = [:]
     private var idleWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
@@ -253,7 +263,7 @@ public actor BrowserAgentManager {
             resumeSessionID: record.sessionID
         )
         if record.exposeBrowserJS {
-            spec.tools.append(makeRunBrowserJSTool())
+            spec.tools.append(makeRunBrowserJSTool(agentID: record.agentID, agentKey: isKeyed ? record.key : nil))
             spec.appendSystemPrompt = """
             ## Browser control
 
@@ -309,20 +319,66 @@ public actor BrowserAgentManager {
     }
 
     /// Starts a turn. Returns immediately; observe via messages()/awaitIdle().
-    public func send(id: String, text: String, images: [BrowserJSImage]) async throws {
+    ///
+    /// `displayText` is what the transcript records (defaults to `text`) — pass
+    /// it when the real message carries hidden context the UI shouldn't show.
+    /// `role` is the transcript role for the entry: "user" (default) or "peer"
+    /// for a message from another agent.
+    public func send(id: String, text: String, images: [BrowserJSImage], displayText: String? = nil, role: String = "user", label: String? = nil) async throws {
         guard var entry = entries[id], entry.status != "disposed" else {
             throw BrowserJSError.invalidArgs("unknown agent: \(id)")
         }
         entry.status = "running"
         entry.messages.append(BrowserJSAgentMessage(
-            index: entry.messages.count, role: "user",
-            text: text + (images.isEmpty ? "" : " [\(images.count) image(s)]")
+            index: entry.messages.count, role: role,
+            text: (displayText ?? text) + (images.isEmpty ? "" : " [\(images.count) image(s)]"),
+            toolName: label
         ))
         let agent = entry.agent
         entries[id] = entry
+        postDidUpdate(agentID: id)
         Task {
             _ = try? await agent.send(AgentUserMessage(text: text, images: images))
         }
+    }
+
+    /// Append a transcript entry that isn't part of the agent's conversation —
+    /// e.g. a `tab_card` row a chat UI renders as a tab, or an event note. The
+    /// agent itself never sees these; they're for whoever renders the transcript.
+    public func appendLocalMessage(id: String, role: String, text: String, toolName: String? = nil) throws {
+        guard var entry = entries[id], entry.status != "disposed" else {
+            throw BrowserJSError.invalidArgs("unknown agent: \(id)")
+        }
+        entry.messages.append(BrowserJSAgentMessage(index: entry.messages.count, role: role, text: text, toolName: toolName))
+        entries[id] = entry
+        resumeIdleWaiters(id: id)
+        postDidUpdate(agentID: id)
+    }
+
+    /// The live agent id for a session key, resuming it from disk if it was
+    /// saved but isn't loaded. nil if no such session exists.
+    public func agentID(forKey key: String) async -> String? {
+        if let id = keyToAgentID[key], entries[id]?.status != "disposed" { return id }
+        if let record = store.load(key: key) {
+            return try? await resume(record)
+        }
+        return nil
+    }
+
+    /// "idle" | "running" | "disposed", or nil for an unknown agent.
+    public func status(id: String) -> String? {
+        entries[id]?.status
+    }
+
+    /// The session key of a live agent, if it has one.
+    public func key(forID id: String) -> String? {
+        entries[id]?.key
+    }
+
+    private func postDidUpdate(agentID: String) {
+        var info: [String: Any] = ["agentID": agentID]
+        if let key = entries[agentID]?.key { info["key"] = key }
+        NotificationCenter.default.post(name: .browserAgentDidUpdate, object: nil, userInfo: info)
     }
 
     /// Waits up to `timeoutMs` for something to happen: either the agent goes
@@ -460,7 +516,9 @@ public actor BrowserAgentManager {
             keyToAgentID[key] = nil
             store.delete(key: key)
         }
+        runtimes[id] = nil
         resumeIdleWaiters(id: id)
+        postDidUpdate(agentID: id)
         await entry.agent.shutdown()
     }
 
@@ -540,6 +598,7 @@ public actor BrowserAgentManager {
         // Wake waiters on every new entry, not just at end of turn, so
         // `awaitIdle` delivers tool calls and text as they happen.
         resumeIdleWaiters(id: agentID)
+        postDidUpdate(agentID: agentID)
     }
 
     /// Saves a keyed agent's session id so it can be resumed later. The
@@ -555,7 +614,7 @@ public actor BrowserAgentManager {
         store.save(record)
     }
 
-    private func makeRunBrowserJSTool() -> AgentToolDefinition {
+    private func makeRunBrowserJSTool(agentID: String, agentKey: String?) -> AgentToolDefinition {
         AgentToolDefinition(
             name: "run_browser_js",
             description: """
@@ -571,7 +630,7 @@ public actor BrowserAgentManager {
             guard let self else { return AgentToolOutput(text: "browser unavailable", isError: true) }
             let code = ((try? JSONSerialization.jsonObject(with: Data(inputJSON.utf8))) as? [String: Any])?["code"] as? String
             guard let code else { return AgentToolOutput(text: "missing `code` argument", isError: true) }
-            let result = await self.runBrowserJS(code: code)
+            let result = await self.runBrowserJS(code: code, agentID: agentID, agentKey: agentKey)
             var payload: [String: Any] = ["logs": result.logs]
             if let r = result.result { payload["result"] = r }
             if let e = result.error { payload["error"] = e }
@@ -586,14 +645,17 @@ public actor BrowserAgentManager {
         }
     }
 
-    private func runBrowserJS(code: String) async -> BrowserJSResult {
+    private func runBrowserJS(code: String, agentID: String, agentKey: String?) async -> BrowserJSResult {
         let runtime: BrowserJSRuntime
-        if let existing = self.runtime {
+        if let existing = runtimes[agentID] {
             runtime = existing
         } else {
             runtime = BrowserJSRuntime(host: host, helpers: helpers)
-            self.runtime = runtime
+            runtimes[agentID] = runtime
         }
-        return await runtime.run(code: code)
+        // Identity preamble: the chat-mode BrowserJS calls (`present`,
+        // `agents.*`) read `__agentKey` so the host knows who is asking.
+        let keyLiteral = agentKey.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "undefined"
+        return await runtime.run(code: code, preamble: "var __agentKey = \(keyLiteral);")
     }
 }

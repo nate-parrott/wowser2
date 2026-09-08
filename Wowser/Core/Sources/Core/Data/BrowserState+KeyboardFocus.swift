@@ -15,13 +15,14 @@ public enum FocusTarget: Equatable {
     case omnibox(pane: ID<WebContent>)
     case emptyWindowOmnibox(ID<WindowState>) // when no tab is selected
     case spaceTitle(profile: ID<Profile>, window: ID<WindowState>) // editable sidebar space-name field
+    case chatSpaceInput(profile: ID<Profile>, window: ID<WindowState>) // chat-mode sidebar's message/omnibox field
 
     public var paneID: ID<WebContent>? {
         switch self {
         case .webContent(let id), .terminal(let id), .fileBrowser(let id),
              .agentChat(let id), .reader(let id), .findInPage(let id), .omnibox(pane: let id):
             return id
-        case .emptyWindowOmnibox, .spaceTitle: return nil
+        case .emptyWindowOmnibox, .spaceTitle, .chatSpaceInput: return nil
         }
     }
 
@@ -36,6 +37,8 @@ public enum FocusTarget: Equatable {
         case .emptyWindowOmnibox(let winID):
             return winID
         case .spaceTitle(_, let winID):
+            return winID
+        case .chatSpaceInput(_, let winID):
             return winID
         }
     }
@@ -82,14 +85,24 @@ extension BrowserState {
             windows[windowID]?.searchOverlayActive = false
             windows[windowID]?.findInPageActiveInPaneId = nil
             windows[windowID]?.editingSpaceTitleForProfile = profileID
+        case .chatSpaceInput(let profileID, _):
+            windows[windowID]?.searchOverlayActive = false
+            windows[windowID]?.findInPageActiveInPaneId = nil
+            windows[windowID]?.chatInputActiveForProfile = profileID
         case .emptyWindowOmnibox: () // no op
         }
 
         // Any target other than spaceTitle ends space-title editing.
         switch target {
         case .spaceTitle: ()
-        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox:
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .chatSpaceInput:
             windows[windowID]?.editingSpaceTitleForProfile = nil
+        }
+        // Any target other than chatSpaceInput ends chat-input focus.
+        switch target {
+        case .chatSpaceInput: ()
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .spaceTitle:
+            windows[windowID]?.chatInputActiveForProfile = nil
         }
     }
 
@@ -112,6 +125,8 @@ extension BrowserState {
             windows[windowID]?.findInPageActiveInPaneId = nil
         case .spaceTitle:
             windows[windowID]?.editingSpaceTitleForProfile = nil
+        case .chatSpaceInput:
+            windows[windowID]?.chatInputActiveForProfile = nil
         case .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox:
             () // Whatever takes focus next will reassert via didFocus.
         }
@@ -130,6 +145,11 @@ extension BrowserState {
         // of whether a tab is selected.
         if !window.searchOverlayActive, let profileID = window.editingSpaceTitleForProfile {
             return .init(target: .spaceTitle(profile: profileID, window: windowID), date: date)
+        }
+        // The chat-mode sidebar's input, when the user (or Cmd+T / Cmd+L)
+        // put focus there. Only meaningful while the window shows that space.
+        if !window.searchOverlayActive, let profileID = window.chatInputActiveForProfile, profileID == window.profile {
+            return .init(target: .chatSpaceInput(profile: profileID, window: windowID), date: date)
         }
 
         guard let tabID = window.currentTab,

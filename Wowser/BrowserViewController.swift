@@ -182,6 +182,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     /// Edit the URL of the current tab (Cmd+L)
     @IBAction func editCurrentURL(_ sender: Any?) {
         guard let windowID = self.windowID else { return }
+        if focusChatInputIfChatMode(windowID: windowID) { return }
         
         // Show search overlay to edit URL
         BrowserStore.shared.modify { state in
@@ -189,9 +190,24 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         }
     }
     
+
+    /// In a chat-mode space the sidebar's chat box is the omnibox: Cmd+T and
+    /// Cmd+L put the cursor there instead of opening an empty tab.
+    private func focusChatInputIfChatMode(windowID: ID<WindowState>) -> Bool {
+        let state = BrowserStore.shared.model
+        guard let profileID = state.windows[windowID]?.profile,
+              state.profiles[profileID]?.isChatMode == true else { return false }
+        BrowserStore.shared.modify { st in
+            st.windows[windowID]?.sidebarLocked = true
+            st.didFocus(target: .chatSpaceInput(profile: profileID, window: windowID))
+        }
+        return true
+    }
+
     /// Create a new tab (Cmd+T)
     @IBAction func createNewTab(_ sender: Any?) {
         guard let windowID = self.windowID else { return }
+        if focusChatInputIfChatMode(windowID: windowID) { return }
         
         // Create a new tab
         BrowserStore.shared.createTab(

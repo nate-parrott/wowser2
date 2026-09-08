@@ -38,7 +38,7 @@ private struct AgentChatContent: View {
     @State private var scrollPos = ScrollPosition()
     @State private var viewportHeight: CGFloat = 400
     @State private var distanceFromBottom: CGFloat = 0
-    @State private var lastJumpedToIndex: Int?
+    @State private var lastJumpedToIndex: String?
     @State private var didAppear = false
     // Saved offset we still owe the scroll view: applied once the transcript has
     // laid out enough height to honor it. Until then, don't overwrite
@@ -53,12 +53,6 @@ private struct AgentChatContent: View {
             inputBar
         }
         .background(Color("Background", bundle: .module))
-        // Links in the transcript open beside the chat (or navigate the
-        // existing split), never navigating the chat tab itself away.
-        .environment(\.openURL, OpenURLAction { url in
-            AgentChatTabs.openLink(url, fromAgentPane: paneID)
-            return .handled
-        })
         .onAppear {
             session.attachIfNeeded(ownPaneID: paneID)
             lastJumpedToIndex = latestJumpTarget
@@ -81,50 +75,24 @@ private struct AgentChatContent: View {
 
     // MARK: - Transcript
 
-    /// Rows worth rendering, keyed by transcript index.
-    private var visibleMessages: [BrowserJSAgentMessage] {
-        session.messages.filter { msg in
-            switch msg.role {
-            case "user", "assistant", "error", "stopped": return !msg.text.isEmpty
-            case "tool_use": return true
-            default: return false // thinking, tool_result
-            }
-        }
+    private var rows: [ChatRowItem] {
+        ChatRowBuilder.rows(fromAgentMessages: session.messages, state: BrowserStore.shared.model)
     }
 
     /// The message whose top we auto-scroll to: the latest user or assistant
     /// message (tool chips don't warrant a jump).
-    private var latestJumpTarget: Int? {
-        visibleMessages.last(where: { $0.role == "user" || $0.role == "assistant" })?.index
-    }
-
-    /// Visible messages with runs of adjacent tool calls collapsed into groups.
-    private var rows: [AgentChatRowItem] {
-        var out: [AgentChatRowItem] = []
-        for msg in visibleMessages {
-            if msg.role == "tool_use", case .toolGroup(let id, let calls)? = out.last {
-                out[out.count - 1] = .toolGroup(id: id, calls: calls + [msg])
-            } else if msg.role == "tool_use" {
-                out.append(.toolGroup(id: msg.index, calls: [msg]))
-            } else {
-                out.append(.message(msg))
-            }
-        }
-        return out
+    private var latestJumpTarget: String? {
+        rows.last(where: { $0.isJumpTarget })?.id
     }
 
     private var transcript: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
                 ForEach(rows) { row in
-                    switch row {
-                    case .message(let msg):
-                        AgentChatRow(message: msg)
-                            .id(msg.index)
-                    case .toolGroup(_, let calls):
-                        ToolGroupRow(calls: calls)
-                            .id(row.id)
-                    }
+                    ChatRowView(item: row, compact: false, windowID: windowID, openURL: { url in
+                        AgentChatTabs.openLink(url, fromAgentPane: paneID)
+                    })
+                    .id(row.id)
                 }
                 if session.isWorking {
                     workingIndicator
@@ -169,7 +137,7 @@ private struct AgentChatContent: View {
         }
         .onChange(of: latestJumpTarget) { _, newValue in
             guard let newValue, newValue != lastJumpedToIndex else { return }
-            let isOwnSend = visibleMessages.last(where: { $0.index == newValue })?.role == "user"
+            let isOwnSend: Bool = { if case .user? = rows.last(where: { $0.id == newValue }) { return true }; return false }()
             // Scroll only if necessary: don't yank the transcript if the user
             // has scrolled up to read older messages (unless they just sent).
             if isOwnSend || distanceFromBottom < viewportHeight * 1.5 {
@@ -245,110 +213,3 @@ private struct ScrollGeometryInfo: Equatable {
     var viewportHeight: CGFloat
     var distanceFromBottom: CGFloat
 }
-
-// MARK: - Rows
-
-private enum AgentChatRowItem: Identifiable {
-    case message(BrowserJSAgentMessage)
-    case toolGroup(id: Int, calls: [BrowserJSAgentMessage])
-
-    var id: Int {
-        switch self {
-        case .message(let msg): return msg.index
-        case .toolGroup(let id, _): return id
-        }
-    }
-}
-
-/// A run of adjacent tool calls, collapsed to one quiet line; click to expand
-/// and see each call's tool + input.
-private struct ToolGroupRow: View {
-    var calls: [BrowserJSAgentMessage]
-    @State private var expanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(action: { expanded.toggle() }) {
-                Text(calls.count == 1 ? "Used 1 tool" : "Used \(calls.count) tools")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .underline(expanded)
-            }
-            .buttonStyle(.plain)
-
-            if expanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(calls, id: \.index) { call in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(friendlyToolName(call.toolName))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if !call.text.isEmpty {
-                                Text(call.text.prefix(600))
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(8)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                }
-                .padding(.leading, 10)
-            }
-        }
-    }
-
-    private func friendlyToolName(_ name: String?) -> String {
-        switch name {
-        case "run_browser_js": return "Drove the browser"
-        case "done": return "Wrapped up"
-        case .some(let other): return other
-        case nil: return "Tool"
-        }
-    }
-}
-
-private struct AgentChatRow: View {
-    var message: BrowserJSAgentMessage
-
-    var body: some View {
-        switch message.role {
-        case "user":
-            HStack {
-                Spacer(minLength: 48)
-                Text(message.text)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-        case "assistant":
-            markdownText(message.text)
-                .lineSpacing(4.5)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        case "stopped":
-            Text("Stopped")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case "error":
-            Text(message.text)
-                .font(.callout)
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-        default:
-            EmptyView()
-        }
-    }
-
-    private func markdownText(_ string: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: string,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            return Text(attributed)
-        }
-        return Text(string)
-    }
-}
-

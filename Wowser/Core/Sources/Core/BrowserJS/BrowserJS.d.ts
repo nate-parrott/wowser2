@@ -105,6 +105,8 @@ declare global {
     /** Creation order — position in the sidebar carousel. */
     index: number;
     hidden: boolean;
+    /** True when the space is in chat mode (sidebar = coordinator thread). */
+    chatMode: boolean;
     /** True if the resolved window is currently displaying this space. */
     isCurrent: boolean;
     /** Every window currently displaying this space. */
@@ -286,6 +288,11 @@ declare global {
       getCurrent(opts?: { windowId?: WindowId }): Promise<SpaceInfo | null>;
       /** Switch a window to display `spaceId`. Throws if the space is hidden. */
       activate(spaceId: SpaceId, opts?: { windowId?: WindowId }): Promise<void>;
+      /**
+       * Turn chat mode on/off for a space: its sidebar becomes a coordinator
+       * chat thread and tabs show as cards in it (see `present`).
+       */
+      setChatMode(spaceId: SpaceId, enabled: boolean): Promise<void>;
     };
 
     /**
@@ -510,6 +517,65 @@ declare global {
       interrupt(id: string): Promise<void>;
       /** Shut the agent down and forget it, including any saved session. */
       dispose(id: string): Promise<void>;
+    };
+
+    /**
+     * CHAT MODE — showing things to the user. In a chat-mode space the sidebar
+     * is a chat thread (the "coordinator" agent) and every tab the user can
+     * see is a CARD in that thread. `present` is how any agent puts a page in
+     * front of the user:
+     *   - `show: 'card'` (default) drops a tab card into the calling agent's
+     *     thread — the user can click it to open the page. The tab is opened
+     *     in the background if it doesn't exist yet (pass `url`).
+     *   - `show: 'main'` makes the tab the current tab in the main content
+     *     area. If YOU are a subagent whose own tab is what the user is
+     *     looking at, the page opens as a split beside your tab instead, and
+     *     the sidebar collapses to make room.
+     *   - `show: 'both'` does both.
+     * Pass an existing `tabId` (e.g. a ghost tab you researched on) or a
+     * `url` to open. `note` is an optional caption shown with the card.
+     * Returns the tab id shown.
+     */
+    present(opts: { tabId?: TabId; url?: string; show?: 'card' | 'main' | 'both'; note?: string }): Promise<{ tabId: TabId }>;
+
+    /**
+     * Subagents. A coordinator must never do slow work itself: anything that
+     * takes more than a few seconds — research across several pages, coding,
+     * a long terminal job — goes to a subagent. Each subagent is its own chat
+     * TAB (it has a url and a tab id), so it can be presented like any page.
+     * Subagents talk back to whoever spawned them with `agents.send`, and
+     * get `present` too, so they can show the user pages directly.
+     */
+    agents: {
+      /**
+       * Spawn a subagent tab and give it `task`. `show` controls how it's
+       * surfaced in your thread (default 'card'; 'none' keeps it hidden until
+       * it reports back). `fileSystemTools` gives it real shell/file tools in
+       * `workingDirectory`. Returns its key (use with `agents.send`), tab id,
+       * and url. The subagent starts working immediately and will `agents.send`
+       * you its result when done — you don't need to wait for it.
+       */
+      spawn(opts: { task: string; name?: string; model?: string; effort?: string; fileSystemTools?: boolean; workingDirectory?: string; show?: 'card' | 'main' | 'both' | 'none' }): Promise<{ key: string; tabId: TabId; url: string }>;
+      /** Send a message to another agent by key (your parent, or a subagent you spawned). It starts a turn there. */
+      send(opts: { key: string; text: string }): Promise<void>;
+      /** Agents related to you: your parent and your subagents, with status. */
+      list(): Promise<Array<{ key: string; name?: string; status: string; tabId?: TabId; url?: string; parentKey?: string; isSelf: boolean }>>;
+      /** Read another agent's transcript (assistant text, tool calls…) from `since`. */
+      transcript(opts: { key: string; since?: number }): Promise<Array<{ index: number; role: string; text: string; toolName?: string }>>;
+    };
+
+    /**
+     * Terminal tabs. Open a shell (optionally running a command), read what
+     * it printed, and type into it. `read` returns everything on screen plus
+     * scrollback; pass the returned `token` back as `since` next time to get
+     * only what changed. Long-running jobs (builds, `claude`, servers) belong
+     * in a terminal tab; poll `read` rather than blocking.
+     */
+    terminal: {
+      open(opts?: { cwd?: string; command?: string; show?: 'card' | 'main' | 'both' | 'none' }): Promise<TabId>;
+      read(id: TabId, opts?: { since?: string; maxChars?: number }): Promise<{ text: string; token: string; running: boolean; command?: string; cwd?: string }>;
+      /** Types `text` into the terminal as if entered by the user ("\n" presses Return). */
+      write(id: TabId, text: string): Promise<void>;
     };
 
     sleep(ms: number): Promise<void>;

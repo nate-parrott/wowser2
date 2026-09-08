@@ -204,6 +204,10 @@ enum BrowserJSDispatch {
             guard let spaceId = str("spaceId") else { throw BrowserJSError.invalidArgs("spaceId") }
             try await host.spacesActivate(spaceId: spaceId, windowId: optStr("windowId"))
             return nil
+        case "spaces.setChatMode":
+            guard let spaceId = str("spaceId") else { throw BrowserJSError.invalidArgs("spaceId") }
+            try await host.spacesSetChatMode(spaceId: spaceId, enabled: bool("enabled", true))
+            return nil
 
         case "webapp.create":
             guard let name = str("name") else { throw BrowserJSError.invalidArgs("name") }
@@ -298,6 +302,33 @@ enum BrowserJSDispatch {
             try await host.fsMkdir(path: path)
             return nil
 
+        case "chat.present":
+            let id = try await host.chatPresent(agentKey: optStr("agentKey"), tabId: optStr("tabId"), url: optStr("url"), show: optStr("show") ?? "card", note: optStr("note"))
+            return try encodeValue(["tabId": id])
+        case "agents.spawn":
+            guard let task = str("task") else { throw BrowserJSError.invalidArgs("task") }
+            let info = try await host.agentsSpawn(agentKey: optStr("agentKey"), task: task, name: optStr("name"), model: optStr("model"), effort: optStr("effort"), fileSystemTools: bool("fileSystemTools"), workingDirectory: optStr("workingDirectory"), show: optStr("show") ?? "card")
+            return try encodeValue(info)
+        case "agents.send":
+            guard let key = str("key"), let text = str("text") else { throw BrowserJSError.invalidArgs("key, text") }
+            try await host.agentsSend(agentKey: optStr("agentKey"), toKey: key, text: text)
+            return nil
+        case "agents.list":
+            return try encodeValue(try await host.agentsList(agentKey: optStr("agentKey")))
+        case "agents.transcript":
+            guard let key = str("key") else { throw BrowserJSError.invalidArgs("key") }
+            return try encodeValue(try await host.agentsTranscript(key: key, since: int("since") ?? 0))
+        case "terminal.open":
+            let id = try await host.terminalOpen(agentKey: optStr("agentKey"), cwd: optStr("cwd"), command: optStr("command"), show: optStr("show") ?? "card")
+            return try encodeValue(id)
+        case "terminal.read":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            return try encodeValue(try await host.terminalRead(id: id, since: optStr("since"), maxChars: int("maxChars")))
+        case "terminal.write":
+            guard let id = str("id"), let text = str("text") else { throw BrowserJSError.invalidArgs("id, text") }
+            try await host.terminalWrite(id: id, text: text)
+            return nil
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -312,6 +343,7 @@ enum BrowserJSDispatch {
 // JSContext runtime preamble and the tang:// web bridge.
 enum BrowserJSBridgeSource {
     static let browserObjectJS: String = """
+    function __selfKey() { return (typeof __agentKey !== 'undefined') ? __agentKey : undefined; }
     var browser = {
         tabs: {
             list:     function(opts) { opts = opts || {}; return __browserCall('tabs.list', { windowId: opts.windowId, spaceId: opts.spaceId }); },
@@ -353,6 +385,7 @@ enum BrowserJSBridgeSource {
             list:       function(opts) { opts = opts || {}; return __browserCall('spaces.list', { windowId: opts.windowId, includeHidden: !!opts.includeHidden }); },
             getCurrent: function(opts) { opts = opts || {}; return __browserCall('spaces.getCurrent', { windowId: opts.windowId }); },
             activate:   function(spaceId, opts) { opts = opts || {}; return __browserCall('spaces.activate', { spaceId: spaceId, windowId: opts.windowId }); },
+            setChatMode: function(spaceId, enabled) { return __browserCall('spaces.setChatMode', { spaceId: spaceId, enabled: !!enabled }); },
         },
         net: {
             log:           function(filter)  { return __browserCall('net.log', filter || {}); },
@@ -415,6 +448,21 @@ enum BrowserJSBridgeSource {
                     if (r.done) return r;
                 }
             },
+        },
+        // Chat mode. `__agentKey` is declared by the agent runtime so the host
+        // knows which agent (and thread) is calling; the MCP runtime has none
+        // and falls back to the current chat-mode space.
+        present: function(opts) { opts = opts || {}; return __browserCall('chat.present', { agentKey: __selfKey(), tabId: opts.tabId, url: opts.url, show: opts.show || 'card', note: opts.note }); },
+        agents: {
+            spawn:      function(opts) { opts = opts || {}; return __browserCall('agents.spawn', { agentKey: __selfKey(), task: opts.task, name: opts.name, model: opts.model, effort: opts.effort, fileSystemTools: !!opts.fileSystemTools, workingDirectory: opts.workingDirectory, show: opts.show || 'card' }); },
+            send:       function(opts) { opts = opts || {}; return __browserCall('agents.send', { agentKey: __selfKey(), key: opts.key, text: opts.text }); },
+            list:       function() { return __browserCall('agents.list', { agentKey: __selfKey() }); },
+            transcript: function(opts) { opts = opts || {}; return __browserCall('agents.transcript', { key: opts.key, since: opts.since || 0 }); },
+        },
+        terminal: {
+            open:  function(opts) { opts = opts || {}; return __browserCall('terminal.open', { agentKey: __selfKey(), cwd: opts.cwd, command: opts.command, show: opts.show || 'card' }); },
+            read:  function(id, opts) { opts = opts || {}; return __browserCall('terminal.read', { id: id, since: opts.since, maxChars: opts.maxChars }); },
+            write: function(id, text) { return __browserCall('terminal.write', { id: id, text: String(text) }); },
         },
         sleep: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
         log:   function() {

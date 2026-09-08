@@ -128,6 +128,10 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// pane's URL points at the destination file; this record carries the
     /// live status/progress so the tab and the overlay can show it.
     public var download: Download?
+    /// True after the LRU unloader dropped this pane's live web content to
+    /// save memory (chat-mode spaces only). The page reloads from `info.url`
+    /// the next time it's shown; cleared when the WebContent is recreated.
+    public var unloaded: Bool?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -200,6 +204,10 @@ public struct WindowState: Equatable, Codable {
     /// Drives `focusState` toward `.spaceTitle`. Set/cleared only via
     /// `didFocus`/`didLoseFocus` — never in two places at once.
     public var editingSpaceTitleForProfile: ID<Profile>?
+    /// Chat-mode space whose sidebar chat input currently holds focus (if any).
+    /// Drives `focusState` toward `.chatSpaceInput`. Commands (Cmd+T / Cmd+L
+    /// in a chat-mode space) set it directly; blur clears it via `didLoseFocus`.
+    public var chatInputActiveForProfile: ID<Profile>?
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
@@ -243,8 +251,13 @@ public struct Profile: Equatable, Codable {
     /// Folder this space is attached to (see "Add Folder…" in the space menu).
     /// Attaching a folder pins VS Code / terminal / files tabs for it.
     public var folderPath: String?
+    /// Chat mode: the sidebar shows a coordinator-agent chat thread instead of
+    /// the tab list, and tabs surface as cards inside that thread. See
+    /// ChatSpaceSession. Optional so old persisted state decodes.
+    public var chatMode: Bool?
 
     public var isHidden: Bool { hidden == true }
+    public var isChatMode: Bool { chatMode == true }
 }
 
 public struct Project: Equatable, Codable {
@@ -308,6 +321,7 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
 
         setupAutoArchiving()
+        setupChatModeUnloader()
         
         // setupSearchFieldDismissOnSwitch
         addChangeHook { prev, next in
@@ -352,6 +366,12 @@ public class BrowserStore: DataStore<BrowserState> {
         return liveWebContents[id]
     }
 
+    /// Every pane that currently has a live WebContent.
+    public var liveWebContentIDs: [ID<WebContent>] {
+        assertOnMainThread()
+        return Array(liveWebContents.keys)
+    }
+
     public func getOrCreateWebContent(forId id: ID<WebContent>, toBeActiveInWindow windowID: ID<WindowState>) -> WebContent? {
         assertOnMainThread()
         let model = self.model
@@ -387,6 +407,7 @@ public class BrowserStore: DataStore<BrowserState> {
             // Must set this otherwise tab will be unloaded
             state.tabs[tabId]?.lastActiveInWindow = windowID
             state.tabs[tabId]?.panes[id]?.engine = engine
+            state.tabs[tabId]?.panes[id]?.unloaded = nil
         }
 
         let wc: WebContent
@@ -488,7 +509,6 @@ public class BrowserStore: DataStore<BrowserState> {
                 // Activate the tab if requested
                 if activate {
                     state.activate(tabId: tab.id, in: windowID)
-                    state.closeUnactivatedNewTabPages(in: windowID)
                 }
                 tabID = tab.id
             }
@@ -826,6 +846,7 @@ private extension WindowState {
         searchOverlayActive = false
         swipeGestureOffset = nil
         findInPageActiveInPaneId = nil
+        chatInputActiveForProfile = nil
     }
 }
 

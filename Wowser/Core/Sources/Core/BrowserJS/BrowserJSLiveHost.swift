@@ -561,6 +561,16 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         }
     }
 
+    public func spacesSetChatMode(spaceId: String, enabled: Bool) async throws {
+        try await main {
+            let state = BrowserStore.shared.model
+            let space = try self.resolveSpaceID(spaceId, state: state)
+            BrowserStore.shared.modify { st in
+                st.profiles[space]?.chatMode = enabled ? true : nil
+            }
+        }
+    }
+
     // MARK: - Network capture (Section 7)
 
     public func netLog(filter: NetLogFilter) async throws -> [NetEntrySummary] {
@@ -728,6 +738,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             emoji: profile.emoji,
             index: profile.creationOrder,
             hidden: profile.isHidden,
+            chatMode: profile.isChatMode,
             isCurrent: resolvedWindow.flatMap { state.windows[$0]?.profile } == profile.id,
             windowIds: state.windows.values.filter { $0.profile == profile.id }.map { $0.id.raw },
             tabIds: tabIDs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
