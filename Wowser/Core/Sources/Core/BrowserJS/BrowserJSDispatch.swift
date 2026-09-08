@@ -328,6 +328,10 @@ enum BrowserJSDispatch {
             guard let id = str("id"), let text = str("text") else { throw BrowserJSError.invalidArgs("id, text") }
             try await host.terminalWrite(id: id, text: text)
             return nil
+        case "notes.write":
+            guard let title = str("title") else { throw BrowserJSError.invalidArgs("title") }
+            let info = try await host.notesWrite(agentKey: optStr("agentKey"), title: title, markdown: optStr("markdown"), html: optStr("html"), show: optStr("show") ?? "both")
+            return try encodeValue(info)
 
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
@@ -396,6 +400,9 @@ enum BrowserJSBridgeSource {
         },
         webapp: {
             create: function(opts) { return __browserCall('webapp.create', opts || {}); },
+        },
+        notes: {
+            write: function(opts) { return __browserCall('notes.write', opts || {}); },
         },
         fs: {
             read:   function(path, opts) { opts = opts || {}; return __browserCall('fs.read', { path: path, encoding: opts.encoding || 'utf8' }); },

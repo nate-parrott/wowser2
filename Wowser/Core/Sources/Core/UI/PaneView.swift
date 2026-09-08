@@ -30,6 +30,14 @@ struct PaneView: View {
     private static let emptySearchUIMaxHeight: CGFloat = 274
 
     var body: some View {
+        if snapshot.blank {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            fullBody
+        }
+    }
+
+    @ViewBuilder private var fullBody: some View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
         let emptyPageTopPadding: CGFloat = snapshot.emptyPage ? max(emptyPageSearchPadding, (size.height - Self.emptySearchUIMaxHeight) / 2) : 0
         let topbarLocked = snapshot.topbarLocked

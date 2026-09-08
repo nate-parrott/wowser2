@@ -136,6 +136,8 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func terminalOpen(agentKey: String?, cwd: String?, command: String?, show: String) async throws -> String
     func terminalRead(id: String, since: String?, maxChars: Int?) async throws -> BrowserJSTerminalRead
     func terminalWrite(id: String, text: String) async throws
+    /// Write a note (markdown or HTML) to tang://notes/ and optionally present it.
+    func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo
 }
 
 public struct BrowserJSSpawnedAgentInfo: Codable, Equatable, Sendable {
@@ -143,6 +145,12 @@ public struct BrowserJSSpawnedAgentInfo: Codable, Equatable, Sendable {
     public var tabId: String
     public var url: String
     public init(key: String, tabId: String, url: String) { self.key = key; self.tabId = tabId; self.url = url }
+}
+
+public struct BrowserJSNoteInfo: Codable, Equatable, Sendable {
+    public var url: String
+    public var tabId: String?
+    public init(url: String, tabId: String?) { self.url = url; self.tabId = tabId }
 }
 
 public struct BrowserJSPeerAgentInfo: Codable, Equatable, Sendable {
@@ -247,6 +255,9 @@ public extension BrowserJSHost {
     }
     func terminalWrite(id: String, text: String) async throws {
         throw BrowserJSError.notImplemented("terminal.write")
+    }
+    func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo {
+        throw BrowserJSError.notImplemented("notes.write")
     }
 }
 

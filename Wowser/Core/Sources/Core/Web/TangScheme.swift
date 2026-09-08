@@ -1,5 +1,6 @@
 import Foundation
 import WebKit
+import Ink
 
 // tang:// — custom scheme for local BrowserJS webapps.
 //
@@ -92,11 +93,82 @@ public final class TangerineApps: @unchecked Sendable {
         return slug
     }
 
+    // MARK: - Notes
+
+    /// Simple documents agents write for the user (a comparison, a summary, a
+    /// plan) — anything too long for a chat bubble. Stored as files under the
+    /// reserved `notes` host: `tang://notes/<slug>.md` (rendered to HTML when
+    /// served) or `tang://notes/<slug>.html` (served as-is).
+    public static let notesHost = "notes"
+
+    /// Write a note and return its tang:// URL. Markdown gets a `# title`
+    /// heading prepended if it doesn't already start with one; HTML is stored
+    /// verbatim. A new file is created each time (slug-N on collision) so a
+    /// note the user is looking at is never rewritten under them.
+    public func writeNote(title: String, markdown: String?, html: String?) throws -> URL {
+        let ext = html != nil ? "html" : "md"
+        var body: String
+        if let html {
+            body = html
+        } else {
+            body = markdown ?? ""
+            if !body.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("# ") {
+                body = "# \(title)\n\n" + body
+            }
+        }
+        let base = Self.slug(for: title)
+        let notesURL = appDir(slug: Self.notesHost)
+        return try queue.sync {
+            try FileManager.default.createDirectory(at: notesURL, withIntermediateDirectories: true)
+            var name = base
+            var n = 2
+            while FileManager.default.fileExists(atPath: notesURL.appendingPathComponent(name + "." + ext).path) {
+                name = "\(base)-\(n)"; n += 1
+            }
+            try body.write(to: notesURL.appendingPathComponent(name + "." + ext), atomically: true, encoding: .utf8)
+            var comps = URLComponents()
+            comps.scheme = TangSchemeHandler.scheme
+            comps.host = Self.notesHost
+            comps.path = "/" + name + "." + ext
+            return comps.url!
+        }
+    }
+
+    /// Wrap a markdown note as a readable standalone HTML page.
+    static func renderNote(markdown: String) -> String {
+        let html = MarkdownParser().html(from: markdown)
+        let firstHeading = markdown.split(separator: "\n").first(where: { $0.hasPrefix("# ") }).map { String($0.dropFirst(2)) }
+        let title = (firstHeading ?? "Note")
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+        return """
+        <!doctype html>
+        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(title)</title>
+        <style>
+          :root { color-scheme: light dark; }
+          body { margin: 0; padding: 48px 24px 96px; font: 16px/1.55 -apple-system, system-ui, sans-serif; color: CanvasText; background: Canvas; }
+          main { max-width: 680px; margin: 0 auto; }
+          h1 { font-size: 28px; line-height: 1.2; margin: 0 0 20px; }
+          h2 { font-size: 20px; margin: 32px 0 10px; } h3 { font-size: 17px; margin: 24px 0 8px; }
+          p, ul, ol { margin: 0 0 14px; } li { margin: 4px 0; }
+          a { color: LinkText; } code { font: 13.5px ui-monospace, monospace; background: color-mix(in srgb, CanvasText 8%, transparent); padding: 1px 5px; border-radius: 4px; }
+          pre { background: color-mix(in srgb, CanvasText 6%, transparent); padding: 12px 14px; border-radius: 8px; overflow-x: auto; } pre code { background: none; padding: 0; }
+          table { border-collapse: collapse; margin: 0 0 14px; } th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+          blockquote { margin: 0 0 14px; padding-left: 14px; border-left: 3px solid color-mix(in srgb, CanvasText 20%, transparent); opacity: 0.85; }
+          hr { border: 0; border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent); margin: 24px 0; }
+          img { max-width: 100%; }
+        </style></head>
+        <body><main>\(html)</main></body></html>
+        """
+    }
+
     public func list() -> [String] {
         let urls = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         return urls
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
             .map { $0.lastPathComponent }
+            .filter { $0 != Self.notesHost }
             .sorted()
     }
 
@@ -147,6 +219,12 @@ final class TangSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let fileURL = apps.resolveFile(forHost: host, path: url.path),
               let data = try? Data(contentsOf: fileURL) else {
             respond(task: urlSchemeTask, url: url, status: 404, mime: "text/plain; charset=utf-8", data: Data("Not found".utf8))
+            return
+        }
+        if host == TangerineApps.notesHost, fileURL.pathExtension.lowercased() == "md",
+           let markdown = String(data: data, encoding: .utf8) {
+            let page = TangerineApps.renderNote(markdown: markdown)
+            respond(task: urlSchemeTask, url: url, status: 200, mime: "text/html; charset=utf-8", data: Data(page.utf8))
             return
         }
         let mime = Self.mimeType(forExtension: fileURL.pathExtension)

@@ -366,6 +366,19 @@ declare global {
     };
 
     /**
+     * Notes: simple documents for the user — a comparison, a summary, a plan,
+     * anything longer than a few lines of chat. `write` saves the note as a
+     * file under `tang://notes/` (markdown is rendered to a clean HTML page
+     * when served; `html` is served as-is) and, unless `show: 'none'`, presents
+     * it like `present` does (default `'both'`: a card in your thread AND the
+     * main view). Returns the note's url (open it again any time) and the tab
+     * id it was shown in. Use markdown links for every page you reference.
+     */
+    notes: {
+      write(opts: { title: string; markdown?: string; html?: string; show?: 'none' | 'card' | 'main' | 'both' }): Promise<{ url: string; tabId?: TabId }>;
+    };
+
+    /**
      * Local filesystem (the user's Mac, no sandbox). Paths are absolute or
      * `~`-relative. Text is read/written as UTF-8 strings by default; for
      * binary files pass `{ encoding: 'base64' }` and exchange base64 strings

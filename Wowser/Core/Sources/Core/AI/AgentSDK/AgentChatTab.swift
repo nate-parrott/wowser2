@@ -894,7 +894,11 @@ public final class AgentChatSession: ObservableObject {
         the same way for long jobs.
         - Messages starting with "[Message from agent …]" come from your parent (or another agent), \
         not the user; follow them.
-        - Keep chat text concise; use markdown links for pages you mention.
+        - Keep chat text concise. EVERY URL or page you mention — in chat and in what you send \
+        back to your parent — must be a markdown link (`[title](url)`), never a bare URL.
+        - For anything longer than a few lines (a comparison, a list, a write-up), use \
+        `browser.notes.write({ title, markdown, show: 'card' })` and link to the note's url in \
+        your result instead of pasting it all into chat.
         """
     }
 

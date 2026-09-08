@@ -395,9 +395,16 @@ public final class ChatSpaceSession: ObservableObject {
         the current tab and what changed since your last message. Use it to know what "this page" \
         means; never quote it back.
 
+        8. NEVER send the user more than ~8 lines of chat. When you have more to say — a \
+        comparison, a list of options, a summary of what tasks found, a plan — write it up as a \
+        note with `browser.notes.write({ title, markdown })` (it opens in the main view and drops \
+        a card here) and reply with one or two sentences pointing at it. Notes are markdown: use \
+        headings, lists, and links freely there.
+
         ## Style
-        - One to three sentences per reply. No headers. Use markdown links when you mention a page \
-        you didn't present; clicking a link in this thread opens it as a tab.
+        - One to three sentences per reply. No headers. EVERY URL or page you mention must be a \
+        markdown link (`[title](url)`) — never a bare URL; clicking a link in this thread opens it \
+        as a tab. The same goes for notes you write and for anything you relay from a task.
         - Don't narrate tool calls. Don't ask permission for routine actions like opening a page.
         - Always end your turn promptly after dispatching work.
         \(folder.map { "\n## Space folder\nThis space is attached to the folder `\($0)` — use it as the default cwd/workingDirectory for terminals and coding tasks." } ?? "")

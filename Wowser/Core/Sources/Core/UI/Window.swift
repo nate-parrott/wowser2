@@ -39,6 +39,9 @@ struct WindowSnapshot: Equatable {
         var selectorPickerMode: SelectorPickerMode?
         var weight: Double = 1.0
         var topbarLocked: Bool
+        /// Chat-mode space + empty page + omnibox not open: render nothing at
+        /// all (no toolbar card), since the sidebar's chat box is the entry point.
+        var blank: Bool = false
     }
     
     // Must have at least one, even if empty
@@ -72,6 +75,7 @@ struct WindowSnapshot: Equatable {
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)
+        let chatMode = state.profiles[window.profile]?.isChatMode == true
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
 //            let emptyOmnibox: Bool
 //            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
@@ -93,7 +97,8 @@ struct WindowSnapshot: Equatable {
                 colorScheme: pane.info.colorScheme,
                 selectorPickerMode: window.selectorPicker?.paneId == pane.id ? window.selectorPicker?.mode : nil,
                 weight: pane.weight ?? 1.0,
-                topbarLocked: window.sidebarLocked
+                topbarLocked: window.sidebarLocked,
+                blank: chatMode && pane.info.isEmptyPage && !searchActive
             )
         })
     }

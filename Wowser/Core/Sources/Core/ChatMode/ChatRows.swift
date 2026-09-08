@@ -240,12 +240,37 @@ struct ChatMarkdownBody: View {
 
     private func markdownText(_ string: String) -> Text {
         if let attributed = try? AttributedString(
-            markdown: string,
+            markdown: Self.linkifyBareURLs(string),
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         ) {
             return Text(attributed)
         }
         return Text(string)
+    }
+
+    /// Wrap bare `http(s)://…` URLs in markdown link syntax so they render as
+    /// clickable links even when the model forgot to. URLs already inside a
+    /// link target `(…)`, an autolink `<…>`, or a `[…]` label are left alone;
+    /// trailing punctuation stays outside the link.
+    static func linkifyBareURLs(_ text: String) -> String {
+        guard text.contains("://"),
+              let regex = try? NSRegularExpression(pattern: #"(?<![\(<\[\w])https?://[^\s<>\)\]]+"#) else { return text }
+        let ns = text as NSString
+        var out = ""
+        var cursor = 0
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            out += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            var url = ns.substring(with: match.range)
+            var trailing = ""
+            while let last = url.last, ".,;:!?'\"".contains(last) {
+                trailing.insert(last, at: trailing.startIndex)
+                url.removeLast()
+            }
+            out += "[\(url)](\(url))" + trailing
+            cursor = match.range.location + match.range.length
+        }
+        out += ns.substring(from: cursor)
+        return out
     }
 }
 

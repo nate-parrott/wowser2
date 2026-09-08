@@ -621,6 +621,16 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         return try await tabsOpen(url: "tang://\(slug)/", background: false, windowId: nil)
     }
 
+    // MARK: - Notes
+
+    public func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo {
+        guard markdown != nil || html != nil else { throw BrowserJSError.invalidArgs("markdown or html") }
+        let url = try TangerineApps.shared.writeNote(title: title, markdown: markdown, html: html)
+        if show == "none" { return BrowserJSNoteInfo(url: url.absoluteString, tabId: nil) }
+        let tabId = try await chatPresent(agentKey: agentKey, tabId: nil, url: url.absoluteString, show: show, note: nil)
+        return BrowserJSNoteInfo(url: url.absoluteString, tabId: tabId)
+    }
+
     // MARK: - Agents
     // Backed by BrowserAgentManager, which is platform-neutral over the
     // `Agent`/`AgentProvider` protocols. On platforms with no registered
