@@ -258,3 +258,30 @@ Benefits of using URLComponents:
 - Maintains URL structure consistency
 - Makes code more robust against edge cases
 - Follows Apple's recommended best practices
+
+# Autofill (Core/Autofill)
+
+Profile-scoped autofill for passwords, emails, names, phones and addresses,
+plus a searchable replacement for `<select>` popups. Key pieces:
+
+- `AutofillFieldClassifier` — pure function from a field's markup
+  (`AutofillFieldDescriptor`) to an `AutofillFieldKind`. Benchmarked by
+  `AutofillClassifierTests` against `Tests/CoreTests/Fixtures/autofill/*.json`
+  (real sites; see `scripts/autofill_bench/README.md`). Keep it pure; add
+  fixtures when you change rules.
+- `AutofillStore` (`DataStore<AutofillState>`, JSON) holds everything except
+  passwords; passwords are keychain items keyed by credential id
+  (`AutofillKeychain`). Business logic is in `AutofillState+Operations`.
+- `AutofillSession` (macOS, one per `WebContentWebKit`) owns the runtime:
+  `WebContentWebView` hands it key/mouse events *before* WebKit
+  (`keyInterceptor` / `mouseDownInterceptor`), page state comes from one-shot
+  read-only queries (`AutofillFieldQuery`, also used for `info.focusedEditable`),
+  text is inserted natively via WebKit's `NSTextInputClient` path, and
+  submissions are detected via the form client (`_WKInputDelegate`), main-frame
+  navigations, and "password field vanished" checks for SPAs.
+- `AutofillOverlay` draws the Liquid Glass menus in `WrappedWebView`. Never
+  inject overlays or event listeners into pages for this feature.
+- Agents: `browser.credentials.*` / `browser.profile.get()` in BrowserJS;
+  identity (never passwords) is appended to agent system prompts by
+  `AutofillStore.agentIdentitySection()`. All of it is switchable in
+  Settings → Autofill (`AutofillSettings`).

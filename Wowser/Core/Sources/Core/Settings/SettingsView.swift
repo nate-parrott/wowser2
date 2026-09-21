@@ -50,6 +50,7 @@ public struct SettingsView: View {
         case .general: main
         case .toolbar: ToolbarSettings()
         case .profiles: ProfilesSettings()
+        case .autofill: AutofillSettingsView()
         case .ai: AISettings()
         case .tasks: TasksSettings()
         case .mcp: MCPSettings()

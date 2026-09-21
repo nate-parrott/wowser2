@@ -42,6 +42,7 @@ public struct WrappedWebView: View {
 
                 #if os(macOS)
                 DictationOverlay(webContent: webContent)
+                AutofillOverlay(webContent: webContent)
                 #endif
             }
 
