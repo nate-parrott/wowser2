@@ -6,6 +6,10 @@ extension BrowserState {
         let toast = Toast(message: message, icon: icon)
         windows[windowID]?.toasts.append(toast)
     }
+
+    public mutating func addToast(_ toast: Toast, in windowID: ID<WindowState>) {
+        windows[windowID]?.toasts.append(toast)
+    }
     
     public mutating func removeToast(id: UUID, in windowID: ID<WindowState>) {
         windows[windowID]?.toasts.removeAll(where: { $0.id == id })

@@ -56,6 +56,12 @@ public enum DefaultsKeys: String {
 
     case hideSiriAIOnTextSelection // bool (default on) — opt out of Writing Tools (writingToolsBehavior = .none) in webviews + native text fields, which also suppresses macOS 27's floating Siri button on text selection
 
+    case autofillEnabled // bool (default on) — suggestion menu under form fields + agent credential hooks; see AutofillSettings
+    case autofillRememberForms // bool (default on) — remember logins / name / address from submitted forms
+    case autofillSearchableSelects // bool (default on) — replace the native <select> popup with a searchable menu
+    case autofillShareWithAgents // bool (default on) — put the profile's name / email / address in agents' system prompts
+    case autofillAgentPasswordFill // bool (default on) — allow browser.credentials.fillPassword from BrowserJS
+
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }
 

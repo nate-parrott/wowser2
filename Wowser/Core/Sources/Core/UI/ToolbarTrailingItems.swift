@@ -105,13 +105,14 @@ struct ToolbarSettings: View {
 
 /// Tabs in the Settings window that can be targeted from elsewhere in the app.
 public enum SettingsTab: String, Hashable, CaseIterable {
-    case general, toolbar, profiles, ai, tasks, mcp, experimental, debug
+    case general, toolbar, profiles, autofill, ai, tasks, mcp, experimental, debug
 
     public var title: String {
         switch self {
         case .general: return "General"
         case .toolbar: return "Toolbar"
         case .profiles: return "Profiles"
+        case .autofill: return "Autofill"
         case .ai: return "AI"
         case .tasks: return "Tasks"
         case .mcp: return "MCP"
@@ -125,6 +126,7 @@ public enum SettingsTab: String, Hashable, CaseIterable {
         case .general: return "gearshape"
         case .toolbar: return "menubar.rectangle"
         case .profiles: return "person.2"
+        case .autofill: return "person.text.rectangle"
         case .ai: return "sparkles"
         case .tasks: return "checklist"
         case .mcp: return "server.rack"

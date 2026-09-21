@@ -298,6 +298,18 @@ enum BrowserJSDispatch {
             try await host.fsMkdir(path: path)
             return nil
 
+        case "credentials.lookup":
+            guard let domain = str("domain") else { throw BrowserJSError.invalidArgs("domain") }
+            return try encodeValue(try await host.credentialsLookup(domain: domain, spaceId: optStr("spaceId")))
+        case "credentials.hasPassword":
+            guard let domain = str("domain") else { throw BrowserJSError.invalidArgs("domain") }
+            return try encodeValue(try await host.credentialsHasPassword(domain: domain, username: optStr("username"), spaceId: optStr("spaceId")))
+        case "credentials.fillPassword":
+            guard let tabId = str("tabId") else { throw BrowserJSError.invalidArgs("tabId") }
+            return try encodeValue(try await host.credentialsFillPassword(tabId: tabId, username: optStr("username"), domain: optStr("domain")))
+        case "profile.get":
+            return try encodeValue(try await host.profileGet(spaceId: optStr("spaceId")))
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -415,6 +427,14 @@ enum BrowserJSBridgeSource {
                     if (r.done) return r;
                 }
             },
+        },
+        credentials: {
+            lookup:       function(domain, opts) { opts = opts || {}; return __browserCall('credentials.lookup', { domain: domain, spaceId: opts.spaceId }); },
+            hasPassword:  function(domain, opts) { opts = opts || {}; return __browserCall('credentials.hasPassword', { domain: domain, username: opts.username, spaceId: opts.spaceId }); },
+            fillPassword: function(tabId, opts) { opts = opts || {}; return __browserCall('credentials.fillPassword', { tabId: tabId, username: opts.username, domain: opts.domain }); },
+        },
+        profile: {
+            get: function(opts) { opts = opts || {}; return __browserCall('profile.get', { spaceId: opts.spaceId }); },
         },
         sleep: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
         log:   function() {
