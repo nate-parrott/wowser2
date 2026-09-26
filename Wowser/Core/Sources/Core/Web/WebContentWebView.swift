@@ -126,18 +126,62 @@ public class WebContentWebView: WKWebView {
     /// the main menu ever sees it. Route these straight to the menu instead.
     private static let reservedKeyEquivalents: Set<String> = ["t"]
 
+    // MARK: Event interception (autofill)
+    //
+    // The autofill session sees key and mouse events before WebKit does, so
+    // it can run its menus with the page's own focus intact — no injected
+    // listeners. Interceptors return true to swallow an event. A swallowed
+    // click can later be replayed verbatim via `replay(_:)` when it turns out
+    // not to be ours (see AutofillSession.handleMouseDown).
+
+    /// Return true to swallow a keyDown.
+    var keyInterceptor: ((NSEvent) -> Bool)?
+    /// Observes every keyDown that will reach WebKit (not swallowed).
+    var onBeforeKeyEvent: ((NSEvent) -> Void)?
+    /// Return true to swallow a mouseDown.
+    var mouseDownInterceptor: ((NSEvent) -> Bool)?
+    /// Return true to swallow a mouseUp / mouseDragged.
+    var mouseFollowUpInterceptor: ((NSEvent) -> Bool)?
+    private var isReplayingEvent = false
+
+    /// Re-dispatches a previously swallowed event to WebKit, bypassing the
+    /// interceptors.
+    func replay(_ event: NSEvent) {
+        isReplayingEvent = true
+        defer { isReplayingEvent = false }
+        switch event.type {
+        case .leftMouseDown: super.mouseDown(with: event)
+        case .leftMouseUp: super.mouseUp(with: event)
+        case .leftMouseDragged: super.mouseDragged(with: event)
+        case .rightMouseDown: super.rightMouseDown(with: event)
+        case .rightMouseUp: super.rightMouseUp(with: event)
+        case .otherMouseDown: super.otherMouseDown(with: event)
+        case .otherMouseUp: super.otherMouseUp(with: event)
+        default: break
+        }
+    }
+
     public override func mouseDown(with event: NSEvent) {
+        if !isReplayingEvent, let mouseDownInterceptor, mouseDownInterceptor(event) { return }
         onMouseDown?(event)
         super.mouseDown(with: event)
         onUserInteraction?()
     }
 
+    public override func mouseDragged(with event: NSEvent) {
+        if !isReplayingEvent, let mouseFollowUpInterceptor, mouseFollowUpInterceptor(event) { return }
+        super.mouseDragged(with: event)
+    }
+
     public override func mouseUp(with event: NSEvent) {
+        if !isReplayingEvent, let mouseFollowUpInterceptor, mouseFollowUpInterceptor(event) { return }
         super.mouseUp(with: event)
         onUserInteraction?()
     }
 
     public override func keyDown(with event: NSEvent) {
+        if let keyInterceptor, keyInterceptor(event) { return }
+        onBeforeKeyEvent?(event)
         super.keyDown(with: event)
         onUserInteraction?()
     }

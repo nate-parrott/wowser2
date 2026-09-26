@@ -188,6 +188,37 @@ declare global {
     body: string;
   }
 
+  /** A saved login (username only — the password stays in the keychain). */
+  interface CredentialInfo {
+    id: string;
+    username: string;
+    /** Registrable domain the login belongs to, e.g. "github.com". */
+    domain: string;
+    /** Exact host it was saved on, e.g. "accounts.github.com". */
+    host: string;
+    /** Unix seconds. */
+    lastUsed: number;
+  }
+  interface AddressInfo {
+    line1: string; line2: string; city: string; state: string; postalCode: string; country: string;
+    /** Everything on one line, ready to paste. */
+    oneLine: string;
+  }
+  /** What the user has saved in Settings → Autofill (per space). */
+  interface ProfileInfo {
+    /** Most-used full name. */
+    name?: string;
+    givenName?: string;
+    familyName?: string;
+    names: string[];
+    emails: string[];
+    phones: string[];
+    organizations: string[];
+    addresses: AddressInfo[];
+    /** Domains that have a saved login; see `credentials.lookup`. */
+    savedLoginDomains: string[];
+  }
+
   /** Top-level entrypoint. All methods are async (return Promises). */
   const browser: {
     tabs: {
@@ -781,6 +812,40 @@ declare global {
       read(id: TabId, opts?: { since?: string; maxChars?: number }): Promise<{ text: string; token: string; running: boolean; command?: string; cwd?: string }>;
       /** Types `text` into the terminal as if entered by the user ("\n" presses Return). */
       write(id: TabId, text: string): Promise<void>;
+    };
+
+    /**
+     * The user's saved logins (from the browser's autofill / password store).
+     * You can find out WHICH accounts exist and have a password on file, and
+     * ask the browser to type a password into a password field — but the
+     * password itself is never returned to you.
+     *
+     * Signing the user in:
+     *   const [login] = await browser.credentials.lookup("example.com");
+     *   const id = await browser.tabs.openGhost("https://example.com/login");
+     *   // click/type the username, then focus the password field:
+     *   await browser.page.click(id, x, y);          // the password input
+     *   await browser.credentials.fillPassword(id, { username: login.username });
+     *   await browser.page.key(id, "Enter");
+     */
+    credentials: {
+      /** Usernames saved for a domain (`accounts.example.com` and `example.com` match). Empty if none. */
+      lookup(domain: string, opts?: { spaceId?: SpaceId }): Promise<CredentialInfo[]>;
+      /** Whether a password is on file for the domain (optionally a specific username). */
+      hasPassword(domain: string, opts?: { username?: string; spaceId?: SpaceId }): Promise<boolean>;
+      /**
+       * Types the saved password into the password field that currently has
+       * focus in `tabId`. Throws unless the focused element is an
+       * `<input type=password>` on a page whose host matches the saved login
+       * (and `domain`, if given). With no `username`, uses the site's
+       * most-used login. Returns the username whose password was filled.
+       */
+      fillPassword(tabId: TabId, opts?: { username?: string; domain?: string }): Promise<{ filled: boolean; username?: string }>;
+    };
+
+    /** The user's own details (name, emails, phones, addresses) for filling forms on their behalf. */
+    profile: {
+      get(opts?: { spaceId?: SpaceId }): Promise<ProfileInfo>;
     };
 
     sleep(ms: number): Promise<void>;

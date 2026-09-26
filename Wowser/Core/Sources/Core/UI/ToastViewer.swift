@@ -112,8 +112,8 @@ public struct ToastViewer: View {
                         .transition(.move(edge: .top))
                         .id(toast.id) // Important for transitions when toast changes
                         .onAppear {
-                            // Auto-dismiss after 4 seconds
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                            // Auto-dismiss after 4 seconds (or the toast's own timeout)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + (toast.dismissAfter ?? 4)) {
                                 // Check if this is still the current toast
                                 if BrowserStore.shared.model.windows[windowID]?.currentToast?.id == toast.id {
                                     BrowserStore.shared.modify { state in
@@ -140,8 +140,17 @@ private struct ToastView: View {
             Text(toast.message)
                 .font(.system(size: 15, weight: .medium))
                 .padding(.leading, 8)
+                .lineLimit(1)
             
             Spacer()
+
+            ForEach(toast.actions ?? []) { action in
+                Button(action.title) {
+                    action.kind.perform()
+                    onClose()
+                }
+                .buttonStyle(ToastActionButtonStyle())
+            }
             
             KeyboardHint(text: "ESC", bgOverride: Color.white)
             
@@ -178,6 +187,24 @@ private struct ToastView: View {
                 .frame(height: 16)
                 .frame(height: 1, alignment: .bottom)
         }
+    }
+}
+
+/// Small white pill buttons on a toast (e.g. "Forget", "Never for this site").
+private struct ToastActionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(configuration.isPressed ? 0.35 : 0.2))
+            }
+            .overlay {
+                Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5)
+            }
     }
 }
 

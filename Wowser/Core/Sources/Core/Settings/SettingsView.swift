@@ -52,6 +52,7 @@ public struct SettingsView: View {
         switch tab {
         case .general: main
         case .profiles: ProfilesSettings()
+        case .autofill: AutofillSettingsView()
         case .ai: AISettings()
         case .tasks: TasksSettings()
         case .memory: MemorySettings()

@@ -166,18 +166,45 @@ public struct Toast: Equatable, Codable, Identifiable {
     public var icon: String // SF Symbol name
     public var createdAt: Date
     public var location: ToastLocation
+    /// Buttons shown in the toast (e.g. "Forget" / "Never for this site" on
+    /// the autofill "Saved password" toast). Optional for decode-compat.
+    public var actions: [ToastAction]?
+    /// Seconds before auto-dismiss; nil = the default (5s).
+    public var dismissAfter: TimeInterval?
     
     public enum ToastLocation: String, Codable {
         case normal
         case nearSidebar
     }
     
-    public init(id: UUID = UUID(), message: String, icon: String, location: ToastLocation = .normal, createdAt: Date = Date()) {
+    public init(id: UUID = UUID(), message: String, icon: String, location: ToastLocation = .normal, createdAt: Date = Date(), actions: [ToastAction]? = nil, dismissAfter: TimeInterval? = nil) {
         self.id = id
         self.message = message
         self.icon = icon
         self.location = location
         self.createdAt = createdAt
+        self.actions = actions
+        self.dismissAfter = dismissAfter
+    }
+}
+
+/// A button on a toast. Toasts live in persisted state, so actions are data
+/// (what to do), not closures; `ToastAction.Kind.perform()` runs them.
+public struct ToastAction: Equatable, Codable, Identifiable {
+    public var title: String
+    public var kind: Kind
+    public var id: String { title }
+
+    public enum Kind: Equatable, Codable {
+        /// Remove the autofill records a submission just created.
+        case autofillForget(profile: Core.ID<Profile>, ids: [UUID])
+        /// Forget them AND stop remembering logins for this domain.
+        case autofillNeverRemember(profile: Core.ID<Profile>, domain: String, ids: [UUID])
+    }
+
+    public init(title: String, kind: Kind) {
+        self.title = title
+        self.kind = kind
     }
 }
 

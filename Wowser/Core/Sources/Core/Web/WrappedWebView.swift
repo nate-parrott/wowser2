@@ -39,6 +39,9 @@ public struct WrappedWebView: View {
             .overlay(alignment: .topTrailing) {
                 findInPageContent
             }
+            #if os(macOS)
+            .overlay { AutofillOverlay(webContent: webContent) }
+            #endif
             .animation(.toastDropCurve, value: isFindInPageActive)
 
             if let nativePageKey {
