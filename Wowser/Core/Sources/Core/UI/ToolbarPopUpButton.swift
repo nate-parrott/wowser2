@@ -32,7 +32,7 @@ struct ToolbarPopUpButton: View {
     }
 }
 
-private struct MenuAnchor: NSViewRepresentable {
+struct MenuAnchor: NSViewRepresentable {
     let view: NSView
 
     func makeNSView(context: Context) -> NSView { view }

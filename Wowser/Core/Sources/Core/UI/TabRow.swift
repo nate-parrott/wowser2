@@ -207,45 +207,45 @@ struct TabBadgeView: View {
     }
 }
 
-struct NewTabCell: View {
-    var windowID: ID<WindowState>
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 8) {
-            TabIconView(icon: .sfSymbol("plus"))
-                .accentColor(Color.primary)
-                .opacity(0.4)
-//                .saturation(0)
-//                .opacity(0.5)
-            Text("New Tab")
-                .opacity(0.4)
-                .lineLimit(1)
-            Spacer()
-            #if os(macOS)
-            NewNativeTabMenu(windowID: windowID)
-                .opacity(0.4)
-            #endif
-        }
-        .padding(.leading, isMobile() ? 14 : 8)
-        .padding(.trailing, 4)
-        .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-        .modifier(TabStyleButtonModifier(isSelected: false, pressed: {
-            BrowserStore.shared.createTab(
-                withURL: nil,
-                in: windowID,
-                activate: true,
-                inCurrentSplit: isOpenInSplitViewModifierKeyPressed() || multiSelectModifierPressed()
-            )
-            // Show search overlay to enter URL
-            BrowserStore.shared.modify { state in
-                state.windows[windowID]?.searchOverlayActive = true
-            }
-        }))
-    }
-}
+//struct NewTabCell: View {
+//    var windowID: ID<WindowState>
+//    @State private var isHovered = false
+//
+//    var body: some View {
+//        HStack(spacing: 8) {
+//            TabIconView(icon: .sfSymbol("plus"))
+//                .accentColor(Color.primary)
+//                .opacity(0.4)
+////                .saturation(0)
+////                .opacity(0.5)
+//            Text("New Tab")
+//                .opacity(0.4)
+//                .lineLimit(1)
+//            Spacer()
+//            #if os(macOS)
+//            NewNativeTabMenu(windowID: windowID)
+//                .opacity(0.4)
+//            #endif
+//        }
+//        .padding(.leading, isMobile() ? 14 : 8)
+//        .padding(.trailing, 4)
+//        .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
+//        .contentShape(Rectangle())
+//        .onHover { isHovered = $0 }
+//        .modifier(TabStyleButtonModifier(isSelected: false, pressed: {
+//            BrowserStore.shared.createTab(
+//                withURL: nil,
+//                in: windowID,
+//                activate: true,
+//                inCurrentSplit: isOpenInSplitViewModifierKeyPressed() || multiSelectModifierPressed()
+//            )
+//            // Show search overlay to enter URL
+//            BrowserStore.shared.modify { state in
+//                state.windows[windowID]?.searchOverlayActive = true
+//            }
+//        }))
+//    }
+//}
 
 
 #if os(macOS)

@@ -105,12 +105,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.autoDarkMode.rawValue: true,
             DefaultsKeys.animateNewTabs.rawValue: true,
             DefaultsKeys.searchEngine.rawValue: SearchEngine.google.rawValue,
-            DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
+//            DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
             DefaultsKeys.cleanupTabs.rawValue: true,
-            DefaultsKeys.enableGoDirectQueries.rawValue: true,
+            DefaultsKeys.allWindowsShareTabs.rawValue: true,
+            DefaultsKeys.enableGoDirectQueries.rawValue: false,
             DefaultsKeys.disableNetworkProxy.rawValue: true, // network capture is opt-in
             DefaultsKeys.spaceThemeIntensity.rawValue: 1.0,
             DefaultsKeys.llmChoice.rawValue: LLMChoice.openai_gpt_5_4_nano.rawValue,
@@ -141,6 +142,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         SettingsWindow.observeShowSettingsRequests()
+        DictationHotkeyMonitor.shared.resolveContext = {
+            guard let vc = NSApp.keyWindow?.windowController?.contentViewController as? BrowserViewController,
+                  let windowID = vc.windowID else { return nil }
+            return (vc.getCurrentPaneID(), windowID)
+        }
+        DictationHotkeyMonitor.shared.install()
         // Start the local capturing proxy *before* any webview is created so its
         // data store can be pointed at it (WebContent reads the bound port
         // synchronously at init). Binding to loopback is fast; wait briefly.

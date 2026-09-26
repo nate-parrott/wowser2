@@ -20,15 +20,10 @@ public struct ToolbarViewSnapshot: Equatable {
     /// full status itself so its per-step detail text doesn't re-render the toolbar.
     var hasWorkingAttachedAgent: Bool
     var canOpenChat: Bool
-    /// Whether the dictation (mic) button is switched on in the toolbar
-    /// customizer. Web tabs render it in the trailing region; the new-tab
-    /// page has no trailing region, so ToolbarView draws it beside the omnibox.
-    var dictationShown: Bool
 
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
         self.hasWorkingAttachedAgent = windowID.map { state.attachedAgentStatus(windowID: $0) != nil } ?? false
-        self.dictationShown = !state.toolbarConfig.hidden.contains(.builtin(.dictation))
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -73,35 +68,20 @@ public struct ToolbarViewSnapshot: Equatable {
     }
 }
 
-/// A toolbar view that contains navigation controls and the omnibox.
-/// Stateless wrt focus — the omnibox observes the FocusSnap directly.
+/// The web-page toolbar: nav controls, the omnibox field, trailing buttons.
+/// (The new-tab page uses `NewTabCommandBar` instead.) Suggestions render
+/// separately in `OmniboxDropdown`; both sides talk through the coordinator.
 struct ToolbarView: View {
     var webContentID: ID<WebContent>?
-
-    @ObservedObject var searcher: Searcher
-    @Binding var searchText: String
-    @Binding var selectedResultIndex: Int
-
+    @ObservedObject var coordinator: OmniboxCoordinator
     var colorScheme: ContentColorScheme?
-    var emptyPage: Bool // is this being presented on an empty page?
 
     @Environment(\.windowID) private var windowID
 
     private let browserStore = BrowserStore.shared
     @ObservedObject private var devModeStore = DevModeStore.shared
-    @State private var omniboxIsFocused: Bool = false
-    /// True while a dictation session targeting this pane's omnibox is live.
-    @State private var dictationTranscriptShown = false
-
-    private func showsAttachedAgentIndicator(_ snapshot: ToolbarViewSnapshot) -> Bool {
-        snapshot.hasWorkingAttachedAgent && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
-    }
 
     var body: some View {
-        let topRadius: CGFloat = emptyPage ? 10 : 0
-        let bottomRadius: CGFloat = emptyPage ? 0 : (searchText == "" ? topRadius : 0) // on empty page, we show suggestions, so never round bottom corners
-        let clipShape = UnevenRoundedRectangle(topLeadingRadius: topRadius, bottomLeadingRadius: bottomRadius, bottomTrailingRadius: bottomRadius, topTrailingRadius: topRadius, style: .continuous)
-        
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
             HStack(spacing: 4) {
                 if snapshot.makeRoomForTrafficLights {
@@ -109,64 +89,28 @@ struct ToolbarView: View {
                         EmptyView()
                     }
                 }
-                
-                // Leading nav controls
-                if !emptyPage {
-                    navControls(snapshot: snapshot)
-                        .padding(.leading, 4)
-                }
-                
-                // Security indicator and Omnibox (search/URL input field)
+
+                navControls(snapshot: snapshot)
+                    .padding(.leading, 4)
+
+                // Security indicator and omnibox field
                 HStack(spacing: -2) {
                     if snapshot.nativeKey == nil {
-                        LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
-                            .padding(.leading,  snapshot.isEmptyPage ? 12 : 6)
-                            .padding(.trailing, snapshot.isEmptyPage ? 4 : 0)
+                        LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil)
+                            .padding(.leading, 6)
                     }
+                    OmniboxField(
+                        paneID: webContentID,
+                        coordinator: coordinator,
+                        deselectedText: snapshot.tabAppearance.urlFieldTextDeselected,
+                        fgColor: colorScheme?.foreground,
+                        fontSize: 12,
+                        hasWorkingAttachedAgent: snapshot.hasWorkingAttachedAgent
+                    )
+                }
 
-                    ZStack {
-                        Omnibox(
-                            paneID: webContentID,
-                            searchText: omniboxIsFocused ? $searchText : Binding<String>.constant(snapshot.tabAppearance.urlFieldTextDeselected),
-                            selectedResultIndex: $selectedResultIndex,
-                            searcher: searcher,
-                            fgColor: colorScheme?.foreground,
-                            fontSize: emptyPage ? 14 : 12
-                        )
-                        .onAppearOrChange(of: omniboxIsFocused) { focused in
-                            if focused {
-                                searchText = snapshot.tabAppearance.urlFieldTextSelected
-                            }
-                        }
-                        .opacity(showsAttachedAgentIndicator(snapshot) || dictationTranscriptShown ? 0 : 1)
-                        // Hidden-agent indicator replaces the URL while an agent
-                        // attached to this omnibox is working. Click to reveal.
-                        if showsAttachedAgentIndicator(snapshot), let windowID {
-                            AttachedAgentStatusView(windowID: windowID, fgColor: colorScheme?.foreground, fontSize: 12)
-                        }
-                        #if os(macOS)
-                        // Live transcript while dictating into this omnibox (→ agent).
-                        if dictationTranscriptShown {
-                            DictationTranscriptView(fgColor: colorScheme?.foreground, fontSize: emptyPage ? 14 : 12)
-                        }
-                        #endif
-                    }
-                    .modifier(DictationOmniboxHighlightIfAvailable(paneID: webContentID, shown: $dictationTranscriptShown))
-                    #if os(macOS)
-                    if emptyPage, snapshot.dictationShown {
-                        DictationButton(paneID: webContentID, emptyPage: true, fgColor: colorScheme?.foreground)
-                    }
-                    #endif
-                }
-                
-                if emptyPage {
-                    Spacer().frame(width: 20)
-                }
-                
                 // Trailing buttons: customizable region (right-click to customize)
-                if !emptyPage {
-                    ToolbarTrailingRegion(webContentID: webContentID, snapshot: snapshot, openNativeTabInOtherType: openNativeTabInOtherType)
-                }
+                ToolbarTrailingRegion(webContentID: webContentID, snapshot: snapshot, openNativeTabInOtherType: openNativeTabInOtherType)
             }
             .frame(height: UIConstants.macHeaderHeight)
             .contentShape(Rectangle())
@@ -185,32 +129,10 @@ struct ToolbarView: View {
                         Text("Dev Mode")
                     }
                 }
-
-//                Toggle(isOn: $topbarLocked) {
-//                    Text("Lock Toolbar")
-//                }
             }
         }
-        .onReceiveFocusSnap(windowID: windowID) { snap in
-            // Used only to swap the omnibox text binding between live-edit and the
-            // tab's deselected URL/title display. Focus itself is handled by Omnibox.
-            if let webContentID, snap.target == .omnibox(pane: webContentID) {
-                omniboxIsFocused = true
-            } else if webContentID == nil, let windowID, snap.target == .emptyWindowOmnibox(windowID) {
-                omniboxIsFocused = true
-            } else {
-                omniboxIsFocused = false
-            }
-        }
-        .modifier(WithContentColorScheme(scheme: colorScheme, hideBg: emptyPage))
-        .clipShape(clipShape)
-//        .overlay {
-//            if emptyPage {
-//                clipShape.strokeBorder(Color.primary)
-//                    .padding(-1)
-//                    .opacity(0.1)
-//            }
-//        }
+        .modifier(WithContentColorScheme(scheme: colorScheme))
+        .clipped()
         .compositingGroup()
         .animation(.niceDefault, value: colorScheme)
         .id(webContentID)
@@ -431,9 +353,9 @@ extension ArchiveState {
     }
 }
 
-private struct LeadingIcon: View {
+struct LeadingIcon: View {
     var isSecure: Bool?
-    var iconOverride: String?
+    var iconOverride: String? = nil
     
     var body: some View {
         Button(action: {}) {

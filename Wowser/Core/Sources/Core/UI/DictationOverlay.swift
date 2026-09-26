@@ -5,7 +5,9 @@ import SwiftUI
 
 /// Sits over a pane's webview. While the mic is hovered or a dictation session
 /// targets a text field in this pane, draws a soft blurred outline around that
-/// field, plus the live transcript underneath while listening.
+/// field (the live transcript goes in that field's dropdown — see
+/// `FieldDropdownOverlay`). Terminal tabs get a whole-pane outline and the
+/// transcript in the bottom corner.
 struct DictationOverlay: View {
     var webContent: WebContent
 
@@ -36,7 +38,7 @@ struct DictationOverlay: View {
                     DictationOutline(active: isActive, cornerRadius: 6)
                         .padding(3)
                     if isActive {
-                        DictationTranscriptBubble(text: controller.transcript, phase: controller.phase)
+                        FieldDropdownDictation(transcript: controller.transcript, phase: controller.phase, commitHint: .init(title: "type", systemImage: "return"))
                             .frame(maxWidth: min(520, geo.size.width - 32), alignment: .leading)
                             .padding(16)
                     }
@@ -44,20 +46,11 @@ struct DictationOverlay: View {
                 .frame(width: geo.size.width, height: geo.size.height)
             } else if let field {
                 let zoom = webContent.wkWebview?.pageZoom ?? 1
-                let raw = CGRect(x: field.x * zoom, y: field.y * zoom, width: field.width * zoom, height: field.height * zoom)
-                let frame = raw.intersection(CGRect(origin: .zero, size: geo.size)).insetBy(dx: -4, dy: -4)
+                let frame = field.zoomed(zoom).intersection(CGRect(origin: .zero, size: geo.size)).insetBy(dx: -4, dy: -4)
                 if !frame.isNull, frame.width > 0, frame.height > 0 {
-                    ZStack(alignment: .topLeading) {
-                        DictationOutline(active: isActive)
-                            .frame(width: frame.width, height: frame.height)
-                            .offset(x: frame.minX, y: frame.minY)
-
-                        if isActive {
-                            DictationTranscriptBubble(text: controller.transcript, phase: controller.phase)
-                                .frame(maxWidth: max(180, min(frame.width, geo.size.width - 16)), alignment: .leading)
-                                .offset(x: max(8, min(frame.minX, geo.size.width - 200)), y: bubbleY(fieldFrame: frame, in: geo.size))
-                        }
-                    }
+                    DictationOutline(active: isActive)
+                        .frame(width: frame.width, height: frame.height)
+                        .offset(x: frame.minX, y: frame.minY)
                 }
             }
             if let error = controller.errorText, controller.hoverPreview?.paneID == webContent.id || controller.target == nil {
@@ -70,12 +63,6 @@ struct DictationOverlay: View {
             }
         }
         .allowsHitTesting(false)
-    }
-
-    private func bubbleY(fieldFrame: CGRect, in size: CGSize) -> CGFloat {
-        // Below the field if there's room, else above it.
-        let below = fieldFrame.maxY + 8
-        return below + 60 < size.height ? below : max(8, fieldFrame.minY - 68)
     }
 }
 
@@ -97,39 +84,6 @@ struct DictationOutline: View {
 }
 
 // MARK: - Transcript
-
-/// Live transcript under a page field while dictating.
-private struct DictationTranscriptBubble: View {
-    var text: String
-    var phase: DictationController.Phase
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "mic.fill")
-//                .foregroundStyle(.red)
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.top, 1)
-            Text(displayText)
-                .font(.system(size: 13))
-                .foregroundStyle(text.isEmpty ? .secondary : .primary)
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-//        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-//        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
-    }
-
-    private var displayText: String {
-        switch phase {
-        case .starting: return "Starting…"
-        case .committing: return text.isEmpty ? "Finishing…" : text
-        default: return text.isEmpty ? "Listening… (Return to insert, Esc to cancel)" : text
-        }
-    }
-}
 
 /// Replaces the omnibox's URL text while dictating to the agent.
 struct DictationTranscriptView: View {

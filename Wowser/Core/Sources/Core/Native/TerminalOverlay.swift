@@ -55,7 +55,6 @@ struct TerminalOverlay: View {
                     upsellVisible = false
                 }
                 .padding(20)
-                .frame(maxWidth: 420)
                 .transition(.scale(scale: 0.95).combined(with: .opacity))
             }
         }
@@ -548,45 +547,47 @@ private final class TerminalDelegateBox: NSObject, LocalProcessTerminalViewDeleg
 private struct FirstTerminalUpsell: View {
     var mcpURL: String
     var onDismiss: () -> Void
+    @Environment(\.windowID) private var windowID
+
+    private var installCommand: String {
+        "claude mcp add --scope user --transport http \(isProd() ? "wowser" : "wowserdev") \(mcpURL)"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "sparkles")
-                Text("New: Terminal tabs")
+        ToastLike(icon: "terminal") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Install in Claude Code")
                     .font(.headline)
-                Spacer()
-                Button(action: onDismiss) { Image(systemName: "xmark") }
-                    .buttonStyle(.borderless)
-            }
-            Text("This is a real shell, running in the same browser process as your tabs. Run `claude` to start an agent that can drive the browser via the local MCP server.")
-                .font(.callout)
-            if !mcpURL.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("MCP server").font(.caption).foregroundStyle(.secondary)
-                    Text(mcpURL)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
+                Text("Run this once. After that, `claude` in any terminal can drive the browser.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if !mcpURL.isEmpty {
+                    HStack(alignment: .top) {
+                        Text(installCommand)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        CopyButton(text: installCommand)
+                    }
+                    Button("Install Automatically", action: install)
+                        .buttonStyle(.borderedProminent)
                 }
             }
-            Text("Settings → MCP for client config snippets.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Got it", action: onDismiss)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onDismiss) { Image(systemName: "xmark") }
+                .help("Dismiss")
         }
-        .padding(16)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+    }
+
+    /// Runs the install command in a new terminal tab so the user sees it happen.
+    private func install() {
+        let url = NativePageKey.terminal(cwd: nil, runCommand: installCommand).url
+        BrowserStore.shared.modify { state in
+            state.openTab(url: url, windowID: windowID)
         }
-        .shadow(color: .black.opacity(0.25), radius: 14, y: 4)
+        onDismiss()
     }
 }
 

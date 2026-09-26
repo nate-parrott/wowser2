@@ -279,8 +279,13 @@ plus a searchable replacement for `<select>` popups. Key pieces:
   text is inserted natively via WebKit's `NSTextInputClient` path, and
   submissions are detected via the form client (`_WKInputDelegate`), main-frame
   navigations, and "password field vanished" checks for SPAs.
-- `AutofillOverlay` draws the Liquid Glass menus in `WrappedWebView`. Never
-  inject overlays or event listeners into pages for this feature.
+- Menus render with the shared **field dropdown** (`UI/FieldDropdown/`):
+  `FieldDropdownOverlay` (in `WrappedWebView`) owns the one slot under the
+  focused field — dictation first, then the `<select>` menu, then autofill
+  suggestions. Build new field-anchored UI from its pieces
+  (`FieldDropdownRow`, `.fieldDropdownCard()`, …) and add a case to
+  `FieldDropdownPreviews.swift`. Never inject overlays or event listeners into
+  pages for this feature.
 - Agents: `browser.credentials.*` / `browser.profile.get()` in BrowserJS;
   identity (never passwords) is appended to agent system prompts by
   `AutofillStore.agentIdentitySection()`. All of it is switchable in

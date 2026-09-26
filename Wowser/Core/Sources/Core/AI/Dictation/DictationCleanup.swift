@@ -80,4 +80,34 @@ enum DictationCleanup {
         return MicroAI.streamText(.dictationCleanup, MicroAIPrompt(instructions: system, input: user))
     }
 }
+
+extension DictationCleanup {
+    /// The cleanup model is shown the field's existing text for context and
+    /// occasionally repeats it before the cleaned dictation. Fed the cumulative
+    /// stream, this holds output back while it could still be that echo and
+    /// strips it once confirmed. Short field text is never treated as an echo
+    /// (dictation can legitimately start with the same few words).
+    struct EchoStripper {
+        private let echo: String
+        private var confirmedEcho = false
+
+        init(fieldText: String) {
+            let t = fieldText.trimmingCharacters(in: .whitespacesAndNewlines)
+            echo = t.count >= 12 ? t : ""
+        }
+
+        /// Cleaned text to insert so far, or nil to wait for more.
+        mutating func strip(_ streamed: String) -> String? {
+            if echo.isEmpty { return streamed }
+            let s = streamed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if confirmedEcho || s.hasPrefix(echo) {
+                confirmedEcho = true
+                return String(s.dropFirst(echo.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            // Still a possible echo in progress.
+            if !s.isEmpty, echo.hasPrefix(s) { return nil }
+            return streamed
+        }
+    }
+}
 #endif

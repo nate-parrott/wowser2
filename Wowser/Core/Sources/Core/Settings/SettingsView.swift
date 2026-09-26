@@ -17,6 +17,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
     @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
+    @AppStorage(DefaultsKeys.dictationHotkey.rawValue) private var dictationHotkey = DictationHotkey.default.rawValue
     @AppStorage(DefaultsKeys.hideSiriAIOnTextSelection.rawValue) private var hideSiriAIOnTextSelection = true
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
@@ -58,7 +59,7 @@ public struct SettingsView: View {
         case .memory: MemorySettings()
         case .mcp: MCPSettings()
         case .experimental: ExperimentalSettings()
-        case .debug: DebugSettings()
+//        case .debug: DebugSettings()
         }
     }
     
@@ -122,6 +123,14 @@ public struct SettingsView: View {
             }
             
             Section("Dictation") {
+                #if os(macOS)
+                Picker("Push-to-talk shortcut", selection: $dictationHotkey) {
+                    ForEach(DictationHotkey.allCases) { hotkey in
+                        Text(hotkey.title).tag(hotkey.rawValue)
+                    }
+                }
+                .help("Hold to dictate; release to finish. ⌘⌥ must be held alone for a second. ⌘D still toggles dictation.")
+                #endif
                 Toggle("Clean up dictated text with AI", isOn: $dictationCleanupEnabled)
                     .help("When dictating into a text field on a page (⌘D), send the transcript through the configured AI model to remove filler words and fix obvious transcription mistakes before inserting it. Dictation to the agent is never cleaned up — the agent is told it was dictated instead.")
             }
@@ -149,9 +158,17 @@ public struct SettingsView: View {
 struct ExperimentalSettings: View {
     var body: some View {
         Form {
-            Section {
-                Text("Nothing experimental right now.")
-                    .foregroundStyle(.secondary)
+            Section("Debug") {
+                Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
+                    Text("Clear AI tags")
+                }
+            }
+            
+            Section("Advanced") {
+                Button(action: { CleanModeStore.shared.resetToDefault() }) {
+                    Text("Reset clean mode store")
+                }
+                .help("Resets all clean mode settings to default values")
             }
         }
     }
@@ -229,6 +246,7 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.openAICustomModel.rawValue) private var openAICustomModel = ""
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
     @AppStorage(DefaultsKeys.agentShellTools.rawValue) private var agentShellTools = false
+    @AppStorage(DefaultsKeys.agentHarness.rawValue) private var agentHarness = AgentHarness.claude.rawValue
     @AppStorage(DefaultsKeys.microAIBackends.rawValue) private var microAIBackends = ""
     @ObservedObject private var requestLog = AIRequestLog.shared
 
@@ -254,6 +272,16 @@ struct AISettings: View {
             }
 
             Section("Agents") {
+                Picker(selection: $agentHarness) {
+                    ForEach(AgentHarness.allCases, id: \.self) { Text($0.title).tag($0.rawValue) }
+                } label: {
+                    Text("Chat agent")
+                    Text("On device is private and free, but only answers questions, reads pages, and opens links. Applies to new chats.")
+                }
+                if agentHarness == AgentHarness.local.rawValue, !MicroAI.onDeviceAvailable {
+                    Text("The on-device model isn't available. Turn on Apple Intelligence in System Settings to use it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Give agents shell & file access", isOn: $agentShellTools)
                 Text("Claude Code agents get Bash, Read, Write, Edit, Glob and Grep, with no permission prompts. Applies to newly started agents.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -357,24 +385,5 @@ private struct LastAIRequestDetails: View {
 extension Binding where Value == Bool {
     func not() -> Binding<Bool> {
         .init(get: { !self.wrappedValue }, set: { self.wrappedValue = !$0 })
-    }
-}
-
-struct DebugSettings: View {
-    var body: some View {
-        Form {
-            Section("Debug") {
-                Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
-                    Text("Clear AI tags")
-                }
-            }
-            
-            Section("Advanced") {
-                Button(action: { CleanModeStore.shared.resetToDefault() }) {
-                    Text("Reset clean mode store")
-                }
-                .help("Resets all clean mode settings to default values")
-            }
-        }
     }
 }

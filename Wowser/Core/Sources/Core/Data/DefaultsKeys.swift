@@ -28,7 +28,7 @@ public enum DefaultsKeys: String {
     case anthropicKey
     
     case searchEngine // SearchEngine
-    case Chatbot // Chatbot
+//    case Chatbot // Chatbot
     
     case enableGoDirectQueries // bool (default off)
     case lastShownWelcomePageForPageVersion // int
@@ -55,10 +55,12 @@ public enum DefaultsKeys: String {
 
     case microAIBackends // string — JSON [MicroAIFeature: MicroAIBackend]; see MicroAI.swift
 
+    case dictationHotkey // string — DictationHotkey raw value (push-to-talk shortcut); empty = default (hold ⌘⌥)
     case dictationCleanup // bool — run dictated text (into web text fields) through the configured LLM before inserting
 
     case hideSiriAIOnTextSelection // bool (default on) — opt out of Writing Tools (writingToolsBehavior = .none) in webviews + native text fields, which also suppresses macOS 27's floating Siri button on text selection
 
+    case agentHarness // string — AgentHarness raw value for chat/ask agents: "claude" (default) | "local" (on-device)
     case agentShellTools // bool (default off) — Claude Code agents get the harness's Bash/Read/Write/Edit/Glob/Grep tools (permissions bypassed); see ClaudeCodeAgentProvider
     case memoryEnabledScopes // [string] — dataStoreUUIDs whose memory store (event log) is on; see MemoryStore.swift
     case autofillEnabled // bool (default on) — suggestion menu under form fields + agent credential hooks; see AutofillSettings
@@ -68,6 +70,7 @@ public enum DefaultsKeys: String {
     case autofillAgentPasswordFill // bool (default on) — allow browser.credentials.fillPassword from BrowserJS
 
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
+    case newMenuQuickAction // string — NewMenuItem raw value; the quick-action segment of the sidebar's FancyPlus. Set to the last non-tab item picked from its overflow menu.
 }
 
 public extension DefaultsKeys {
@@ -177,8 +180,8 @@ public enum SearchEngine: String, CaseIterable, Equatable, Hashable, Codable {
     }
 }
 
-public enum Chatbot: String, CaseIterable, Equatable, Hashable, Codable {
-    case claude
-    case chatgpt
-    case perplexity
-}
+//public enum Chatbot: String, CaseIterable, Equatable, Hashable, Codable {
+//    case claude
+//    case chatgpt
+//    case perplexity
+//}

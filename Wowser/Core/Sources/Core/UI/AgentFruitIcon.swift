@@ -177,14 +177,4 @@ private struct ClosedEyeShape: Shape {
     }
 }
 
-#Preview {
-    HStack(spacing: 12) {
-        ForEach(AgentFruitFlavor.allCases, id: \.self) { flavor in
-            VStack(spacing: 8) {
-                AgentFruitIcon(flavor: flavor, working: true, size: 32)
-                AgentFruitIcon(flavor: flavor, working: false, size: 32)
-            }
-        }
-    }
-    .padding()
-}
+// Previews: AgentFruitIconPreviews.swift

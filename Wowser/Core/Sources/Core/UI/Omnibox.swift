@@ -1,26 +1,73 @@
 import SwiftUI
 
-struct Omnibox: View {
+/// The omnibox's input area: the text field, plus what replaces its text
+/// while dictating to the agent or while an attached agent works. Knows
+/// nothing about where suggestions render — it talks to the coordinator.
+struct OmniboxField: View {
     var paneID: ID<WebContent>?
-    @Binding var searchText: String
-    @Binding var selectedResultIndex: Int
-    @ObservedObject var searcher: Searcher
+    @ObservedObject var coordinator: OmniboxCoordinator
+    /// Shown while the command bar is closed (the page's host / title).
+    var deselectedText: String
     var fgColor: HSBA?
-    var fontSize: CGFloat = 14
+    var fontSize: CGFloat
+    /// Whether an agent attached to this window's omnibox is working; its
+    /// status replaces the URL while the command bar is closed.
+    var hasWorkingAttachedAgent = false
+
+    @Environment(\.windowID) private var windowID
+    /// True while a dictation session targeting this pane's omnibox is live.
+    @State private var dictationTranscriptShown = false
+
+    private var showsAttachedAgentIndicator: Bool {
+        hasWorkingAttachedAgent && !coordinator.isActive && !dictationTranscriptShown
+    }
+
+    var body: some View {
+        ZStack {
+            OmniboxTextField(
+                paneID: paneID,
+                text: coordinator.isActive ? $coordinator.text : .constant(deselectedText),
+                coordinator: coordinator,
+                fgColor: fgColor,
+                fontSize: fontSize
+            )
+            .opacity(showsAttachedAgentIndicator || dictationTranscriptShown ? 0 : 1)
+            // Hidden-agent indicator replaces the URL while an agent
+            // attached to this omnibox is working. Click to reveal.
+            if showsAttachedAgentIndicator, let windowID {
+                AttachedAgentStatusView(windowID: windowID, fgColor: fgColor, fontSize: fontSize)
+            }
+            #if os(macOS)
+            // Live transcript while dictating into this omnibox (→ agent).
+            if dictationTranscriptShown {
+                DictationTranscriptView(fgColor: fgColor, fontSize: fontSize)
+            }
+            #endif
+        }
+        .modifier(DictationOmniboxHighlightIfAvailable(paneID: paneID, shown: $dictationTranscriptShown))
+    }
+}
+
+/// The bare text field. Owns first-responder handling (self-derived from the
+/// focus snap) and forwards keys to the coordinator.
+private struct OmniboxTextField: View {
+    var paneID: ID<WebContent>?
+    @Binding var text: String
+    var coordinator: OmniboxCoordinator
+    var fgColor: HSBA?
+    var fontSize: CGFloat
 
     @State private var contentSize: CGSize = .zero
     @State private var focusSnap = FocusSnap()
     @Environment(\.windowID) private var windowID
-    @Environment(\.profileID) private var profileID
 
-    /// Non-nil iff the omnibox should hold first responder. Self-derived from
-    /// `focusState` — the parent does not drive focus into us.
+    /// Non-nil iff the omnibox should hold first responder.
     private var focusDate: Date? {
         guard focusSnap.target == focusTarget else { return nil }
         return focusSnap.date
     }
-    
-    var focusTarget: FocusTarget? {
+
+    private var focusTarget: FocusTarget? {
         if let paneID {
             return .omnibox(pane: paneID)
         }
@@ -32,7 +79,7 @@ struct Omnibox: View {
 
     var body: some View {
         InputTextField(
-            text: $searchText,
+            text: $text,
             options: InputTextFieldOptions(
                 placeholder: "Search or enter website name",
                 font: .systemFont(ofSize: fontSize, weight: .regular),
@@ -45,91 +92,29 @@ struct Omnibox: View {
             ),
             focusDate: focusDate,
             focusTarget: focusTarget,
-            onEvent: handleTextFieldEvent,
+            onEvent: handle,
             contentSize: $contentSize
         )
         .overlay {
             if focusDate == nil {
 #if os(macOS)
-                WindowDragView(onTapped: activate)
+                WindowDragView(onTapped: coordinator.open)
                     .background(Color.white.opacity(0.01))
 #endif
             }
         }
-        .onReceiveFocusSnap(windowID: windowID) { snap in
-//            let wasFocused = self.focusSnap.target == paneID.map { FocusTarget.omnibox(pane: $0) }
-            self.focusSnap = snap
-//            let nowFocused = snap.target == paneID.map { FocusTarget.omnibox(pane: $0) }
-            // On the false→true edge, seed the field with the current URL/title
-            // so the user can type-to-replace or Cmd+A to edit.
-//            if !wasFocused && nowFocused, let paneID,
-//               let pane = BrowserStore.shared.model.pane(forId: paneID) {
-//                DispatchQueue.main.async {
-//                    searchText = pane.tabAppearance().urlFieldTextSelected
-//                }
-//            }
-        }
+        .onReceiveFocusSnap(windowID: windowID) { focusSnap = $0 }
     }
 
-    private func handleTextFieldEvent(_ event: TextFieldEvent) {
+    private func handle(_ event: TextFieldEvent) {
         switch event {
-        case .key(.enter):
-            if let windowID, let result = searcher.results.get(selectedResultIndex) {
-                BrowserStore.shared.select(result: result, windowID: windowID)
-            }
-            dismiss()
-
-        case .key(.upArrow):
-            if !searcher.results.isEmpty {
-                selectedResultIndex = max(0, selectedResultIndex - 1)
-            }
-
-        case .key(.downArrow):
-            if !searcher.results.isEmpty {
-                selectedResultIndex = min(searcher.results.count - 1, selectedResultIndex + 1)
-            }
-
-        case .key(.escape):
-            if let paneID, searchText.isEmpty,
-               let pane = BrowserStore.shared.model.pane(forId: paneID),
-               pane.info.isEmptyPage {
-                BrowserStore.shared.close(webContentId: paneID, removeIfPinned: false)
-            } else {
-                dismiss()
-            }
-
-        case .focus:
-            guard let paneID else { return }
-//            DispatchQueue.main.async {
-                BrowserStore.shared.modify { state in
-                    state.didFocus(target: .omnibox(pane: paneID))
-                }
-//            }
-
-        case .blur:
-            guard let paneID else { return }
-            BrowserStore.shared.modify { state in
-                state.didLoseFocus(target: .omnibox(pane: paneID))
-            }
-
-        default:
-            break
-        }
-    }
-
-    /// User clicked the omnibox area while it wasn't focused (the drag overlay).
-    /// Open the search overlay; the focus snap will pick it up and focus us.
-    private func activate() {
-        guard let paneID else { return }
-        BrowserStore.shared.modify { state in
-            state.didFocus(target: .omnibox(pane: paneID))
-        }
-    }
-
-    private func dismiss() {
-        guard let paneID else { return }
-        BrowserStore.shared.modify { state in
-            state.didLoseFocus(target: .omnibox(pane: paneID))
+        case .key(.enter): coordinator.commitSelection()
+        case .key(.upArrow): coordinator.moveSelection(by: -1)
+        case .key(.downArrow): coordinator.moveSelection(by: 1)
+        case .key(.escape): coordinator.escape()
+        case .focus: coordinator.fieldDidFocus()
+        case .blur: coordinator.fieldDidBlur()
+        default: break
         }
     }
 }

@@ -10,12 +10,9 @@ struct PaneView: View {
     /// only offsets it up offscreen, which leaves it hit-testable.
     var toolbarHidden = false
 
-    @State private var searchText: String = ""
-    @State private var selectedResultIndex = 0
-
     @Environment(\.windowID) private var windowID
-    // Create Searcher with profile-specific history store
-    @StateObject private var searcher = Searcher()
+    /// Links the omnibox field and its suggestions (see OmniboxCoordinator).
+    @StateObject private var omnibox = OmniboxCoordinator()
     @StateObject private var topSitesFetcher = TopSitesFetcher()
     @Environment(\.profileID) private var profileID
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
@@ -46,55 +43,40 @@ struct PaneView: View {
             content
                 .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
                 .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
-//                .opacity(snapshot.searchActive ? 0.1 : 1)
-            
+
             if snapshot.searchActive {
-                SearchResultsOverlay(
-                    searchText: $searchText,
-                    selectedResultIndex: $selectedResultIndex,
-                    searcher: searcher,
-                    drawsCenteredBackdropIncludingBehindToolbar: snapshot.emptyPage // in empty-page centered mode, we draw our own backdrop in a parent
-                )
-                    // Dictation-to-agent outline around the whole new-tab card
-                    // (backdrop + toolbar). Drawn here when results are showing;
-                    // otherwise the toolbar's own highlight covers the card.
-                    .environment(\.dictationHighlightPaneID, snapshot.webContentId)
-                    .padding(.top, UIConstants.macHeaderHeight)
-                    .padding(.horizontal, emptyPageSearchPadding)
-                    .padding(.top, emptyPageTopPadding)
+                // Click outside the command bar to close it.
+                Color.white.opacity(0.01)
+                    .edgesIgnoringSafeArea(.all)
+                    .onTapGesture { omnibox.dismiss() }
             }
-            
-            if !toolbarHidden {
-                ToolbarView(
-                    webContentID: snapshot.webContentId,
-                    searcher: searcher,
-                    searchText: $searchText,
-                    selectedResultIndex: $selectedResultIndex,
-                    colorScheme: toolbarColorScheme,
-                    emptyPage: snapshot.emptyPage
-                )
-                .overlay(alignment: .bottom) {
-                    if !snapshot.emptyPage {
+
+            if snapshot.emptyPage {
+                if !toolbarHidden {
+                    NewTabCommandBar(paneID: snapshot.webContentId, coordinator: omnibox)
+                        .padding(.horizontal, emptyPageSearchPadding)
+                        .padding(.top, emptyPageTopPadding)
+                }
+            } else {
+                if snapshot.searchActive {
+                    OmniboxDropdown(coordinator: omnibox)
+                        .padding(.top, UIConstants.macHeaderHeight)
+                }
+                if !toolbarHidden {
+                    ToolbarView(
+                        webContentID: snapshot.webContentId,
+                        coordinator: omnibox,
+                        colorScheme: toolbarColorScheme
+                    )
+                    .overlay(alignment: .bottom) {
                         (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
                             .frame(height: 1)
                     }
-                }
-//            .blur(radius: !topbarVisible ? 5 : 0)
-                .shadow(color: Color.black.opacity(topbarVisible && snapshot.emptyPage ? 0.1 : 0), radius: snapshot.emptyPage ? 12 : 0, x: 0, y: 0)
-                    .modifier(DictationCardHighlightIfAvailable(
-                        paneID: snapshot.webContentId,
-                        cornerRadius: snapshot.emptyPage ? 10 : 0,
-                        // With results showing on the new-tab page, the results
-                        // overlay outlines the full card instead.
-                        enabled: !(snapshot.emptyPage && snapshot.searchActive && !searcher.results.isEmpty)
-                    ))
+                    .modifier(DictationCardHighlightIfAvailable(paneID: snapshot.webContentId, cornerRadius: 0))
                     .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
-                    .padding(.horizontal, emptyPageSearchPadding)
-                    .padding(.top, emptyPageTopPadding)
-                    .id(snapshot.emptyPage)
-//                .scaleEffect(y: topbarVisible ? 1 : 0.0001, anchor: .top)
+                }
             }
-                        
+
             if snapshot.emptyPage, !singlePane {
                 closeButton.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(8)
@@ -112,28 +94,16 @@ struct PaneView: View {
             }
         }
         .onReceive(profileDataStoreID, perform: { id in
-            searcher.datastoreProfileID = id
+            omnibox.searcher.datastoreProfileID = id
             topSitesFetcher.profileDataStoreID = id
         })
-        .onAppearOrChange(of: windowID, perform: { windowID in
-            searcher.windowID = windowID
-        })
-        .onAppearOrChange(of: snapshot.emptyPage, perform: { emptyPage in
-            searcher.topSitesEnabled = emptyPage
-        })
-        .onReceive(topSitesFetcher.$topSites, perform: { sites in
-            searcher.topSites = sites
-        })
-        .onChange(of: searchText) { newValue in
-            searcher.query = newValue
-            selectedResultIndex = 0 // Reset selection when query changes
-        }
-        .onChange(of: snapshot.searchActive) {
-            if $0 {
-                searcher.refreshForEmptyQuery()
-            } else {
-                searchText = ""
-            }
+        .onAppearOrChange(of: windowID) { omnibox.windowID = $0 }
+        .onAppearOrChange(of: snapshot.webContentId) { omnibox.paneID = $0 }
+        .onAppearOrChange(of: snapshot.emptyPage) { omnibox.searcher.topSitesEnabled = $0 }
+        .onReceive(topSitesFetcher.$topSites) { omnibox.searcher.topSites = $0 }
+        .onAppearOrChange(of: snapshot.searchActive) { active in
+            omnibox.paneID = snapshot.webContentId // seeding reads it; don't depend on handler order
+            omnibox.setActive(active)
         }
         .animation(nil, value: snapshot.topbarLocked) // supress animation when changing sidebar locking (which is also not animated)
         .animation(.niceDefault(duration: 0.12), value: topbarVisible)

@@ -15,6 +15,8 @@ import Combine
 //    centered input.
 //
 // While listening: Return / ⌘D / clicking the mic commits, Escape cancels.
+// The push-to-talk hotkey (`DictationHotkeyMonitor`) starts a session while
+// held and commits on release.
 // Views observe this controller to draw the target outline and live transcript.
 
 @MainActor
@@ -149,7 +151,9 @@ public final class DictationController: ObservableObject {
             self.transcriber = nil
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             transcript = trimmed
-            guard !trimmed.isEmpty else {
+            // Nothing said (silence, or just noise the recognizer rendered
+            // as punctuation): deliver nothing.
+            guard trimmed.rangeOfCharacter(from: .alphanumerics) != nil else {
                 finish()
                 return
             }
@@ -249,10 +253,14 @@ public final class DictationController: ObservableObject {
 
         if DefaultsKeys.dictationCleanup.boolValue(), MicroAI.isAvailable(.dictationCleanup) {
             let context = await DictationCleanup.captureContext(webview: webview)
+            var echo = DictationCleanup.EchoStripper(fieldText: context.fieldText)
             var inserted = ""
             var firstChunk = true
             do {
-                for try await cleaned in DictationCleanup.stream(raw: raw, context: context) {
+                for try await streamed in DictationCleanup.stream(raw: raw, context: context) {
+                    // The model sometimes repeats the field's existing text
+                    // before the dictation; never insert that twice.
+                    guard let cleaned = echo.strip(streamed) else { continue }
                     // Stream in: insert only the newly arrived suffix.
                     guard cleaned.hasPrefix(inserted) else { continue }
                     let delta = String(cleaned.dropFirst(inserted.count))
@@ -290,9 +298,20 @@ public final class DictationController: ObservableObject {
             }
             if (!el) return false;
             const isField = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA';
-            if (\(leadingSpaceIfNeeded) && isField) {
-                const s = el.selectionStart ?? el.value.length;
-                const before = el.value.slice(0, s);
+            if (\(leadingSpaceIfNeeded)) {
+                let before = '';
+                if (isField) {
+                    before = el.value.slice(0, el.selectionStart ?? el.value.length);
+                } else if (el.isContentEditable) {
+                    // Text between the start of the editable and the caret.
+                    const sel = (el.ownerDocument || document).getSelection();
+                    if (sel && sel.rangeCount) {
+                        const r = sel.getRangeAt(0).cloneRange();
+                        r.selectNodeContents(el);
+                        r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+                        before = r.toString();
+                    }
+                }
                 if (before.length > 0 && !/\\s$/.test(before)) text = ' ' + text;
             }
             let ok = false;

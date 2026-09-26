@@ -40,7 +40,7 @@ public struct WrappedWebView: View {
                 findInPageContent
             }
             #if os(macOS)
-            .overlay { AutofillOverlay(webContent: webContent) }
+            .overlay { FieldDropdownOverlay(webContent: webContent) }
             #endif
             .animation(.toastDropCurve, value: isFindInPageActive)
 

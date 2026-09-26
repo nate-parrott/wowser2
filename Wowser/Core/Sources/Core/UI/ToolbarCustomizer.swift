@@ -105,9 +105,6 @@ private struct ToolbarItemRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary)
-                .help("Drag to reorder")
             Image(systemName: icon)
                 .frame(width: 22)
                 .foregroundStyle(.secondary)
@@ -132,8 +129,12 @@ private struct ToolbarItemRow: View {
             .toggleStyle(.switch)
             .controlSize(.mini)
             .labelsHidden()
+            
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.tertiary)
+                .help("Drag to reorder")
         }
-        .padding(.vertical, 2)
+        .frame(minHeight: 34)
     }
 
     private var icon: String {

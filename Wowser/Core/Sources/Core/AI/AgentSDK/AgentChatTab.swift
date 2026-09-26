@@ -383,6 +383,8 @@ public final class AgentChatSession: ObservableObject {
 
     private var agentID: String?
     private var ownPaneID: ID<WebContent>?
+    /// The page the user asked from (omnibox asks), for agents that act on it.
+    private(set) var sourcePaneID: ID<WebContent>?
     private var nextIndex = 0
     private var turnLoopTask: Task<Void, Never>?
     private var didBegin = false
@@ -420,6 +422,7 @@ public final class AgentChatSession: ObservableObject {
         didBegin = true
         self.mode = mode
         self.ownPaneID = ownPaneID
+        self.sourcePaneID = sourcePaneID
         setWorking(true)
         Task {
             let context = isScheduledTask ? nil : await AgentChatSession.capturePageContext(paneID: sourcePaneID)
@@ -475,6 +478,10 @@ public final class AgentChatSession: ObservableObject {
                     systemPrompt: prompt,
                     workingDirectory: BrowserStore.shared.model.spaceFolderPath(forWebContentId: ownPaneID)
                 )
+                switch mode {
+                case .ask, .chat: options.harness = AgentHarness.current.createOptionsValue
+                case .scheduledTask, .subagent, .toolbarButton: break
+                }
                 if case .subagent(let spec) = mode {
                     options.name = spec.name
                     options.model = spec.model
@@ -511,7 +518,7 @@ public final class AgentChatSession: ObservableObject {
         didReportSibling = true
         Task {
             do {
-                let options = BrowserJSAgentCreateOptions(
+                var options = BrowserJSAgentCreateOptions(
                     key: key,
                     effort: "low",
                     systemPrompt: AgentChatSession.systemPrompt(
@@ -524,6 +531,7 @@ public final class AgentChatSession: ObservableObject {
                     ),
                     workingDirectory: BrowserStore.shared.model.spaceFolderPath(forWebContentId: ownPaneID)
                 )
+                options.harness = AgentHarness.current.createOptionsValue
                 let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
                 let existing = (try? await BrowserAgentManager.shared.messages(id: id, since: 0)) ?? []

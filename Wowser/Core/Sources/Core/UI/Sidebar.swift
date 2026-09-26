@@ -434,7 +434,10 @@ struct GroupedTabsView: View {
                             }
                         }
                     }
-                    NewTabCell(windowID: windowID)
+                    FancyPlus(windowID: windowID)
+                        .padding(4)
+                        .frame(maxWidth: .infinity)
+//                    NewTabCell(windowID: windowID)
                 }
                 .padding(isMobile() ? 12 : 0)
                 .frame(maxWidth: .infinity)

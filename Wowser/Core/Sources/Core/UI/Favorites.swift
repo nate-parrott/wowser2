@@ -223,14 +223,15 @@ struct PlaceholderFavoriteCell: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 8)
             .background {
-                Capsule()
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05))
-                Capsule()
-                    .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
-                    .opacity(colorScheme == .dark ? 0.2 : 0.15)
-//                    .fill(Color.primary.opacity(0.05))
+                RecessedSidebarShape(shape: Capsule(style: .continuous))
+//                Capsule()
+//                    .fill(Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05))
+//                Capsule()
+//                    .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
+//                    .opacity(colorScheme == .dark ? 0.2 : 0.15)
+////                    .fill(Color.primary.opacity(0.05))
             }
-            .contentShape(Capsule())
+            .contentShape(Capsule(style: .continuous))
 //            .onHover { hovering in
 //                isHovered = hovering
 //            }
@@ -243,6 +244,30 @@ struct PlaceholderFavoriteCell: View {
         }
         return [Color.black.opacity(0.5), Color.gray.opacity(0.3)]
     }
+}
+
+struct RecessedSidebarShape<S: InsettableShape>: View {
+    var shape: S
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        ZStack {
+            shape
+                .fill(Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05))
+            shape
+                .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
+                .opacity(colorScheme == .dark ? 0.2 : 0.15)
+        }
+
+    }
+    
+    private var colors: [Color] {
+        if colorScheme == .dark {
+            return [Color.black.opacity(0.7), Color.white.opacity(0.4)]
+        }
+        return [Color.black.opacity(0.5), Color.gray.opacity(0.3)]
+    }
+
 }
 
 // Helper functions

@@ -30,6 +30,9 @@ public struct AgentSessionRecord: Codable, Sendable {
     /// Harness session id — resumed to restore the agent's memory of the
     /// conversation.
     public var sessionID: String?
+    /// Which agent implementation runs this session: nil = the platform
+    /// default (Claude Code), `LocalAgentProvider.harnessID` = on-device.
+    public var harness: String?
     public var updatedAt: Date
 
     public init(key: String, agentID: String, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, appTools: [BrowserJSAgentToolSpec] = [], sessionID: String? = nil, updatedAt: Date = Date()) {

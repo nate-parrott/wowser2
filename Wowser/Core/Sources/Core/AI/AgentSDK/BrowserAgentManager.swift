@@ -61,6 +61,9 @@ public struct BrowserJSAgentCreateOptions: Codable, Sendable {
     public var workingDirectory: String?
     /// Tools the app implements itself, in JS.
     public var tools: [BrowserJSAgentToolSpec]
+    /// nil = the platform default (Claude Code); "local" = the on-device
+    /// agent, which ignores the prompt/tool options and brings its own.
+    public var harness: String?
 
     public init(key: String? = nil, name: String? = nil, model: String? = nil, effort: String? = nil, systemPrompt: String? = nil, exposeBrowserJS: Bool = true, fileSystemTools: Bool = false, workingDirectory: String? = nil, tools: [BrowserJSAgentToolSpec] = []) {
         self.key = key; self.name = name; self.model = model; self.effort = effort
@@ -221,9 +224,6 @@ public actor BrowserAgentManager {
                 return try await resume(record)
             }
         }
-        guard let provider, provider.isAvailable else {
-            throw BrowserJSError.underlying(AgentSDKError.noProviderAvailable.localizedDescription)
-        }
         let id = "agent-" + String(UUID().uuidString.lowercased().prefix(8))
         var record = AgentSessionRecord(
             key: options.key ?? id,
@@ -237,6 +237,7 @@ public actor BrowserAgentManager {
             workingDirectory: options.workingDirectory,
             appTools: options.tools
         )
+        record.harness = options.harness
         record.sessionID = nil
         try await start(record: record, isKeyed: options.key != nil)
         return id
@@ -251,6 +252,9 @@ public actor BrowserAgentManager {
     }
 
     private func start(record: AgentSessionRecord, isKeyed: Bool) async throws {
+        let provider: (any AgentProvider)? = record.harness == LocalAgentProvider.harnessID
+            ? LocalAgentProvider(key: record.key)
+            : self.provider
         guard let provider, provider.isAvailable else {
             throw BrowserJSError.underlying(AgentSDKError.noProviderAvailable.localizedDescription)
         }

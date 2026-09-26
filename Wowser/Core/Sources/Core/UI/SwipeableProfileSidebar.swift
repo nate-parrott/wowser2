@@ -330,23 +330,6 @@ private struct NewProfileContent: View {
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-//            FreeformButton(action: createNewProfile) { status in
-//                let bgOpacity: CGFloat = status == .pressed ? 0.1 : (status == .hovered ? 0.07 : 0)
-//                VStack(spacing: 22) {
-//                    Image(systemName: "plus")
-//                        .font(.system(size: 32))
-//
-//                    Text("New Profile")
-//                        .fontWeight(.medium)
-//                }
-//                .padding()
-//                .contentShape(Rectangle())
-//                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(bgOpacity)))
-//                .foregroundStyle(.secondary)
-//            }
-//            Divider()
-//                .padding(.horizontal)
-            
             
             Button(action: createNewProfile) {
                 Text("New Profile")
@@ -389,22 +372,7 @@ private struct NewProfileContent: View {
             Text(label(for: resolvedChoice))
                 .lineLimit(1)
                 .truncationMode(.tail)
-//            HStack {
-//                Text(label(for: resolvedChoice))
-//                    .lineLimit(1)
-//                    .truncationMode(.tail)
-//                Spacer()
-//                Image(systemName: "chevron.up.chevron.down")
-//                    .font(.system(size: 10, weight: .semibold))
-//                    .foregroundStyle(.secondary)
-//            }
-//            .padding(.horizontal, 10)
-//            .padding(.vertical, 6)
-//            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
-//            .foregroundStyle(.primary)
         }
-//        .menuStyle(.borderlessButton)
-//        .menuIndicator(.hidden)
         .controlSize(.small)
     }
 

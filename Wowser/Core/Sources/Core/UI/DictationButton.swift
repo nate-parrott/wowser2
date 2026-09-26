@@ -23,10 +23,8 @@ struct DictationButton: View {
             Button(action: toggle) {
                 Image(systemName: symbol(fieldFocused: fieldFocused))
                     .imageScale(emptyPage ? .large : .medium)
-                    // Inherit the toolbar's content color (WithContentColorScheme)
-                    // unless recording or given an explicit color.
-                    .foregroundColor(isActiveForThisPane ? Color.red : fgColor?.color)
-                    .opacity(isActiveForThisPane ? 1 : (emptyPage ? 0.4 : (fieldFocused ? 0.85 : 0.6)))
+                    .foregroundStyle(iconStyle)
+                    .opacity(!isActiveForThisPane && emptyPage ? 0.4 : 1)
                     .frame(width: emptyPage ? 34 : 30, height: emptyPage ? 34 : 30)
             }
             .buttonStyle(ToolbarButtonStyle())
@@ -36,6 +34,15 @@ struct DictationButton: View {
             }
             .offset(x: emptyPage ? 10 : 0)
         }
+    }
+
+    /// Red while recording; otherwise an explicit color if given, else the
+    /// inherited foreground like the other toolbar buttons. (`.foregroundColor(nil)`
+    /// would reset the toolbar's content color to the default label color.)
+    private var iconStyle: AnyShapeStyle {
+        if isActiveForThisPane { return AnyShapeStyle(Color.red) }
+        if let fgColor { return AnyShapeStyle(fgColor.color) }
+        return AnyShapeStyle(HierarchicalShapeStyle.primary)
     }
 
     private var isActiveForThisPane: Bool {
