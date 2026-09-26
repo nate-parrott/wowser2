@@ -1,4 +1,3 @@
-import ChatToys
 import Foundation
 
 public struct AutoOrganizeResult: Equatable, Codable {
@@ -134,175 +133,44 @@ extension BrowserStore {
         }
     }
     
-    // Clear struct to represent tab information for organization
-    private struct TabForOrganization {
-        let actualId: ID<Tab>
-        let simpleId: Int
-        let url: String
-        let title: String?
-    }
-    
     private func assignGroupNames(to tabIds: [ID<Tab>], existingGroups: [String], windowID: ID<WindowState>) async throws {
-        // Skip if no tabs to process
         if tabIds.isEmpty { return }
-        
-        // Get tab information for the prompt with simple numeric IDs
-        let tabInfo = await readAsync { state -> [TabForOrganization] in
-            return tabIds.enumerated().compactMap { idx, tabId in
-                guard let tab = state.tabs[tabId],
-                      let firstPane = tab.panes.first,
-                      let url = firstPane.info.url else {
-                    return nil
-                }
-                
-                return TabForOrganization(
-                    actualId: tabId,
-                    simpleId: idx + 1,
-                    url: url.absoluteString,
-                    title: firstPane.info.title
-                )
+
+        let tabInfo = await readAsync { state -> [(id: ID<Tab>, info: TabGroupsTask.TabInfo, historyKey: String)] in
+            tabIds.compactMap { tabId in
+                guard let pane = state.tabs[tabId]?.panes.first, let url = pane.info.url else { return nil }
+                return (tabId, TabGroupsTask.TabInfo(title: pane.info.title, url: url), url.historyKey)
             }
         }
-        
-        // Create prompt for the LLM
-        let prompt = createGroupingPrompt(tabInfo: tabInfo, existingGroups: existingGroups)
-        
-        // Call the LLM to assign group names
-        struct Response: Codable {
-            var groups: [String: String]
-            var spaceName: String?
-        }
-        
-        let resp = try await LLMs.currentOrThrow(json: true).completeJSONObject(
-            prompt: [LLMMessage(role: .user, content: prompt)],
-            type: Response.self
-        )
-        
-        print("[🤖 Auto-organize] Assigned groups: \(resp)")
-        
-        // Update tabs with their new AI tags
+        let groups = try await TabGroupsTask.run(tabs: tabInfo.map(\.info), existingGroups: existingGroups)
+        print("[🤖 Auto-organize] Assigned groups: \(groups)")
+
         await modifyAsync { state in
-            // First, count how many tabs are in each group
             var groupCounts = [String: Int]()
-            for (_, groupName) in resp.groups {
-                groupCounts[groupName, default: 0] += 1
-            }
-            
-            // Process each tab
-            for tabInfo in tabInfo {
-                // Get the assigned group for this tab
-                let simpleIdString = String(tabInfo.simpleId)
-                
-                if let groupName = resp.groups[simpleIdString],
-                   let tabToUpdate = state.tabs[tabInfo.actualId],
-                   let firstPaneUrl = tabToUpdate.panes.first?.info.url {
-                    // Only set group name if there's more than one tab in this group
-                    let finalGroupName = groupCounts[groupName, default: 0] > 1 ? groupName : nil
-                    state.modifyTab(id: tabInfo.actualId) { tab in
-                        tab.aiTags = AITags(
-                            historyKeyWhenFetched: firstPaneUrl.historyKey,
-                            groupName: finalGroupName
-                        )
-                    }
+            for case let name? in groups { groupCounts[name, default: 0] += 1 }
+            for (tab, group) in zip(tabInfo, groups) where state.tabs[tab.id] != nil {
+                // Only keep a group name shared by more than one tab
+                let finalGroupName = group.flatMap { groupCounts[$0, default: 0] > 1 ? $0 : nil }
+                state.modifyTab(id: tab.id) { t in
+                    t.aiTags = AITags(historyKeyWhenFetched: tab.historyKey, groupName: finalGroupName)
                 }
-            }
-
-            // Store an auto-generated name for the space (profile). Shown as the
-            // placeholder in the sidebar's editable space label until the user
-            // sets their own title. Skip when organizing a project's tabs, since
-            // those aren't representative of the whole space.
-            if state.windows[windowID]?.focusedOnProject == nil,
-               let profileID = state.windows[windowID]?.profile,
-               let spaceName = resp.spaceName?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !spaceName.isEmpty {
-                state.profiles[profileID]?.autoTitle = spaceName
             }
         }
 
-        // Refresh the space's emoji + gradient theme from the (possibly new)
-        // effective title. No-ops when nothing changed.
-        if let profileID = await readAsync({ state -> ID<Profile>? in
+        // Name the space (shown as the placeholder in the sidebar's space label
+        // until the user sets their own title), then refresh its emoji + theme.
+        // Skip when organizing a project's tabs: they don't represent the space.
+        guard let profileID = await readAsync({ state -> ID<Profile>? in
             guard state.windows[windowID]?.focusedOnProject == nil else { return nil }
             return state.windows[windowID]?.profile
-        }) {
-            await regenerateSpaceTheme(profileID: profileID)
+        }) else { return }
+        if MicroAI.isAvailable(.spaceTitle),
+           let name = try? await SpaceTitleTask.run(tabs: tabInfo.map(\.info)).nilIfEmpty {
+            await modifyAsync { state in state.profiles[profileID]?.autoTitle = name }
         }
+        await regenerateSpaceTheme(profileID: profileID)
     }
-    
-    private func createGroupingPrompt(tabInfo: [TabForOrganization], existingGroups: [String]) -> String {
-        let tabDataJSON = tabInfo.map { tab in
-            """
-            {
-                "id": "\(tab.simpleId)",
-                "url": "\(tab.url)",
-                "title": \(tab.title != nil ? "\"\(tab.title!.truncateTailWithEllipsis(chars: 300))\"" : "null")
-            }
-            """
-        }.joined(separator: ",\n")
-        
-        let existingGroupsJSON = existingGroups.map { "\"\($0)\"" }.joined(separator: ", ")
-        
-        return """
-        Your job is to organize browser tabs into logical groups based on the associated topic, thing, activity or intent.
-        
-        I will give you a list of browser tabs (with URLs and titles), and you should assign each tab to a group.
-        
-        # Existing Groups
-        These are the current group names already in use: [\(existingGroupsJSON)]
-        
-        # Guidelines
-        1. Try to keep tabs in their existing groups when it makes sense
-        2. Create new groups only when necessary
-        3. Group names should be very short (1-3 words) and descriptive
-        4. Related tabs should be in the same group
-        5. Most tabs should be in a group with at least one other tab
-        6. Consider the user's likely intent for having these tabs open together
-        7. If many tabs would belong in a specific group, assign them to the specific group.
-        8. Use broader, more generic grouping like "Shopping" or "Work" if you can't make specific groups with >1 item.
-        9. Assign casual, sentence-case 1-2 word names. You can also use site names if you see several tabs with the same site name.
-        10. If you see many tabs about a particular proper noun / entity, that's a good way to group.
-        11. Do not assume groups need to comprise contiguous tabs.
-        12. Prefer placing tabs in more specific groups, rather than catchalls like 'Searches', if possible.
-        
-        # Sample group names:
-        Specific (ideal):
-        - Chairs
-        - Pizza places
-        - Denver
-        - Car insurance
-        - Taxes
-        - Youtube
-        - John Denver
-        
-        Less specific (if necessary):
-        - Recipes
-        - Work
-        - Personal
-        - Programming
-        
-        # Response Format
-        Respond in JSON only with this exact format:
-        ```
-        {
-            "scratchpad": "", // brainstorm several POSSIBLE group names of varying specificities and identify how many tabs would fit. E.g. "Hikes - 3, Park Slope - 1, Brooklyn - 2"
-            "spaceName": "", // a short (1-3 word) sentence-case name summarizing this whole collection of tabs as a single "space", e.g. "Trip planning", "Work", "Apartment hunt". Pick the dominant theme if the tabs are mixed.
-            "groups": {
-                "tab_id_1": "Group name",
-                "tab_id_2": "Group name",
-                ...
-            }
-        }
-        ```
-        
-        # Tabs to organize
-        [
-        \(tabDataJSON)
-        ]
-        
-        Now, assign each tab to a group. Choose group names that are concise and meaningful:
-        """
-    }
-    
+
     private func reorganizeExistingGroups(in windowID: ID<WindowState>) async -> AutoOrganizeResult {
         var initialOrder: [ID<Tab>] = []
         var reorganizedCount = 0

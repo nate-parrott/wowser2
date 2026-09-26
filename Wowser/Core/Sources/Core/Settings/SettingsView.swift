@@ -225,15 +225,28 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.openAICustomModel.rawValue) private var openAICustomModel = ""
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
     @AppStorage(DefaultsKeys.agentShellTools.rawValue) private var agentShellTools = false
+    @AppStorage(DefaultsKeys.microAIBackends.rawValue) private var microAIBackends = ""
     @ObservedObject private var requestLog = AIRequestLog.shared
 
     var body: some View {
+        let _ = microAIBackends
         Form {
-            Section("AI Models") {
-                EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { $0.displayName }
+            MicroAIFeaturesSection()
 
-                showApiKeyFields()
-                showCustomModelFields()
+            if MicroAIFeaturesSection.anyFeatureUses(.openRouter) {
+                Section("OpenRouter") {
+                    EnumPicker<LLMChoice>(title: "AI Model", selection: $llmChoice) { $0.displayName }
+
+                    showApiKeyFields()
+                    showCustomModelFields()
+                }
+            }
+
+            if MicroAIFeaturesSection.anyFeatureUses(.agent) {
+                Section("Agent") {
+                    Text("Each request starts a Claude Code session (\(MicroAI.agentModel), low effort) in a hidden working directory. Slower than the other options; needs the claude CLI.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("Agents") {

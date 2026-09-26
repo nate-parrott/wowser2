@@ -1,6 +1,5 @@
 #if os(macOS)
 import Foundation
-import ChatToys
 
 /// Optional LLM pass over a dictated transcript before it lands in a page's
 /// text field: strips filler, fixes obvious mis-hearings, keeps the user's
@@ -58,7 +57,7 @@ enum DictationCleanup {
     }
 
     /// Yields the cleaned transcript cumulatively as it streams.
-    static func stream(raw: String, context: Context, llm: any ChatLLM) -> AsyncThrowingStream<String, Error> {
+    static func stream(raw: String, context: Context) -> AsyncThrowingStream<String, Error> {
         let system = """
         You clean up text that a user just DICTATED via speech recognition, so it \
         can be inserted into a text field on a web page. Rules:
@@ -68,29 +67,17 @@ enum DictationCleanup {
         - Do NOT rephrase, summarize, expand, or change the meaning. Stay as close to what the user said as possible.
         - Output ONLY the cleaned text — no quotes, no commentary, no preamble.
         """
+        // The on-device model has a ~4K-token window; keep the context short.
+        let small = MicroAI.backend(for: .dictationCleanup) == .onDevice
+        let fieldText = small ? String(context.fieldText.suffix(1000)) : context.fieldText
+        let visibleText = small ? String(context.visibleText.prefix(1500)) : context.visibleText
         var user = "## Page\nTitle: \(context.pageTitle)\nURL: \(context.pageURL)\n"
         if !context.fieldLabel.isEmpty { user += "Field: \(context.fieldLabel)\n" }
-        if !context.fieldText.isEmpty { user += "\n## Text already in the field (the dictation continues after it)\n\"\"\"\n\(context.fieldText)\n\"\"\"\n" }
-        if !context.visibleText.isEmpty { user += "\n## Text visible on the page\n\"\"\"\n\(context.visibleText)\n\"\"\"\n" }
+        if !fieldText.isEmpty { user += "\n## Text already in the field (the dictation continues after it)\n\"\"\"\n\(fieldText)\n\"\"\"\n" }
+        if !visibleText.isEmpty { user += "\n## Text visible on the page\n\"\"\"\n\(visibleText)\n\"\"\"\n" }
         user += "\n## Dictated transcript\n\"\"\"\n\(raw)\n\"\"\"\n\nCleaned text:"
 
-        let prompt = [
-            LLMMessage(role: .system, content: system),
-            LLMMessage(role: .user, content: user),
-        ]
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await partial in llm.completeStreaming(prompt: prompt) {
-                        continuation.yield(partial.content)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
+        return MicroAI.streamText(.dictationCleanup, MicroAIPrompt(instructions: system, input: user))
     }
 }
 #endif

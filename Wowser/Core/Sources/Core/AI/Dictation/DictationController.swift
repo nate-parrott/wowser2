@@ -247,12 +247,12 @@ public final class DictationController: ObservableObject {
         // user may have clicked the mic button.
         wc.focus()
 
-        if DefaultsKeys.dictationCleanup.boolValue(), let llm = LLMs.current(json: false) {
+        if DefaultsKeys.dictationCleanup.boolValue(), MicroAI.isAvailable(.dictationCleanup) {
             let context = await DictationCleanup.captureContext(webview: webview)
             var inserted = ""
             var firstChunk = true
             do {
-                for try await cleaned in DictationCleanup.stream(raw: raw, context: context, llm: llm) {
+                for try await cleaned in DictationCleanup.stream(raw: raw, context: context) {
                     // Stream in: insert only the newly arrived suffix.
                     guard cleaned.hasPrefix(inserted) else { continue }
                     let delta = String(cleaned.dropFirst(inserted.count))
