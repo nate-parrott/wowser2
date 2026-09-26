@@ -770,6 +770,74 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         try await BrowserAgentManager.shared.dispose(id: id)
     }
 
+    // MARK: - Autofill (identity + saved logins)
+
+    @MainActor
+    private func autofillProfile(spaceId: String?) throws -> ID<Profile> {
+        guard AutofillSettings.isEnabled else { throw BrowserJSError.underlying("Autofill is turned off in Settings → Autofill") }
+        if let spaceId { return try resolveSpaceID(spaceId, state: BrowserStore.shared.model) }
+        return AutofillStore.shared.currentProfileID()
+    }
+
+    public func credentialsLookup(domain: String, spaceId: String?) async throws -> [BrowserJSCredentialInfo] {
+        try await main {
+            let profile = try self.autofillProfile(spaceId: spaceId)
+            return AutofillStore.shared.data(for: profile).credentials(forHost: domain).map {
+                BrowserJSCredentialInfo(id: $0.id.uuidString, username: $0.username, domain: $0.domain, host: $0.host, lastUsed: $0.lastUsed.timeIntervalSince1970)
+            }
+        }
+    }
+
+    public func credentialsHasPassword(domain: String, username: String?, spaceId: String?) async throws -> Bool {
+        try await main {
+            let profile = try self.autofillProfile(spaceId: spaceId)
+            let matches = AutofillStore.shared.data(for: profile).credentials(forHost: domain)
+            if let username { return matches.contains { $0.username.lowercased() == username.lowercased() } }
+            return !matches.isEmpty
+        }
+    }
+
+    public func credentialsFillPassword(tabId: String, username: String?, domain: String?) async throws -> BrowserJSFillPasswordResult {
+        #if os(macOS)
+        return try await mainAsync { @MainActor in
+            let pid = ID<WebContent>(raw: tabId)
+            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
+                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
+            else { throw BrowserJSError.tabNotFound(tabId) }
+            guard let session = wc.autofill else {
+                throw BrowserJSError.notImplemented("credentials.fillPassword is not supported on this tab's engine")
+            }
+            self.touchAgentUse(pid)
+            if let view = wc.wkWebview { AgentStageWindow.shared.ensureRenderable(view) }
+            let filledUsername = try await session.fillPasswordForAgent(username: username, domain: domain)
+            return BrowserJSFillPasswordResult(filled: true, username: filledUsername)
+        }
+        #else
+        throw BrowserJSError.notImplemented("credentials.fillPassword (macOS only)")
+        #endif
+    }
+
+    public func profileGet(spaceId: String?) async throws -> BrowserJSProfileInfo {
+        try await main {
+            let profile = try self.autofillProfile(spaceId: spaceId)
+            let data = AutofillStore.shared.data(for: profile)
+            let names = data.names.sortedByUse()
+            return BrowserJSProfileInfo(
+                name: names.first?.full,
+                givenName: names.first?.given.nilIfEmpty,
+                familyName: names.first?.family.nilIfEmpty,
+                names: names.map { $0.full },
+                emails: data.emails.sortedByUse().map { $0.value },
+                phones: data.phones.sortedByUse().map { $0.value },
+                organizations: data.organizations.sortedByUse().map { $0.value },
+                addresses: data.addresses.sortedByUse().map {
+                    BrowserJSAddressInfo(line1: $0.line1, line2: $0.line2, city: $0.city, state: $0.state, postalCode: $0.postalCode, country: $0.country, oneLine: $0.oneLine)
+                },
+                savedLoginDomains: Set(data.credentials.map { $0.domain }).sorted()
+            )
+        }
+    }
+
     private static func summary(from e: NetCaptureEntry) -> NetEntrySummary {
         NetEntrySummary(
             id: e.id,

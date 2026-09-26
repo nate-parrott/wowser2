@@ -185,6 +185,12 @@ public class WebContent: NSObject, ObservableObject {
     /// picker, cookie stores, …) should unwrap this and degrade gracefully.
     public var wkWebview: WebContentWebView? { nil }
 
+    #if os(macOS)
+    /// The autofill runtime for this content (suggestion menu under fields,
+    /// searchable <select> menu, form capture). nil for engines without one.
+    public var autofill: AutofillSession? { nil }
+    #endif
+
     public func load(url: URL) {}
     public func load(request: URLRequest) {}
     /// Loads `url`, and as soon as it commits (so it has a back/forward

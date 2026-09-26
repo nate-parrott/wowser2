@@ -22,6 +22,19 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     public override var view: UINSView { webview }
     public override var wkWebview: WebContentWebView? { webview }
 
+    #if os(macOS)
+    private var _autofillSession: AutofillSession?
+    /// Autofill runtime (see `AutofillSession`). Created on first use.
+    var autofillSession: AutofillSession {
+        if let s = _autofillSession { return s }
+        let s = AutofillSession(webview: webview, webContentID: id, datastoreUUID: datastoreUUID)
+        s.requestRefresh = { [weak self] in self?.needsFocusedEditableRefresh() }
+        _autofillSession = s
+        return s
+    }
+    public override var autofill: AutofillSession? { autofillSession }
+    #endif
+
     // MARK: - Configuration
     @Published var blocklists = UserDefaults.standard.blocklistsActive
 
@@ -212,6 +225,24 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
             self?.needsFocusedEditableRefresh()
         }
 
+        #if os(macOS)
+        // Autofill: key/mouse events pass through the session before WebKit
+        // sees them; form submissions are reported by WebKit's form client.
+        webview.keyInterceptor = { [weak self] event in
+            MainActor.assumeIsolated { self?.autofillSession.handleKeyDown(event) ?? false }
+        }
+        webview.onBeforeKeyEvent = { [weak self] event in
+            MainActor.assumeIsolated { self?.autofillSession.willSendKeyToPage(event) }
+        }
+        webview.mouseDownInterceptor = { [weak self] event in
+            MainActor.assumeIsolated { self?.autofillSession.handleMouseDown(event) ?? false }
+        }
+        webview.mouseFollowUpInterceptor = { [weak self] event in
+            MainActor.assumeIsolated { self?.autofillSession.handleFollowUpMouse(event) ?? false }
+        }
+        installFormSubmissionObserver()
+        #endif
+
         // Observe UserDefaults changes for settings
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .sink { [weak self] _ in
@@ -384,6 +415,9 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         info.failedNavToURL = nil
         needsMetadataRefresh()
         _ = performLoadAfterCommitIfNeeded(for: navigation)
+        #if os(macOS)
+        MainActor.assumeIsolated { autofillSession.pageDidNavigate(to: webView.url) }
+        #endif
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -489,55 +523,70 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
     }
 
-    private static let focusedEditableJS = """
-    (() => {
-        let el = document.activeElement;
-        // Descend into same-origin iframes when possible.
-        for (let i = 0; i < 4 && el && el.tagName === 'IFRAME'; i++) {
-            try { el = el.contentDocument && el.contentDocument.activeElement; } catch (_) { el = null; }
-        }
-        if (!el || el === document.body || el === document.documentElement) return null;
-        const tag = el.tagName;
-        let kind = null, multiline = false, sensitive = false;
-        const ac = ((el.getAttribute && el.getAttribute('autocomplete')) || '').toLowerCase();
-        const hint = ((el.name || '') + ' ' + (el.id || '') + ' ' + ac).toLowerCase();
-        if (/cc-|one-time-code|password|passwd|cvv|cvc|card-?number|ssn/.test(hint)) sensitive = true;
-        if (tag === 'TEXTAREA') { kind = 'textarea'; multiline = true; }
-        else if (tag === 'INPUT') {
-            const t = (el.getAttribute('type') || 'text').toLowerCase();
-            const textual = ['text','search','email','url','tel','number','password',''];
-            if (!textual.includes(t)) return null;
-            if (el.readOnly || el.disabled) return null;
-            if (t === 'password') sensitive = true;
-            kind = 'input';
-        } else if (el.isContentEditable) { kind = 'contenteditable'; multiline = true; }
-        else return null;
-        const r = el.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0) return null;
-        return { x: r.left, y: r.top, width: r.width, height: r.height, kind, multiline, sensitive };
-    })()
-    """
-
+    /// One query serves both consumers: `info.focusedEditable` (dictation) and
+    /// the autofill session (suggestions, form capture, select hit-testing).
+    /// Read-only — see `AutofillFieldQuery`.
     private func refreshFocusedEditableNow() {
         // Native overlay tabs have no meaningful DOM focus.
         if let url = webview.url, NativePageKey(url: url) != nil, !(NativePageKey(url: url)?.isVSCode ?? false) {
             if info.focusedEditable != nil { info.focusedEditable = nil }
             return
         }
-        webview.evaluateJavaScript(Self.focusedEditableJS) { [weak self] result, _ in
+        webview.evaluateJavaScript(AutofillFieldQuery.snapshotActiveJS) { [weak self] result, _ in
             guard let self else { return }
+            let snapshot = AutofillFieldQuery.parseSnapshot(result) ?? AutofillFieldQuery.Snapshot()
             var value: Info.FocusedEditable?
-            if let dict = result as? [String: Any],
-               let x = dict["x"] as? Double, let y = dict["y"] as? Double,
-               let w = dict["width"] as? Double, let h = dict["height"] as? Double,
-               let kind = dict["kind"] as? String {
-                value = Info.FocusedEditable(x: x, y: y, width: w, height: h, kind: kind, multiline: dict["multiline"] as? Bool ?? false, sensitive: (dict["sensitive"] as? Bool ?? false) ? true : nil)
+            if let active = snapshot.active, let r = active.rect, r.width > 0, r.height > 0 {
+                let kind: String?
+                var multiline = false
+                switch active.tag {
+                case "textarea": kind = "textarea"; multiline = true
+                case "contenteditable": kind = "contenteditable"; multiline = true
+                case "input":
+                    let textual: Set<String> = ["text", "search", "email", "url", "tel", "number", "password", ""]
+                    kind = (textual.contains(active.type) && !active.readOnly && !active.disabled) ? "input" : nil
+                default: kind = nil
+                }
+                if let kind {
+                    let hint = "\(active.name) \(active.id) \(active.autocomplete)".lowercased()
+                    let sensitive = active.type == "password"
+                        || hint.range(of: #"cc-|one-time-code|password|passwd|cvv|cvc|card-?number|ssn"#, options: .regularExpression) != nil
+                    value = Info.FocusedEditable(x: r.x, y: r.y, width: r.width, height: r.height, kind: kind, multiline: multiline, sensitive: sensitive ? true : nil)
+                }
             }
             if self.info.focusedEditable != value {
                 self.info.focusedEditable = value
             }
+            #if os(macOS)
+            MainActor.assumeIsolated { self.autofillSession.apply(snapshot: snapshot) }
+            #endif
         }
     }
+
+    #if os(macOS)
+    // MARK: - Form submission observer (autofill)
+    //
+    // WebKit's form client reports classic form submissions with the text
+    // field values — the precise "the user just signed in" moment. SPA
+    // submissions (fetch/XHR) are detected by the session's own checks.
+
+    private func installFormSubmissionObserver() {
+        let sel = NSSelectorFromString("_setInputDelegate:")
+        guard webview.responds(to: sel) else { return }
+        _ = webview.perform(sel, with: self)
+    }
+
+    @objc(_webView:willSubmitFormValues:userObject:submissionHandler:)
+    func _webView(_ webView: WKWebView, willSubmitFormValues values: NSDictionary, userObject: Any?, submissionHandler: @escaping () -> Void) {
+        // Never hold the submission up.
+        submissionHandler()
+        var dict: [String: String] = [:]
+        for (k, v) in values {
+            if let key = k as? String, let value = v as? String { dict[key] = value }
+        }
+        MainActor.assumeIsolated { autofillSession.formWillSubmit(values: dict) }
+    }
+    #endif
 
     override func fullContentExtractionModeDidChange() {
         needsMetadataRefresh()

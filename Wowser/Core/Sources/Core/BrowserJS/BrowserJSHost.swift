@@ -178,6 +178,19 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func memoryQuery(scope: String?, sql: String, params: [Any], limit: Int) async throws -> [[String: Any]]
     func memoryOverview(scope: String?) async throws -> BrowserJSMemoryOverview
     func memorySetOverview(scope: String?, text: String) async throws -> BrowserJSMemoryOverview
+
+    // MARK: - Autofill (identity + saved logins)
+
+    /// Usernames saved for a domain (registrable-domain match). Never passwords.
+    func credentialsLookup(domain: String, spaceId: String?) async throws -> [BrowserJSCredentialInfo]
+    /// Whether a saved password exists for the domain (optionally for one username).
+    func credentialsHasPassword(domain: String, username: String?, spaceId: String?) async throws -> Bool
+    /// Types the saved password into the password field that has focus in
+    /// `tabId`, after verifying it IS a password field on the matching site.
+    /// The secret never crosses into JS.
+    func credentialsFillPassword(tabId: String, username: String?, domain: String?) async throws -> BrowserJSFillPasswordResult
+    /// The user's saved name / emails / phones / addresses.
+    func profileGet(spaceId: String?) async throws -> BrowserJSProfileInfo
 }
 
 public struct BrowserJSInjection: Codable, Equatable, Sendable {
@@ -235,6 +248,76 @@ public struct BrowserJSTerminalRead: Codable, Equatable, Sendable {
     public var cwd: String?
     public init(text: String, token: String, running: Bool, command: String? = nil, cwd: String? = nil) {
         self.text = text; self.token = token; self.running = running; self.command = command; self.cwd = cwd
+    }
+}
+
+public extension BrowserJSHost {
+    func credentialsLookup(domain: String, spaceId: String?) async throws -> [BrowserJSCredentialInfo] {
+        throw BrowserJSError.notImplemented("credentials.lookup")
+    }
+    func credentialsHasPassword(domain: String, username: String?, spaceId: String?) async throws -> Bool {
+        throw BrowserJSError.notImplemented("credentials.hasPassword")
+    }
+    func credentialsFillPassword(tabId: String, username: String?, domain: String?) async throws -> BrowserJSFillPasswordResult {
+        throw BrowserJSError.notImplemented("credentials.fillPassword")
+    }
+    func profileGet(spaceId: String?) async throws -> BrowserJSProfileInfo {
+        throw BrowserJSError.notImplemented("profile.get")
+    }
+}
+
+public struct BrowserJSCredentialInfo: Codable, Equatable, Sendable {
+    public var id: String
+    public var username: String
+    public var domain: String
+    public var host: String
+    /// Unix seconds.
+    public var lastUsed: Double
+
+    public init(id: String, username: String, domain: String, host: String, lastUsed: Double) {
+        self.id = id; self.username = username; self.domain = domain; self.host = host; self.lastUsed = lastUsed
+    }
+}
+
+public struct BrowserJSFillPasswordResult: Codable, Equatable, Sendable {
+    public var filled: Bool
+    public var username: String?
+
+    public init(filled: Bool, username: String?) {
+        self.filled = filled; self.username = username
+    }
+}
+
+public struct BrowserJSAddressInfo: Codable, Equatable, Sendable {
+    public var line1: String
+    public var line2: String
+    public var city: String
+    public var state: String
+    public var postalCode: String
+    public var country: String
+    public var oneLine: String
+
+    public init(line1: String, line2: String, city: String, state: String, postalCode: String, country: String, oneLine: String) {
+        self.line1 = line1; self.line2 = line2; self.city = city; self.state = state; self.postalCode = postalCode; self.country = country; self.oneLine = oneLine
+    }
+}
+
+public struct BrowserJSProfileInfo: Codable, Equatable, Sendable {
+    /// The most-used full name.
+    public var name: String?
+    public var givenName: String?
+    public var familyName: String?
+    public var names: [String]
+    public var emails: [String]
+    public var phones: [String]
+    public var organizations: [String]
+    public var addresses: [BrowserJSAddressInfo]
+    /// Domains with a saved login (see `credentials.lookup`).
+    public var savedLoginDomains: [String]
+
+    public init(name: String? = nil, givenName: String? = nil, familyName: String? = nil, names: [String] = [], emails: [String] = [], phones: [String] = [], organizations: [String] = [], addresses: [BrowserJSAddressInfo] = [], savedLoginDomains: [String] = []) {
+        self.name = name; self.givenName = givenName; self.familyName = familyName; self.names = names; self.emails = emails
+        self.phones = phones; self.organizations = organizations; self.addresses = addresses; self.savedLoginDomains = savedLoginDomains
     }
 }
 

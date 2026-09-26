@@ -8,7 +8,7 @@ import AppKit
 // per-pane buffer that replays backspace / forward-delete / arrow keys so the
 // stored text is what ended up in the field, not a keystroke log. Buffers
 // flush after a pause, when the typing target changes, or when they grow
-// large. Sensitive fields (password, card, OTP — see `focusedEditableJS`)
+// large. Sensitive fields (password, card, OTP — see `refreshFocusedEditableNow`)
 // are never captured, nor is anything typed with Cmd/Ctrl held.
 
 extension MemoryStore {

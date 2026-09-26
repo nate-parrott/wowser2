@@ -286,6 +286,9 @@ public actor BrowserAgentManager {
             \(BrowserJSDocs.dts)
             ```
             """
+            if let identity = await AutofillStore.agentIdentitySection() {
+                spec.appendSystemPrompt! += "\n\n" + identity
+            }
         }
         let id = record.agentID
         for tool in record.appTools {

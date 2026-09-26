@@ -59,6 +59,11 @@ public enum DefaultsKeys: String {
 
     case agentShellTools // bool (default off) — Claude Code agents get the harness's Bash/Read/Write/Edit/Glob/Grep tools (permissions bypassed); see ClaudeCodeAgentProvider
     case memoryEnabledScopes // [string] — dataStoreUUIDs whose memory store (event log) is on; see MemoryStore.swift
+    case autofillEnabled // bool (default on) — suggestion menu under form fields + agent credential hooks; see AutofillSettings
+    case autofillRememberForms // bool (default on) — remember logins / name / address from submitted forms
+    case autofillSearchableSelects // bool (default on) — replace the native <select> popup with a searchable menu
+    case autofillShareWithAgents // bool (default on) — put the profile's name / email / address in agents' system prompts
+    case autofillAgentPasswordFill // bool (default on) — allow browser.credentials.fillPassword from BrowserJS
 
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }
