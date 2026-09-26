@@ -29,6 +29,14 @@ final class SpeechTranscriber {
 
     /// Latest (partial or final) transcript for the current session.
     private(set) var transcript = ""
+    /// Text from earlier utterances the recognizer has stopped reporting.
+    /// After a pause, the on-device recognizer finalizes what it has and
+    /// subsequent results only cover the new utterance — its
+    /// `bestTranscription` no longer contains the old words. We detect that
+    /// (the first segment's timestamp jumps) and keep the old text here.
+    private var committed = ""
+    private var currentUtterance = ""
+    private var currentUtteranceStart: TimeInterval?
     var onTranscript: ((String, _ isFinal: Bool) -> Void)?
     var onError: ((Error) -> Void)?
 
@@ -55,6 +63,9 @@ final class SpeechTranscriber {
         guard let recognizer, recognizer.isAvailable else { throw TranscriberError.recognizerUnavailable }
         stop()
         transcript = ""
+        committed = ""
+        currentUtterance = ""
+        currentUtteranceStart = nil
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -79,7 +90,7 @@ final class SpeechTranscriber {
             Task { @MainActor in
                 guard let self else { return }
                 if let result {
-                    self.transcript = result.bestTranscription.formattedString
+                    self.absorb(result.bestTranscription)
                     self.onTranscript?(self.transcript, result.isFinal)
                     if result.isFinal {
                         self.finalContinuation?.resume(returning: self.transcript)
@@ -97,6 +108,25 @@ final class SpeechTranscriber {
                 }
             }
         }
+    }
+
+    /// Folds a new transcription into `transcript`, carrying earlier
+    /// utterances forward when the recognizer drops them.
+    private func absorb(_ transcription: SFTranscription) {
+        let text = transcription.formattedString
+        let start = transcription.segments.first?.timestamp
+        if let start, let prevStart = currentUtteranceStart, abs(start - prevStart) > 1.0, !currentUtterance.isEmpty {
+            committed = Self.join(committed, currentUtterance)
+        }
+        if start != nil { currentUtteranceStart = start }
+        currentUtterance = text
+        transcript = Self.join(committed, text)
+    }
+
+    private static func join(_ a: String, _ b: String) -> String {
+        if a.isEmpty { return b }
+        if b.isEmpty { return a }
+        return a + " " + b
     }
 
     /// Stops capturing and waits (briefly) for the recognizer's final pass.

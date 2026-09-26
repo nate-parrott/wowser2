@@ -78,6 +78,8 @@ public class WebContent: NSObject, ObservableObject {
         public var underPageBackgroundColor: HSBA?
         public var favicon: URL?
         public var ogImage: URL?
+        /// `<meta name=description>` / og:description, for the memory store's visit log.
+        public var pageDescription: String?
         public var isSecure = false
         public var readerAvailable: Bool? // corresponds to fullContentExtractionStatus.readerContent; requires fullContentExtractionMode to bet set; no diff between nil and false
         public var recipeDetected: Bool? // Always being checked
@@ -97,6 +99,13 @@ public class WebContent: NSObject, ObservableObject {
         /// "Thinking…" / "Driving the browser…" / "Writing…". Shown as the
         /// tab subtitle.
         public var agentStatusDetail: String?
+        /// Attention badge shown on the tab in the sidebar. Set when a pane
+        /// finishes work the user isn't watching (Claude Code goes idle in a
+        /// terminal tab, an agent tab finishes its turn); cleared when the tab
+        /// is activated. Owned by `BrowserState` — the live WebContent never
+        /// sets it, and `BrowserState.updatePaneInfo` carries it across the
+        /// wholesale info copies from the webview. See BrowserState+Badges.
+        public var badged: Bool?
         /// The editable element (input / textarea / contenteditable) that
         /// currently has focus in the page, if any — a heuristic, refreshed
         /// after clicks, keystrokes, scrolls and navigations (debounced).
@@ -112,6 +121,8 @@ public class WebContent: NSObject, ObservableObject {
             /// "input" | "textarea" | "contenteditable"
             public var kind: String
             public var multiline: Bool
+            /// Password / payment / one-time-code fields: never captured by the memory store.
+            public var sensitive: Bool?
 
             public var frame: CGRect { CGRect(x: x, y: y, width: width, height: height) }
         }

@@ -106,7 +106,7 @@ private struct DictationTranscriptBubble: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "mic.fill")
-                .foregroundStyle(.red)
+//                .foregroundStyle(.red)
                 .font(.system(size: 12, weight: .semibold))
                 .padding(.top, 1)
             Text(displayText)
@@ -117,8 +117,9 @@ private struct DictationTranscriptBubble: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+        .glassEffect(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+//        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+//        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
     }
 
     private var displayText: String {
@@ -213,7 +214,54 @@ struct DictationCardHighlight: ViewModifier {
         }
     }
 }
+
+/// Applied to an agent-chat tab's input box: outlines it while the mic is
+/// hovered with this pane as target, and reports whether a dictation session
+/// is live here (so the input shows the transcript instead of the text field).
+struct DictationAgentInputHighlight: ViewModifier {
+    var paneID: ID<WebContent>
+    var cornerRadius: CGFloat
+    @Binding var dictating: Bool
+
+    @ObservedObject private var controller = DictationController.shared
+
+    private var isActiveHere: Bool {
+        if let t = controller.target, case .agentChat(let pane, _) = t { return pane == paneID }
+        return false
+    }
+
+    private var isPreviewHere: Bool {
+        if let t = controller.hoverPreview, case .agentChat(let pane, _) = t { return pane == paneID }
+        return false
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isActiveHere || isPreviewHere {
+                    DictationOutline(active: isActiveHere, cornerRadius: cornerRadius)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onAppearOrChange(of: isActiveHere) { dictating = $0 }
+    }
+}
 #endif
+
+/// Cross-platform shim for `DictationAgentInputHighlight`.
+struct DictationAgentInputHighlightIfAvailable: ViewModifier {
+    var paneID: ID<WebContent>
+    var cornerRadius: CGFloat
+    @Binding var dictating: Bool
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.modifier(DictationAgentInputHighlight(paneID: paneID, cornerRadius: cornerRadius, dictating: $dictating))
+        #else
+        content
+        #endif
+    }
+}
 
 /// Cross-platform shim for `DictationCardHighlight`.
 struct DictationCardHighlightIfAvailable: ViewModifier {

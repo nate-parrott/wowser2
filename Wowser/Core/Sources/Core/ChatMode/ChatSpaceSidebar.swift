@@ -25,8 +25,14 @@ private struct ChatSpaceSidebarContent: View {
     @State private var lastJumpedToID: String?
     @State private var didAppear = false
     @State private var pendingScrollRestoreY: CGFloat?
-    @State private var clipsTop = false
-    @State private var clipsBottom = false
+    /// Tabs whose `lastAccessed` is within the auto-collapse window; a turn
+    /// that opened any of these stays expanded regardless of age.
+    @State private var recentlyAccessedTabIDs: Set<ID<Tab>> = []
+    private static let autoCollapseAge: TimeInterval = 60 * 60
+    /// The transcript scroll view reaches this far above its slot and fades
+    /// out over that distance at both ends, so clipped rows feather instead
+    /// of hard-cutting against the favorites and the input.
+    private let edgeFeather: CGFloat = 15
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,8 +63,7 @@ private struct ChatSpaceSidebarContent: View {
         }
     }
 
-    /// Consecutive tab cards are grouped so a run of cards can be closed
-    /// together from one hover button.
+    /// Consecutive tab cards are grouped so a run of cards renders as one block.
     private enum Segment: Identifiable {
         case row(ChatRowItem)
         case cards(id: String, [ChatRowItem])
@@ -70,7 +75,7 @@ private struct ChatSpaceSidebarContent: View {
         }
     }
 
-    private var segments: [Segment] {
+    private static func segments(from rows: [ChatRowItem]) -> [Segment] {
         var out: [Segment] = []
         for row in rows {
             if row.isTabCard, case .cards(let id, let items)? = out.last {
@@ -84,6 +89,65 @@ private struct ChatSpaceSidebarContent: View {
         return out
     }
 
+    /// A user message plus everything the model produced in response (text,
+    /// events, tab cards) up to the next user message. Rows before the first
+    /// user message form a preamble turn with no user row.
+    private struct Turn: Identifiable {
+        var id: String
+        var userRow: ChatRowItem?
+        var userDate: Date?
+        var body: [Segment]
+        var tabIDs: [ID<Tab>]
+    }
+
+    private var turns: [Turn] {
+        let dates = Dictionary(session.entries.map { ($0.id, $0.date) }, uniquingKeysWith: { a, _ in a })
+        var out: [Turn] = []
+        var current = Turn(id: "preamble", userRow: nil, userDate: nil, body: [], tabIDs: [])
+        var bodyRows: [ChatRowItem] = []
+        func flush() {
+            current.body = Self.segments(from: bodyRows)
+            if current.userRow != nil || !current.body.isEmpty { out.append(current) }
+            bodyRows = []
+        }
+        for row in rows {
+            if case .user = row {
+                flush()
+                current = Turn(id: row.id, userRow: row, userDate: dates[row.id], body: [], tabIDs: [])
+            } else {
+                bodyRows.append(row)
+                if case .tabCard(_, let tabID?, _, _, _) = row { current.tabIDs.append(tabID) }
+            }
+        }
+        flush()
+        return out
+    }
+
+    private func isCollapsed(_ turn: Turn, isLast: Bool) -> Bool {
+        guard turn.userRow != nil else { return false }
+        if let override = session.turnCollapseOverrides[turn.id] { return override }
+        // Auto-collapse: not the latest turn, older than an hour, and none of
+        // its tabs were used within the hour.
+        guard !isLast, let date = turn.userDate,
+              Date().timeIntervalSince(date) > Self.autoCollapseAge else { return false }
+        return !turn.tabIDs.contains { recentlyAccessedTabIDs.contains($0) }
+    }
+
+    private func toggleCollapse(_ turn: Turn, isLast: Bool) {
+        session.turnCollapseOverrides[turn.id] = !isCollapsed(turn, isLast: isLast)
+    }
+
+    private var recentlyAccessedTabsPublisher: AnyPublisher<Set<ID<Tab>>, Never> {
+        let age = Self.autoCollapseAge
+        return BrowserStore.shared.uiPublisher
+            .map { state in
+                let cutoff = Date(timeIntervalSinceNow: -age)
+                return Set(state.tabs.values.filter { $0.lastAccessed > cutoff }.map(\.id))
+            }
+            .removeDuplicates()
+            .eraseToAnyPublisher()
+    }
+
     private var latestJumpTarget: String? {
         rows.last(where: { $0.isJumpTarget })?.id
     }
@@ -94,22 +158,34 @@ private struct ChatSpaceSidebarContent: View {
                 if rows.isEmpty && !session.isWorking {
                     emptyState
                 }
-                ForEach(segments) { segment in
-                    switch segment {
-                    case .row(let item):
-                        ChatRowView(item: item, compact: true, windowID: windowID, openURL: openLink)
-                            .id(item.id)
-                            .padding(.horizontal, 8)
-                    case .cards(_, let items):
-                        ChatCardGroup(items: items, windowID: windowID)
-                            .id(items.first?.id ?? "")
+                let turns = self.turns
+                ForEach(turns) { turn in
+                    let isLast = turn.id == turns.last?.id
+                    let collapsed = isCollapsed(turn, isLast: isLast)
+                    if let userRow = turn.userRow {
+                        ChatRowView(item: userRow, compact: true, windowID: windowID, openURL: openLink,
+                                    turnCollapsed: collapsed, onToggleTurn: { toggleCollapse(turn, isLast: isLast) })
+                            .id(userRow.id)
+                            .padding(.horizontal, 12)
+                    }
+                    if !collapsed {
+                        ForEach(turn.body) { segment in
+                            switch segment {
+                            case .row(let item):
+                                ChatRowView(item: item, compact: true, windowID: windowID, openURL: openLink)
+                                    .id(item.id)
+                                    .padding(.horizontal, 12)
+                            case .cards(_, let items):
+                                ChatCardGroup(items: items, windowID: windowID)
+                                    .id(items.first?.id ?? "")
+                            }
+                        }
                     }
                 }
                 if session.isWorking {
                     HStack(spacing: 6) {
-                        LoadingIndicator(progress: nil)
-                            .frame(width: 14, height: 14)
-                        Text(session.statusDetail ?? "Working…")
+                        AgentFruitIcon(flavor: .flavor(forKey: profileID.raw), working: true, size: 14)
+                        Text(session.statusDetail ?? "Working")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button("Stop") { session.interrupt() }
@@ -118,24 +194,42 @@ private struct ChatSpaceSidebarContent: View {
                             .foregroundStyle(.secondary)
                             .underline()
                     }
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 12)
                 }
                 if let errorText = session.errorText {
                     Text(errorText)
                         .font(.caption)
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 12)
                 }
-                Color.clear.frame(height: 12)
+                // Half a viewport of room below the last row: a sent message
+                // lands mid-screen and the reply streams into the space beneath
+                // it without the viewport moving.
+                Color.clear.frame(height: viewportHeight * 0.5)
             }
             .padding(.top, 6)
             .frame(maxWidth: .infinity)
         }
+        .contentMargins(.vertical, edgeFeather, for: .scrollContent)
+        .mask(
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: edgeFeather)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: edgeFeather)
+            }
+        )
+        .padding(.top, -edgeFeather)
         .scrollBounceBehavior(.basedOnSize)
         .scrollPosition($scrollPos)
-        .overlay(alignment: .top) { if clipsTop { edgeDivider } }
-        .overlay(alignment: .bottom) { if clipsBottom { edgeDivider } }
+        .onReceive(recentlyAccessedTabsPublisher) { recentlyAccessedTabIDs = $0 }
+        .contextMenu {
+            Button("Clear Transcript") { session.clearTranscript() }
+            Divider()
+            Button("New Conversation") { session.clearThread() }
+        }
         .onScrollGeometryChange(for: ChatScrollGeometryInfo.self) { geo in
             ChatScrollGeometryInfo(
                 offsetY: geo.contentOffset.y,
@@ -145,8 +239,6 @@ private struct ChatSpaceSidebarContent: View {
         } action: { _, info in
             viewportHeight = info.viewportHeight
             distanceFromBottom = info.distanceFromBottom
-            clipsTop = info.offsetY > 1
-            clipsBottom = info.distanceFromBottom > 1
             guard didAppear else { return }
             if let pending = pendingScrollRestoreY {
                 let maxOffset = info.offsetY + info.distanceFromBottom
@@ -160,32 +252,18 @@ private struct ChatSpaceSidebarContent: View {
             }
             session.savedScrollY = info.offsetY
         }
-        .onChange(of: rows.count) { _, _ in
-            // New rows (cards, tool chips, streamed text): follow the bottom
-            // unless the user scrolled up to read.
-            guard didAppear, distanceFromBottom < viewportHeight * 1.5 else { return }
-            if let last = rows.last {
-                lastJumpedToID = last.id
-                withAnimation(.easeOut(duration: 0.2)) {
-                    scrollPos.scrollTo(id: last.id, anchor: .bottom)
-                }
-            }
-        }
         .onChange(of: latestJumpTarget) { _, newValue in
+            // Only the user's own send moves the viewport: scroll to the
+            // bottom, so the message sits above the half-viewport pad. Model
+            // output, cards and events never scroll — the reply fills in
+            // below without the view shifting.
             guard let newValue, newValue != lastJumpedToID else { return }
-            let isOwnSend: Bool = { if case .user? = rows.last(where: { $0.id == newValue }) { return true }; return false }()
-            if isOwnSend || distanceFromBottom < viewportHeight * 1.5 {
-                lastJumpedToID = newValue
-                withAnimation(.easeOut(duration: 0.2)) {
-                    scrollPos.scrollTo(id: newValue, anchor: .bottom)
-                }
+            guard case .user? = rows.last(where: { $0.id == newValue }) else { return }
+            lastJumpedToID = newValue
+            withAnimation(.easeOut(duration: 0.2)) {
+                scrollPos.scrollTo(edge: .bottom)
             }
         }
-    }
-
-    /// Subtle line where the transcript is clipped by the scroll viewport.
-    private var edgeDivider: some View {
-        Color.primary.opacity(0.1).frame(height: 1)
     }
 
     private var emptyState: some View {
@@ -215,47 +293,20 @@ private struct ChatScrollGeometryInfo: Equatable {
     var distanceFromBottom: CGFloat
 }
 
-/// A run of adjacent tab cards. Hovering reveals a close-all button so the
-/// user can sweep a batch of pages the agent opened.
+/// A run of adjacent tab cards.
 private struct ChatCardGroup: View {
     var items: [ChatRowItem]
     var windowID: ID<WindowState>
-    @State private var hovered = false
-
-    private var openTabIDs: [ID<Tab>] {
-        let state = BrowserStore.shared.model
-        return items.compactMap { item -> ID<Tab>? in
-            if case .tabCard(_, let tabID, _, _, _) = item, let tabID, state.tabs[tabID] != nil { return tabID }
-            return nil
-        }
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 4) {
             ForEach(items) { item in
                 ChatRowView(item: item, compact: true, windowID: windowID, openURL: { _ in })
                     .id(item.id)
             }
         }
         .padding(.horizontal, 2)
-        .overlay(alignment: .topTrailing) {
-            if hovered, items.count > 1, openTabIDs.count > 1 {
-                Button(action: closeAll) {
-                    Image(systemName: "xmark")
-                        .help("Close these \(openTabIDs.count) tabs")
-                }
-                .buttonStyle(TabAccessoryButtonStyle())
-                .offset(x: -6, y: -18)
-            }
-        }
-        .padding(.top, items.count > 1 ? 6 : 0)
-        .onHover { hovered = $0 }
-    }
-
-    private func closeAll() {
-        for tabID in openTabIDs {
-            closeTab(tabID: tabID)
-        }
+        .padding(.vertical, 8)
     }
 }
 
@@ -332,6 +383,12 @@ private struct ChatOmniboxInput: View {
     private var suggestions: some View {
         // Bottom-up: results[0] sits right above the field.
         VStack(spacing: 0) {
+            if results.count > 1 {
+                Color.primary.opacity(0.1)
+                    .frame(height: 1)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
+            }
             ForEach(Array(results.enumerated().reversed()), id: \.element.id) { index, result in
                 ChatSuggestionRow(
                     result: result,
@@ -449,6 +506,15 @@ private struct ChatOmniboxInput: View {
         // Open in a NEW tab: in chat mode the field is the new-tab entry
         // point, never an edit of the current page's URL.
         BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
+        // Whatever the user opened lands at the bottom of the thread. A fresh
+        // tab already got a card from tab observation (addCard dedupes that);
+        // this covers re-activating an existing tab or loading into a blank
+        // current tab, where no new tab appears.
+        let windowID = windowID
+        DispatchQueue.main.async {
+            guard let tabID = BrowserStore.shared.model.windows[windowID]?.currentTab else { return }
+            session.addCard(tabID: tabID, force: true)
+        }
     }
 
     private func focus() {

@@ -4,6 +4,7 @@ import Foundation
 struct CleanModeConfig: Equatable, Codable {
     var autoReaderRegexes: [String] // Apply auto-reader mode to paths that match this prefix
     var injectCSS: String?
+    var injectJS: String? // Re-run on every injection refresh (see WebContent.updateInjectedCode); must be idempotent
     var readerDisabled = false
     var stylingDisabled = false
     
@@ -88,6 +89,15 @@ extension CleanModeState {
         }
     }
     
+    /// Durable per-host injection (used by `browser.inject.*`). `nil` leaves a field untouched; "" clears it.
+    mutating func setInjection(host: String, css: String?, js: String?) {
+        updateSettings(host: host) { config in
+            if let css { config.injectCSS = css.nilIfEmpty }
+            if let js { config.injectJS = js.nilIfEmpty }
+            config.stylingDisabled = false
+        }
+    }
+
     mutating func setStylingEnabled(_ enable: Bool, onURL url: URL) {
         updateSettings(host: url.hostWithoutWWW) { config in
             config.stylingDisabled = !enable
@@ -154,7 +164,8 @@ class CleanModeStore: DataStore<CleanModeState> {
                     wantsReader: wantsReader,
                     readerReady: tabData.readerAvail,
                     wantsCSS: hostSettings.stylingDisabled ? nil : hostSettings.injectCSS,
-                    cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil,
+                    wantsJS: hostSettings.stylingDisabled ? nil : hostSettings.injectJS,
+                    cssAvail: hostSettings.injectCSS?.nilIfEmpty != nil || hostSettings.injectJS?.nilIfEmpty != nil,
                     adblockEnabled: adblockOn,
                     hasURL: true,
                     disableCleanMode: GeneratedPageKey(url: url) != nil, // disable for internal pages
@@ -170,6 +181,7 @@ struct CleanModeSnapshotForPane: Equatable {
     var wantsReader: Bool
     var readerReady: Bool
     var wantsCSS: String?
+    var wantsJS: String?
     var cssAvail: Bool
     var adblockEnabled: Bool
     var hasURL: Bool

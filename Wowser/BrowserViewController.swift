@@ -195,8 +195,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     /// still edits the current URL in the toolbar.)
     private func focusChatInputIfChatMode(windowID: ID<WindowState>) -> Bool {
         let state = BrowserStore.shared.model
-        guard let profileID = state.windows[windowID]?.profile,
-              state.profiles[profileID]?.isChatMode == true else { return false }
+        guard state.isChatMode, let profileID = state.windows[windowID]?.profile else { return false }
         BrowserStore.shared.modify { st in
             st.windows[windowID]?.sidebarLocked = true
             st.didFocus(target: .chatSpaceInput(profile: profileID, window: windowID))

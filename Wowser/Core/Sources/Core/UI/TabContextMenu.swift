@@ -72,6 +72,9 @@ public struct TabContextMenu: View {
                     FileTabMenuItems(tab: tab)
                     #endif
 
+                    MoveToSpaceMenu(tabID: tabID)
+                    FolderMenuItems(tabID: tabID)
+
                     if isFavorite {
                         if let pane = tab.panes.first,
                            pane.baseInfo != nil,
@@ -194,10 +197,13 @@ private struct FileTabMenuItems: View {
 
 public func closeTab(tabID: ID<Tab>) {
     // First read the state to get the pane ID
-    guard let tab = BrowserStore.shared.model.tabs[tabID],
+    let state = BrowserStore.shared.model
+    guard let tab = state.tabs[tabID],
           let paneID = tab.panes.first?.id else { return }
-    // Then close via BrowserStore's API
-    BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
+    // Closing a folder member resets it to its pinned state and keeps it in
+    // the folder ("Remove from Folder" is the way to actually drop it).
+    let inFolder = state.folderTab(containingTabId: tabID) != nil
+    BrowserStore.shared.close(webContentId: paneID, removeIfPinned: !inFolder)
 }
 
 // Helper function to rename a tab via a prompt
@@ -235,6 +241,89 @@ public func setTabEmoji(tabID: ID<Tab>) {
         guard let result else { return }
         BrowserStore.shared.modify { state in
             state.modifyTab(id: tabID) { $0.customEmoji = result.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+        }
+    }
+}
+
+/// "Add to Folder" submenu for tabs outside a folder; "Remove from Folder"
+/// for members. Folders come from the space the tab is in.
+private struct FolderMenuItems: View {
+    let tabID: ID<Tab>
+
+    private struct Snapshot: Equatable {
+        struct Folder: Equatable, Identifiable {
+            var id: ID<Tab>
+            var name: String
+        }
+        var isFolder: Bool
+        var inFolder: Bool
+        var folders: [Folder]
+    }
+
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            let window = state.windowContaining(tabId: tabID)
+            let profileID = window.flatMap { state.space(containingTabId: tabID, inWindow: $0.id) } ?? window?.profile
+            return Snapshot(
+                isFolder: state.tabs[tabID]?.isFolder == true,
+                inFolder: state.folderTab(containingTabId: tabID) != nil,
+                folders: profileID.map { state.folderTabIDs(inSpace: $0) }?
+                    .filter { $0 != tabID }
+                    .compactMap { id in state.folder(id: id).map { .init(id: id, name: $0.name) } } ?? []
+            )
+        } main: { snapshot in
+            if snapshot.isFolder {
+                EmptyView()
+            } else if snapshot.inFolder {
+                Button("Remove from Folder") {
+                    BrowserStore.shared.modify { $0.removeTabFromFolder(tabID) }
+                }
+            } else if !snapshot.folders.isEmpty {
+                Menu("Add to Folder") {
+                    ForEach(snapshot.folders) { folder in
+                        Button(folder.name) {
+                            BrowserStore.shared.modify { $0.addTab(tabID, toFolder: folder.id, open: true) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// "Move to Space" submenu: every visible space except the one the tab is in.
+private struct MoveToSpaceMenu: View {
+    let tabID: ID<Tab>
+
+    private struct Snapshot: Equatable {
+        struct Space: Equatable, Identifiable {
+            var id: ID<Profile>
+            var name: String
+        }
+        var windowID: ID<WindowState>?
+        var spaces: [Space]
+    }
+
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            let window = state.windowContaining(tabId: tabID)
+            let current = window.flatMap { state.space(containingTabId: tabID, inWindow: $0.id) } ?? window?.profile
+            return Snapshot(
+                windowID: window?.id,
+                spaces: state.visibleProfiles
+                    .filter { $0.id != current }
+                    .map { .init(id: $0.id, name: $0.displayName) }
+            )
+        } main: { snapshot in
+            if let windowID = snapshot.windowID, !snapshot.spaces.isEmpty {
+                Menu("Move to Space") {
+                    ForEach(snapshot.spaces) { space in
+                        Button(space.name) {
+                            BrowserStore.shared.move(tab: tabID, toSpace: space.id, inWindow: windowID)
+                        }
+                    }
+                }
+            }
         }
     }
 }

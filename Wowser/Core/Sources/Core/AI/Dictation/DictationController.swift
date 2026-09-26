@@ -28,12 +28,15 @@ public final class DictationController: ObservableObject {
         case omnibox(pane: ID<WebContent>?, window: ID<WindowState>)
         /// A native terminal tab: text is typed into its PTY.
         case terminal(pane: ID<WebContent>)
+        /// A native agent-chat tab: the transcript is sent as a message.
+        case agentChat(pane: ID<WebContent>, sessionKey: String)
 
         public var paneID: ID<WebContent>? {
             switch self {
             case .webField(let pane, _): return pane
             case .omnibox(let pane, _): return pane
             case .terminal(let pane): return pane
+            case .agentChat(let pane, _): return pane
             }
         }
         public var isOmnibox: Bool { if case .omnibox = self { return true } else { return false } }
@@ -71,8 +74,9 @@ public final class DictationController: ObservableObject {
         if case .omnibox = focus { return .omnibox(pane: paneID, window: windowID) }
         if case .emptyWindowOmnibox = focus { return .omnibox(pane: paneID, window: windowID) }
         if let paneID, let pane = state.pane(forId: paneID) {
-            if let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true {
-                return .terminal(pane: paneID)
+            if let url = pane.info.url, let key = NativePageKey(url: url) {
+                if key.isTerminal { return .terminal(pane: paneID) }
+                if case .agent(let sessionKey, _) = key { return .agentChat(pane: paneID, sessionKey: sessionKey) }
             }
             if let field = pane.info.focusedEditable, !pane.info.isEmptyPage {
                 return .webField(pane: paneID, field: field)
@@ -159,6 +163,9 @@ public final class DictationController: ObservableObject {
             case .terminal(let paneID):
                 deliverToTerminal(paneID: paneID, text: trimmed)
                 finish()
+            case .agentChat(_, let sessionKey):
+                finish()
+                AgentChatSession.session(forKey: sessionKey).send(text: trimmed)
             }
         }
     }

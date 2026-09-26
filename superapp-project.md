@@ -471,7 +471,7 @@ Questions:
 ### 8.4 iOS scope
 
 `Core` is cross-platform (`#if os(iOS)` branches throughout) and there's a
-`TangerineMobile` target. None of the proposed features have iOS analogues
+`WowserMobile` target. None of the proposed features have iOS analogues
 (no PTY, no `code serve-web`, no `proxyConfigurations` parity, no fs access).
 
 - **Q12.** Is this whole project Mac-only? Should new code live entirely

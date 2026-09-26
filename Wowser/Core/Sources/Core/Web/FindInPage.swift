@@ -30,9 +30,7 @@ struct FindInPageView: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        HStack(spacing: 12) {
-            // Search input
+        ToastLike(icon: "magnifyingglass", alignment: .center) {
             InputTextField(
                 text: $searchText,
                 options: InputTextFieldOptions(
@@ -47,6 +45,7 @@ struct FindInPageView: View {
                 }
             )
             .frame(height: 30)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: searchText) { _ in
                 performSearch()
             }
@@ -65,17 +64,18 @@ struct FindInPageView: View {
                 Button(action: findPrevious) {
                     Image(systemName: "chevron.up")
                         .help("Previous Match")
-                        .frame(both: 28)
+//                        .frame(both: 28)
                 }
                 .disabled(!hasMatch)
                 
                 Button(action: findNext) {
                     Image(systemName: "chevron.down")
                         .help("Next Match")
-                        .frame(both: 28)
+//                        .frame(both: 28)
                 }
                 .disabled(!hasMatch)
             }
+            .buttonStyle(ToastIconButtonStyle(primary: false))
             
             // Close button
             Button(action: {
@@ -84,22 +84,80 @@ struct FindInPageView: View {
             }) {
                 Image(systemName: "xmark")
                     .help("Close")
-                    .frame(both: 28)
+//                    .frame(both: 28)
             }
         }
-        .buttonStyle(GhostButtonStyle())
-        .frame(maxWidth: 300)
-        .padding(8)
-        .background {
-            ZStack {
-                LinearGradient(colors: [Color.white.opacity(0.1), Color.black.opacity(0.05)], startPoint: .top, endPoint: .bottom)
-                    .background(.thinMaterial)
-                    .clipShape(shape)
-                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
-                
-                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
-            }
-        }
+        
+//        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+//        HStack(spacing: 12) {
+//            // Search input
+//            InputTextField(
+//                text: $searchText,
+//                options: InputTextFieldOptions(
+//                    placeholder: "Find in page",
+//                    font: UINSFont.systemFont(ofSize: 15),
+//                    insets: CGSize(width: 5, height: 5)
+//                ),
+//                focusDate: focusDate,
+//                focusTarget: focusTarget,
+//                onEvent: { event in
+//                   handle(event)
+//                }
+//            )
+//            .frame(height: 30)
+//            .onChange(of: searchText) { _ in
+//                performSearch()
+//            }
+//            .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
+//            .onAppear { if paneID == nil { localFocusDate = Date() } }
+//            
+//            // Match indicator
+//            if !hasMatch && searchText != "" {
+//                Text("No matches")
+//                    .font(.system(size: 12))
+//                    .foregroundColor(.secondary)
+//            }
+//            
+//            // Navigation buttons
+//            HStack(spacing: 6) {
+//                Button(action: findPrevious) {
+//                    Image(systemName: "chevron.up")
+//                        .help("Previous Match")
+//                        .frame(both: 28)
+//                }
+//                .disabled(!hasMatch)
+//                
+//                Button(action: findNext) {
+//                    Image(systemName: "chevron.down")
+//                        .help("Next Match")
+//                        .frame(both: 28)
+//                }
+//                .disabled(!hasMatch)
+//            }
+//            
+//            // Close button
+//            Button(action: {
+//                clearFind()
+//                onClose()
+//            }) {
+//                Image(systemName: "xmark")
+//                    .help("Close")
+//                    .frame(both: 28)
+//            }
+//        }
+//        .buttonStyle(GhostButtonStyle())
+//        .frame(maxWidth: 300)
+//        .padding(8)
+//        .background {
+//            ZStack {
+//                LinearGradient(colors: [Color.white.opacity(0.1), Color.black.opacity(0.05)], startPoint: .top, endPoint: .bottom)
+//                    .background(.thinMaterial)
+//                    .clipShape(shape)
+//                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+//                
+//                shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+//            }
+//        }
     }
     
     private func handle(_ event: TextFieldEvent) {

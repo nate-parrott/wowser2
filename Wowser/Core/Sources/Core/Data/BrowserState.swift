@@ -7,6 +7,16 @@ public struct BrowserState: Equatable, Codable {
     public fileprivate(set) var tabs = [ID<Tab>: Tab]()
     public var profiles = [ID<Profile>: Profile]() // We should never be allowed to have zero profiles
     public var projects = [ID<Project>: Project]()
+    /// Chat mode (browser-wide): every space's sidebar shows its coordinator
+    /// chat thread instead of the tab list, and tabs surface as cards inside
+    /// that thread. Threads are kept per space in both modes (see
+    /// ChatSpaceSession), so toggling is free. Optional so old persisted
+    /// state decodes.
+    public var chatMode: Bool?
+    public var isChatMode: Bool { chatMode == true }
+    /// Trailing toolbar buttons: order, hidden set, user-created buttons.
+    /// See BrowserState+Toolbar.swift. Optional so old persisted state decodes.
+    public var toolbar: ToolbarConfig?
     
     // Lookup table
     public fileprivate(set) var paneToTabMapping = [ID<WebContent>: Tab.ID]()
@@ -48,6 +58,9 @@ public struct Tab: Equatable, Identifiable, Codable {
     /// Bumped to ask the sidebar row to "pop" (call attention to the tab, e.g.
     /// a new download). Rows observe it and animate on change.
     public var animationCount: Int?
+    /// Set on sidebar folders: a pane-less, non-selectable tab that groups
+    /// other tabs. See `TabFolder` / `BrowserState+Folders.swift`.
+    public var folder: TabFolder?
 
     public init(id: Core.ID<Tab>, panes: [Pane], lastAccessed: Date = Date(), aiTags: AITags? = nil) {
         self.id = id
@@ -119,6 +132,16 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// Bumped by `browser.tabs.use` and implicitly by page/content calls;
     /// cleared by the stage's expiry sweep. Default lease is one hour.
     public var agentActiveUntil: Date?
+    /// When an agent last touched this pane (lease set or bumped). Survives
+    /// the lease so the sidebar can say "Agent was using this tab" until the
+    /// user opens it. See `BrowserState.clearAttentionMarkers`.
+    public var agentLastUsedAt: Date?
+    /// Set by the lease sweep when the lease is still live but the agent
+    /// hasn't touched the pane for `BrowserState.agentUseRecentSeconds`:
+    /// the sidebar then says "was using" instead of "is using". Cleared on
+    /// the next touch. Stored (not derived) because getters can't read the
+    /// clock and nothing else would re-render the row when time passes.
+    public var agentUseStale: Bool?
     /// Which engine backs this pane. Stamped when the live WebContent is first
     /// created (nil until then, and for panes persisted before this existed).
     /// Lives on Pane rather than Info because `pane.info` gets wholesale-reset
@@ -132,6 +155,9 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// save memory (chat-mode spaces only). The page reloads from `info.url`
     /// the next time it's shown; cleared when the WebContent is recreated.
     public var unloaded: Bool?
+    /// True while the external-link classifier is deciding which space this
+    /// pane belongs in; the sidebar shows a subtitle. See BrowserStore+ExternalLinkSpaces.
+    public var pickingSpace: Bool?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -251,13 +277,16 @@ public struct Profile: Equatable, Codable {
     /// Folder this space is attached to (see "Add Folder…" in the space menu).
     /// Attaching a folder pins VS Code / terminal / files tabs for it.
     public var folderPath: String?
-    /// Chat mode: the sidebar shows a coordinator-agent chat thread instead of
-    /// the tab list, and tabs surface as cards inside that thread. See
-    /// ChatSpaceSession. Optional so old persisted state decodes.
-    public var chatMode: Bool?
+    /// Hosts (without www) of the last 20 distinct pages visited in this space,
+    /// most recent first. Context for sorting external links into spaces.
+    public var recentDomains: [String]?
 
     public var isHidden: Bool { hidden == true }
-    public var isChatMode: Bool { chatMode == true }
+    /// User title, else the AI-generated one, else "Space N" (same fallback
+    /// as the sidebar's SpaceNameLabel placeholder).
+    public var displayName: String {
+        title?.nilIfEmpty ?? autoTitle?.nilIfEmpty ?? "Space \(creationOrder + 1)"
+    }
 }
 
 public struct Project: Equatable, Codable {
@@ -321,7 +350,9 @@ public class BrowserStore: DataStore<BrowserState> {
             }.store(in: &subscriptions)
 
         setupAutoArchiving()
+        setupCleanupAfterLaunch()
         setupChatModeUnloader()
+        setupChatThreadMirroring()
         
         // setupSearchFieldDismissOnSwitch
         addChangeHook { prev, next in
@@ -334,6 +365,16 @@ public class BrowserStore: DataStore<BrowserState> {
                !(next.currentWebContentInfo(windowID: winID)?.isEmptyPage ?? false)
             {
                 next.windows[winID]?.searchOverlayActive = false
+            }
+        }
+
+        // A tab that becomes a window's main tab has been seen: drop its
+        // badge, whichever code path switched it (activate, drag/drop, adopt).
+        addChangeHook { prev, next in
+            for window in next.windows.values {
+                if let tabID = window.currentTab, prev.windows[window.id]?.currentTab != tabID {
+                    next.clearAttentionMarkers(forTabId: tabID)
+                }
             }
         }
     }
@@ -566,6 +607,7 @@ extension BrowserStore: WebContentDelegate {
     
     public func webContent(_ webContent: WebContent, didSpawnNewWebContent newWebContent: WebContent, shouldActivate: Bool) {
         var winID: ID<WindowState>?
+        MemoryStore.shared.noteSpawn(parent: webContent, child: newWebContent)
         
         modify { state in
             // TODO: Store tab parent?
@@ -607,10 +649,12 @@ extension BrowserStore: WebContentDelegate {
     
     public func webContent(_ webContent: WebContent, infoDidChange info: WebContent.Info, previous: WebContent.Info?) {
         modify { state in
-            state.modifyPaneAndTab(forWebContentId: webContent.id) { pane, _ in
-                pane.info = info
+            state.updatePaneInfo(forWebContentId: webContent.id) { $0 = info }
+            if let url = info.url, url.historyKey != previous?.url?.historyKey {
+                state.noteVisitedDomain(url: url, forWebContentId: webContent.id)
             }
         }
+        MemoryStore.shared.noteInfoChange(webContent: webContent, info: info, previous: previous)
         
 //        let isNativeURL = info.url.flatMap(NativePageKey.init(url:)) != nil
         if let url = info.url, url.historyKey != previous?.url?.historyKey,
@@ -701,6 +745,18 @@ extension BrowserState {
         }
     }
     
+    /// The folder attached to the space showing this pane, if any. Used as the
+    /// launch cwd for agents created in that space.
+    func spaceFolderPath(forWebContentId id: ID<WebContent>) -> String? {
+        profile(forWebContentId: id)?.folderPath?.nilIfEmpty
+    }
+
+    /// The folder attached to the space a window is currently showing, if any.
+    func spaceFolderPath(windowID: ID<WindowState>?) -> String? {
+        guard let windowID, let win = windows[windowID] else { return nil }
+        return profiles[win.profile]?.folderPath?.nilIfEmpty
+    }
+
     func profile(forWebContentId id: ID<WebContent>) -> Profile? {
         if let tabId = paneToTabMapping[id], let win = windowContaining(tabId: tabId), let profile = profiles[win.profile] {
             return profile
@@ -725,6 +781,10 @@ extension BrowserState {
     
     // Can skip removeFromParent if these tabs are children of a window
     mutating func _removeTab_unsafe_doesntCloseWebContent(tabId: ID<Tab>, removeFromParent: Bool = true) {
+        // A folder takes its members with it.
+        for member in tabs[tabId]?.folder?.tabs ?? [] {
+            _removeTab_unsafe_doesntCloseWebContent(tabId: member, removeFromParent: false)
+        }
         let hosts = tabs[tabId]?.panes.compactMap { $0.info.url?.hostWithoutWWW }.asSet ?? Set()
         if let win = windowContaining(tabId: tabId) {
             let winId = win.id
@@ -744,6 +804,8 @@ extension BrowserState {
                     projects[projId]?.tabs.remove(at: idx)
                 case .attachedAgent(let idx):
                     windows[winId]?.attachedAgentTabs.remove(at: idx)
+                case .folder:
+                    _detachFromFolder(tabId)
                 }
             }
         }
@@ -772,6 +834,15 @@ extension BrowserState {
         }
     }
     
+    /// Registers a tab in `tabs` (and its panes in the lookup table) without
+    /// placing it anywhere in a sidebar. Callers must list it somewhere.
+    mutating func _registerTab_unsafe(_ tab: Tab) {
+        tabs[tab.id] = tab
+        for pane in tab.panes {
+            paneToTabMapping[pane.id] = tab.id
+        }
+    }
+
     mutating func insertTab(_ tab: Tab, location: SidebarLocation, inWindow window: ID<WindowState>) {
         if tabs[tab.id] == nil {
             // this is new; let's increment the counter
@@ -790,6 +861,14 @@ extension BrowserState {
             projects[id]?.tabs.insert(tab.id, at: idx)
         case .attachedAgent(let idx):
             windows[window]?.attachedAgentTabs.insert(tab.id, at: idx)
+        case .folder(let folderTabID, let idx):
+            modifyTab(id: tab.id) { t in
+                for i in t.panes.asArray.indices {
+                    let info = t.panes[i]?.info
+                    t.panes[i]?.baseInfo = info
+                }
+            }
+            modifyFolder(id: folderTabID) { $0.tabs.insert(tab.id, at: min(idx, $0.tabs.count)) }
         }
     }
     
@@ -838,6 +917,29 @@ private extension BrowserState {
         } else {
             windows = [:]
         }
+        resetTerminalRunStateAfterLoad()
+    }
+
+    /// No process can be running in a terminal tab right after launch, so
+    /// drop each terminal pane's foreground command and turn a Claude Code
+    /// spinner glyph in its title back into the idle glyph. The title text
+    /// itself is kept so the sidebar still says what the tab was doing.
+    mutating func resetTerminalRunStateAfterLoad() {
+        for tab in tabs.values {
+            for pane in tab.panes.asArray {
+                guard let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true else { continue }
+                var info = pane.info
+                info.terminalForegroundCommand = nil
+                if let title = info.title,
+                   let first = title.first,
+                   WebContent.Info.claudeCodeRunningGlyphs.contains(first) {
+                    info.title = String(WebContent.Info.claudeCodeIdleGlyph) + title.dropFirst()
+                }
+                if info != pane.info {
+                    tabs[tab.id]?.panes[pane.id]?.info = info
+                }
+            }
+        }
     }
 }
 
@@ -855,15 +957,31 @@ private extension WindowState {
 public extension BrowserState {
     /// Default lease for `tabs.use` and implicit agent activity.
     static let agentUseLeaseSeconds: TimeInterval = 60 * 60
+    /// How long after the last agent touch a live lease still counts as
+    /// "Agent is using this tab" rather than "was using".
+    static let agentUseRecentSeconds: TimeInterval = 2 * 60
+    /// `touchAgentUse` only rewrites `agentLastUsedAt` when it's older than
+    /// this, so chatty page/content calls don't churn state.
+    static let agentUseTouchSlack: TimeInterval = 30
 
     /// Mark `paneID` as actively used by an agent until `until`. Pass nil to
     /// release it. Returns false if the pane doesn't exist.
     @discardableResult
-    mutating func setAgentUse(paneID: ID<WebContent>, until: Date?) -> Bool {
+    mutating func setAgentUse(paneID: ID<WebContent>, until: Date?, now: Date = Date()) -> Bool {
         guard let tabID = paneToTabMapping[paneID], tabs[tabID]?.panes[paneID] != nil else { return false }
+        let visible = tabIsVisible(tabID)
         modifyTab(id: tabID) { tab in
             if var pane = tab.panes[paneID] {
                 pane.agentActiveUntil = until
+                if until != nil {
+                    pane.agentLastUsedAt = now
+                    pane.agentUseStale = nil
+                } else if visible {
+                    // Released while the user is looking at it: nothing to
+                    // call attention to later.
+                    pane.agentLastUsedAt = nil
+                    pane.agentUseStale = nil
+                }
                 tab.panes[pane.id] = pane
             }
         }
@@ -876,8 +994,18 @@ public extension BrowserState {
     @discardableResult
     mutating func touchAgentUse(paneID: ID<WebContent>, now: Date = Date(), lease: TimeInterval = BrowserState.agentUseLeaseSeconds, slack: TimeInterval = 10 * 60) -> Bool {
         guard let tabID = paneToTabMapping[paneID], let pane = tabs[tabID]?.panes[paneID] else { return false }
-        if let until = pane.agentActiveUntil, until > now.addingTimeInterval(lease - slack) { return false }
-        return setAgentUse(paneID: paneID, until: now.addingTimeInterval(lease))
+        if let until = pane.agentActiveUntil, until > now.addingTimeInterval(lease - slack) {
+            // Lease is fresh; still record the touch (coarsely) so "is using"
+            // stays accurate.
+            let lastUsed = pane.agentLastUsedAt ?? .distantPast
+            guard pane.agentUseStale == true || now.timeIntervalSince(lastUsed) > BrowserState.agentUseTouchSlack else { return false }
+            modifyTab(id: tabID) { tab in
+                tab.panes[paneID]?.agentLastUsedAt = now
+                tab.panes[paneID]?.agentUseStale = nil
+            }
+            return true
+        }
+        return setAgentUse(paneID: paneID, until: now.addingTimeInterval(lease), now: now)
     }
 
     /// Clear every expired lease; returns the panes that were released.
@@ -888,7 +1016,16 @@ public extension BrowserState {
                 released.append(pane.id)
             }
         }
-        for id in released { setAgentUse(paneID: id, until: nil) }
+        for id in released { setAgentUse(paneID: id, until: nil, now: now) }
+        // Live leases the agent hasn't touched in a while flip to "was using".
+        for tab in tabs.values {
+            for pane in tab.panes.asArray where pane.agentActiveUntil != nil && pane.agentUseStale != true {
+                let lastUsed = pane.agentLastUsedAt ?? .distantPast
+                if now.timeIntervalSince(lastUsed) > BrowserState.agentUseRecentSeconds {
+                    modifyTab(id: tab.id) { $0.panes[pane.id]?.agentUseStale = true }
+                }
+            }
+        }
         return released
     }
 }

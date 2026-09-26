@@ -86,6 +86,10 @@ struct FileBrowserOverlay: View {
                 } else {
                     QuickLookPreview(url: currentURL)
                         .id(currentURL)
+                        .overlay(alignment: .bottom) {
+                            QuickLookFloatingToolbar(url: currentURL)
+                                .id(currentURL)
+                        }
                 }
             }
         }
@@ -501,6 +505,59 @@ private struct DownloadStatusView: View {
             return "\(formattedSize(download.currentSize)) of \(formattedSize(download.estimatedSize))"
         }
         return download.currentSize > 0 ? formattedSize(download.currentSize) : "Starting…"
+    }
+}
+
+/// Large floating "Open" / "Reveal" bar shown over a full-pane Quick Look
+/// preview. Dismissable via the x button; reappears when the previewed file
+/// changes (the parent re-keys it on the URL).
+private struct QuickLookFloatingToolbar: View {
+    var url: URL
+    @State private var dismissed = false
+
+    var body: some View {
+        if !dismissed {
+            HStack(spacing: 12) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Open", systemImage: "arrow.up.forward.app")
+                        .frame(minWidth: 120)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } label: {
+                    Label("Reveal", systemImage: "folder")
+                        .frame(minWidth: 120)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    dismissed = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.bordered)
+                .foregroundStyle(.secondary)
+                .help("Hide toolbar")
+            }
+            .controlSize(.extraLarge)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .glassEffect(in: Capsule(style: .continuous))
+//            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+//            .overlay {
+//                RoundedRectangle(cornerRadius: 16, style: .continuous)
+//                    .strokeBorder(.separator, lineWidth: 1)
+//            }
+//            .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+            .padding(.bottom, 28)
+        }
     }
 }
 

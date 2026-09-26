@@ -122,6 +122,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
         webview = .init(frame: .zero, configuration: config)
         webview.allowsBackForwardNavigationGestures = true
+        webview.allowsMagnification = true
 //        if #available(iOS 16.4, macOS 13.3, *) {
 //            webview.isInspectable = true
 //        }
@@ -200,6 +201,13 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
             self.needsFocusedEditableRefresh()
         }
 
+        #if os(macOS)
+        webview.onMouseDown = { [weak self] event in
+            guard let self, MemoryStore.shared.isActive else { return }
+            MemoryStore.shared.noteMouseDown(webContent: self, webview: self.webview, event: event)
+        }
+        #endif
+        MemoryFormBridge.install(on: webview.configuration, isFreshConfig: isFreshConfig, webContent: self)
         webview.onUserInteraction = { [weak self] in
             self?.needsFocusedEditableRefresh()
         }
@@ -380,6 +388,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         needsMetadataRefresh()
+        MemoryStore.shared.notePageLoaded(webContent: self)
         // Trigger a final refresh a bit later, just in case stuff hasn't rendered yet
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.needsMetadataRefresh()
@@ -489,19 +498,23 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
         if (!el || el === document.body || el === document.documentElement) return null;
         const tag = el.tagName;
-        let kind = null, multiline = false;
+        let kind = null, multiline = false, sensitive = false;
+        const ac = ((el.getAttribute && el.getAttribute('autocomplete')) || '').toLowerCase();
+        const hint = ((el.name || '') + ' ' + (el.id || '') + ' ' + ac).toLowerCase();
+        if (/cc-|one-time-code|password|passwd|cvv|cvc|card-?number|ssn/.test(hint)) sensitive = true;
         if (tag === 'TEXTAREA') { kind = 'textarea'; multiline = true; }
         else if (tag === 'INPUT') {
             const t = (el.getAttribute('type') || 'text').toLowerCase();
             const textual = ['text','search','email','url','tel','number','password',''];
             if (!textual.includes(t)) return null;
             if (el.readOnly || el.disabled) return null;
+            if (t === 'password') sensitive = true;
             kind = 'input';
         } else if (el.isContentEditable) { kind = 'contenteditable'; multiline = true; }
         else return null;
         const r = el.getBoundingClientRect();
         if (r.width <= 0 || r.height <= 0) return null;
-        return { x: r.left, y: r.top, width: r.width, height: r.height, kind, multiline };
+        return { x: r.left, y: r.top, width: r.width, height: r.height, kind, multiline, sensitive };
     })()
     """
 
@@ -518,7 +531,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
                let x = dict["x"] as? Double, let y = dict["y"] as? Double,
                let w = dict["width"] as? Double, let h = dict["height"] as? Double,
                let kind = dict["kind"] as? String {
-                value = Info.FocusedEditable(x: x, y: y, width: w, height: h, kind: kind, multiline: dict["multiline"] as? Bool ?? false)
+                value = Info.FocusedEditable(x: x, y: y, width: w, height: h, kind: kind, multiline: dict["multiline"] as? Bool ?? false, sensitive: (dict["sensitive"] as? Bool ?? false) ? true : nil)
             }
             if self.info.focusedEditable != value {
                 self.info.focusedEditable = value
@@ -557,9 +570,13 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
             do {
                 let extracted = try await extractWebContentData()
                 docReadyWithURL = extracted.isReady ? extracted.jsURL : nil
+                // Favicons are loaded with URLSession (not WebKit), which can't
+                // speak tang://, so resolve a tang app's icon to its file on disk.
+                let favicon = extracted.favicon?.nilIfExtensionIs("svg").flatMap { $0.scheme == TangSchemeHandler.scheme ? $0.tangFileURL : $0 }
                 DispatchQueue.main.async {
-                    self.info.favicon = extracted.favicon?.nilIfExtensionIs("svg")
+                    self.info.favicon = favicon
                     self.info.ogImage = extracted.ogImage
+                    self.info.pageDescription = extracted.description?.nilIfEmpty
                     self.info.recipeDetected = extracted.isRecipe?.nilIfFalse
                     self.info.mobileViewport = extracted.mobileViewport
 //                    print("RECIPE DETECTED: \(extracted.isRecipe?.nilIfFalse ?? false)")
@@ -639,6 +656,13 @@ if (css) {
 extension URL {
     func nilIfExtensionIs(_ ext: String) -> URL? {
         pathExtension == ext ? nil : self
+    }
+
+    /// For a `tang://<app>/<file>` URL, the file:// URL it's served from
+    /// (on-disk app first, then bundled). Nil if the file doesn't exist.
+    var tangFileURL: URL? {
+        guard scheme == TangSchemeHandler.scheme, let host else { return nil }
+        return TangAppStore.shared.resolveFile(forHost: host, path: path)
     }
 }
 

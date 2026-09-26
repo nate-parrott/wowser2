@@ -17,14 +17,14 @@
 			containerPortal = 357E5AE52D7E3510009CD80F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 35081F052DD97078007561FA;
-			remoteInfo = TangerineMobile;
+			remoteInfo = WowserMobile;
 		};
 		35081F202DD9707A007561FA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 357E5AE52D7E3510009CD80F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 35081F052DD97078007561FA;
-			remoteInfo = TangerineMobile;
+			remoteInfo = WowserMobile;
 		};
 		357E5AFF2D7E3511009CD80F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -43,55 +43,55 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		35081F062DD97078007561FA /* Tangerine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tangerine.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		35081F152DD9707A007561FA /* TangerineMobileTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TangerineMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		35081F1F2DD9707A007561FA /* TangerineMobileUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TangerineMobileUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		357E5AED2D7E3510009CD80F /* Tangerine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tangerine.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		35081F062DD97078007561FA /* Wowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		35081F152DD9707A007561FA /* WowserMobileTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		35081F1F2DD9707A007561FA /* WowserMobileUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserMobileUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		357E5AED2D7E3510009CD80F /* Wowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		357E5AFE2D7E3511009CD80F /* WowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		357E5B082D7E3511009CD80F /* WowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		35081F492DD9A235007561FA /* Exceptions for "TangerineMobile" folder in "TangerineMobile" target */ = {
+		35081F492DD9A235007561FA /* Exceptions for "WowserMobile" folder in "WowserMobile" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 35081F052DD97078007561FA /* TangerineMobile */;
+			target = 35081F052DD97078007561FA /* WowserMobile */;
 		};
-		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */ = {
+		35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Core,
 				Info.plist,
 			);
-			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
+			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		35081F072DD97078007561FA /* TangerineMobile */ = {
+		35081F072DD97078007561FA /* WowserMobile */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				35081F492DD9A235007561FA /* Exceptions for "TangerineMobile" folder in "TangerineMobile" target */,
+				35081F492DD9A235007561FA /* Exceptions for "WowserMobile" folder in "WowserMobile" target */,
 			);
-			path = TangerineMobile;
+			path = WowserMobile;
 			sourceTree = "<group>";
 		};
-		35081F182DD9707A007561FA /* TangerineMobileTests */ = {
+		35081F182DD9707A007561FA /* WowserMobileTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TangerineMobileTests;
+			path = WowserMobileTests;
 			sourceTree = "<group>";
 		};
-		35081F222DD9707A007561FA /* TangerineMobileUITests */ = {
+		35081F222DD9707A007561FA /* WowserMobileUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TangerineMobileUITests;
+			path = WowserMobileUITests;
 			sourceTree = "<group>";
 		};
 		357E5AEF2D7E3510009CD80F /* Wowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Tangerine" target */,
+				35D32B432D7E4D8000CE6CD0 /* Exceptions for "Wowser" folder in "Wowser" target */,
 			);
 			path = Wowser;
 			sourceTree = "<group>";
@@ -162,9 +162,9 @@
 				357E5AEF2D7E3510009CD80F /* Wowser */,
 				357E5B012D7E3511009CD80F /* WowserTests */,
 				357E5B0B2D7E3511009CD80F /* WowserUITests */,
-				35081F072DD97078007561FA /* TangerineMobile */,
-				35081F182DD9707A007561FA /* TangerineMobileTests */,
-				35081F222DD9707A007561FA /* TangerineMobileUITests */,
+				35081F072DD97078007561FA /* WowserMobile */,
+				35081F182DD9707A007561FA /* WowserMobileTests */,
+				35081F222DD9707A007561FA /* WowserMobileUITests */,
 				357E5C502D7E362E009CD80F /* Frameworks */,
 				357E5AEE2D7E3510009CD80F /* Products */,
 			);
@@ -173,12 +173,12 @@
 		357E5AEE2D7E3510009CD80F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				357E5AED2D7E3510009CD80F /* Tangerine.app */,
+				357E5AED2D7E3510009CD80F /* Wowser.app */,
 				357E5AFE2D7E3511009CD80F /* WowserTests.xctest */,
 				357E5B082D7E3511009CD80F /* WowserUITests.xctest */,
-				35081F062DD97078007561FA /* Tangerine.app */,
-				35081F152DD9707A007561FA /* TangerineMobileTests.xctest */,
-				35081F1F2DD9707A007561FA /* TangerineMobileUITests.xctest */,
+				35081F062DD97078007561FA /* Wowser.app */,
+				35081F152DD9707A007561FA /* WowserMobileTests.xctest */,
+				35081F1F2DD9707A007561FA /* WowserMobileUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -193,9 +193,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		35081F052DD97078007561FA /* TangerineMobile */ = {
+		35081F052DD97078007561FA /* WowserMobile */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 35081F272DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobile" */;
+			buildConfigurationList = 35081F272DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobile" */;
 			buildPhases = (
 				35081F022DD97078007561FA /* Sources */,
 				35081F032DD97078007561FA /* Frameworks */,
@@ -207,19 +207,19 @@
 				35081F312DD9709C007561FA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				35081F072DD97078007561FA /* TangerineMobile */,
+				35081F072DD97078007561FA /* WowserMobile */,
 			);
-			name = TangerineMobile;
+			name = WowserMobile;
 			packageProductDependencies = (
 				35081F322DD970A4007561FA /* Core */,
 			);
-			productName = TangerineMobile;
-			productReference = 35081F062DD97078007561FA /* Tangerine.app */;
+			productName = WowserMobile;
+			productReference = 35081F062DD97078007561FA /* Wowser.app */;
 			productType = "com.apple.product-type.application";
 		};
-		35081F142DD9707A007561FA /* TangerineMobileTests */ = {
+		35081F142DD9707A007561FA /* WowserMobileTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 35081F2A2DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobileTests" */;
+			buildConfigurationList = 35081F2A2DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobileTests" */;
 			buildPhases = (
 				35081F112DD9707A007561FA /* Sources */,
 				35081F122DD9707A007561FA /* Frameworks */,
@@ -231,18 +231,18 @@
 				35081F172DD9707A007561FA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				35081F182DD9707A007561FA /* TangerineMobileTests */,
+				35081F182DD9707A007561FA /* WowserMobileTests */,
 			);
-			name = TangerineMobileTests;
+			name = WowserMobileTests;
 			packageProductDependencies = (
 			);
-			productName = TangerineMobileTests;
-			productReference = 35081F152DD9707A007561FA /* TangerineMobileTests.xctest */;
+			productName = WowserMobileTests;
+			productReference = 35081F152DD9707A007561FA /* WowserMobileTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		35081F1E2DD9707A007561FA /* TangerineMobileUITests */ = {
+		35081F1E2DD9707A007561FA /* WowserMobileUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 35081F2D2DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobileUITests" */;
+			buildConfigurationList = 35081F2D2DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobileUITests" */;
 			buildPhases = (
 				35081F1B2DD9707A007561FA /* Sources */,
 				35081F1C2DD9707A007561FA /* Frameworks */,
@@ -254,18 +254,18 @@
 				35081F212DD9707A007561FA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				35081F222DD9707A007561FA /* TangerineMobileUITests */,
+				35081F222DD9707A007561FA /* WowserMobileUITests */,
 			);
-			name = TangerineMobileUITests;
+			name = WowserMobileUITests;
 			packageProductDependencies = (
 			);
-			productName = TangerineMobileUITests;
-			productReference = 35081F1F2DD9707A007561FA /* TangerineMobileUITests.xctest */;
+			productName = WowserMobileUITests;
+			productReference = 35081F1F2DD9707A007561FA /* WowserMobileUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		357E5AEC2D7E3510009CD80F /* Tangerine */ = {
+		357E5AEC2D7E3510009CD80F /* Wowser */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Tangerine" */;
+			buildConfigurationList = 357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Wowser" */;
 			buildPhases = (
 				357E5AE92D7E3510009CD80F /* Sources */,
 				357E5AEA2D7E3510009CD80F /* Frameworks */,
@@ -280,12 +280,12 @@
 			fileSystemSynchronizedGroups = (
 				357E5AEF2D7E3510009CD80F /* Wowser */,
 			);
-			name = Tangerine;
+			name = Wowser;
 			packageProductDependencies = (
 				357E5C512D7E362E009CD80F /* Core */,
 			);
 			productName = Wowser;
-			productReference = 357E5AED2D7E3510009CD80F /* Tangerine.app */;
+			productReference = 357E5AED2D7E3510009CD80F /* Wowser.app */;
 			productType = "com.apple.product-type.application";
 		};
 		357E5AFD2D7E3511009CD80F /* WowserTests */ = {
@@ -385,12 +385,12 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				357E5AEC2D7E3510009CD80F /* Tangerine */,
+				357E5AEC2D7E3510009CD80F /* Wowser */,
 				357E5AFD2D7E3511009CD80F /* WowserTests */,
 				357E5B072D7E3511009CD80F /* WowserUITests */,
-				35081F052DD97078007561FA /* TangerineMobile */,
-				35081F142DD9707A007561FA /* TangerineMobileTests */,
-				35081F1E2DD9707A007561FA /* TangerineMobileUITests */,
+				35081F052DD97078007561FA /* WowserMobile */,
+				35081F142DD9707A007561FA /* WowserMobileTests */,
+				35081F1E2DD9707A007561FA /* WowserMobileUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -510,12 +510,12 @@
 /* Begin PBXTargetDependency section */
 		35081F172DD9707A007561FA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 35081F052DD97078007561FA /* TangerineMobile */;
+			target = 35081F052DD97078007561FA /* WowserMobile */;
 			targetProxy = 35081F162DD9707A007561FA /* PBXContainerItemProxy */;
 		};
 		35081F212DD9707A007561FA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 35081F052DD97078007561FA /* TangerineMobile */;
+			target = 35081F052DD97078007561FA /* WowserMobile */;
 			targetProxy = 35081F202DD9707A007561FA /* PBXContainerItemProxy */;
 		};
 		35081F312DD9709C007561FA /* PBXTargetDependency */ = {
@@ -524,12 +524,12 @@
 		};
 		357E5B002D7E3511009CD80F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
+			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
 			targetProxy = 357E5AFF2D7E3511009CD80F /* PBXContainerItemProxy */;
 		};
 		357E5B0A2D7E3511009CD80F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 357E5AEC2D7E3510009CD80F /* Tangerine */;
+			target = 357E5AEC2D7E3510009CD80F /* Wowser */;
 			targetProxy = 357E5B092D7E3511009CD80F /* PBXContainerItemProxy */;
 		};
 		357E5C4F2D7E3629009CD80F /* PBXTargetDependency */ = {
@@ -546,11 +546,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_ASSET_PATHS = "\"TangerineMobile/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"WowserMobile/Preview Content\"";
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TangerineMobile/Info.plist;
+				INFOPLIST_FILE = WowserMobile/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can use the camera with permission.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can use your location with permission.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can use the microphone with permission.";
@@ -566,8 +566,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobile;
-				PRODUCT_NAME = Tangerine;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobile;
+				PRODUCT_NAME = Wowser;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -585,11 +585,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_ASSET_PATHS = "\"TangerineMobile/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"WowserMobile/Preview Content\"";
 				DEVELOPMENT_TEAM = VPN8ZW6EAC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TangerineMobile/Info.plist;
+				INFOPLIST_FILE = WowserMobile/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can use the camera with permission.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites can use your location with permission.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Websites can use the microphone with permission.";
@@ -605,8 +605,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobile;
-				PRODUCT_NAME = Tangerine;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobile;
+				PRODUCT_NAME = Wowser;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -628,13 +628,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobileTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobileTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TangerineMobile.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TangerineMobile";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WowserMobile.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WowserMobile";
 			};
 			name = Debug;
 		};
@@ -648,13 +648,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobileTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobileTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TangerineMobile.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TangerineMobile";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WowserMobile.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WowserMobile";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -668,13 +668,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobileUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobileUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = TangerineMobile;
+				TEST_TARGET_NAME = WowserMobile;
 			};
 			name = Debug;
 		};
@@ -687,13 +687,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.TangerineMobileUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nateparrott.WowserMobileUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = TangerineMobile;
+				TEST_TARGET_NAME = WowserMobile;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -832,7 +832,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Tangerine;
+				INFOPLIST_KEY_CFBundleDisplayName = Wowser;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
@@ -874,7 +874,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wowser/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Tangerine;
+				INFOPLIST_KEY_CFBundleDisplayName = Wowser;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Websites can request access to the camera.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "For downloading";
@@ -970,7 +970,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		35081F272DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobile" */ = {
+		35081F272DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobile" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				35081F282DD9707A007561FA /* Debug */,
@@ -979,7 +979,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		35081F2A2DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobileTests" */ = {
+		35081F2A2DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobileTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				35081F2B2DD9707A007561FA /* Debug */,
@@ -988,7 +988,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		35081F2D2DD9707A007561FA /* Build configuration list for PBXNativeTarget "TangerineMobileUITests" */ = {
+		35081F2D2DD9707A007561FA /* Build configuration list for PBXNativeTarget "WowserMobileUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				35081F2E2DD9707A007561FA /* Debug */,
@@ -1006,7 +1006,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Tangerine" */ = {
+		357E5B122D7E3511009CD80F /* Build configuration list for PBXNativeTarget "Wowser" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				357E5B132D7E3511009CD80F /* Debug */,

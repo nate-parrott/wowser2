@@ -9,11 +9,18 @@ struct TabAppearance: Equatable, Codable {
         case sfSymbol(String)
         case emoji(String) // user-chosen tab icon
         case terminal(running: Bool) // terminal-glyph chip; dimmed when idle at the prompt
+        case claude // terminal whose foreground process is `claude` (Claude Code): the Clawd mascot
         case vscode  // VS Code-glyph chip
         case files   // file-browser-glyph chip
         case fileIcon(path: String) // the Finder icon for a specific file on disk
         case agentFruit(flavor: AgentFruitFlavor, working: Bool) // agent-tab fruit; eyes open while working
         case empty
+    }
+
+    /// Attention marker drawn at the trailing edge of the sidebar row.
+    enum Badge: Equatable, Codable {
+        case dot    // finished work the user hasn't looked at yet
+        case cursor // an agent is / was driving this tab
     }
     
     var title: String
@@ -30,6 +37,8 @@ struct TabAppearance: Equatable, Codable {
     var isUnloaded = false
     /// Title is a user-provided custom name; rendered italic.
     var isCustomTitle = false
+    /// See `Badge`. Set from `Pane.badge`, OR'd across a split's panes.
+    var badge: Badge?
 
     static var empty: TabAppearance {
         .init(title: "", icon: .empty, urlFieldTextSelected: "", urlFieldTextDeselected: "")
@@ -80,11 +89,17 @@ extension Pane {
             appearance.subtitle = "Agent tab"
             appearance.isGhost = true
         }
-        if agentActiveUntil != nil {
-            appearance.subtitle = "Agent is using this tab"
+        switch agentUse {
+        case .active: appearance.subtitle = "Agent is using this tab"
+        case .past: appearance.subtitle = "Agent was using this tab"
+        case nil: break
         }
+        appearance.badge = badge
         if unloaded == true {
             appearance.isUnloaded = true
+        }
+        if pickingSpace == true {
+            appearance.subtitle = "Picking the best space for this tab…"
         }
 
         if let url = info.url, let nativeKey = NativePageKey(url: url) {
@@ -139,6 +154,15 @@ extension Pane {
 extension Tab {
     func appearance() -> TabAppearance {
         var appearance = self.panes.first?.tabAppearance() ?? .empty
+        if let folder {
+            appearance.title = folder.name
+            appearance.icon = .sfSymbol("folder")
+            appearance.specialTitle = false
+            return appearance
+        }
+        // Any pane in a split can carry the marker; a cursor wins over a dot.
+        let badges = panes.asArray.compactMap(\.badge)
+        appearance.badge = badges.contains(.cursor) ? .cursor : badges.first
         // Use special icons for splits:
         switch panes.count {
         case 2:
@@ -184,6 +208,8 @@ struct TabIconView: View {
 
         case .terminal(let running):
             TerminalFavicon(running: running)
+        case .claude:
+            ClaudeFavicon()
         case .agentFruit(let flavor, let working):
             AgentFruitIcon(flavor: flavor, working: working)
         case .vscode:
@@ -208,6 +234,17 @@ struct TerminalFavicon: View {
 
     var body: some View {
         TintedGlyph(icon: "terminal", fg: Color.white, bg: running ? Color.black : Color(white: 0.42))
+    }
+}
+
+/// The Clawd mascot, shown for terminal tabs running Claude Code.
+struct ClaudeFavicon: View {
+    var body: some View {
+        Image("Clawd", bundle: .module)
+            .resizable()
+            .interpolation(.none)
+            .scaledToFit()
+            .frame(width: 16, height: 16)
     }
 }
 

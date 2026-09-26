@@ -102,11 +102,15 @@ struct ChatRowView: View {
     var windowID: ID<WindowState>?
     /// Called for markdown links / images the user clicks.
     var openURL: (URL) -> Void
+    /// For `.user` rows in the sidebar: the turn's collapsed state and the
+    /// chevron action. Nil hides the chevron.
+    var turnCollapsed: Bool? = nil
+    var onToggleTurn: (() -> Void)? = nil
 
     var body: some View {
         switch item {
         case .user(_, let text):
-            ChatUserBubble(text: text, compact: compact)
+            ChatUserBubble(text: text, compact: compact, turnCollapsed: turnCollapsed, onToggleTurn: onToggleTurn)
         case .assistant(_, let text):
             ChatMarkdownBody(text: text, compact: compact, openURL: openURL)
         case .toolGroup(_, let calls):
@@ -144,12 +148,26 @@ struct ChatRowView: View {
 struct ChatUserBubble: View {
     var text: String
     var compact: Bool
+    var turnCollapsed: Bool? = nil
+    var onToggleTurn: (() -> Void)? = nil
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             Spacer(minLength: compact ? 24 : 48)
+            if let onToggleTurn {
+                let collapsed = turnCollapsed ?? false
+                Button(action: onToggleTurn) {
+                    Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(collapsed ? "Show this turn's replies and tabs" : "Hide this turn's replies and tabs")
+            }
             Text(text)
-                .font(compact ? .system(size: 12.5) : .body)
+                .font(compact ? .system(size: 13.5) : .body)
                 .textSelection(.enabled)
                 .padding(.horizontal, compact ? 10 : 14)
                 .padding(.vertical, compact ? 6 : 9)
@@ -168,10 +186,12 @@ struct ChatMarkdownBody: View {
     private enum Block: Identifiable {
         case text(String)
         case image(URL, alt: String)
+        case code(String)
         var id: String {
             switch self {
             case .text(let s): return "t:" + s.prefix(64)
             case .image(let u, _): return "i:" + u.absoluteString
+            case .code(let s): return "c:" + s.prefix(64)
             }
         }
     }
@@ -182,14 +202,25 @@ struct ChatMarkdownBody: View {
                 switch block {
                 case .text(let s):
                     markdownText(s)
-                        .font(compact ? .system(size: 12.5) : .body)
-                        .lineSpacing(compact ? 3 : 4.5)
+                        .font(compact ? .system(size: 13.5) : .body)
+                        .lineSpacing(compact ? 4 : 4.5)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .environment(\.openURL, OpenURLAction { url in
                             openURL(url)
                             return .handled
                         })
+                case .code(let code):
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Text(code)
+                            .font(.system(size: compact ? 12 : 13, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.secondary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 case .image(let url, let alt):
                     Button(action: { openURL(url) }) {
                         AsyncImage(url: url) { phase in
@@ -215,7 +246,36 @@ struct ChatMarkdownBody: View {
     }
 
     private var blocks: [Block] {
-        // Split out image markdown so it can render as an actual image.
+        // Fenced code blocks first: the inline-only markdown parser would
+        // treat ``` as a code span and collapse its newlines to spaces.
+        var out: [Block] = []
+        var prose = ""
+        var code: String? = nil
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                if let c = code {
+                    out.append(contentsOf: Self.imageBlocks(prose)); prose = ""
+                    out.append(.code(c.hasSuffix("\n") ? String(c.dropLast()) : c))
+                    code = nil
+                } else {
+                    code = ""
+                }
+            } else if code != nil {
+                code! += line + "\n"
+            } else {
+                prose += line + "\n"
+            }
+        }
+        if let c = code { prose += "```\n" + c }  // unterminated fence (still streaming): show as prose
+        out.append(contentsOf: Self.imageBlocks(prose))
+        return out.isEmpty ? [.text(text)] : out
+    }
+
+    /// Split out image markdown so it can render as an actual image.
+    private static func imageBlocks(_ raw: String) -> [Block] {
+        let text = raw.trimmingCharacters(in: .newlines)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         guard let regex = try? NSRegularExpression(pattern: #"!\[([^\]]*)\]\(([^)\s]+)\)"#) else { return [.text(text)] }
         let ns = text as NSString
         var out: [Block] = []
@@ -343,14 +403,29 @@ struct ChatTabCard: View {
                 return state.windows[windowID]?.currentTab == tabID
             }) { isSelected in
                 if let isSelected {
-                    card { RegularTabRow(tabID: tabID, isSelected: isSelected, windowID: windowID) }
+                    card {
+                        RegularTabRow(tabID: tabID, isSelected: isSelected, windowID: windowID)
+                            .overlay { if !isSelected { unselectedBorder } }
+                    }
                 } else if !hideIfClosed {
-                    card { ClosedTabStub(url: url, title: title, windowID: windowID) }
+                    card { ClosedTabStub(url: url, title: title, windowID: windowID).overlay { unselectedBorder } }
                 }
             }
         } else if !hideIfClosed {
-            card { ClosedTabStub(url: url, title: title, windowID: windowID) }
+            card { ClosedTabStub(url: url, title: title, windowID: windowID).overlay { unselectedBorder } }
         }
+    }
+
+    /// Hairline around cards that aren't the current tab, so they read as
+    /// cards in the thread rather than plain rows. Inset to match the
+    /// selected row's glass background, which TabStyleButtonModifier pads by
+    /// 6pt horizontally and 2pt vertically.
+    private var unselectedBorder: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .allowsHitTesting(false)
     }
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

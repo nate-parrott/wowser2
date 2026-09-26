@@ -1,6 +1,6 @@
-# Wowser MCP (tangerine / BrowserJS) — Bugs, Issues & Observations
+# Wowser MCP (wowser / BrowserJS) — Bugs, Issues & Observations
 
-Running log of problems and notes found while exercising the `tangerine` MCP
+Running log of problems and notes found while exercising the `wowser` MCP
 (`browser.*` BrowserJS API). Newest entries can go at the top of each section.
 
 Last systematic sweep: 1–2 calls per tool, all wrapped in try/catch.
@@ -10,8 +10,8 @@ Last systematic sweep: 1–2 calls per tool, all wrapped in try/catch.
 ## Bugs
 
 ### 0. MCP server only allows ONE session — second client gets "Session already initialized" → Claude Code shows "Failed to connect"
-- **Severity:** High — locks out new sessions entirely; tangerine's tools never register, so screenshots/tab control are unavailable even though the app is running fine.
-- **Repro:** With Tangerine running and one MCP client already attached, start a new Claude Code session (or `claude mcp list`). tangerine reports `✘ Failed to connect`. A manual handshake against the endpoint confirms why:
+- **Severity:** High — locks out new sessions entirely; wowser's tools never register, so screenshots/tab control are unavailable even though the app is running fine.
+- **Repro:** With Wowser running and one MCP client already attached, start a new Claude Code session (or `claude mcp list`). wowser reports `✘ Failed to connect`. A manual handshake against the endpoint confirms why:
   - `curl -X POST .../mcp/<token> -H 'Accept: application/json, text/event-stream' -d '{...initialize...}'` →
     `{"error":{"message":"Invalid Request: Bad Request: Session already initialized","code":-32600}}`
   - Plain GET returns `406` (expected for streamable-HTTP without the SSE Accept header) — server is alive.
@@ -32,8 +32,8 @@ Last systematic sweep: 1–2 calls per tool, all wrapped in try/catch.
   - stateless + override: clients 1–3 each `initialize` **and** `tools/list` cleanly
   - `GET` → 405 (spec-permitted; the SSE channel is optional and Claude Code tolerates it)
 - **Note:** `OriginValidator.localhost()` rejects a browser-style `Origin` header. Claude Code is a CLI and sends none — probes must omit it or they'll get a misleading 403.
-- **Secondary (real, but a *different* bug):** the listen socket does leak into forked children — missing `FD_CLOEXEC`. Verified: `zsh` PID 151 has PPID 98748 = the Tangerine app (spawned via TerminalOverlay), and holds listen fd 19 (shared device handle) plus server-side `ESTABLISHED` connections. This does **not** cause "Session already initialized" (that state is in-process). What it *does* cause: after Tangerine quits, the port stays bound by the surviving children, so a relaunched app fails to bind 48197 and silently falls back to a random port (`MCPServer.swift:96-97`) — invalidating the stable URL baked into the `claude mcp add` command in Settings.
-- **Workaround (until fixed):** quit & relaunch Tangerine, then `/mcp` reconnect. Only one Claude Code session can hold tangerine at a time.
+- **Secondary (real, but a *different* bug):** the listen socket does leak into forked children — missing `FD_CLOEXEC`. Verified: `zsh` PID 151 has PPID 98748 = the Wowser app (spawned via TerminalOverlay), and holds listen fd 19 (shared device handle) plus server-side `ESTABLISHED` connections. This does **not** cause "Session already initialized" (that state is in-process). What it *does* cause: after Wowser quits, the port stays bound by the surviving children, so a relaunched app fails to bind 48197 and silently falls back to a random port (`MCPServer.swift:96-97`) — invalidating the stable URL baked into the `claude mcp add` command in Settings.
+- **Workaround (until fixed):** quit & relaunch Wowser, then `/mcp` reconnect. Only one Claude Code session can hold wowser at a time.
 
 ### 1. `browser.page.eval` does not return the evaluated value — FIXED (2026-06-28)
 - **Fix:** `callAsyncJavaScript` treats the snippet as an async-function *body*, so a bare expression returns nothing. Added `WKWebView.evalReturningValue` (BrowserJSLiveHost.swift): a single trailing expression is now wrapped as `return (...)` REPL-style, so `document.title` / `1+2` return values without an explicit `return`. Snippets with a top-level `return` or multiple statements still run verbatim. `page.waitFor` was also rewired to eval the predicate directly (it previously wrapped predicates in a return-less IIFE → always undefined → never resolved).
@@ -117,7 +117,7 @@ Last systematic sweep: 1–2 calls per tool, all wrapped in try/catch.
 
 ## Documented stubs (not bugs)
 - `content.write` → throws `not implemented in v1: content.write`.
-- `webapp.create` → **now implemented** (tang:// webapps). Takes `{name, files: Record<string,string>, exposeBrowserJS?}` (multi-file, must include `index.html`); writes to `~/Library/Application Support/Wowser/Tangerine/<slug>/` and opens `tang://<slug>/`. Pages get the full `window.browser`. (`exposeBrowserJS` flag is currently a no-op — always exposed.)
+- `webapp.create` → **now implemented** (tang:// webapps). Takes `{name, files: Record<string,string>, exposeBrowserJS?}` (multi-file, must include `index.html`); writes to `~/Library/Application Support/Wowser/Wowser/<slug>/` and opens `tang://<slug>/`. Pages get the full `window.browser`. (`exposeBrowserJS` flag is currently a no-op — always exposed.)
 
 ## Note: no helper-file delete
 - There's no tool to delete a saved helper; overwrote `zz_mcp_test_helper` with a no-op comment to neutralize the test helper. A delete affordance would be nice.

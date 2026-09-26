@@ -244,7 +244,7 @@ public actor BrowserAgentManager {
 
     /// Reload a persisted agent: same id, same config, and the harness told to
     /// resume its session so the agent still remembers the conversation. The
-    /// transcript starts empty — old messages are never replayed.
+    /// saved transcript is reloaded too, so indices continue where they left off.
     private func resume(_ record: AgentSessionRecord) async throws -> String {
         try await start(record: record, isKeyed: true)
         return record.agentID
@@ -304,6 +304,7 @@ public actor BrowserAgentManager {
         )
         entry.sessionID = record.sessionID
         entry.record = isKeyed ? record : nil
+        if isKeyed { entry.messages = store.loadTranscript(key: record.key) }
         // Subscribe before returning so no early events are missed.
         let eventStream = await agent.events()
         entry.eventTask = Task { [weak self] in
@@ -336,6 +337,10 @@ public actor BrowserAgentManager {
         ))
         let agent = entry.agent
         entries[id] = entry
+        persistTranscript(agentID: id)
+        // Wake anyone long-polling the transcript so the user's message shows
+        // up immediately, even mid-turn (steering) when no agent event is due.
+        resumeIdleWaiters(id: id)
         postDidUpdate(agentID: id)
         Task {
             _ = try? await agent.send(AgentUserMessage(text: text, images: images))
@@ -351,6 +356,7 @@ public actor BrowserAgentManager {
         }
         entry.messages.append(BrowserJSAgentMessage(index: entry.messages.count, role: role, text: text, toolName: toolName))
         entries[id] = entry
+        persistTranscript(agentID: id)
         resumeIdleWaiters(id: id)
         postDidUpdate(agentID: id)
     }
@@ -601,17 +607,22 @@ public actor BrowserAgentManager {
         postDidUpdate(agentID: agentID)
     }
 
-    /// Saves a keyed agent's session id so it can be resumed later. The
-    /// transcript is not persisted — a reattached agent remembers the
-    /// conversation itself rather than replaying messages at the caller.
+    /// Saves a keyed agent's session id (so it can be resumed later) and its
+    /// transcript (so the resumed agent's history is visible). Between turns
+    /// is enough — no need to rewrite on every event.
     private func persist(agentID: String, force: Bool) {
-        guard let entry = entries[agentID], let key = entry.key, var record = entry.record else { return }
-        // Between turns is enough — no need to rewrite on every event.
-        guard force, record.sessionID != entry.sessionID else { return }
+        guard force, let entry = entries[agentID], let key = entry.key, var record = entry.record else { return }
+        persistTranscript(agentID: agentID)
+        guard record.sessionID != entry.sessionID else { return }
         record.key = key
         record.sessionID = entry.sessionID
         entries[agentID]?.record = record
         store.save(record)
+    }
+
+    private func persistTranscript(agentID: String) {
+        guard let entry = entries[agentID], let key = entry.key else { return }
+        store.saveTranscript(key: key, messages: entry.messages)
     }
 
     private func makeRunBrowserJSTool(agentID: String, agentKey: String?) -> AgentToolDefinition {
@@ -656,6 +667,14 @@ public actor BrowserAgentManager {
         // Identity preamble: the chat-mode BrowserJS calls (`present`,
         // `agents.*`) read `__agentKey` so the host knows who is asking.
         let keyLiteral = agentKey.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "undefined"
-        return await runtime.run(code: code, preamble: "var __agentKey = \(keyLiteral);")
+        // Origin: the agent's own chat tab (and its space), so host calls
+        // (tabs.open etc.) land in that tab's window and space rather than
+        // wherever the user is currently looking — same as MCP calls from a
+        // terminal tab. Space coordinators have no pane, only a space.
+        let (originPaneID, originSpaceID): (String?, String?) = await MainActor.run {
+            let ctx = ChatAgentRegistry.callerContext(agentKey: agentKey)
+            return (ctx.ownPaneID?.raw, ctx.threadProfileID?.raw)
+        }
+        return await runtime.run(code: code, preamble: "var __agentKey = \(keyLiteral);", originPaneID: originPaneID, originSpaceID: originSpaceID)
     }
 }

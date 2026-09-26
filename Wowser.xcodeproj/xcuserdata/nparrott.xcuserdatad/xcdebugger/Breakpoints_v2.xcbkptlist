@@ -64,7 +64,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "361"
             endingLineNumber = "361"
-            landmarkName = "getOrCreateWebContent(forId:toBeActiveInWindow:)"
+            landmarkName = "setup()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -182,8 +182,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "142"
             endingLineNumber = "142"
-            landmarkName = "init()"
-            landmarkType = "7">
+            landmarkName = "score"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -198,8 +198,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "144"
             endingLineNumber = "144"
-            landmarkName = "Searcher"
-            landmarkType = "3">
+            landmarkName = "score"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -214,8 +214,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "141"
             endingLineNumber = "141"
-            landmarkName = "init()"
-            landmarkType = "7">
+            landmarkName = "score"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -230,8 +230,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "246"
             endingLineNumber = "246"
-            landmarkName = "setupHistoryObservers()"
-            landmarkType = "7">
+            landmarkName = "query"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -246,7 +246,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "435"
             endingLineNumber = "435"
-            landmarkName = "removeWebContentNotInIds(_:)"
+            landmarkName = "getOrCreateWebContent(forId:toBeActiveInWindow:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -276,7 +276,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "213"
             endingLineNumber = "213"
-            landmarkName = "usesMobileUserAgent"
+            landmarkName = "silenced"
             landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
@@ -612,8 +612,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "98"
             endingLineNumber = "98"
-            landmarkName = "switchToProfile(_:)"
-            landmarkType = "7">
+            landmarkName = "ProfilePageView"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -740,8 +740,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "203"
             endingLineNumber = "203"
-            landmarkName = "silenced"
-            landmarkType = "24">
+            landmarkName = "WebContent"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -841,22 +841,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "98E0BAFF-D21E-4311-B2A9-A49959F89704"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "Wowser/Core/Sources/Core/Reader/ReaderOverlay.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "56"
-            endingLineNumber = "56"
-            landmarkName = "body"
-            landmarkType = "24">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "E6EE72ED-EC61-4323-8FA7-4317472823E4"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -864,10 +848,10 @@
             filePath = "Wowser/Core/Sources/Core/Reader/ReaderOverlay.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "95"
-            endingLineNumber = "95"
-            landmarkName = "webContent(_:decidePolicyFor:)"
-            landmarkType = "7">
+            startingLineNumber = "97"
+            endingLineNumber = "97"
+            landmarkName = "WebContentNavDelegate"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -880,8 +864,8 @@
             filePath = "Wowser/Core/Sources/Core/Reader/ReaderOverlay.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "92"
-            endingLineNumber = "92"
+            startingLineNumber = "94"
+            endingLineNumber = "94"
             landmarkName = "WebContentNavDelegate"
             landmarkType = "3">
          </BreakpointContent>
@@ -994,7 +978,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "528"
             endingLineNumber = "528"
-            landmarkName = "webContent(_:decidePolicyFor:)"
+            landmarkName = "createTab(withURL:in:activate:inCurrentSplit:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

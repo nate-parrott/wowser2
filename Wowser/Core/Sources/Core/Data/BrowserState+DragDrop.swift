@@ -5,11 +5,22 @@ enum TabDropDestination: Equatable {
     case favorites(profile: ID<Profile>, before: ID<Tab>?)
     case project(project: ID<Project>, before: ID<Tab>?)
     case space(window: ID<WindowState>, profile: ID<Profile>) // appended to that space's ordinary tabs
+    /// Into a sidebar folder (pins the tab). `open` also lists it under the
+    /// folder row, i.e. the drop landed in the folder's recents group.
+    case folder(folderTab: ID<Tab>, before: ID<Tab>?, open: Bool)
 }
 
 extension BrowserState {
     func canMove(tab: ID<Tab>, to dest: TabDropDestination) -> Bool {
-        guard tabs[tab] != nil else { return false }
+        guard let moving = tabs[tab] else { return false }
+        // Folders themselves only reorder within the tab list or move between spaces.
+        if moving.isFolder {
+            switch dest {
+            case .ordinaryTabs, .space: break
+            case .favorites, .project, .folder: return false
+            }
+        }
+        if case .folder(let folderTab, _, _) = dest, folderTab == tab { return false }
         guard let srcWindow = windowContaining(tabId: tab) else { return false }
         guard let destProfile = profile(forTabDropDest: dest) else { return false }
 
@@ -33,11 +44,19 @@ extension BrowserState {
             return projects[project]?.profile
         case .space(_, let profile):
             return profiles[profile]?.id
+        case .folder(let folderTab, _, _):
+            guard let win = windowContaining(tabId: folderTab) else { return nil }
+            return space(containingTabId: folderTab, inWindow: win.id)
         }
     }
     
     mutating func move(tab: ID<Tab>, to dest: TabDropDestination, makeActiveInWindow window: ID<WindowState>?) {
         guard let srcTab = tabs[tab] else { return }
+        // A tab dragged in from outside a folder was open, so it stays open
+        // there; a member being reordered keeps whatever state it had.
+        let sourceFolder = folderTab(containingTabId: tab)
+        let wasOpenInFolder = sourceFolder?.folder?.openTabs.contains(tab) == true
+        let cameFromOutside: (ID<Tab>) -> Bool = { sourceFolder?.id != $0 }
         
         // Find the current location and remove tab from it
         if let srcWindow = windowContaining(tabId: tab) {
@@ -60,6 +79,8 @@ extension BrowserState {
                     let profileId = srcWindow.profile
                     profiles[profileId]?.manualFavorites.removeAll { $0 == tab }
                     profiles[profileId]?.autoFavorites.removeAll { $0 == tab }
+                case .folder:
+                    _detachFromFolder(tab)
                 }
             }
         }
@@ -109,6 +130,23 @@ extension BrowserState {
             }
             projects[projectId]?.tabs.insert(tab, at: insertIndex)
 
+        case .folder(let folderId, let beforeTab, let open):
+            guard folder(id: folderId) != nil else { return }
+            modifyFolder(id: folderId) { folder in
+                let insertIndex = beforeTab.flatMap { folder.tabs.firstIndex(of: $0) } ?? folder.tabs.count
+                folder.tabs.insert(tab, at: insertIndex)
+                if open || wasOpenInFolder || cameFromOutside(folderId) {
+                    let openIndex = beforeTab.flatMap { folder.openTabs.firstIndex(of: $0) } ?? folder.openTabs.count
+                    folder.openTabs.insert(tab, at: openIndex)
+                }
+            }
+            // Pin the tab's current state, same as favorites
+            modifyTab(id: tab) { tab in
+                for i in 0..<tab.panes.count {
+                    tab.panes[i]!.baseInfo = tab.panes[i]!.info
+                }
+            }
+
         case .space(let windowId, let profileId):
             guard windows[windowId] != nil else { return }
             if windows[windowId]!.perProfileData[profileId] == nil {
@@ -150,7 +188,7 @@ extension BrowserStore {
 
         modify { state in
             state.move(tab: tabID, to: dest, makeActiveInWindow: nil)
-            let spaceName = state.profiles[profileID]?.title ?? "another space"
+            let spaceName = state.profiles[profileID]?.displayName ?? "another space"
             state.addToast(message: "Moved tab to \(spaceName)", icon: "arrowshape.turn.up.right", in: windowID)
         }
 

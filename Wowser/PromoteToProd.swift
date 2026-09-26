@@ -1,9 +1,9 @@
 #if DEBUG
 import Cocoa
 
-/// Debug-only: copies the running .app bundle into /Applications as "Tangerine prod.app".
+/// Debug-only: copies the running .app bundle into /Applications as "Wowser prod.app".
 enum PromoteToProd {
-    static let destination = URL(fileURLWithPath: "/Applications/Tangerine prod.app")
+    static let destination = URL(fileURLWithPath: "/Applications/Wowser prod.app")
 
     /// Adds a "Promote to Prod" item at the end of the File menu.
     static func installMenuItem() {

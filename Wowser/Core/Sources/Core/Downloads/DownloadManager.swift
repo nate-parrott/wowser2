@@ -83,6 +83,10 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
         var paneID: ID<WebContent>?
         var progressObservation: NSKeyValueObservation?
         var lastProgressUpdate: Date = .distantPast
+        // For the memory store: where the download came from.
+        var scope: UUID?
+        var sourceURL: URL?
+        var sourceTitle: String?
     }
 
     private var activeDownloads = [WKDownload: Active]()
@@ -105,16 +109,20 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
     }
 
     public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload, windowID: ID<WindowState>) {
-        setupDownload(download, windowID: windowID)
+        setupDownload(download, windowID: windowID, webView: webView)
     }
 
     public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload, windowID: ID<WindowState>) {
-        setupDownload(download, windowID: windowID)
+        setupDownload(download, windowID: windowID, webView: webView)
     }
 
-    private func setupDownload(_ download: WKDownload, windowID: ID<WindowState>) {
+    private func setupDownload(_ download: WKDownload, windowID: ID<WindowState>, webView: WKWebView) {
         download.delegate = self
-        activeDownloads[download] = Active(windowID: windowID)
+        var active = Active(windowID: windowID)
+        active.scope = webView.configuration.websiteDataStore.identifier
+        active.sourceURL = webView.url
+        active.sourceTitle = webView.title
+        activeDownloads[download] = active
     }
 
     // MARK: - WKDownloadDelegate
@@ -177,6 +185,7 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
     public func downloadDidFinish(_ download: WKDownload) {
         guard let active = activeDownloads[download] else { return }
         if let paneID = active.paneID {
+            var finished: Download?
             BrowserStore.shared.modify { state in
                 state.modifyDownload(paneID: paneID) { d in
                     d.status = .completed
@@ -185,7 +194,11 @@ public class DownloadManager: NSObject, WKDownloadDelegate {
                         d.currentSize = size
                         d.estimatedSize = size
                     }
+                    finished = d
                 }
+            }
+            if let finished {
+                MemoryStore.shared.noteDownload(scope: active.scope, download: finished, sourceURL: active.sourceURL, sourceTitle: active.sourceTitle, paneID: paneID)
             }
         }
         activeDownloads.removeValue(forKey: download)

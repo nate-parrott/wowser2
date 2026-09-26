@@ -109,6 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,
+            DefaultsKeys.cleanupTabs.rawValue: true,
             DefaultsKeys.enableGoDirectQueries.rawValue: true,
             DefaultsKeys.disableNetworkProxy.rawValue: true, // network capture is opt-in
             DefaultsKeys.spaceThemeIntensity.rawValue: 1.0,
@@ -143,13 +144,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start the local capturing proxy *before* any webview is created so its
         // data store can be pointed at it (WebContent reads the bound port
         // synchronously at init). Binding to loopback is fast; wait briefly.
+        //
+        // This must be a *detached* task: this method is main-actor isolated,
+        // so a plain `Task {}` would inherit the main actor and could never run
+        // while we block the main thread on the semaphore below — every launch
+        // would stall for the full timeout.
         let proxyStarted = DispatchSemaphore(value: 0)
-        Task {
+        Task.detached {
             do { _ = try await LocalProxy.shared.start() }
             catch { FileHandle.standardError.write(Data("LocalProxy failed to start: \(error)\n".utf8)) }
             proxyStarted.signal()
         }
-        _ = proxyStarted.wait(timeout: .now() + 2)
+        // Only webviews with capture enabled need the port at init; otherwise
+        // let the proxy come up in the background without delaying the window.
+        if !DefaultsKeys.disableNetworkProxy.boolValue() {
+            _ = proxyStarted.wait(timeout: .now() + 2)
+        }
 
         BrowserStore.shared.publisher.map { $0.windows.keys }.removeDuplicates()
             .sink { [weak self] ids in
@@ -239,10 +249,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // Handles URLs directly
     func openURL(_ url: URL) {
-        // Use BrowserStore's openTab method to open the URL
-        BrowserStore.shared.modify { state in
-            state.openTab(url: url, activate: true)
-        }
+        BrowserStore.shared.openExternalURL(url)
     }
     
     // MARK: - Tab Switching Menu Items

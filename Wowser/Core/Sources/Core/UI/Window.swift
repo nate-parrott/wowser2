@@ -75,7 +75,7 @@ struct WindowSnapshot: Equatable {
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)
-        let chatMode = state.profiles[window.profile]?.isChatMode == true
+        let chatMode = state.isChatMode
         guard let tabId = window.currentTab, let tab = state.tabs[tabId] else {
 //            let emptyOmnibox: Bool
 //            if case .omnibox = focusSnap.target { emptyOmnibox = true } else { emptyOmnibox = false }
@@ -117,10 +117,12 @@ private struct WindowContent: View {
     @State private var topHovered = false
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var sidebarHovered = false
+    @AppStorage(DefaultsKeys.sidebarWidth.rawValue) private var storedSidebarWidth = Double(UIConstants.defaultSidebarWidth)
     
     var body: some View {
         let topbarLocked = snapshot.sidebarLocked
         let justWebpage = !snapshot.sidebarLocked && !topbarLocked
+        let sidebarWidth = UIConstants.clampSidebarWidth(CGFloat(storedSidebarWidth))
         
         HStack(spacing: 0) {
             if snapshot.sidebarLocked {
@@ -129,13 +131,12 @@ private struct WindowContent: View {
                     .edgesIgnoringSafeArea(.all)
             }
             
-            // Content:
-            VStack(spacing: 0) {
-                TabStack3D(snapshot: snapshot, topbarVisible: topbarVisible)
-                ToastViewer()
-            }
-            .animation(.spring(duration: 0.2, bounce: 0.2, blendDuration: 0.1), value: snapshot.hasToast)
-            .urlSplitDropTarget(windowID: snapshot.windowID)
+            TabStack3D(snapshot: snapshot, topbarVisible: topbarVisible)
+                .urlSplitDropTarget(windowID: snapshot.windowID)
+                .overlay(alignment: .topTrailing) {
+                    ToastViewer()
+                        .animation(.toastDropCurve, value: snapshot.hasToast)
+                }
 //            .edgesIgnoringSafeArea(.all)
         }
         .modifier(JustWebpageScrimModifier(active: justWebpage))
@@ -144,7 +145,7 @@ private struct WindowContent: View {
                 Sidebar(floating: true)
                     .withFloatingSidebarContainer()
 //                    .padding(8)
-                    .offset(x: sidebarHovered ? 0 : -UIConstants.sidebarWidth - 20)
+                    .offset(x: sidebarHovered ? 0 : -sidebarWidth - 20)
                     .animation(.spring(duration: 0.16, bounce: 0.2, blendDuration: 0.1), value: sidebarHovered)
                     .edgesIgnoringSafeArea(.all)
             }
@@ -155,6 +156,7 @@ private struct WindowContent: View {
                 .edgesIgnoringSafeArea(.all)
         }
         .background { WindowBG(theme: snapshot.theme, imageInfo: snapshot.imageInfo, windowID: snapshot.windowID) }
+        .modifier(SpaceBackgroundPrewarmer())
         // In-window accent follows the space theme (or the tint derived from a
         // dropped background image). `.tint` covers modern control styling;
         // `.accentColor` covers existing `Color.accentColor` reads (toasts,
@@ -218,7 +220,7 @@ private struct WindowBG: View {
         ZStack {
             TransparentBg()
             if let imageInfo {
-                SpaceBackgroundView(info: imageInfo, windowID: windowID)
+                SpaceBackgroundView(info: imageInfo)
             } else if let theme {
                 theme.backgroundGradient(intensity: intensity)
             } else {

@@ -45,15 +45,6 @@ struct ReaderOverlay: View {
                 })
 
             // Find in page overlay
-            if isFindInPageActive {
-                FindInPageView(
-                    webView: webContent.webview,
-                    onClose: { isFindInPageActive = false }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding()
-                .transition(.move(edge: .top))
-            }
 
             // Hidden find button for keyboard shortcut
             if isPaneFocused {
@@ -64,6 +55,17 @@ struct ReaderOverlay: View {
                     .accessibility(hidden: true)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if isFindInPageActive {
+                FindInPageView(
+                    webView: webContent.webview,
+                    onClose: { isFindInPageActive = false }
+                )
+                .padding()
+                .transition(.move(edge: .top))
+            }
+        }
+        .animation(.toastDropCurve, value: isFindInPageActive)
         .onReceiveFocusSnap(windowID: windowID) { self.focusSnap = $0 }
         .onAppearOrChange(of: readableDoc) { content in
             let html = readableDoc.html(includeExitReaderButton: false, theme: ReaderThemePref().asTheme)

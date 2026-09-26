@@ -53,6 +53,12 @@ extension BrowserStore {
         case .searchAction(let action):
             performSearchAction(action: action, windowID: windowID)
 
+        case .terminalCommand(let command, _):
+            #if os(macOS)
+            let cwd = model.spaceFolderPath(windowID: windowID) ?? model.mostRecentNativeFolderPath(windowID: windowID)
+            loadURL(NativePageKey.terminal(cwd: cwd, runCommand: command).url, windowID: windowID, forceNewTab: forceNewTab)
+            #endif
+
         case .askAgent(let query, _):
             #if os(macOS)
             Task { @MainActor in

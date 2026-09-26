@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 @main
-struct TangerineMobileApp: App {
+struct WowserMobileApp: App {
     init() {
         UserDefaults.standard.register(defaults: [
             DefaultsKeys.adblock.rawValue: true,

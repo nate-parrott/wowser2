@@ -97,12 +97,14 @@ public struct IconButtonStyle: ButtonStyle {
 struct SearchResultButtonStyle: ButtonStyle {
     var isHighlighted: Bool
     var desaturatedHighlight: Bool // e.g. direct-to-site results
+    var highlightColor: Color? // overrides the accent when selected (e.g. black for terminal rows)
     @State private var hovered = false
     @Environment(\.colorScheme) private var colorScheme
 
-    init(isHighlighted: Bool = false, desaturatedHighlight: Bool = false) {
+    init(isHighlighted: Bool = false, desaturatedHighlight: Bool = false, highlightColor: Color? = nil) {
         self.isHighlighted = isHighlighted
         self.desaturatedHighlight = desaturatedHighlight
+        self.highlightColor = highlightColor
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -114,7 +116,7 @@ struct SearchResultButtonStyle: ButtonStyle {
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
-                        isHighlighted ? Color.accentColor : (hovered ? Color.accentColor.opacity(0.1) : Color.clear)
+                        isHighlighted ? (highlightColor ?? Color.accentColor) : (hovered ? (highlightColor ?? Color.accentColor).opacity(0.1) : Color.clear)
                     )
                     .saturation(isHighlighted && desaturatedHighlight ? 0.2 : 1)
             )

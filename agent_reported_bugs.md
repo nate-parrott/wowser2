@@ -1,4 +1,4 @@
-# Agent-reported bugs & friction (Tangerine MCP / BrowserJS)
+# Agent-reported bugs & friction (Wowser MCP / BrowserJS)
 
 Field notes from agents driving the browser via `run_browser_js`. Append new entries at the bottom.
 
@@ -19,4 +19,4 @@ Task: open dashboard.render.com, find a service, read its events/metrics/logs, u
 ### Friction / feature requests
 - `content.read` returns the entire page including sidebar/nav chrome every time — several KB of identical boilerplate per call. A `read(id, {selector})` or a "main content only" mode would cut token use a lot.
 - No "wait for page settled / network idle" helper. SPA charts took ~7 s to render; I guessed with `sleep`. `waitFor(predicate)` exists but you have to know what to wait for.
-- `page.type` into a web terminal (xterm.js) for the Render shell was blocked by Claude Code's auto-mode permission classifier, not by Tangerine — but worth knowing that "type a shell command into a web terminal" reads as high-risk to the harness. A dedicated, allowlist-able helper might be friendlier than generic keystroke injection.
+- `page.type` into a web terminal (xterm.js) for the Render shell was blocked by Claude Code's auto-mode permission classifier, not by Wowser — but worth knowing that "type a shell command into a web terminal" reads as high-risk to the harness. A dedicated, allowlist-able helper might be friendlier than generic keystroke injection.

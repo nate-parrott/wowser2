@@ -164,7 +164,7 @@ extension BrowserState {
         // 1. Omnibox is open (user opened it deliberately, or the pane is empty so it
         //    auto-opens — except in chat mode, where blank tabs stay blank and the
         //    sidebar's chat box is the entry point).
-        let chatMode = profiles[window.profile]?.isChatMode == true
+        let chatMode = isChatMode
         if window.searchOverlayActive || (pane.info.isEmptyPage && !chatMode) {
             return .init(target: .omnibox(pane: paneID), date: date)
         }

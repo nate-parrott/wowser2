@@ -43,38 +43,9 @@ public final class TangAppsMenuManager: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
         menu.addItem(CallbackMenuItem(title: "Show Apps Folder in Finder") {
-            NSWorkspace.shared.activateFileViewerSelecting([TangerineApps.shared.dir])
+            NSWorkspace.shared.activateFileViewerSelecting([TangAppStore.shared.dir])
         })
     }
 }
 
-/// Puzzle-piece menu in the toolbar of web tabs, listing "tab" entry points
-/// from installed webapps. Hidden when no app registers one.
-struct TabExtensionsMenuButton: View {
-    let webContentID: ID<WebContent>
-    let url: URL?
-
-    @Environment(\.windowID) private var windowID
-    @ObservedObject private var registry = TangAppRegistry.shared
-
-    var body: some View {
-        let entries = registry.entryPoints(.tab)
-        if !entries.isEmpty {
-            ToolbarPopUpButton(symbolName: "puzzlepiece.extension", help: "App extensions", buildMenu: { buildMenu(entries: entries) })
-        }
-    }
-
-    private func buildMenu(entries: [(app: TangAppRegistry.App, entry: TangAppEntryPoint)]) -> NSMenu {
-        let menu = NSMenu()
-        for (app, entry) in entries {
-            menu.addItem(CallbackMenuItem(title: entry.label) {
-                var args: [String: Any] = ["tabId": webContentID.raw]
-                if let url { args["url"] = url.absoluteString }
-                if let windowID { args["windowId"] = windowID.raw }
-                TangAppEntryPointRunner.run(entry, appSlug: app.slug, args: args, windowID: windowID)
-            })
-        }
-        return menu
-    }
-}
 #endif

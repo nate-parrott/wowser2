@@ -85,6 +85,7 @@ extension BrowserState {
 extension BrowserStore {
     public func autoOrganizeTabs(in windowID: ID<WindowState>) async -> AutoOrganizeResult {
         print("[🤖 AutoOrganize]: beginning")
+        await MainActor.run { cleanupTabs(trigger: "organize") }
         do {
             // Step 1: Identify tabs that need AI tags
             let tabsNeedingAITags = await readAsync { $0.allOrganizableTabsInWindow(windowID).filter({ $0.needsAITag }) }

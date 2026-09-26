@@ -36,7 +36,7 @@ The prior session's hypothesis was verified. Two paths:
 3. `NativePageOverlay.swift`: `.vscode` case now mounts `VSCodeWedgeWatcher`
    (macOS) instead of bare `Color.clear`.
 
-Full app (`xcodebuild -scheme Tangerine`) builds clean. (`swift build` of the
+Full app (`xcodebuild -scheme Wowser`) builds clean. (`swift build` of the
 Core package alone still fails on pre-existing unrelated errors in
 `Searcher.swift` / `DraggableFruit.swift` that need Xcode-generated resources.)
 

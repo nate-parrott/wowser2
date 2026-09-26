@@ -42,9 +42,16 @@ public actor BrowserJSRuntime {
 
     /// `preamble` is extra JS evaluated ahead of the helpers and user code —
     /// e.g. an identity declaration (`var __agentKey = ...`) for the caller.
-    public func run(code: String, preamble: String = "") async -> BrowserJSResult {
+    /// `originPaneID` names the terminal / agent-chat pane the call came from
+    /// and `originSpaceID` the caller's space (for pane-less callers like a
+    /// chat-space coordinator) — see BrowserJSCallOrigin. Both are (re)declared
+    /// on every run so a stale value never leaks from one caller to the next
+    /// in the shared context.
+    public func run(code: String, preamble: String = "", originPaneID: String? = nil, originSpaceID: String? = nil) async -> BrowserJSResult {
         let ctx = ensureContext()
         // Global scope, so the `browser` object's helpers (`__selfKey`) can see it.
+        ctx.context.evaluateScript("var __originPaneId = \(originPaneID.map(Self.jsStringLiteral) ?? "undefined");")
+        ctx.context.evaluateScript("var __originSpaceId = \(originSpaceID.map(Self.jsStringLiteral) ?? "undefined");")
         if !preamble.isEmpty {
             ctx.context.evaluateScript(preamble)
         }
@@ -324,7 +331,11 @@ final class ContextBox {
         return new Promise(function(resolve, reject) {
             var id = __nativeNextId++;
             __nativePending[id] = { resolve: resolve, reject: reject };
-            __nativeRequest(id, fn, JSON.stringify(args || {}));
+            var env = Object.assign({}, args || {});
+            // Originating terminal pane (MCP calls from a tab in the browser).
+            if (typeof __originPaneId === 'string') env.__origin = __originPaneId;
+            if (typeof __originSpaceId === 'string') env.__originSpace = __originSpaceId;
+            __nativeRequest(id, fn, JSON.stringify(env));
         });
     }
 

@@ -297,7 +297,7 @@ extension BrowserState {
                 location = .ordinaryTabs(idx + insertOffset)
             case .project(let projId, let idx):
                 location = .project(projId, idx + insertOffset)
-            case .favorites, .attachedAgent, nil:
+            case .favorites, .attachedAgent, .folder, nil:
                 location = .ordinaryTabs((windows[winId]?.tabs.count ?? 0))
             }
             insertTab(newTab, location: location, inWindow: winId)
@@ -349,6 +349,11 @@ extension BrowserState {
 //    }
     
     public mutating func activate(tabId id: ID<Tab>?, in window: ID<WindowState>) {
+        // Folders aren't selectable
+        if let id, tabs[id]?.isFolder == true { return }
+        if let id, DefaultsKeys.allWindowsShareTabs.boolValue(defaultValue: true) {
+            adoptTabFromOtherWindowIfNeeded(tabId: id, into: window)
+        }
         if let old = windows[window]?.currentTab {
             modifyTab(id: old) { tab in
                 tab.lastAccessed = Date(timeIntervalSinceNow: -0.1) // to break ties when we set the NEW tab to be active NOW
@@ -356,6 +361,8 @@ extension BrowserState {
         }
         windows[window]?.currentTab = id
         if let id {
+            clearAttentionMarkers(forTabId: id)
+            markFolderTabOpen(id)
             // An agent tab hidden behind the omnibox is being brought forward:
             // restore it to the sidebar first so it has a visible home.
             detachAgentTab(tabID: id, inWindow: window)
@@ -369,6 +376,65 @@ extension BrowserState {
         }
     }
     
+    // MARK: - Shared tabs across windows (DefaultsKeys.allWindowsShareTabs)
+
+    /// Tab IDs a window's sidebar lists for a space when tabs are shared across
+    /// windows: this window's own tabs first, then the same space's tabs from
+    /// every other window (most recently active window first).
+    func sharedSidebarTabIDs(windowID: ID<WindowState>, profileID: ID<Profile>) -> [ID<Tab>] {
+        var result = windows[windowID]?.perProfileData[profileID]?.tabs ?? []
+        var seen = Set(result)
+        for other in windowsMostRecentFirst where other.id != windowID {
+            for tabID in other.perProfileData[profileID]?.tabs ?? [] where !seen.contains(tabID) {
+                seen.insert(tabID)
+                result.append(tabID)
+            }
+        }
+        return result
+    }
+
+    /// If `tabId` is an ordinary tab of some *other* window, pull it out of that
+    /// window (reselecting a neighbor there if it was current) and append it to
+    /// this window's tab list for the same space.
+    mutating func adoptTabFromOtherWindowIfNeeded(tabId: ID<Tab>, into window: ID<WindowState>) {
+        guard windows[window] != nil else { return }
+        guard let (source, profileID) = ordinaryTabOwner(tabId: tabId), source.id != window else { return }
+
+        if source.currentTab == tabId {
+            let replacement = tabToSelectAfterClosing(tabId: tabId)
+            windows[source.id]?.currentTab = replacement
+        }
+        windows[source.id]?.perProfileData[profileID]?.tabs.removeAll { $0 == tabId }
+
+        if windows[window]!.perProfileData[profileID] == nil {
+            windows[window]!.perProfileData[profileID] = .init(tabs: [])
+        }
+        windows[window]!.perProfileData[profileID]!.tabs.append(tabId)
+        modifyTab(id: tabId) { $0.lastActiveInWindow = window }
+    }
+
+    /// The window and space whose ordinary (non-favorite, non-project) tab list holds `tabId`.
+    private func ordinaryTabOwner(tabId: ID<Tab>) -> (WindowState, ID<Profile>)? {
+        for window in windowsMostRecentFirst {
+            for (profileID, data) in window.perProfileData where data.tabs.contains(tabId) {
+                return (window, profileID)
+            }
+        }
+        return nil
+    }
+
+    /// Where an agent-spawned tab goes: directly beneath the tab of the pane
+    /// that spawned it (a terminal running `claude`, or an agent chat tab),
+    /// when that tab is in `window`'s current tab list; otherwise beneath the
+    /// window's current tab, like a user-opened tab.
+    func spawnInsertionIndex(window: ID<WindowState>, spawningPaneID: ID<WebContent>?) -> SidebarLocation {
+        if let spawningPaneID, let tabID = paneToTabMapping[spawningPaneID],
+           location(ofTabId: tabID, inWindowId: window) != nil {
+            return insertionIndex(window: window, spawningTabId: tabID)
+        }
+        return insertionIndex(window: window, spawningTabId: windows[window]?.currentTab)
+    }
+
     func insertionIndex(window: ID<WindowState>, spawningTabId: ID<Tab>?) -> SidebarLocation {
         guard let win = windows[window] else { return .ordinaryTabs(0) }
         if let spawningTabId, let loc = location(ofTabId: spawningTabId, inWindowId: window) {
@@ -379,7 +445,7 @@ extension BrowserState {
                 return .ordinaryTabs(idx + 1) // TODO: insert below siblings from same parent
             case .project(let id, let idx):
                 return .project(id, idx + 1)
-            case .attachedAgent:
+            case .attachedAgent, .folder:
                 return .ordinaryTabs(win.tabs.count)
             }
         }
@@ -413,6 +479,11 @@ extension BrowserState {
         }
         if let idx = win.attachedAgentTabs.firstIndex(of: tabId) {
             return .attachedAgent(idx)
+        }
+        for folderTabID in win.tabs {
+            if let idx = tabs[folderTabID]?.folder?.tabs.firstIndex(of: tabId) {
+                return .folder(folderTabID, idx)
+            }
         }
         return nil
     }
@@ -458,7 +529,13 @@ extension BrowserState {
         let isPinned = self.isPinned(tabId: tabId)
         
         if isPinned && !removeIfPinned {
-            resetToBase()
+            // Folder members reset to their pinned state and leave the
+            // folder's open list; they stay in the folder.
+            if folderTab(containingTabId: tabId) != nil {
+                resetFolderTab(tabId)
+            } else {
+                resetToBase()
+            }
             if isCurrentTab { reselect() }
             return
         }
@@ -481,15 +558,20 @@ extension BrowserState {
             case .favorites:
                 return nil
             case .ordinaryTabs(let idx):
-                return idx == 0 ? win.tabs.get(idx + 1) : win.tabs.get(idx - 1)
+                // Nearest selectable neighbor, preferring the one above.
+                let candidates = win.tabs.filter { $0 != id && tabs[$0]?.isFolder != true }
+                let above = win.tabs[..<idx].last(where: { tabs[$0]?.isFolder != true })
+                return above ?? win.tabs[(idx + 1)...].first(where: { tabs[$0]?.isFolder != true }) ?? candidates.first
             case .project(let projectId, let idx):
                 let projectTabs = projects[projectId]?.tabs ?? []
                 return idx == 0 ? projectTabs.get(idx + 1) : projectTabs.get(idx - 1)
             case .attachedAgent:
                 return nil
+            case .folder:
+                break // fall through to the most recently used ordinary tab
             }
         }
-        return win.tabs.filter({ $0 != id }).max { tab1, tab2 in
+        return win.tabs.filter({ $0 != id && tabs[$0]?.isFolder != true }).max { tab1, tab2 in
             (self.tabs[tab1]?.lastAccessed ?? Date.distantPast) < (self.tabs[tab2]?.lastAccessed ?? Date.distantPast)
         }
     }
@@ -505,6 +587,10 @@ extension BrowserState {
             if window.attachedAgentTabs.contains(id) {
                 return window
             }
+        }
+        // Folder members live wherever their folder tab does.
+        if let folderTab = folderTab(containingTabId: id) {
+            return windowContaining(tabId: folderTab.id)
         }
         return nil
     }
@@ -522,6 +608,8 @@ enum SidebarLocation: Equatable {
     case project(ID<Project>, Int)
     /// Hidden agent tab attached to the window's omnibox (see BrowserState+AttachedAgents).
     case attachedAgent(Int)
+    /// Member of a sidebar folder (the folder tab's id, index within it). See TabFolder.
+    case folder(ID<Tab>, Int)
 }
 
 extension WindowState {
@@ -536,10 +624,12 @@ extension BrowserState {
     ///   - tabId: The ID of the tab to check
     /// - Returns: Boolean indicating if the tab is in the favorites location
     public func isPinned(tabId: ID<Tab>) -> Bool {
-        if let window = windowContaining(tabId: tabId), 
-           let location = location(ofTabId: tabId, inWindowId: window.id),
-           case .favorites = location {
-            return true
+        if let window = windowContaining(tabId: tabId),
+           let location = location(ofTabId: tabId, inWindowId: window.id) {
+            switch location {
+            case .favorites, .folder: return true
+            case .ordinaryTabs, .project, .attachedAgent: return false
+            }
         }
         return false
     }
@@ -591,7 +681,11 @@ extension BrowserState {
             visibleTabs.append(contentsOf: window.tabs)
         }
         
-        return visibleTabs
+        // Folders aren't selectable; their open members show as rows under them.
+        return visibleTabs.flatMap { id -> [ID<Tab>] in
+            if let folder = tabs[id]?.folder { return folder.openTabs }
+            return [id]
+        }
     }
     
     public func tabsInRecencyOrder(inWindow windowID: ID<WindowState>, max: Int) -> [ID<Tab>] {

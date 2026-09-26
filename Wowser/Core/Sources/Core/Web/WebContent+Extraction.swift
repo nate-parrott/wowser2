@@ -8,6 +8,7 @@ struct WebContentExtractedData: Equatable, Codable {
     var jsURL: URL?
     var isRecipe: Bool?
     var mobileViewport: Bool?
+    var description: String?
 
     var isReady: Bool {
         readyState == "interactive" || readyState == "complete"
@@ -34,6 +35,11 @@ extension WebContentWebKit {
             result.ogImage = new URL(ogImageMeta.content, window.location.href).toString();
         }
         
+        const descMeta = document.querySelector('meta[name="description"], meta[property="og:description"]');
+        if (descMeta && descMeta.content) {
+            result.description = String(descMeta.content).trim().slice(0, 500);
+        }
+
         result.isRecipe = \(RecipeExtraction.recipeCheckExpression)
 
         // Mobile-responsive detection via the viewport meta tag

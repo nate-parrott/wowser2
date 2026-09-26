@@ -15,6 +15,23 @@ public struct BrowserJSFileStat: Codable, Equatable, Sendable {
     public var modified: Double?
 }
 
+public struct BrowserJSTasksInfo: Codable, Equatable, Sendable {
+    public struct Task: Codable, Equatable, Sendable {
+        public var id: String
+        public var title: String
+        public var enabled: Bool
+        public var schedule: String
+        public var nextRunAt: Double?
+        public var lastRunAt: Double?
+        public var lastRunSummary: String?
+        public var lastRunWasError: Bool
+        public var dataFilePath: String
+    }
+    public var filePath: String
+    public var dataDirectory: String
+    public var tasks: [Task]
+}
+
 public struct BrowserJSFileEntry: Codable, Equatable, Sendable {
     public var name: String
     public var path: String

@@ -1,14 +1,14 @@
 //
-//  TangerineMobileTests.swift
-//  TangerineMobileTests
+//  WowserMobileTests.swift
+//  WowserMobileTests
 //
 //  Created by Nate Parrott on 5/17/25.
 //
 
 import XCTest
-@testable import TangerineMobile
+@testable import WowserMobile
 
-final class TangerineMobileTests: XCTestCase {
+final class WowserMobileTests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

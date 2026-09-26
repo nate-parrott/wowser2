@@ -193,6 +193,8 @@ public actor ClaudeCodeAgent: Agent {
                 : "The only tools you have are: \(config.tools.map(\.name).joined(separator: ", "))."
             appendPieces.append("""
             \(available) You have no filesystem, shell, editing, or search tools. \
+            The user can grant them by enabling "Give agents shell & file access" in Settings › AI; \
+            if a task needs them, tell the user that. \
             NEVER write tool-call syntax (such as function_calls or invoke blocks) \
             into your response text — it does not invoke anything and is shown to \
             the user verbatim. If a request needs a capability you don't have, say \
@@ -554,12 +556,15 @@ public struct ClaudeCodeAgentProvider: AgentProvider {
     }
 
     public func makeAgent(_ spec: AgentSpec) -> any Agent {
-        ClaudeCodeAgent(configuration: .init(
+        // Settings › AI › "Give agents shell & file access" (default off) grants
+        // every agent the harness tools (permissions bypassed, as always).
+        let shellTools = spec.enableFileSystemTools || DefaultsKeys.agentShellTools.boolValue()
+        return ClaudeCodeAgent(configuration: .init(
             model: spec.model,
             effort: spec.effort,
             systemPrompt: spec.systemPrompt,
             appendSystemPrompt: spec.appendSystemPrompt,
-            enableFileSystemTools: spec.enableFileSystemTools,
+            enableFileSystemTools: shellTools,
             workingDirectory: spec.workingDirectory,
             tools: spec.tools,
             resumeSessionID: spec.resumeSessionID

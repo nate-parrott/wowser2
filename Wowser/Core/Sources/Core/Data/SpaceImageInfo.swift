@@ -13,6 +13,30 @@ public struct SpaceImageInfo: Equatable, Codable {
     public var tint: HSBA
     /// True when the image is dark overall → the space's UI renders dark.
     public var prefersDarkUI: Bool
+    /// Raw dominant image color (not tint-adjusted); `fade` mode overlays it.
+    /// Optional so images ingested before it existed still decode; falls back to `tint`.
+    public var dominantColor: HSBA?
+    /// How the image is rendered behind the window. Optional for old persisted state.
+    public var mode: SpaceBackgroundMode?
+
+    public var effectiveMode: SpaceBackgroundMode { mode ?? .fade }
+    public var effectiveDominantColor: HSBA { dominantColor ?? tint }
+}
+
+/// Per-space rendering treatment for the background image
+/// ("Background Image Mode" in the sidebar context menu).
+public enum SpaceBackgroundMode: String, Codable, CaseIterable, Equatable {
+    case asIs   // aspect-fill, untouched
+    case blur   // soft gaussian blur, rendered once and cached
+    case fade   // aspect-fill with the dominant color laid over it at 75%
+
+    public var title: String {
+        switch self {
+        case .asIs: return "As Is"
+        case .blur: return "Blur"
+        case .fade: return "Fade"
+        }
+    }
 }
 
 public extension SpaceImageInfo {
@@ -60,7 +84,10 @@ extension SpaceImageInfo {
         return SpaceImageInfo(
             fileName: fileName,
             tint: analysis.visibleTint,
-            prefersDarkUI: analysis.meanLuminance < 0.45
+            prefersDarkUI: analysis.meanLuminance < 0.45,
+            dominantColor: HSBA(hue: analysis.dominant.hue, saturation: analysis.dominant.saturation,
+                                brightness: analysis.dominant.brightness, alpha: 1),
+            mode: .fade
         )
     }
 }
@@ -153,17 +180,26 @@ public extension BrowserStore {
     /// storage, derives tint + UI scheme, and sets it as the space background.
     func setSpaceBackgroundImage(data: Data, profileID: ID<Profile>) {
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let info = SpaceImageInfo.ingest(imageData: data) else {
+            guard var info = SpaceImageInfo.ingest(imageData: data) else {
                 print("[SpaceBG] Could not decode dropped image")
                 return
             }
-            let oldFileURL = self.model.profiles[profileID]?.imageInfo?.fileURL
+            let oldInfo = self.model.profiles[profileID]?.imageInfo
+            let oldFileURL = oldInfo?.fileURL
+            // Swapping the image keeps the space's chosen rendering mode.
+            info.mode = oldInfo?.effectiveMode ?? info.mode
             self.modify { state in
                 state.profiles[profileID]?.imageInfo = info
             }
             if let oldFileURL {
                 try? FileManager.default.removeItem(at: oldFileURL)
             }
+        }
+    }
+
+    func setSpaceBackgroundMode(_ mode: SpaceBackgroundMode, profileID: ID<Profile>) {
+        modify { state in
+            state.profiles[profileID]?.imageInfo?.mode = mode
         }
     }
 

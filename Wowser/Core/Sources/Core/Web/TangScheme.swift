@@ -4,31 +4,42 @@ import Ink
 
 // tang:// — custom scheme for local BrowserJS webapps.
 //
-// Apps live on disk under ~/Library/Application Support/Wowser/Tangerine/<app>/
+// Apps live on disk under ~/Library/Application Support/Wowser/Apps/<app>/
 // as a folder of files (index.html + assets). A `tang://<app>/<path>` URL maps
 // to <app>/<path> (defaulting to index.html). Pages loaded from tang:// receive
 // `window.browser` — the full BrowserJS surface — via TangBridge.
 //
 // Pieces:
-//   - TangerineApps:     on-disk store (create / resolve apps)
+//   - TangAppStore:     on-disk store (create / resolve apps)
 //   - TangSchemeHandler: WKURLSchemeHandler serving files
 //   - TangBridge:        WKScriptMessageHandlerWithReply exposing browser.* to pages
 
-public final class TangerineApps: @unchecked Sendable {
-    public static let shared = TangerineApps()
+public final class TangAppStore: @unchecked Sendable {
+    public static let shared = TangAppStore()
 
     public let dir: URL
-    private let queue = DispatchQueue(label: "TangerineApps")
+    /// Apps shipped inside the app bundle (`Core/TangApps/<slug>/`). They are
+    /// served when nothing on disk claims the slug, so a user (or agent) can
+    /// override a bundled app simply by writing one with the same name.
+    public let bundledDir: URL?
+    private let queue = DispatchQueue(label: "TangAppStore")
 
-    public init(dir: URL? = nil) {
+    public static let defaultBundledDir: URL? = Bundle.module.url(forResource: "TangApps", withExtension: nil)
+
+    public init(dir: URL? = nil, bundledDir: URL? = TangAppStore.defaultBundledDir) {
         if let dir {
             self.dir = dir
         } else {
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            self.dir = appSupport
-                .appendingPathComponent("Wowser", isDirectory: true)
-                .appendingPathComponent("Tangerine", isDirectory: true)
+            let base = appSupport.appendingPathComponent("Wowser", isDirectory: true)
+            self.dir = base.appendingPathComponent("Apps", isDirectory: true)
+            // One-time migration from the pre-rename folder.
+            let legacy = base.appendingPathComponent("Tangerine", isDirectory: true)
+            if FileManager.default.fileExists(atPath: legacy.path), !FileManager.default.fileExists(atPath: self.dir.path) {
+                try? FileManager.default.moveItem(at: legacy, to: self.dir)
+            }
         }
+        self.bundledDir = bundledDir
         try? FileManager.default.createDirectory(at: self.dir, withIntermediateDirectories: true)
     }
 
@@ -45,6 +56,26 @@ public final class TangerineApps: @unchecked Sendable {
 
     func appDir(slug: String) -> URL {
         dir.appendingPathComponent(slug, isDirectory: true)
+    }
+
+    private func bundledAppDir(slug: String) -> URL? {
+        bundledDir?.appendingPathComponent(slug, isDirectory: true)
+    }
+
+    /// Slugs of apps shipped in the bundle.
+    public func bundledSlugs() -> [String] {
+        guard let bundledDir else { return [] }
+        let urls = (try? FileManager.default.contentsOfDirectory(at: bundledDir, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        return urls
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+            .map { $0.lastPathComponent }
+    }
+
+    /// The app's `manifest.json`, preferring an on-disk copy over the bundled one.
+    func manifestURL(slug: String) -> URL? {
+        let disk = appDir(slug: slug).appendingPathComponent("manifest.json")
+        if FileManager.default.fileExists(atPath: disk.path) { return disk }
+        return bundledAppDir(slug: slug)?.appendingPathComponent("manifest.json")
     }
 
     /// Turn an app name into a filesystem- and host-safe slug (the tang:// host).
@@ -163,22 +194,36 @@ public final class TangerineApps: @unchecked Sendable {
         """
     }
 
+    /// Installed apps: bundled ones plus every directory on disk. The `notes`
+    /// dir on disk is only an app if it's bundled (or a user app of that name
+    /// with an index.html), otherwise it just holds agent-written notes.
     public func list() -> [String] {
         let urls = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        return urls
+        let onDisk = urls
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
             .map { $0.lastPathComponent }
-            .filter { $0 != Self.notesHost }
-            .sorted()
+            .filter { $0 != Self.notesHost || FileManager.default.fileExists(atPath: appDir(slug: $0).appendingPathComponent("index.html").path) }
+        return Array(Set(onDisk).union(bundledSlugs())).sorted()
     }
 
-    /// Resolve a tang:// request (host = app slug, path = file) to a file on
-    /// disk, guarding against `..` traversal. Returns nil if outside the app.
+    /// Resolve a tang:// request (host = app slug, path = file) to a file,
+    /// guarding against `..` traversal. On-disk apps win; if the file isn't
+    /// there, fall back to the bundled app of the same slug. Returns nil if
+    /// outside the app or if nothing exists at that path.
     func resolveFile(forHost host: String, path: String) -> URL? {
         var rel = path
         if rel.hasPrefix("/") { rel.removeFirst() }
         if rel.isEmpty { rel = "index.html" }
-        return safeFileURL(appURL: appDir(slug: host), relativePath: rel)
+        if let disk = safeFileURL(appURL: appDir(slug: host), relativePath: rel),
+           FileManager.default.fileExists(atPath: disk.path) {
+            return disk
+        }
+        if let bundledApp = bundledAppDir(slug: host),
+           let bundled = safeFileURL(appURL: bundledApp, relativePath: rel),
+           FileManager.default.fileExists(atPath: bundled.path) {
+            return bundled
+        }
+        return nil
     }
 
     private static func normalize(_ p: String) -> String {
@@ -204,9 +249,9 @@ public final class TangerineApps: @unchecked Sendable {
 
 final class TangSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "tang"
-    private let apps: TangerineApps
+    private let apps: TangAppStore
 
-    init(apps: TangerineApps = .shared) {
+    init(apps: TangAppStore = .shared) {
         self.apps = apps
     }
 
@@ -221,9 +266,9 @@ final class TangSchemeHandler: NSObject, WKURLSchemeHandler {
             respond(task: urlSchemeTask, url: url, status: 404, mime: "text/plain; charset=utf-8", data: Data("Not found".utf8))
             return
         }
-        if host == TangerineApps.notesHost, fileURL.pathExtension.lowercased() == "md",
+        if host == TangAppStore.notesHost, fileURL.pathExtension.lowercased() == "md",
            let markdown = String(data: data, encoding: .utf8) {
-            let page = TangerineApps.renderNote(markdown: markdown)
+            let page = TangAppStore.renderNote(markdown: markdown)
             respond(task: urlSchemeTask, url: url, status: 200, mime: "text/html; charset=utf-8", data: Data(page.utf8))
             return
         }

@@ -107,7 +107,7 @@ private struct SearchResultRow: View {
                 
                 if let title {
                     Text(title + "  ")
-                        .font(.system(size: 14))
+                        .font(.system(size: result.item.isTerminalStyled ? 13 : 14, design: result.item.isTerminalStyled ? .monospaced : .default))
                         .layoutPriority(2)
                 }
                 
@@ -115,15 +115,16 @@ private struct SearchResultRow: View {
                     .font(.system(size: 12))
                     .layoutPriority(1)
                     .opacity(0.5)
+                    .padding(.leading, -6)
                 
                 Spacer()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
             .lineLimit(1)
         }
-        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, desaturatedHighlight: isDirectToSite))
+        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, desaturatedHighlight: isDirectToSite, highlightColor: result.item.isTerminalStyled ? .black : nil))
     }
 
     private var isDirectToSite: Bool {

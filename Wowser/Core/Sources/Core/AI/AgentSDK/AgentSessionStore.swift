@@ -5,13 +5,14 @@ import Foundation
 // harness session id — resuming that session is what carries the agent's
 // memory of the conversation.
 //
-// Transcripts are deliberately NOT stored: replaying old messages back to a
-// caller that reattaches would re-deliver things it has already seen. A
-// reattached agent starts with an empty transcript and remembers the
-// conversation itself.
+// The rendered transcript is stored beside it, so a reattached agent comes
+// back with its history visible and message indices continuing where they
+// left off (the harness remembers the conversation; the sidecar is only what
+// the UI shows).
 //
-// One JSON file per key at:
+// Two JSON files per key at:
 //   ~/Library/Application Support/Wowser/agents/<slug>.json
+//   ~/Library/Application Support/Wowser/agents/<slug>.transcript.json
 
 public struct AgentSessionRecord: Codable, Sendable {
     public var key: String
@@ -27,7 +28,7 @@ public struct AgentSessionRecord: Codable, Sendable {
     /// agent still has them. The app must re-`serve` them after reattaching.
     public var appTools: [BrowserJSAgentToolSpec]
     /// Harness session id — resumed to restore the agent's memory of the
-    /// conversation. The transcript is not stored; see the note above.
+    /// conversation.
     public var sessionID: String?
     public var updatedAt: Date
 
@@ -45,6 +46,9 @@ public protocol AgentSessionStoring: Sendable {
     func save(_ record: AgentSessionRecord)
     func delete(key: String)
     func all() -> [AgentSessionRecord]
+    /// The transcript last saved for this key ([] if none).
+    func loadTranscript(key: String) -> [BrowserJSAgentMessage]
+    func saveTranscript(key: String, messages: [BrowserJSAgentMessage])
 }
 
 public final class AgentSessionStore: AgentSessionStoring, @unchecked Sendable {
@@ -78,6 +82,10 @@ public final class AgentSessionStore: AgentSessionStoring, @unchecked Sendable {
         dir.appendingPathComponent(Self.slug(for: key) + ".json")
     }
 
+    private func transcriptURL(for key: String) -> URL {
+        dir.appendingPathComponent(Self.slug(for: key) + ".transcript.json")
+    }
+
     public func load(key: String) -> AgentSessionRecord? {
         queue.sync {
             guard let data = try? Data(contentsOf: url(for: key)) else { return nil }
@@ -95,14 +103,32 @@ public final class AgentSessionStore: AgentSessionStoring, @unchecked Sendable {
     }
 
     public func delete(key: String) {
-        queue.sync { try? FileManager.default.removeItem(at: url(for: key)) }
+        queue.sync {
+            try? FileManager.default.removeItem(at: url(for: key))
+            try? FileManager.default.removeItem(at: transcriptURL(for: key))
+        }
+    }
+
+    public func loadTranscript(key: String) -> [BrowserJSAgentMessage] {
+        queue.sync {
+            guard let data = try? Data(contentsOf: transcriptURL(for: key)) else { return [] }
+            return (try? JSONDecoder().decode([BrowserJSAgentMessage].self, from: data)) ?? []
+        }
+    }
+
+    public func saveTranscript(key: String, messages: [BrowserJSAgentMessage]) {
+        // Encode and write off the caller's thread; transcripts can be large.
+        queue.async { [transcriptURL = transcriptURL(for: key)] in
+            guard let data = try? JSONEncoder().encode(messages) else { return }
+            try? data.write(to: transcriptURL, options: .atomic)
+        }
     }
 
     public func all() -> [AgentSessionRecord] {
         queue.sync {
             let urls = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
             return urls
-                .filter { $0.pathExtension == "json" }
+                .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".transcript.json") }
                 .compactMap { try? Data(contentsOf: $0) }
                 .compactMap { try? JSONDecoder().decode(AgentSessionRecord.self, from: $0) }
                 .sorted { $0.updatedAt > $1.updatedAt }

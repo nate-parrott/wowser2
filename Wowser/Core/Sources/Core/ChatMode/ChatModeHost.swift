@@ -37,10 +37,12 @@ extension BrowserJSLiveHost {
         }
         let pid = ID<WebContent>.assign()
         BrowserStore.shared.modify { st in
-            var tab = Tab(id: .assign(), panes: [Pane(id: pid, info: .init(url: url))])
-            tab.lastActiveInWindow = winID
-            let loc = st.insertionIndex(window: winID, spawningTabId: st.windows[winID]?.currentTab)
-            st.insertTab(tab, location: loc, inWindow: winID)
+            st.performInOriginSpace(window: winID, keepSwitched: false) { st in
+                var tab = Tab(id: .assign(), panes: [Pane(id: pid, info: .init(url: url))])
+                tab.lastActiveInWindow = winID
+                let loc = st.spawnInsertionIndex(window: winID, spawningPaneID: ctx.ownPaneID)
+                st.insertTab(tab, location: loc, inWindow: winID)
+            }
         }
         _ = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
         return pid
@@ -90,8 +92,8 @@ extension BrowserJSLiveHost {
                 let url = BrowserStore.shared.model.tabs[tabID]?.focusedPane?.info.url?.absoluteString
                 try? await BrowserAgentManager.shared.appendLocalMessage(id: id, role: "tab_card", text: paneID.raw, toolName: note ?? url)
             }
-            // …and, if its space is in chat mode, the coordinator's thread too
-            // (that's what the user is looking at in the sidebar).
+            // …and the space's coordinator thread too (what the user sees in
+            // the sidebar in chat mode; kept current in both modes).
             if let pid = ctx.threadProfileID {
                 ChatSpaceSession.session(for: pid).addCard(tabID: tabID, note: note, force: true)
             }
@@ -119,10 +121,13 @@ extension BrowserJSLiveHost {
                 model: model,
                 effort: effort,
                 fileSystemTools: fileSystemTools,
-                workingDirectory: workingDirectory ?? (fileSystemTools ? folder : nil)
+                workingDirectory: workingDirectory ?? folder
             )
             let wantsMain = show == "main" || show == "both"
-            let (key, paneID) = AgentChatTabs.spawnSubagent(task: task, spec: spec, windowID: winID, background: !wantsMain, ghost: show == "none")
+            // spawnSubagent runs its own transaction, so switch the window to
+            // the caller's space up front rather than around it.
+            BrowserStore.shared.modify { st in st.performInOriginSpace(window: winID, keepSwitched: true) { _ in } }
+            let (key, paneID) = AgentChatTabs.spawnSubagent(task: task, spec: spec, windowID: winID, spawningPaneID: ctx.ownPaneID, background: !wantsMain, ghost: show == "none")
             if show != "none" {
                 try await Self.presentPane(paneID, show: show, note: nil, ctx: ctx)
             }
@@ -209,13 +214,16 @@ extension BrowserJSLiveHost {
                 ?? state.mostRecentNativeFolderPath(windowID: winID)
             let key = NativePageKey.terminal(cwd: folder, runCommand: command?.nilIfEmpty)
             let pid = ID<WebContent>.assign()
+            let wantsMain = show == "main" || show == "both"
             BrowserStore.shared.modify { st in
-                var pane = Pane(id: pid, info: .init(url: key.url))
-                pane.isGhost = show == "none"
-                var tab = Tab(id: .assign(), panes: [pane])
-                tab.lastActiveInWindow = winID
-                let loc = st.insertionIndex(window: winID, spawningTabId: st.windows[winID]?.currentTab)
-                st.insertTab(tab, location: loc, inWindow: winID)
+                st.performInOriginSpace(window: winID, keepSwitched: wantsMain) { st in
+                    var pane = Pane(id: pid, info: .init(url: key.url))
+                    pane.isGhost = show == "none"
+                    var tab = Tab(id: .assign(), panes: [pane])
+                    tab.lastActiveInWindow = winID
+                    let loc = st.spawnInsertionIndex(window: winID, spawningPaneID: ctx.ownPaneID)
+                    st.insertTab(tab, location: loc, inWindow: winID)
+                }
             }
             guard let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID) else {
                 throw BrowserJSError.tabNotFound(pid.raw)

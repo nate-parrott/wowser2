@@ -46,6 +46,9 @@ declare global {
   type SplitId = string;
   /** A space id. Spaces are the profiles in the sidebar carousel. */
   type SpaceId = string;
+  /** A sidebar folder id (see `browser.folders`). A folder is a pane-less
+   *  tab in the tab strip, so this is also its SplitId. */
+  type FolderId = string;
 
   interface TabInfo {
     id: TabId;
@@ -73,6 +76,41 @@ declare global {
     isFocusedInSplit: boolean;
     /** The space whose tab list contains this pane's tab. */
     spaceId?: SpaceId;
+    /** The sidebar folder this tab belongs to, if any. */
+    folderId?: FolderId;
+  }
+
+  /**
+   * A sidebar folder: a non-selectable item in the tab strip (it can sit at
+   * any position) that groups pinned tabs under ONE row. Members keep a saved
+   * "pinned" URL; closing a member resets it to that URL and keeps it in the
+   * folder. Members the user has opened since last closing them are listed
+   * under the folder row.
+   */
+  /** A user-created toolbar button (see `browser.toolbar`). */
+  interface ToolbarButton {
+    id: string;
+    label: string;
+    /** SF Symbol name. */
+    icon: string;
+    /** Body of an async BrowserJS function, or null for an agent-backed button. */
+    bjs: string | null;
+    instructions?: string;
+  }
+
+  interface FolderInfo {
+    id: FolderId;
+    spaceId?: SpaceId;
+    windowId?: WindowId;
+    /** Position in the space's tab strip (reorder with `tabs.move`). */
+    index?: number;
+    name: string;
+    /** Pane ids of every member, in folder order. */
+    tabIds: TabId[];
+    /** Pane ids of members currently open (shown under the folder row). */
+    openTabIds: TabId[];
+    /** Split ids of every member, in folder order. */
+    splitIds: SplitId[];
   }
 
   /** One tab holding one or more panes. Single-pane tabs are splits of size 1. */
@@ -105,7 +143,7 @@ declare global {
     /** Creation order — position in the sidebar carousel. */
     index: number;
     hidden: boolean;
-    /** True when the space is in chat mode (sidebar = coordinator thread). */
+    /** True when the browser is in chat mode (browser-wide: every sidebar = that space's coordinator thread). */
     chatMode: boolean;
     /** True if the resolved window is currently displaying this space. */
     isCurrent: boolean;
@@ -164,6 +202,10 @@ declare global {
        * `background`). Use this only when the user asked to see the page or
        * you're presenting a finished result — for your own browsing, research,
        * or form-filling prefer `openGhost`, which the user isn't interrupted by.
+       *
+       * The tab lands in YOUR space (the one your terminal / chat lives in),
+       * even if the user is currently looking at a different space. There is
+       * no spaceId option and you never need `spaces.activate` first.
        */
       open(url: string, opts?: { background?: boolean; windowId?: WindowId }): Promise<TabId>;
       /**
@@ -184,7 +226,8 @@ declare global {
        * (screenshot, click, type, key, scroll, eval) works on it without the
        * user ever seeing it. If the user activates the tab themselves it's
        * promoted to a normal tab. Call `tabs.close(id)` when you're done, or
-       * `tabs.activate(id)` to show it to the user.
+       * `tabs.activate(id)` to show it to the user. Like `open`, it lands in
+       * YOUR space automatically — no spaceId needed.
        */
       openGhost(url: string, opts?: { windowId?: WindowId }): Promise<TabId>;
       /**
@@ -289,10 +332,38 @@ declare global {
       /** Switch a window to display `spaceId`. Throws if the space is hidden. */
       activate(spaceId: SpaceId, opts?: { windowId?: WindowId }): Promise<void>;
       /**
-       * Turn chat mode on/off for a space: its sidebar becomes a coordinator
+       * Turn chat mode on/off. Chat mode is browser-wide (the space id is
+       * accepted but ignored): every space's sidebar becomes its coordinator
        * chat thread and tabs show as cards in it (see `present`).
        */
       setChatMode(spaceId: SpaceId, enabled: boolean): Promise<void>;
+    };
+
+    /**
+     * Sidebar folders (see `FolderInfo`). A folder is a tab-strip item, so
+     * `tabs.move(folderId, toIndex)` repositions it. `spaceId` defaults to
+     * the current window's space.
+     */
+    folders: {
+      list(opts?: { spaceId?: SpaceId; windowId?: WindowId }): Promise<FolderInfo[]>;
+      get(folderId: FolderId): Promise<FolderInfo>;
+      /** Create an empty folder at the end of the space's tab strip. Add tabs with `addTab`. */
+      create(name: string, opts?: { spaceId?: SpaceId; windowId?: WindowId }): Promise<FolderId>;
+      rename(folderId: FolderId, name: string): Promise<void>;
+      /**
+       * Delete a folder. Its members move back to the window's ordinary tab
+       * list, or are closed when `closeTabs` is set.
+       */
+      delete(folderId: FolderId, opts?: { closeTabs?: boolean; windowId?: WindowId }): Promise<void>;
+      /**
+       * Move an existing tab into a folder, pinning its current URL as the
+       * state it resets to when closed. `open` also lists it under the folder
+       * row right away (otherwise it only appears in the folder's preview
+       * until the user opens it).
+       */
+      addTab(tabId: TabId, folderId: FolderId, opts?: { open?: boolean }): Promise<void>;
+      /** Drop a tab from its folder. The tab is closed. */
+      removeTab(tabId: TabId): Promise<void>;
     };
 
     /**
@@ -318,8 +389,10 @@ declare global {
 
     /**
      * Local "tang://" webapps. `create` writes a folder of files to disk
-     * (~/Library/Application Support/Wowser/Tangerine/<slug>/) and opens it in
-     * a new tab at `tang://<slug>/`. `files` maps relative paths to contents and
+     * (~/Library/Application Support/Wowser/Apps/<slug>/) and opens it in
+     * a new tab at `tang://<slug>/`. Some apps ship with the browser (e.g. the
+     * Notes app at `tang://notes/`); writing an app with the same name
+     * overrides the bundled one. `files` maps relative paths to contents and
      * MUST include an `index.html`. Pages loaded from tang:// receive the full
      * `window.browser` API (this same surface), so an app can drive the browser.
      *
@@ -347,11 +420,7 @@ declare global {
      *     { "kind": "new", "label": "New Weather Note",
      *       "bjs": "await browser.tabs.open('tang://weather/new', { windowId: args.windowId });" }
      *
-     * - kind "tab": an item in the puzzle-piece "extensions" menu shown in the
-     *   toolbar of web tabs. args = { tabId: TabId, url?: string, windowId?: WindowId }
-     *   Example — open the app in a split next to the current tab, passing its URL:
-     *     { "kind": "tab", "label": "Analyze This Page",
-     *       "bjs": "await browser.tabs.openSplit('tang://weather/?page=' + encodeURIComponent(args.url), { besideTabId: args.tabId });" }
+     * (To add a button to the toolbar of web tabs, use `browser.toolbar` below.)
      *
      * - kind "search": registers `keyword`; when an omnibox query starts with
      *   that word (e.g. keyword "weather" matches "weather" or "weather in sf"),
@@ -376,6 +445,129 @@ declare global {
      */
     notes: {
       write(opts: { title: string; markdown?: string; html?: string; show?: 'none' | 'card' | 'main' | 'both' }): Promise<{ url: string; tabId?: TabId }>;
+    };
+
+    /**
+     * User-customizable buttons on the trailing edge of every web tab's
+     * toolbar (right-click that area to reorder/hide them). A custom button is
+     * { id, label, icon, bjs?, instructions? }: `icon` is an SF Symbol name,
+     * `instructions` is what the user said the button should do, and `bjs` is
+     * the BODY of an async BrowserJS function run when the button is clicked
+     * (same environment as run_browser_js: `browser` in scope, `await`
+     * allowed) with `args = { buttonId, tabId, url?, windowId, modifiers }`
+     * (`modifiers` is e.g. ["shift","option"]) describing the click. When
+     * `bjs` is null, clicking instead spawns a background agent that is given
+     * the current page, the click details and `instructions` — use that for
+     * buttons whose job needs judgment ("summarize this for my mom") rather
+     * than code. If a button's bjs throws, the browser shows a toast and
+     * spawns an agent to fix it.
+     *
+     * `update` leaves omitted fields alone; pass `bjs: null` to make the
+     * button agent-backed. `click` runs a button as if the user clicked it in
+     * `tabId` (default: your tab) — use it to test.
+     *
+     * Example — a button that opens the current page on archive.org:
+     *   await browser.toolbar.update(id, {
+     *     icon: 'clock.arrow.circlepath',
+     *     bjs: "await browser.tabs.open('https://web.archive.org/web/*\/' + args.url, { windowId: args.windowId });"
+     *   });
+     */
+    toolbar: {
+      list(): Promise<ToolbarButton[]>;
+      get(id: string): Promise<ToolbarButton | null>;
+      create(opts: { label: string; icon?: string; bjs?: string; instructions?: string }): Promise<ToolbarButton>;
+      update(id: string, opts: { label?: string; icon?: string; bjs?: string | null; instructions?: string }): Promise<ToolbarButton>;
+      remove(id: string): Promise<void>;
+      click(id: string, opts?: { tabId?: TabId }): Promise<void>;
+    };
+
+    /**
+     * Durable per-site customization: CSS and JS that Wowser injects into
+     * every page on `host` (a hostname like "x.com" or any URL; www. is
+     * stripped; subdomains are separate hosts), now and on every future
+     * visit. Use it to restyle a site, hide elements, or add behavior with
+     * `js` (which can insert HTML). `js` runs after load and again whenever
+     * the injection refreshes, so make it idempotent (check before you
+     * insert). Open tabs on that host update immediately. In `set`, an
+     * omitted field is left as-is and "" clears it; `get` returns the current
+     * pair. Verify with a screenshot; the user can toggle it off per site
+     * from the toolbar.
+     */
+    inject: {
+      get(host: string): Promise<{ host: string; css?: string; js?: string }>;
+      set(host: string, opts: { css?: string; js?: string }): Promise<{ host: string; css?: string; js?: string }>;
+      clear(host: string): Promise<void>;
+    };
+
+    /**
+     * Memory: an on-disk, full-text-indexed log of what happened in the
+     * browser — page visits (with title/description and the tab they were
+     * opened from), text seen on screen, terminal output, agent conversations,
+     * downloads, text the user typed, clicks (the element's accessible name,
+     * text and link) and HTML form submissions (field values, minus
+     * passwords/cards). Every row carries `space_id` / `space`, the space it
+     * happened in. One SQLite database per "scope" (a website data store;
+     * several spaces can share one). Off unless the user enabled it for a
+     * scope in Settings › Memory; disabled scopes have no data.
+     *
+     * `scope` defaults to the space you're running in, or the only enabled
+     * scope. Call `schema()` first — it explains every table and column and
+     * how to full-text search. `query` accepts read-only SQL only (SELECT /
+     * WITH), with optional positional `?` params, capped at `limit` rows
+     * (default 200) and a few seconds of CPU — always LIMIT and prefer
+     * substr(text, 1, N) previews. `overview` is the human-readable memory
+     * summary for the scope (markdown) plus when it was last edited;
+     * `setOverview` replaces it (this is how the regenerate agent saves).
+     */
+    memory: {
+      scopes(): Promise<{ id: string; names: string[]; enabled: boolean; eventCount?: number }[]>;
+      schema(): Promise<string>;
+      query(opts: { sql: string; scope?: string; params?: (string | number | null)[]; limit?: number }): Promise<Record<string, string | number | null>[]>;
+      overview(opts?: { scope?: string }): Promise<{ scope: string; text: string; updatedAt?: string; status: 'idle' | 'queued' | 'running' | 'error'; statusDetail?: string }>;
+      setOverview(opts: { text: string; scope?: string }): Promise<{ scope: string; text: string; updatedAt?: string; status: string }>;
+    };
+
+    /**
+     * Scheduled tasks: jobs a background agent runs once (at given dates) or
+     * on a cadence. They are defined in a JSON file — `list()` tells you where
+     * — that YOU edit with `browser.fs.read`/`fs.write` (there is no
+     * create/update API on purpose; the user cannot edit tasks in the UI, only
+     * you can). The browser re-reads the file within a minute of any change
+     * and runs whatever is due, one task at a time, in a background tab of the
+     * active window, showing a toast when a run starts. Each run's agent is
+     * given the task's `prompt` as its instructions plus a private data file
+     * (`dataFilePath`) it reads at the start and writes JSON state to at the
+     * end, so tasks can remember what they've already done between runs.
+     *
+     * File format:
+     *   { "tasks": [ {
+     *       "id": "morning-news",                 // stable slug you choose
+     *       "title": "Morning news digest",        // shown in Settings › Tasks
+     *       "prompt": "Check … and write a note …",// full instructions for the run agent;
+     *                                              // tell it what to keep in its data file
+     *       "fireDates": ["2026-09-21T09:00:00Z"], // optional one-off firings (ISO 8601, UTC ok);
+     *                                              // the browser deletes each once fired
+     *       "recurrence": { "kind": "daily", "hour": 9, "minute": 0 },
+     *                                              // optional; kinds:
+     *                                              //   { kind: 'interval', seconds }        (≥ 60)
+     *                                              //   { kind: 'daily', hour, minute }      (local time)
+     *                                              //   { kind: 'weekly', weekday, hour, minute } (1=Sun…7=Sat)
+     *       "enabled": true                        // optional, default true
+     *   } ] }
+     * The browser adds `createdAt`, `lastRunAt`, `lastRunSummary`,
+     * `lastRunWasError` and `lastRunAgentKey` to each task; preserve them when
+     * rewriting the file (read → modify → write; never write from scratch).
+     * A recurrence's next firing is computed from `lastRunAt` (or `createdAt`).
+     * To delete a task, remove its entry. To run once ASAP, add a fireDate a
+     * minute from now.
+     */
+    tasks: {
+      /** The tasks.json path, the data-file directory, and every task with its computed schedule/next run (unix seconds). */
+      list(): Promise<{
+        filePath: string;
+        dataDirectory: string;
+        tasks: Array<{ id: string; title: string; enabled: boolean; schedule: string; nextRunAt?: number; lastRunAt?: number; lastRunSummary?: string; lastRunWasError: boolean; dataFilePath: string }>;
+      }>;
     };
 
     /**

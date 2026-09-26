@@ -19,8 +19,8 @@ extension BrowserState {
     /// Panes eligible for unloading right now, oldest first.
     func chatModeUnloadCandidates(livePaneIDs: Set<ID<WebContent>>, now: Date, keepLive: Int, minIdle: TimeInterval) -> [ID<WebContent>] {
         var out: [ID<WebContent>] = []
+        guard isChatMode else { return [] }
         for win in windows.values {
-            guard profiles[win.profile]?.isChatMode == true else { continue }
             let liveTabs: [(tab: Tab, panes: [Pane])] = win.tabs.compactMap { tabID in
                 guard let tab = tabs[tabID], tabID != win.currentTab, !tab.isPip else { return nil }
                 let panes = tab.panes.asArray.filter { livePaneIDs.contains($0.id) }

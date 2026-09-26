@@ -81,7 +81,6 @@ private struct SidebarSwipeContent: View {
                 ProfilePagingDots(windowID: windowID)
                     .padding(.top, 4)
                     .padding(.bottom, 8)
-                    .reportsSpaceBackgroundRegion("paging-dots", edge: .bottom)
             }
         }
     }
@@ -97,12 +96,14 @@ private struct SidebarSwipeContent: View {
 private struct ProfilePageView: View {
     let windowID: ID<WindowState>
     let profileID: ID<Profile>
+    @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
     
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
             ProfilePageSnapshot(
                 windowID: windowID,
                 profileID: profileID,
+                shareTabsAcrossWindows: allWindowsShareTabs,
                 state: state
             )
         } main: { snapshot in
@@ -116,18 +117,17 @@ private struct ProfilePageSnapshot: Equatable {
     let windowID: ID<WindowState>
     let profileID: ID<Profile>
     let favoriteTabIDs: [ID<Tab>]
+    /// Folder tabs in this space's list, keyed by tab id.
+    let folders: [ID<Tab>: FolderSnapshot]
     let regularTabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
-    let showSpaceTitle: Bool
     /// Chat mode: the tab list is replaced by the coordinator thread.
     let chatMode: Bool
 
-    init(windowID: ID<WindowState>, profileID: ID<Profile>, state: BrowserState) {
+    init(windowID: ID<WindowState>, profileID: ID<Profile>, shareTabsAcrossWindows: Bool, state: BrowserState) {
         self.windowID = windowID
         self.profileID = profileID
-        // Only surface the editable space name when there's more than one space.
-        self.showSpaceTitle = state.visibleProfiles.count > 1
-        self.chatMode = state.profiles[profileID]?.isChatMode ?? false
+        self.chatMode = state.isChatMode
         
         // Extract favorites from profile
         var favoriteIDs = [ID<Tab>]()
@@ -144,7 +144,16 @@ private struct ProfilePageSnapshot: Equatable {
         self.currentTabID = perProfileData?.currentTab
         
         // Process tabs in their original order but add headers when group changes
-        let regularTabIDs = perProfileData?.tabs ?? []
+        let regularTabIDs = shareTabsAcrossWindows
+            ? state.sharedSidebarTabIDs(windowID: windowID, profileID: profileID)
+            : (perProfileData?.tabs ?? [])
+        var folders = [ID<Tab>: FolderSnapshot]()
+        for tabID in regularTabIDs {
+            if let tab = state.tabs[tabID], let snap = FolderSnapshot(folderTab: tab, tabs: state.tabs) {
+                folders[tabID] = snap
+            }
+        }
+        self.folders = folders
         var tabGroups: [TabGroup] = []
         
         if regularTabIDs.count < UIConstants.autoOrgMinTabCount {
@@ -200,13 +209,7 @@ private struct ProfilePageContent: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                // Editable space name, shown only when there's more than one space.
-                if snapshot.showSpaceTitle {
-                    SpaceNameLabel(windowID: windowID, profileID: snapshot.profileID)
-                }
-
                 // Favorite bookmarks/tabs section
-
                 if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
                     FavoriteTabsView(
                         tabIDs: snapshot.favoriteTabIDs,
@@ -217,13 +220,13 @@ private struct ProfilePageContent: View {
                     .padding(.bottom, 10)
                 }
             }
-            .reportsSpaceBackgroundRegion("top-favorites-\(snapshot.profileID.raw)", edge: .top)
 
             if snapshot.chatMode {
                 ChatSpaceSidebar(windowID: windowID, profileID: snapshot.profileID)
             } else {
                 // Regular tabs section with group headers
                 GroupedTabsView(
+                    folders: snapshot.folders,
                     tabGroups: snapshot.regularTabGroups,
                     currentTabID: snapshot.currentTabID,
                     windowID: windowID,
@@ -367,7 +370,6 @@ private struct NewProfileContent: View {
             Spacer()
         }
         .padding()
-        .frame(width: UIConstants.sidebarWidth)
     }
 
     @ViewBuilder private var profileSharingMenu: some View {

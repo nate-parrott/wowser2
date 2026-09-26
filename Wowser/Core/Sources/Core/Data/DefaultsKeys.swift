@@ -11,6 +11,9 @@ public enum DefaultsKeys: String {
     case preserveWindowsAcrossRestarts // bool
     case autoOrganizeTabs // bool
     case autoArchiveTabs
+    case sortExternalLinksIntoSpaces // bool (default on) — links opened from other apps are classified by an LLM and moved into the best-fitting space; see BrowserStore+ExternalLinkSpaces
+    case cleanupTabs // bool (default on) — background close of stale empty/duplicate/meeting/idle-terminal/ghost-agent tabs; see BrowserStore+Cleanup
+    case allWindowsShareTabs // bool (default on) — every window's sidebar lists the space's tabs from all windows; selecting a tab that lives in another window moves it here. See BrowserState.sharedSidebarTabIDs / activate(tabId:in:)
     case cleanModeForRecipes
     case lastAutoArchiveDate // Date
     
@@ -27,10 +30,9 @@ public enum DefaultsKeys: String {
     case searchEngine // SearchEngine
     case Chatbot // Chatbot
     
-    case enableGoDirectQueries // bool
+    case enableGoDirectQueries // bool (default off)
     case lastShownWelcomePageForPageVersion // int
     case searchToolbarEnabled // bool
-    case hiddenTrailingToolbarItems // string — comma-separated ToolbarTrailingItem raw values hidden from the toolbar's trailing edge (right-click the trailing buttons to toggle)
 
     case mcpServerURL // string — written by MCPServer when it binds, read by SettingsView
 
@@ -44,17 +46,19 @@ public enum DefaultsKeys: String {
     
     case hasSeenTerminalUpsell // bool — set after the user dismisses the first-time terminal upsell
 
+    case sidebarWidth // double — user-dragged sidebar width in points (see UIConstants.sidebarWidth)
     case spaceThemeIntensity // double 0–2 — scales the space theme's background gradient opacity (1 = default)
-    case spaceBackgroundDebugView // bool — outline the space background image's blur regions + show the recompute counter
 
     case devModeDomains // string — JSON [domain: DevModeDomainConfig]; see DevMode.swift
 
     case lastAIRequest // string — JSON AIRequestRecord; see AIRequestLog.swift
 
     case dictationCleanup // bool — run dictated text (into web text fields) through the configured LLM before inserting
-    case dictationButton // bool — experimental: show the microphone button in the toolbar (default off)
 
     case hideSiriAIOnTextSelection // bool (default on) — opt out of Writing Tools (writingToolsBehavior = .none) in webviews + native text fields, which also suppresses macOS 27's floating Siri button on text selection
+
+    case agentShellTools // bool (default off) — Claude Code agents get the harness's Bash/Read/Write/Edit/Glob/Grep tools (permissions bypassed); see ClaudeCodeAgentProvider
+    case memoryEnabledScopes // [string] — dataStoreUUIDs whose memory store (event log) is on; see MemoryStore.swift
 
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
 }
@@ -97,6 +101,14 @@ public extension DefaultsKeys {
     }
     
     func setString(_ value: String) {
+        UserDefaults.standard.set(value, forKey: rawValue)
+    }
+
+    func stringArrayValue() -> [String] {
+        return UserDefaults.standard.stringArray(forKey: rawValue) ?? []
+    }
+
+    func setStringArray(_ value: [String]) {
         UserDefaults.standard.set(value, forKey: rawValue)
     }
     

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The Space menu: shown when right-clicking a space's paging dot and when
-/// clicking the space icon in the sidebar header. Shows the title (edit it via
-/// the header), the attached folder, an icon submenu, and hide/delete.
+/// clicking the space icon in the sidebar header. Shows the title, rename,
+/// the attached folder, an icon submenu, and hide/delete.
 struct SpaceMenuItems: View {
     let profileID: ID<Profile>
     let windowID: ID<WindowState>
@@ -22,16 +22,16 @@ private struct SpaceMenuSnapshot: Equatable {
     var folderPath: String?
     var canHide: Bool
     var canDelete: Bool
-    var chatMode: Bool
+    var isChatMode: Bool
 
     init(state: BrowserState, profileID: ID<Profile>) {
         let profile = state.profiles[profileID]
         title = profile?.title?.nilIfEmpty ?? profile?.autoTitle ?? "Space \((profile?.creationOrder ?? 0) + 1)"
         emoji = profile?.emoji
         folderPath = profile?.folderPath
-        chatMode = profile?.isChatMode ?? false
         canHide = state.canHideProfile(profileID)
         canDelete = state.profiles.count > 1
+        isChatMode = state.isChatMode
     }
 
     var displayFolder: String? {
@@ -53,6 +53,7 @@ private struct SpaceMenuItemsContent: View {
     var body: some View {
         Section {
             Text([snapshot.emoji, snapshot.title].compactMap { $0 }.joined(separator: " "))
+            Button("Rename…") { SpaceMenu.rename(profileID: profileID) }
         }
 
         #if os(macOS)
@@ -84,7 +85,10 @@ private struct SpaceMenuItemsContent: View {
         }
 
         Section {
-            Toggle("Chat Mode", isOn: Binding(get: { snapshot.chatMode }, set: { setChatMode($0) }))
+            Toggle("Chat Mode", isOn: Binding(
+                get: { snapshot.isChatMode },
+                set: { BrowserStore.shared.setChatMode($0) }
+            ))
         }
 
         Section {
@@ -94,12 +98,6 @@ private struct SpaceMenuItemsContent: View {
             if snapshot.canDelete {
                 Button("Delete Space", role: .destructive) { delete() }
             }
-        }
-    }
-
-    private func setChatMode(_ on: Bool) {
-        BrowserStore.shared.modify { state in
-            state.profiles[profileID]?.chatMode = on ? true : nil
         }
     }
 
@@ -125,6 +123,31 @@ private struct SpaceMenuItemsContent: View {
 }
 
 enum SpaceMenu {
+    /// Prompts for a new space title. An empty result clears the user title
+    /// so the AI-generated `autoTitle` shows again.
+    static func rename(profileID: ID<Profile>) {
+        Task { @MainActor in
+            let profile = BrowserStore.shared.model.profiles[profileID]
+            let current = profile?.title?.nilIfEmpty
+            let placeholder = profile?.autoTitle ?? "Space \((profile?.creationOrder ?? 0) + 1)"
+            guard let result = await Alerts.showAppPrompt(
+                title: "Rename Space",
+                message: "",
+                textPlaceholder: placeholder,
+                submitTitle: "Rename",
+                cancelTitle: "Cancel",
+                defaultText: current
+            ) else { return }
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed != (current ?? "") else { return }
+            BrowserStore.shared.modify { state in
+                state.profiles[profileID]?.title = trimmed.nilIfEmpty
+            }
+            // Refresh the space's emoji + gradient theme from the new title.
+            await BrowserStore.shared.regenerateSpaceTheme(profileID: profileID)
+        }
+    }
+
     #if os(macOS)
     /// Attaches a folder to the space (or swaps the existing one), pinning
     /// VS Code / terminal / files tabs for it.
@@ -158,14 +181,14 @@ struct SpaceIconMenuButton: View {
             Group {
                 if let emoji, !emoji.isEmpty {
                     Text(emoji)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                 } else {
                     Image(systemName: "circle.fill")
                         .font(.system(size: 6))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 20, height: 20)
+            .frame(width: 16, height: 20)
             .background(
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(Color.primary.opacity(hovered ? 0.1 : 0))

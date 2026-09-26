@@ -37,7 +37,7 @@ public extension BrowserState {
             windows[windowID]?.tabs.insert(tabID, at: i)
         case .project(let projID, let i):
             projects[projID]?.tabs.insert(tabID, at: i)
-        case .favorites, .attachedAgent:
+        case .favorites, .attachedAgent, .folder:
             windows[windowID]?.tabs.append(tabID)
         }
     }

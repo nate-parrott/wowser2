@@ -71,7 +71,7 @@ final class AgentStageWindow {
         }
     }
 
-    private func startSweepIfNeeded() {
+    func startSweepIfNeeded() {
         guard sweepTimer == nil else { return }
         let t = Timer(timeInterval: 60, repeats: true) { _ in
             Task { @MainActor in AgentStageWindow.shared.sweepExpiredLeases() }
@@ -100,12 +100,19 @@ final class AgentStageWindow {
         win.ignoresMouseEvents = true
         win.hidesOnDeactivate = false
         win.hasShadow = false
-        win.isOpaque = true
-        win.backgroundColor = .white
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        // Belt and braces: even if AppKit ever drags this onto a screen, the
+        // user must never see it. WebKit's visibility check looks at window
+        // ordering and occlusion (disabled below), not alpha.
+        win.alphaValue = 0
         win.title = "Agent Stage"
         // Keep it out of Mission Control / Exposé / window cycling, and pinned
-        // so Spaces changes don't drag it around.
-        win.collectionBehavior = [.transient, .ignoresCycle, .stationary, .fullScreenAuxiliary]
+        // so Spaces changes don't drag it around. Deliberately NOT
+        // `.fullScreenAuxiliary`: that pulls the window into the fullscreen
+        // Space when the browser goes fullscreen, and AppKit then clamps the
+        // "offscreen" frame onto the display as a big blank box in the corner.
+        win.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         win.level = .normal
         win.contentView = NSView(frame: NSRect(origin: .zero, size: Self.viewportSize))
         // Ordering the window is what makes AppKit (and therefore WebKit)

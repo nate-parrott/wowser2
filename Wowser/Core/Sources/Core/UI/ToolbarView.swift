@@ -20,10 +20,15 @@ public struct ToolbarViewSnapshot: Equatable {
     /// full status itself so its per-step detail text doesn't re-render the toolbar.
     var hasWorkingAttachedAgent: Bool
     var canOpenChat: Bool
+    /// Whether the dictation (mic) button is switched on in the toolbar
+    /// customizer. Web tabs render it in the trailing region; the new-tab
+    /// page has no trailing region, so ToolbarView draws it beside the omnibox.
+    var dictationShown: Bool
 
     /// Creates a snapshot based on the browser state for a specific pane
     init(state: BrowserState, webContentId: ID<WebContent>?, windowID: ID<WindowState>?) {
         self.hasWorkingAttachedAgent = windowID.map { state.attachedAgentStatus(windowID: $0) != nil } ?? false
+        self.dictationShown = !state.toolbarConfig.hidden.contains(.builtin(.dictation))
         guard let webContentId,
               let tabId = state.paneToTabMapping[webContentId],
               let tab = state.tabs[tabId],
@@ -61,7 +66,10 @@ public struct ToolbarViewSnapshot: Equatable {
         // Display traffic lights only if top-docked (ie not empty page)
         self.makeRoomForTrafficLights = isFirstPane && !sidebarLocked && !self.isEmptyPage
         self.nativeKey = paneData.info.url.flatMap(NativePageKey.init(url:))
-        self.canOpenChat = tab.panes.filter({ $0.info.isAgent }).count == 0 && !self.isEmptyPage
+        self.canOpenChat = false
+        if !state.isChatMode {
+            self.canOpenChat = tab.panes.filter({ $0.info.isAgent }).count == 0 && !self.isEmptyPage
+        }
     }
 }
 
@@ -81,19 +89,12 @@ struct ToolbarView: View {
 
     private let browserStore = BrowserStore.shared
     @ObservedObject private var devModeStore = DevModeStore.shared
-    @State private var isBookmarked: Bool = false
     @State private var omniboxIsFocused: Bool = false
     /// True while a dictation session targeting this pane's omnibox is live.
     @State private var dictationTranscriptShown = false
 
     private func showsAttachedAgentIndicator(_ snapshot: ToolbarViewSnapshot) -> Bool {
         snapshot.hasWorkingAttachedAgent && !omniboxIsFocused && !emptyPage && !dictationTranscriptShown
-    }
-    @AppStorage(DefaultsKeys.hiddenTrailingToolbarItems.rawValue) private var hiddenTrailingItemsRaw = ""
-    @AppStorage(DefaultsKeys.dictationButton.rawValue) private var dictationButtonEnabled = false
-
-    private var hiddenTrailingItems: Set<ToolbarTrailingItem> {
-        ToolbarTrailingItem.hiddenItems(fromRaw: hiddenTrailingItemsRaw)
     }
 
     var body: some View {
@@ -119,7 +120,8 @@ struct ToolbarView: View {
                 HStack(spacing: -2) {
                     if snapshot.nativeKey == nil {
                         LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil, iconOverride: snapshot.isEmptyPage ? "magnifyingglass" : nil)
-                            .padding(.leading, 6)
+                            .padding(.leading,  snapshot.isEmptyPage ? 12 : 6)
+                            .padding(.trailing, snapshot.isEmptyPage ? 4 : 0)
                     }
 
                     ZStack {
@@ -151,100 +153,19 @@ struct ToolbarView: View {
                     }
                     .modifier(DictationOmniboxHighlightIfAvailable(paneID: webContentID, shown: $dictationTranscriptShown))
                     #if os(macOS)
-                    if dictationButtonEnabled {
-                        DictationButton(paneID: webContentID, emptyPage: emptyPage, fgColor: colorScheme?.foreground)
+                    if emptyPage, snapshot.dictationShown {
+                        DictationButton(paneID: webContentID, emptyPage: true, fgColor: colorScheme?.foreground)
                     }
                     #endif
                 }
                 
-                // Trailing buttons container
+                if emptyPage {
+                    Spacer().frame(width: 20)
+                }
+                
+                // Trailing buttons: customizable region (right-click to customize)
                 if !emptyPage {
-                    let hidden = hiddenTrailingItems
-                    HStack(spacing: 0) {
-                        if let nativeKey = snapshot.nativeKey {
-                            #if os(macOS)
-                            if case .fileBrowser(let path) = nativeKey, let path, !path.isEmpty {
-                                FileBrowserToolbarItems(path: path, nativeKey: nativeKey, openInOtherType: openNativeTabInOtherType)
-                            } else {
-                                OpenInOtherNativeMenu(currentKey: nativeKey, openInOtherType: openNativeTabInOtherType)
-                            }
-                            #endif
-                        } else if let webContentID, !hidden.contains(.cleanMode) {
-                            CleanModeStatusButton(webContentID: webContentID)
-                        }
-
-                        #if os(macOS)
-                        // Webapp "tab" entry points (hidden when none installed)
-                        if let webContentID, snapshot.nativeKey == nil, !hidden.contains(.extensions) {
-                            TabExtensionsMenuButton(webContentID: webContentID, url: snapshot.url)
-                        }
-                        #endif
-                                            
-                        // Dev mode's one extra control: mobile viewport on/off.
-                        if !hidden.contains(.mobileViewport), let devDomain = devModeDomain(snapshot: snapshot), devModeStore.isEnabled(for: devDomain) {
-                            let mobile = devModeStore.config(for: devDomain).mobile
-                            Button(action: { devModeStore.modify(devDomain) { $0.mobile.toggle() } }) {
-                                Image(systemName: mobile ? "iphone.gen3" : "iphone.gen3.slash")
-                                    .imageScale(.medium)
-                            }
-                            .buttonStyle(ToolbarButtonStyle())
-                            .help(mobile ? "Turn off mobile viewport" : "Turn on mobile viewport")
-                        }
-
-                        if !hidden.contains(.bookmark) {
-                            Button(action: toggleBookmark) {
-                                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                                    .imageScale(.medium)
-                                    .help(isBookmarked ? "Remove Bookmark (⇧⌘D)" : "Add Bookmark (⇧⌘D)")
-                            }
-                            .buttonStyle(ToolbarButtonStyle())
-                            .disabled(snapshot.url == nil)
-                            .onReceive(ArchiveStore.shared.publisher.map({ $0.isBookmarked(url: snapshot.url) }).removeDuplicates().receive(on: DispatchQueue.main), perform: { self.isBookmarked = $0 })
-                        }
-                        
-                        if snapshot.canOpenChat, !hidden.contains(.openChat) {
-                            Button(action: openChatSplit) {
-                                Image(systemName: "bubble.left")
-                                    .imageScale(.medium)
-                            }
-                            .buttonStyle(ToolbarButtonStyle())
-                            .help("Open chat in split view")
-                        }
-                        
-                        // Close pane button (only visible in split view)
-                        if snapshot.hasMultiplePanes, !hidden.contains(.closePane) {
-                            Button(action: closeCurrentPane) {
-                                Image(systemName: "xmark")
-                                    .imageScale(.medium)
-                            }
-                            .buttonStyle(ToolbarButtonStyle())
-                            .help("Close pane")
-                        }
-
-                        // New split pane button (only on the last pane)
-                        if snapshot.isLastPane, !hidden.contains(.newSplitPane) {
-                            Button(action: addSplitPane) {
-                                Image(systemName: "plus")
-                                    .imageScale(.medium)
-                            }
-                            .buttonStyle(ToolbarButtonStyle())
-                            .help("New split pane")
-                        }
-
-//                        // Always-present grab area so the customization menu is reachable even when every button is hidden.
-//                        Color.clear.frame(width: 8, height: UIConstants.macHeaderHeight)
-                    }
-                    .padding(.trailing, 8)
-                    .contentShape(Rectangle())
-                    .contextMenu {
-                        ForEach(ToolbarTrailingItem.Group.allCases, id: \.self) { group in
-                            Section(group.title) {
-                                ToolbarTrailingItemToggles(items: group.items)
-                            }
-                        }
-                        Divider()
-                        Button("Customize Toolbar…") { SettingsTab.toolbar.open() }
-                    }
+                    ToolbarTrailingRegion(webContentID: webContentID, snapshot: snapshot, openNativeTabInOtherType: openNativeTabInOtherType)
                 }
             }
             .frame(height: UIConstants.macHeaderHeight)
@@ -336,12 +257,6 @@ struct ToolbarView: View {
         }
     }
     
-    func openChatSplit() {
-        if let windowID {
-            AgentChatTabs.openChatSplit(windowID: windowID)
-        }
-    }
-
     /// The dev-mode domain for this pane, or nil where dev mode doesn't apply
     /// (native pages like the VS Code / terminal tabs, empty pages, non-http URLs).
     private func devModeDomain(snapshot: ToolbarViewSnapshot) -> String? {
@@ -406,22 +321,7 @@ struct ToolbarView: View {
         }
         webContent.reload()
     }
-    
-    private func toggleBookmark() {
-        guard let webContentID else { return }
-        guard let tabInfo = browserStore.model.tabInfo(forWebContentId: webContentID) else { return }
-        ArchiveStore.shared.toggleBookmark(url: tabInfo.url, title: tabInfo.title)
-    }
-    
-    private func closeCurrentPane() {
-        guard let webContentID else { return }
-        browserStore.close(webContentId: webContentID, removeIfPinned: false)
-    }
 
-    private func addSplitPane() {
-        guard let windowID else { return }
-        browserStore.createTab(withURL: nil, in: windowID, activate: true, inCurrentSplit: true)
-    }
 }
 
 // Style for toolbar buttons with consistent appearance

@@ -213,6 +213,36 @@ final class TerminalSession: ObservableObject {
         return lines.joined(separator: "\n")
     }
 
+    /// The last `maxLines` lines of scrollback + screen, for the memory store.
+    /// Only the tail is converted to strings, so cost stays bounded no matter
+    /// how deep the scrollback is.
+    func snapshotTailLines(maxLines: Int) -> [String] {
+        let terminal = view.getTerminal()
+        let hardCap = 200_000
+        var first = -1, end = 0
+        var row = 0
+        while row < hardCap {
+            if terminal.getScrollInvariantLine(row: row) != nil {
+                if first < 0 { first = row }
+                end = row + 1
+            } else if first >= 0 {
+                break
+            }
+            row += 1
+        }
+        guard first >= 0 else { return [] }
+        var lines: [String] = []
+        for r in max(first, end - maxLines)..<end {
+            if let line = terminal.getScrollInvariantLine(row: r) {
+                lines.append(line.translateToString(trimRight: true))
+            }
+        }
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        return lines
+    }
+
     /// Read the terminal text. With `since` (a token from an earlier read),
     /// returns only the text appended after that snapshot — or the whole
     /// buffer if the earlier text is no longer a prefix (screen was cleared,
@@ -239,6 +269,12 @@ final class TerminalSession: ObservableObject {
     }
 
     var foregroundCommandForAgents: String? { foregroundCommand }
+    /// PID of the shell we spawned, once running. Used to attribute MCP
+    /// connections to this tab (see TerminalProcessLookup).
+    var shellPid: pid_t? {
+        guard let proc = view.process, proc.running, proc.shellPid > 0 else { return nil }
+        return proc.shellPid
+    }
     var shellIsAtPrompt: Bool { shellIsForeground }
 
     func start(cwd: String?, runCommand: String? = nil, paneID: ID<WebContent>) {
@@ -251,7 +287,9 @@ final class TerminalSession: ObservableObject {
         // Force the initial title write — the didSet on lastKnownCwd may
         // be a no-op the first time if paneID was nil before this call.
         refreshTitle()
-        let env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+        // Advertise which tab this shell lives in, so tools running here (or
+        // the agent reading `$WOWSER_PANE_ID`) can name it explicitly.
+        let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + ["WOWSER_PANE_ID=\(paneID.raw)"]
         // A session started headlessly (BrowserJS `terminal.open`, before any
         // overlay has laid us out) has a zero frame, which SwiftTerm turns
         // into a ~2-column terminal. Give it a plausible size; the overlay
@@ -377,9 +415,9 @@ final class TerminalSession: ObservableObject {
             : (shellSetTitle ?? foregroundCommand ?? cwdTitle)
         let command = foregroundCommand
         BrowserStore.shared.modify { state in
-            state.modifyPaneAndTab(forWebContentId: paneID) { pane, _ in
-                pane.info.title = title
-                pane.info.terminalForegroundCommand = command
+            state.updatePaneInfo(forWebContentId: paneID) { info in
+                info.title = title
+                info.terminalForegroundCommand = command
             }
         }
     }

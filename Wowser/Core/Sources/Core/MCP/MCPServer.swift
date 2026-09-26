@@ -66,7 +66,7 @@ public actor MCPServer {
         ])
 
         let transport = StatelessHTTPServerTransport(validationPipeline: pipeline)
-        let serverName = isProd() ? "Tangerine" : "TangerineDev"
+        let serverName = isProd() ? "Wowser" : "WowserDev"
         let serverVersion = "0.1.0"
         let capabilities = Server.Capabilities(tools: .init(listChanged: false))
         let server = Server(name: serverName, version: serverVersion, capabilities: capabilities)
@@ -95,7 +95,7 @@ public actor MCPServer {
                 protocolVersion: negotiated,
                 capabilities: capabilities,
                 serverInfo: Server.Info(name: serverName, version: serverVersion),
-                instructions: nil
+                instructions: Self.staticInstructions
             )
         }
 
@@ -134,6 +134,21 @@ public actor MCPServer {
         UserDefaults.standard.set(key, forKey: DefaultsKeys.mcpServerToken.rawValue)
     }
 
+    /// Baseline `initialize.instructions`. `MCPHTTPHandler` appends a live
+    /// orientation (what's open in the caller's space) to this per connection.
+    static let staticInstructions = """
+    This server controls the Wowser browser the user is working in. Start by \
+    reading the orientation below (or call `get_browser_context` for a fresh \
+    one) so you know which space and tabs you're next to, then call \
+    `get_browser_js_docs` before your first `run_browser_js`.
+    """
+
+    /// The orientation text for an MCP client, built on the main thread from
+    /// the current store state.
+    static func orientation(originPaneID: ID<WebContent>?) async -> String {
+        await MainActor.run { BrowserStore.shared.model.agentOrientation(originPaneID: originPaneID) }
+    }
+
     private static func generateAuthKey() -> String {
         // 8 chars of base62 — ~47 bits. Plenty for a loopback-only server, and
         // short enough to be inconsequential to read/type.
@@ -161,7 +176,7 @@ public actor MCPServer {
             guard let self else {
                 return CallTool.Result(content: [.text(text: "server unavailable", annotations: nil, _meta: nil)], isError: true)
             }
-            return await self.handleToolCall(name: params.name, arguments: params.arguments)
+            return await self.handleToolCall(name: params.name, arguments: params.arguments, meta: params._meta)
         }
     }
 
@@ -239,7 +254,21 @@ public actor MCPServer {
                 "required": .array([.string("title"), .string("details")]),
             ])
         )
-        return [runBrowserJS, saveHelper, readHelper, getDocs, reportBug]
+        let getContext = MCP.Tool(
+            name: "get_browser_context",
+            description: """
+            Orient yourself: returns which terminal tab you're running in (if
+            any), the space it belongs to, the tabs open in that space (with
+            the current one marked), the other spaces, and other windows.
+            Cheap; call it at the start of a task and whenever you need a
+            fresh picture of what the user has open.
+            """,
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([:]),
+            ])
+        )
+        return [getContext, runBrowserJS, saveHelper, readHelper, getDocs, reportBug]
     }
 
     // MARK: - report_bug
@@ -267,23 +296,31 @@ public actor MCPServer {
             try handle.seekToEnd()
             try handle.write(contentsOf: Data(entry.utf8))
         } else {
-            let header = "# Agent-reported bugs & friction (Tangerine MCP / BrowserJS)\n"
+            let header = "# Agent-reported bugs & friction (Wowser MCP / BrowserJS)\n"
             try Data((header + entry).utf8).write(to: url)
         }
         return true
     }
 
-    private func handleToolCall(name: String, arguments: [String: MCP.Value]?) async -> CallTool.Result {
+    private func handleToolCall(name: String, arguments: [String: MCP.Value]?, meta: Metadata?) async -> CallTool.Result {
         // Auth happens at the HTTP layer (path validation in MCPHTTPHandler);
         // by the time we get here, the request was authorized.
+        // The originating terminal pane, if MCPHTTPHandler identified one.
+        let originPaneID: String? = {
+            if case .string(let s)? = meta?[BrowserJSCallOrigin.metaKey] { return s }
+            return nil
+        }()
 
         do {
             switch name {
+            case "get_browser_context":
+                let text = await Self.orientation(originPaneID: originPaneID.map { ID<WebContent>(raw: $0) })
+                return CallTool.Result(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
             case "run_browser_js":
                 guard let args = arguments, case .string(let code) = args["code"] ?? .null else {
                     throw BrowserJSError.invalidArgs("code")
                 }
-                let result = await runtime.run(code: code)
+                let result = await runtime.run(code: code, originPaneID: originPaneID)
                 let text = encodeRunResult(result)
                 var content: [MCP.Tool.Content] = [.text(text: text, annotations: nil, _meta: nil)]
                 for img in result.images where !img.data.isEmpty {
@@ -382,6 +419,10 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     private let authKey: String
     private struct State { var head: HTTPRequestHead; var body: ByteBuffer }
     private var state: State?
+    /// The terminal pane this connection's client process runs in, resolved
+    /// once per connection (a client keeps its connection alive across calls).
+    /// Outer nil = not yet resolved; inner nil = not one of our terminals.
+    private var originPaneID: ID<WebContent>??
 
     init(transport: StatelessHTTPServerTransport, authKey: String) {
         self.transport = transport
@@ -399,13 +440,14 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             guard let s = state else { return }
             state = nil
             nonisolated(unsafe) let ctx = context
+            let peerPort = context.remoteAddress?.port
             Task {
-                await self.handle(state: s, context: ctx)
+                await self.handle(state: s, context: ctx, peerPort: peerPort)
             }
         }
     }
 
-    private func handle(state: State, context: ChannelHandlerContext) async {
+    private func handle(state: State, context: ChannelHandlerContext, peerPort: Int?) async {
         let path = state.head.uri.split(separator: "?").first.map(String.init) ?? state.head.uri
         // Auth key is baked into the path (`/mcp/<key>`). Anything else 404s,
         // including `/mcp` without a key — we don't want to leak the existence
@@ -419,12 +461,20 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         for (n, v) in state.head.headers {
             if let existing = headers[n] { headers[n] = existing + ", " + v } else { headers[n] = v }
         }
-        let bodyData: Data?
+        var bodyData: Data?
         if state.body.readableBytes > 0,
            let bytes = state.body.getBytes(at: 0, length: state.body.readableBytes) {
             bodyData = Data(bytes)
         } else {
             bodyData = nil
+        }
+        var isInitialize = false
+        if let bodyData_ = bodyData {
+            let method = Self.jsonRPCMethod(of: bodyData_)
+            isInitialize = method == "initialize"
+            if method == "tools/call" {
+                bodyData = await stampOrigin(onto: bodyData_, peerPort: peerPort)
+            }
         }
         // Strip the auth key from the path before handing to the transport,
         // so the transport sees a clean `/mcp` regardless of the URL the
@@ -435,8 +485,58 @@ private final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         if case .stream(let stream, _) = resp {
             await respondStream(context: context, version: state.head.version, status: resp.statusCode, headers: resp.headers, stream: stream)
         } else {
-            await respondSimple(context: context, version: state.head.version, status: resp.statusCode, headers: resp.headers, body: resp.bodyData)
+            var body = resp.bodyData
+            if isInitialize, let body_ = body {
+                body = await appendOrientation(toInitializeResponse: body_, peerPort: peerPort)
+            }
+            await respondSimple(context: context, version: state.head.version, status: resp.statusCode, headers: resp.headers, body: body)
         }
+    }
+
+    private static func jsonRPCMethod(of body: Data) -> String? {
+        ((try? JSONSerialization.jsonObject(with: body)) as? [String: Any])?["method"] as? String
+    }
+
+    /// The terminal pane owning this connection, resolved once and cached.
+    private func resolveOrigin(peerPort: Int?) async -> ID<WebContent>? {
+        #if os(macOS)
+        guard let peerPort, peerPort > 0 else { return nil }
+        if originPaneID == nil {
+            originPaneID = .some(await TerminalProcessLookup.paneID(forClientPort: UInt16(peerPort)))
+        }
+        if case .some(.some(let pane)) = originPaneID { return pane }
+        return nil
+        #else
+        return nil
+        #endif
+    }
+
+    /// Appends a live "what's open" orientation to `result.instructions` of an
+    /// `initialize` response, so clients that surface server instructions
+    /// (Claude Code puts them in its system prompt) start out oriented.
+    private func appendOrientation(toInitializeResponse body: Data, peerPort: Int?) async -> Data {
+        guard var json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any],
+              var result = json["result"] as? [String: Any] else { return body }
+        let origin = await resolveOrigin(peerPort: peerPort)
+        let orientation = await MCPServer.orientation(originPaneID: origin)
+        let base = (result["instructions"] as? String) ?? MCPServer.staticInstructions
+        result["instructions"] = base + "\n\n" + orientation
+        json["result"] = result
+        return (try? JSONSerialization.data(withJSONObject: json)) ?? body
+    }
+
+    /// For `tools/call` requests, records which of our terminal tabs the client
+    /// process lives in as `params._meta["wowser.originPane"]`. That's the
+    /// only channel that survives the stateless transport into the tool handler.
+    private func stampOrigin(onto body: Data, peerPort: Int?) async -> Data {
+        guard let pane = await resolveOrigin(peerPort: peerPort),
+              var json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else { return body }
+        var params = json["params"] as? [String: Any] ?? [:]
+        var meta = params["_meta"] as? [String: Any] ?? [:]
+        meta[BrowserJSCallOrigin.metaKey] = pane.raw
+        params["_meta"] = meta
+        json["params"] = params
+        return (try? JSONSerialization.data(withJSONObject: json)) ?? body
     }
 
     private func respondSimple(context: ChannelHandlerContext, version: HTTPVersion, status: Int, headers: [String: String], body: Data?) async {

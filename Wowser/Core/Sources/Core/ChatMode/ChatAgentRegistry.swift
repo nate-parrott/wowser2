@@ -77,8 +77,9 @@ enum ChatAgentRegistry {
     struct CallerContext {
         /// The calling agent's key (nil for the MCP runtime).
         var key: String?
-        /// The chat-mode space whose thread should receive cards, if the caller
-        /// is a coordinator (or an outside caller while a chat-mode space is up).
+        /// The space whose thread should receive cards: the coordinator's own
+        /// space, or the caller's window's space. Threads are kept in both
+        /// modes, so this is set whether or not chat mode is showing.
         var threadProfileID: ID<Profile>?
         /// The caller's own tab pane, for subagents.
         var ownPaneID: ID<WebContent>?
@@ -103,17 +104,24 @@ enum ChatAgentRegistry {
         if let agentKey, let paneID = state.agentChatPane(forKey: agentKey) {
             ctx.ownPaneID = paneID
             ctx.parentKey = records[agentKey]?.parentKey
-            if let win = state.windowContaining(webContentId: paneID) {
-                ctx.windowID = win.id
-                if state.profiles[win.profile]?.isChatMode == true {
-                    ctx.threadProfileID = win.profile
-                }
+            // The pane's own space, even if the user has swiped that window
+            // to another space since.
+            if let o = state.originContext(paneID: paneID) {
+                ctx.windowID = o.windowID
+                ctx.threadProfileID = o.spaceID
             }
             return ctx
         }
-        // Outside caller (MCP) or unknown key: the current window's space, if
-        // it's in chat mode.
-        if let win = currentWindow, state.profiles[win.profile]?.isChatMode == true {
+        // MCP call from a terminal tab in the browser: act in that tab's window
+        // and space (see BrowserJSCallOrigin).
+        if agentKey == nil, let origin = BrowserJSCallOrigin.paneID, let o = state.originContext(paneID: origin) {
+            ctx.ownPaneID = origin
+            ctx.windowID = o.windowID
+            ctx.threadProfileID = o.spaceID
+            return ctx
+        }
+        // Outside caller (MCP) or unknown key: the current window's space.
+        if let win = currentWindow {
             ctx.threadProfileID = win.profile
         }
         return ctx

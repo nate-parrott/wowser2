@@ -1,0 +1,24 @@
+{
+  "title": "Notes",
+  "icon": "📝",
+  "description": "Minimal notes, one URL per note, stored on disk",
+  "entryPoints": [
+    {
+      "kind": "new",
+      "label": "New Note",
+      "bjs": "await browser.tabs.open('tang://notes/?id=' + Date.now().toString(36), { windowId: args.windowId });"
+    },
+    {
+      "kind": "search",
+      "keyword": "new note",
+      "label": "New Note",
+      "bjs": "await browser.tabs.open('tang://notes/?id=' + Date.now().toString(36), { windowId: args.windowId });"
+    },
+    {
+      "kind": "search",
+      "keyword": "notes",
+      "label": "All Notes",
+      "bjs": "await browser.tabs.open('tang://notes/?list', { windowId: args.windowId });"
+    }
+  ]
+}

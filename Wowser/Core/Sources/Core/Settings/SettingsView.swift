@@ -9,8 +9,11 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.preserveWindowsAcrossRestarts.rawValue) private var preserveWindowsAcrossRestarts = true
     @AppStorage(DefaultsKeys.autoOrganizeTabs.rawValue) private var autoOrganizeTabsEnabled = false
     @AppStorage(DefaultsKeys.autoArchiveTabs.rawValue) private var autoArchiveTabsEnabled = false
+    @AppStorage(DefaultsKeys.cleanupTabs.rawValue) private var cleanupTabsEnabled = true
+    @AppStorage(DefaultsKeys.sortExternalLinksIntoSpaces.rawValue) private var sortExternalLinksIntoSpaces = true
+    @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
     @AppStorage(DefaultsKeys.cleanModeForRecipes.rawValue) private var cleanModeForRecipesEnabled = false
-    @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = true
+    @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = false
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
     @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
     @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
@@ -48,10 +51,10 @@ public struct SettingsView: View {
     @ViewBuilder private func detail(for tab: SettingsTab) -> some View {
         switch tab {
         case .general: main
-        case .toolbar: ToolbarSettings()
         case .profiles: ProfilesSettings()
         case .ai: AISettings()
         case .tasks: TasksSettings()
+        case .memory: MemorySettings()
         case .mcp: MCPSettings()
         case .experimental: ExperimentalSettings()
         case .debug: DebugSettings()
@@ -61,11 +64,20 @@ public struct SettingsView: View {
     @ViewBuilder private var main: some View {
         Form {
             Section("Tabs") {
+                Toggle("All windows share tabs", isOn: $allWindowsShareTabs)
+                    .help("Every window lists the space's tabs from all windows. Selecting a tab that's open in another window moves it to this one")
+
                 Toggle("Move old tabs to 'Old Tabs' every night", isOn: $autoArchiveTabsEnabled)
                     .help("When enabled, old tabs will be automatically archived and accessible via the Old Tabs menu")
                 
                 Toggle("Auto-organize tabs hourly", isOn: $autoOrganizeTabsEnabled)
                     .help("Automatically organize tabs into logical groups once per hour")
+
+                Toggle("Clean up stale tabs", isOn: $cleanupTabsEnabled)
+                    .help("On launch and whenever tabs are organized, close old empty tabs, duplicates, Zoom/Meet leftovers, idle terminals, and agent-opened tabs you never viewed")
+
+                Toggle("Sort links from other apps into the best space", isOn: $sortExternalLinksIntoSpaces)
+                    .help("When another app opens a link, AI picks the space it fits best (based on space names and recently visited sites) and moves the tab there. Does nothing when you have only one space")
             }
             Section("Clean Mode") {
                 Toggle("Hide ads", isOn: $adblockEnabled)
@@ -212,6 +224,7 @@ struct AISettings: View {
     @AppStorage(DefaultsKeys.openrouterCustomModel.rawValue) private var openrouterCustomModel = ""
     @AppStorage(DefaultsKeys.openAICustomModel.rawValue) private var openAICustomModel = ""
     @AppStorage(DefaultsKeys.anthropicCustomModel.rawValue) private var anthropicCustomModel = ""
+    @AppStorage(DefaultsKeys.agentShellTools.rawValue) private var agentShellTools = false
     @ObservedObject private var requestLog = AIRequestLog.shared
 
     var body: some View {
@@ -221,6 +234,12 @@ struct AISettings: View {
 
                 showApiKeyFields()
                 showCustomModelFields()
+            }
+
+            Section("Agents") {
+                Toggle("Give agents shell & file access", isOn: $agentShellTools)
+                Text("Claude Code agents get Bash, Read, Write, Edit, Glob and Grep, with no permission prompts. Applies to newly started agents.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Last Request") {
@@ -325,16 +344,12 @@ extension Binding where Value == Bool {
 }
 
 struct DebugSettings: View {
-    @AppStorage(DefaultsKeys.spaceBackgroundDebugView.rawValue) private var spaceBackgroundDebugView = false
-
     var body: some View {
         Form {
             Section("Debug") {
                 Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
                     Text("Clear AI tags")
                 }
-                Toggle("Space background blur debug view", isOn: $spaceBackgroundDebugView)
-                    .help("Outlines the blurred regions of space background images and shows the recompute counter")
             }
             
             Section("Advanced") {

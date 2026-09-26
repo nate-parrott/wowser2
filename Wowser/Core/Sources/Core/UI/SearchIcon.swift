@@ -43,9 +43,16 @@ struct SearchIcon: View {
                     .opacity(iconOpacity)
 //                    .foregroundColor(.blue)
                 
-            case .searchAction:
-                Image(systemName: "arrow.right.circle.fill")
-                    .opacity(iconOpacity)
+            case .searchAction(let action):
+                if case .openURL(let url) = action, let nativeKey = NativePageKey(url: url) {
+                    nativeKey.favicon(size: size)
+                } else {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .opacity(iconOpacity)
+                }
+
+            case .terminalCommand:
+                TerminalFavicon(running: true)
                 
             case .askAgent:
                 AgentFruitIcon(flavor: .cherry, working: false, size: size)

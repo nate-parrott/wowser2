@@ -64,6 +64,22 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// Toggle chat mode for a space.
     func spacesSetChatMode(spaceId: String, enabled: Bool) async throws
 
+    // MARK: - Folders (sidebar tab folders, per space)
+
+    /// Folders in `spaceId` (default: the current window's space).
+    func foldersList(spaceId: String?, windowId: String?) async throws -> [BrowserJSFolderInfo]
+    func foldersGet(folderId: String) async throws -> BrowserJSFolderInfo
+    /// Create an empty folder in a space. Returns its id.
+    func foldersCreate(name: String, spaceId: String?, windowId: String?) async throws -> String
+    func foldersRename(folderId: String, name: String) async throws
+    /// Delete a folder. Members move to the window's ordinary tab list unless `closeTabs`.
+    func foldersDelete(folderId: String, closeTabs: Bool, windowId: String?) async throws
+    /// Put a tab (pane id) into a folder, pinning its current URL. `open` also
+    /// lists it under the folder row right away.
+    func foldersAddTab(tabId: String, folderId: String, open: Bool) async throws
+    /// Drop a tab from its folder; the tab is closed.
+    func foldersRemoveTab(tabId: String) async throws
+
     func contentRead(id: String, as kind: String) async throws -> String
     func contentScreenshot(id: String) async throws -> BrowserJSImage
 
@@ -138,6 +154,51 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func terminalWrite(id: String, text: String) async throws
     /// Write a note (markdown or HTML) to tang://notes/ and optionally present it.
     func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo
+    /// Scheduled tasks: the tasks.json path, data directory, and parsed tasks.
+    func tasksList() async throws -> BrowserJSTasksInfo
+
+    // User-created toolbar buttons (BrowserState.toolbar). See BrowserState+Toolbar.swift.
+    func toolbarListButtons() async throws -> [CustomToolbarButton]
+    func toolbarGetButton(id: String) async throws -> CustomToolbarButton?
+    func toolbarCreateButton(label: String, icon: String?, bjs: String?, instructions: String?) async throws -> CustomToolbarButton
+    /// `clearBJS` sets `bjs` to nil (clicks spawn an agent). Other nil fields are left as-is.
+    func toolbarUpdateButton(id: String, label: String?, icon: String?, bjs: String?, clearBJS: Bool, instructions: String?) async throws -> CustomToolbarButton
+    func toolbarRemoveButton(id: String) async throws
+    /// Click the button programmatically, as if from the toolbar of `tabId` (default: the calling tab).
+    func toolbarClickButton(id: String, tabId: String?) async throws
+
+    // Durable per-host CSS/JS injection (CleanModeStore).
+    func injectGet(host: String) async throws -> BrowserJSInjection
+    func injectSet(host: String, css: String?, js: String?) async throws -> BrowserJSInjection
+    func injectClear(host: String) async throws
+
+    // Memory store (see MemoryStore.swift). Scopes are data-store UUIDs.
+    func memoryScopes() async throws -> [BrowserJSMemoryScope]
+    func memorySchema() async throws -> String
+    func memoryQuery(scope: String?, sql: String, params: [Any], limit: Int) async throws -> [[String: Any]]
+    func memoryOverview(scope: String?) async throws -> BrowserJSMemoryOverview
+    func memorySetOverview(scope: String?, text: String) async throws -> BrowserJSMemoryOverview
+}
+
+public struct BrowserJSInjection: Codable, Equatable, Sendable {
+    public var host: String
+    public var css: String?
+    public var js: String?
+}
+
+public struct BrowserJSMemoryScope: Codable, Equatable, Sendable {
+    public var id: String
+    public var names: [String]
+    public var enabled: Bool
+    public var eventCount: Int?
+}
+
+public struct BrowserJSMemoryOverview: Codable, Equatable, Sendable {
+    public var scope: String
+    public var text: String
+    public var updatedAt: String?
+    public var status: String
+    public var statusDetail: String?
 }
 
 public struct BrowserJSSpawnedAgentInfo: Codable, Equatable, Sendable {
@@ -208,6 +269,27 @@ public extension BrowserJSHost {
     func spacesSetChatMode(spaceId: String, enabled: Bool) async throws {
         throw BrowserJSError.notImplemented("spaces.setChatMode")
     }
+    func foldersList(spaceId: String?, windowId: String?) async throws -> [BrowserJSFolderInfo] {
+        throw BrowserJSError.notImplemented("folders.list")
+    }
+    func foldersGet(folderId: String) async throws -> BrowserJSFolderInfo {
+        throw BrowserJSError.notImplemented("folders.get")
+    }
+    func foldersCreate(name: String, spaceId: String?, windowId: String?) async throws -> String {
+        throw BrowserJSError.notImplemented("folders.create")
+    }
+    func foldersRename(folderId: String, name: String) async throws {
+        throw BrowserJSError.notImplemented("folders.rename")
+    }
+    func foldersDelete(folderId: String, closeTabs: Bool, windowId: String?) async throws {
+        throw BrowserJSError.notImplemented("folders.delete")
+    }
+    func foldersAddTab(tabId: String, folderId: String, open: Bool) async throws {
+        throw BrowserJSError.notImplemented("folders.addTab")
+    }
+    func foldersRemoveTab(tabId: String) async throws {
+        throw BrowserJSError.notImplemented("folders.removeTab")
+    }
     func agentCreate(options: BrowserJSAgentCreateOptions) async throws -> String {
         throw BrowserJSError.notImplemented("agent.create")
     }
@@ -259,6 +341,21 @@ public extension BrowserJSHost {
     func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo {
         throw BrowserJSError.notImplemented("notes.write")
     }
+    func tasksList() async throws -> BrowserJSTasksInfo { throw BrowserJSError.notImplemented("tasks.list") }
+    func toolbarListButtons() async throws -> [CustomToolbarButton] { throw BrowserJSError.notImplemented("toolbar.list") }
+    func toolbarGetButton(id: String) async throws -> CustomToolbarButton? { throw BrowserJSError.notImplemented("toolbar.get") }
+    func toolbarCreateButton(label: String, icon: String?, bjs: String?, instructions: String?) async throws -> CustomToolbarButton { throw BrowserJSError.notImplemented("toolbar.create") }
+    func toolbarUpdateButton(id: String, label: String?, icon: String?, bjs: String?, clearBJS: Bool, instructions: String?) async throws -> CustomToolbarButton { throw BrowserJSError.notImplemented("toolbar.update") }
+    func toolbarRemoveButton(id: String) async throws { throw BrowserJSError.notImplemented("toolbar.remove") }
+    func toolbarClickButton(id: String, tabId: String?) async throws { throw BrowserJSError.notImplemented("toolbar.click") }
+    func injectGet(host: String) async throws -> BrowserJSInjection { throw BrowserJSError.notImplemented("inject.get") }
+    func injectSet(host: String, css: String?, js: String?) async throws -> BrowserJSInjection { throw BrowserJSError.notImplemented("inject.set") }
+    func injectClear(host: String) async throws { throw BrowserJSError.notImplemented("inject.clear") }
+    func memoryScopes() async throws -> [BrowserJSMemoryScope] { throw BrowserJSError.notImplemented("memory.scopes") }
+    func memorySchema() async throws -> String { throw BrowserJSError.notImplemented("memory.schema") }
+    func memoryQuery(scope: String?, sql: String, params: [Any], limit: Int) async throws -> [[String: Any]] { throw BrowserJSError.notImplemented("memory.query") }
+    func memoryOverview(scope: String?) async throws -> BrowserJSMemoryOverview { throw BrowserJSError.notImplemented("memory.overview") }
+    func memorySetOverview(scope: String?, text: String) async throws -> BrowserJSMemoryOverview { throw BrowserJSError.notImplemented("memory.setOverview") }
 }
 
 public struct NetLogFilter: Codable, Sendable {
@@ -341,10 +438,12 @@ public struct BrowserJSTabInfo: Codable, Equatable, Sendable {
     public var isFocusedInSplit: Bool
     /// The space (`ID<Profile>`) whose tab list contains this pane's tab.
     public var spaceId: String?
+    /// The sidebar folder this pane's tab belongs to, if any (see `folders`).
+    public var folderId: String?
 
-    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false, agentActiveUntil: Double? = nil, splitId: String? = nil, splitTabIds: [String] = [], isFocusedInSplit: Bool = true, spaceId: String? = nil) {
+    public init(id: String, windowId: String? = nil, url: String? = nil, title: String? = nil, index: Int? = nil, kind: String = "web", isGhost: Bool = false, agentActiveUntil: Double? = nil, splitId: String? = nil, splitTabIds: [String] = [], isFocusedInSplit: Bool = true, spaceId: String? = nil, folderId: String? = nil) {
         self.id = id; self.windowId = windowId; self.url = url; self.title = title; self.index = index; self.kind = kind; self.isGhost = isGhost; self.agentActiveUntil = agentActiveUntil
-        self.splitId = splitId; self.splitTabIds = splitTabIds; self.isFocusedInSplit = isFocusedInSplit; self.spaceId = spaceId
+        self.splitId = splitId; self.splitTabIds = splitTabIds; self.isFocusedInSplit = isFocusedInSplit; self.spaceId = spaceId; self.folderId = folderId
     }
 }
 
@@ -399,6 +498,27 @@ public struct BrowserJSSpaceInfo: Codable, Equatable, Sendable {
     }
 }
 
+/// A sidebar folder: a pane-less, non-selectable tab that groups pinned tabs.
+/// `id` is the folder tab's split id; `index` its position in the tab strip.
+public struct BrowserJSFolderInfo: Codable, Equatable, Sendable {
+    public var id: String
+    public var spaceId: String?
+    public var windowId: String?
+    public var index: Int?
+    public var name: String
+    /// Pane ids of every member, in folder order.
+    public var tabIds: [String]
+    /// Pane ids of members currently open (listed under the folder row).
+    public var openTabIds: [String]
+    /// Split (`ID<Tab>`) ids of every member, in folder order.
+    public var splitIds: [String]
+
+    public init(id: String, spaceId: String?, windowId: String?, index: Int?, name: String, tabIds: [String] = [], openTabIds: [String] = [], splitIds: [String] = []) {
+        self.id = id; self.spaceId = spaceId; self.windowId = windowId; self.index = index; self.name = name
+        self.tabIds = tabIds; self.openTabIds = openTabIds; self.splitIds = splitIds
+    }
+}
+
 /// An image captured by the browser (e.g. from `content.screenshot`). Round-trips
 /// to JS as `{mime, data}` and is what `browser.viewImage(...)` accepts.
 public struct BrowserJSImage: Codable, Equatable, Sendable {
@@ -430,6 +550,7 @@ public enum BrowserJSError: LocalizedError, Equatable {
     case tabNotFound(String)
     case windowNotFound(String)
     case spaceNotFound(String)
+    case folderNotFound(String)
     case invalidArgs(String)
     case timeout
     case notImplemented(String)
@@ -440,6 +561,7 @@ public enum BrowserJSError: LocalizedError, Equatable {
         case .tabNotFound(let id): return "tab not found: \(id)"
         case .windowNotFound(let id): return "window not found: \(id)"
         case .spaceNotFound(let id): return "space not found: \(id)"
+        case .folderNotFound(let id): return "folder not found: \(id)"
         case .invalidArgs(let msg): return "invalid args: \(msg)"
         case .timeout: return "timeout"
         case .notImplemented(let what): return "not implemented in v1: \(what)"

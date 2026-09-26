@@ -56,16 +56,20 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
             var paneID: ID<WebContent>!
             BrowserStore.shared.modify { st in
-                let pid = ID<WebContent>.assign()
-                paneID = pid
-                var pane = Pane(id: pid, info: .init(url: url))
-                pane.isGhost = ghost
-                if ghost { pane.agentActiveUntil = Date().addingTimeInterval(BrowserState.agentUseLeaseSeconds) }
-                let tab = Tab(id: .assign(), panes: [pane])
-                let loc = st.insertionIndex(window: win, spawningTabId: st.windows[win]?.currentTab)
-                st.insertTab(tab, location: loc, inWindow: win)
-                if !background {
-                    st.activate(tabId: tab.id, in: win)
+                // A foreground open switches the window to the caller's space;
+                // a background one lands there without disturbing the user.
+                st.performInOriginSpace(window: win, keepSwitched: !background) { st in
+                    let pid = ID<WebContent>.assign()
+                    paneID = pid
+                    var pane = Pane(id: pid, info: .init(url: url))
+                    pane.isGhost = ghost
+                    if ghost { pane.agentActiveUntil = Date().addingTimeInterval(BrowserState.agentUseLeaseSeconds) }
+                    let tab = Tab(id: .assign(), panes: [pane])
+                    let loc = st.spawnInsertionIndex(window: win, spawningPaneID: BrowserJSCallOrigin.paneID)
+                    st.insertTab(tab, location: loc, inWindow: win)
+                    if !background {
+                        st.activate(tabId: tab.id, in: win)
+                    }
                 }
             }
             // Ghost panes need a live WebContent so the page actually loads in
@@ -126,6 +130,12 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     @MainActor
     private func touchAgentUse(_ pid: ID<WebContent>) {
         BrowserStore.shared.modify { st in st.touchAgentUse(paneID: pid) }
+        #if os(macOS)
+        // The sweep is what flips "is using" → "was using" once the agent
+        // goes quiet, so make sure it's ticking even for tabs never parked
+        // in the stage.
+        AgentStageWindow.shared.startSweepIfNeeded()
+        #endif
     }
 
     public func tabsOpenSplit(url urlStr: String, besideTabId: String?, activate: Bool, windowId: String?) async throws -> String {
@@ -224,7 +234,9 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         try await main {
             let state = BrowserStore.shared.model
             let pid = ID<WebContent>(raw: id)
-            guard let tabID = state.paneToTabMapping[pid],
+            // Folders have no panes, so accept their tab id directly.
+            let asTab = ID<Tab>(raw: id)
+            guard let tabID = state.paneToTabMapping[pid] ?? (state.tabs[asTab]?.isFolder == true ? asTab : nil),
                   let winID = state.windowContaining(tabId: tabID)?.id
             else { throw BrowserJSError.tabNotFound(id) }
             BrowserStore.shared.modify { st in
@@ -563,11 +575,80 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     public func spacesSetChatMode(spaceId: String, enabled: Bool) async throws {
         try await main {
+            BrowserStore.shared.setChatMode(enabled)
+        }
+    }
+
+    // MARK: - Folders
+
+    public func foldersList(spaceId: String?, windowId: String?) async throws -> [BrowserJSFolderInfo] {
+        try await main {
             let state = BrowserStore.shared.model
-            let space = try self.resolveSpaceID(spaceId, state: state)
-            BrowserStore.shared.modify { st in
-                st.profiles[space]?.chatMode = enabled ? true : nil
+            let space = try self.resolveSpaceOrCurrent(spaceId, windowId: windowId, state: state)
+            return state.folderTabIDs(inSpace: space).compactMap { self.folderInfo(folderTabID: $0, state: state) }
+        }
+    }
+
+    public func foldersGet(folderId: String) async throws -> BrowserJSFolderInfo {
+        try await main {
+            let state = BrowserStore.shared.model
+            guard let info = self.folderInfo(folderTabID: ID<Tab>(raw: folderId), state: state) else {
+                throw BrowserJSError.folderNotFound(folderId)
             }
+            return info
+        }
+    }
+
+    public func foldersCreate(name: String, spaceId: String?, windowId: String?) async throws -> String {
+        try await main {
+            let state = BrowserStore.shared.model
+            let space = try self.resolveSpaceOrCurrent(spaceId, windowId: windowId, state: state)
+            guard let winID = self.resolveWindowID(windowId, state: state) ?? self.preferredCurrentWindow(state: state) else {
+                throw BrowserJSError.windowNotFound(windowId ?? "current")
+            }
+            var id: ID<Tab>?
+            BrowserStore.shared.modify { st in
+                id = st.createFolder(name: name, windowID: winID, profileId: space)
+            }
+            guard let id else { throw BrowserJSError.windowNotFound(winID.raw) }
+            return id.raw
+        }
+    }
+
+    public func foldersRename(folderId: String, name: String) async throws {
+        try await main {
+            let id = ID<Tab>(raw: folderId)
+            guard BrowserStore.shared.model.folder(id: id) != nil else { throw BrowserJSError.folderNotFound(folderId) }
+            BrowserStore.shared.modify { $0.renameFolder(id: id, name: name) }
+        }
+    }
+
+    public func foldersDelete(folderId: String, closeTabs: Bool, windowId: String?) async throws {
+        try await main {
+            let state = BrowserStore.shared.model
+            let id = ID<Tab>(raw: folderId)
+            guard state.folder(id: id) != nil else { throw BrowserJSError.folderNotFound(folderId) }
+            let win = closeTabs ? nil : (self.resolveWindowID(windowId, state: state) ?? self.preferredCurrentWindow(state: state))
+            BrowserStore.shared.modify { $0.deleteFolder(id: id, moveTabsToWindow: win) }
+        }
+    }
+
+    public func foldersAddTab(tabId: String, folderId: String, open: Bool) async throws {
+        try await main {
+            let state = BrowserStore.shared.model
+            let folderID = ID<Tab>(raw: folderId)
+            guard state.folder(id: folderID) != nil else { throw BrowserJSError.folderNotFound(folderId) }
+            guard let tabID = state.paneToTabMapping[ID<WebContent>(raw: tabId)] else { throw BrowserJSError.tabNotFound(tabId) }
+            BrowserStore.shared.modify { $0.addTab(tabID, toFolder: folderID, open: open) }
+        }
+    }
+
+    public func foldersRemoveTab(tabId: String) async throws {
+        try await main {
+            let state = BrowserStore.shared.model
+            guard let tabID = state.paneToTabMapping[ID<WebContent>(raw: tabId)] else { throw BrowserJSError.tabNotFound(tabId) }
+            guard state.folderTab(containingTabId: tabID) != nil else { throw BrowserJSError.invalidArgs("tab \(tabId) is not in a folder") }
+            BrowserStore.shared.modify { $0.removeTabFromFolder(tabID) }
         }
     }
 
@@ -616,16 +697,37 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         // (the scheme is the gate). The flag is kept in the API for a future
         // per-app opt-out.
         _ = exposeBrowserJS
-        let slug = try TangerineApps.shared.create(name: name, files: files)
+        let slug = try TangAppStore.shared.create(name: name, files: files)
         TangAppRegistry.shared.reload()
         return try await tabsOpen(url: "tang://\(slug)/", background: false, windowId: nil)
+    }
+
+    // MARK: - Scheduled tasks
+
+    public func tasksList() async throws -> BrowserJSTasksInfo {
+        await MainActor.run { ScheduledTasksStore.shared.reloadFromDisk() }
+        let tasks = ScheduledTasksStore.shared.model.tasks
+        return BrowserJSTasksInfo(
+            filePath: ScheduledTasksStore.fileURL.path,
+            dataDirectory: ScheduledTasksStore.dataDirectoryURL.path,
+            tasks: tasks.map { t in
+                BrowserJSTasksInfo.Task(
+                    id: t.id, title: t.title, enabled: t.isEnabled,
+                    schedule: t.scheduleDescription,
+                    nextRunAt: t.nextFireDate().map(\.timeIntervalSince1970),
+                    lastRunAt: t.lastRunAt.map(\.timeIntervalSince1970),
+                    lastRunSummary: t.lastRunSummary, lastRunWasError: t.lastRunWasError ?? false,
+                    dataFilePath: ScheduledTasksStore.dataFileURL(taskID: t.id).path
+                )
+            }
+        )
     }
 
     // MARK: - Notes
 
     public func notesWrite(agentKey: String?, title: String, markdown: String?, html: String?, show: String) async throws -> BrowserJSNoteInfo {
         guard markdown != nil || html != nil else { throw BrowserJSError.invalidArgs("markdown or html") }
-        let url = try TangerineApps.shared.writeNote(title: title, markdown: markdown, html: html)
+        let url = try TangAppStore.shared.writeNote(title: title, markdown: markdown, html: html)
         if show == "none" { return BrowserJSNoteInfo(url: url.absoluteString, tabId: nil) }
         let tabId = try await chatPresent(agentKey: agentKey, tabId: nil, url: url.absoluteString, show: show, note: nil)
         return BrowserJSNoteInfo(url: url.absoluteString, tabId: tabId)
@@ -703,8 +805,36 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             splitId: tab.id.raw,
             splitTabIds: paneIDs,
             isFocusedInSplit: tab.focusedPane?.id == pane.id,
-            spaceId: spaceID?.raw
+            spaceId: spaceID?.raw,
+            folderId: state.folderTab(containingTabId: tab.id)?.id.raw
         )
+    }
+
+    private func folderInfo(folderTabID: ID<Tab>, state: BrowserState) -> BrowserJSFolderInfo? {
+        guard let folder = state.folder(id: folderTabID) else { return nil }
+        let win = state.windowContaining(tabId: folderTabID)
+        let spaceID = win.flatMap { state.space(containingTabId: folderTabID, inWindow: $0.id) }
+        let index = win.flatMap { w in spaceID.flatMap { w.perProfileData[$0]?.tabs.firstIndex(of: folderTabID) } }
+        return BrowserJSFolderInfo(
+            id: folderTabID.raw,
+            spaceId: spaceID?.raw,
+            windowId: win?.id.raw,
+            index: index,
+            name: folder.name,
+            tabIds: folder.tabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
+            openTabIds: folder.openTabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
+            splitIds: folder.tabs.filter { state.tabs[$0] != nil }.map { $0.raw }
+        )
+    }
+
+    /// `spaceId` if given, else the resolved (or current) window's space.
+    @MainActor
+    private func resolveSpaceOrCurrent(_ spaceId: String?, windowId: String?, state: BrowserState) throws -> ID<Profile> {
+        if let spaceId { return try resolveSpaceID(spaceId, state: state) }
+        guard let winID = resolveWindowID(windowId, state: state) ?? preferredCurrentWindow(state: state),
+              let profile = state.windows[winID]?.profile
+        else { throw BrowserJSError.windowNotFound(windowId ?? "current") }
+        return profile
     }
 
     /// A space's tab list is stored per-window (`WindowState.perProfileData`).
@@ -748,7 +878,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             emoji: profile.emoji,
             index: profile.creationOrder,
             hidden: profile.isHidden,
-            chatMode: profile.isChatMode,
+            chatMode: state.isChatMode,
             isCurrent: resolvedWindow.flatMap { state.windows[$0]?.profile } == profile.id,
             windowIds: state.windows.values.filter { $0.profile == profile.id }.map { $0.id.raw },
             tabIds: tabIDs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
@@ -770,6 +900,10 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     @MainActor
     private func preferredCurrentWindow(state: BrowserState) -> ID<WindowState>? {
+        // A call from a terminal / agent tab in the browser acts in that tab's window.
+        if let ctx = state.callOriginContext() {
+            return ctx.windowID
+        }
         // Most-recently-active window by lastActive
         let sorted = state.windows.values.sorted { ($0.lastActive ?? .distantPast) > ($1.lastActive ?? .distantPast) }
         return sorted.first?.id
@@ -874,5 +1008,148 @@ private extension WebContent {
             }
             return wkWebview
         }
+    }
+}
+
+// MARK: - Inject
+
+extension BrowserJSLiveHost {
+    /// Accepts a bare hostname or a full URL; keys are `hostWithoutWWW`.
+    private static func injectionHost(_ raw: String) throws -> String {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(string: s.contains("://") ? s : "https://" + s)
+        guard let host = url?.hostWithoutWWW.nilIfEmpty else { throw BrowserJSError.invalidArgs("host") }
+        return host
+    }
+
+    public func injectGet(host: String) async throws -> BrowserJSInjection {
+        let h = try Self.injectionHost(host)
+        return try await main {
+            let state = CleanModeStore.shared.model
+            let cfg = state.hostSettings[h] ?? CleanModeState.defaultHostSettings[h]
+            return BrowserJSInjection(host: h, css: cfg?.injectCSS?.nilIfEmpty, js: cfg?.injectJS?.nilIfEmpty)
+        }
+    }
+
+    public func injectSet(host: String, css: String?, js: String?) async throws -> BrowserJSInjection {
+        let h = try Self.injectionHost(host)
+        guard css != nil || js != nil else { throw BrowserJSError.invalidArgs("css or js") }
+        try await main { CleanModeStore.shared.model.setInjection(host: h, css: css, js: js) }
+        return try await injectGet(host: h)
+    }
+
+    public func injectClear(host: String) async throws {
+        let h = try Self.injectionHost(host)
+        try await main { CleanModeStore.shared.model.setInjection(host: h, css: "", js: "") }
+    }
+}
+
+// MARK: - Toolbar buttons
+
+extension BrowserJSLiveHost {
+    public func toolbarListButtons() async throws -> [CustomToolbarButton] {
+        try await main { BrowserStore.shared.model.toolbarConfig.customButtons }
+    }
+
+    public func toolbarGetButton(id: String) async throws -> CustomToolbarButton? {
+        try await main { BrowserStore.shared.model.toolbarConfig.customButton(id: id) }
+    }
+
+    public func toolbarCreateButton(label: String, icon: String?, bjs: String?, instructions: String?) async throws -> CustomToolbarButton {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw BrowserJSError.invalidArgs("label") }
+        let button = CustomToolbarButton(label: trimmed, icon: icon ?? CustomToolbarButton.randomIcon(), bjs: bjs, instructions: instructions)
+        try await main { BrowserStore.shared.modify { $0.addCustomToolbarButton(button) } }
+        return button
+    }
+
+    public func toolbarUpdateButton(id: String, label: String?, icon: String?, bjs: String?, clearBJS: Bool, instructions: String?) async throws -> CustomToolbarButton {
+        let updated: CustomToolbarButton? = try await main {
+            var result: CustomToolbarButton?
+            BrowserStore.shared.modify { st in
+                st.updateCustomToolbarButton(id: id) { b in
+                    if let label, !label.isEmpty { b.label = label }
+                    if let icon, !icon.isEmpty { b.icon = icon }
+                    if clearBJS { b.bjs = nil } else if let bjs { b.bjs = bjs }
+                    if let instructions { b.instructions = instructions }
+                    result = b
+                }
+            }
+            return result
+        }
+        guard let updated else { throw BrowserJSError.underlying("toolbar button not found: \(id)") }
+        return updated
+    }
+
+    public func toolbarRemoveButton(id: String) async throws {
+        try await main { BrowserStore.shared.modify { $0.removeCustomToolbarButton(id: id) } }
+    }
+
+    public func toolbarClickButton(id: String, tabId: String?) async throws {
+        let paneID = tabId.map { ID<WebContent>(raw: $0) } ?? BrowserJSCallOrigin.paneID
+        try await main {
+            let state = BrowserStore.shared.model
+            guard state.toolbarConfig.customButton(id: id) != nil else { throw BrowserJSError.underlying("toolbar button not found: \(id)") }
+            let windowID = paneID.flatMap { state.windowContaining(webContentId: $0)?.id } ?? state.windows.values.first?.id
+            guard let windowID else { throw BrowserJSError.windowNotFound("none") }
+            ToolbarButtonRunner.click(buttonID: id, webContentID: paneID, windowID: windowID)
+        }
+    }
+}
+
+// MARK: - Memory
+
+extension BrowserJSLiveHost {
+    public func memoryScopes() async throws -> [BrowserJSMemoryScope] {
+        let scopes = await MainActor.run { MemoryStore.scopes(in: BrowserStore.shared.model) }
+        var out: [BrowserJSMemoryScope] = []
+        for s in scopes {
+            var count: Int? = nil
+            if s.enabled {
+                count = (try? await MemoryStore.shared.perform(scope: s.id) { db in
+                    (try db.scalar("SELECT COUNT(*) FROM events") as? Int64).map(Int.init) ?? 0
+                })
+            }
+            out.append(BrowserJSMemoryScope(id: s.id.uuidString, names: s.names, enabled: s.enabled, eventCount: count))
+        }
+        return out
+    }
+
+    public func memorySchema() async throws -> String {
+        MemoryDB.schemaDescription
+    }
+
+    private func resolvedMemoryScope(_ explicit: String?) async throws -> UUID {
+        let origin = BrowserJSCallOrigin.paneID
+        let scope = try await MainActor.run { try MemoryStore.shared.resolveScope(explicit: explicit, originPane: origin) }
+        guard MemoryStore.shared.isEnabled(scope) else {
+            throw BrowserJSError.invalidArgs("memory is not enabled for scope \(scope.uuidString) (Settings › Memory)")
+        }
+        return scope
+    }
+
+    public func memoryQuery(scope: String?, sql: String, params: [Any], limit: Int) async throws -> [[String: Any]] {
+        let scope = try await resolvedMemoryScope(scope)
+        let bound: [Any?] = params.map { $0 is NSNull ? nil : $0 }
+        return try await MemoryStore.shared.performRead(scope: scope, sql: sql, params: bound, limit: max(1, min(limit, 2000)))
+    }
+
+    public func memoryOverview(scope: String?) async throws -> BrowserJSMemoryOverview {
+        let scope = try await resolvedMemoryScope(scope)
+        let text: String = (try? await MemoryStore.shared.perform(scope: scope) { db in
+            (try db.scalar("SELECT value FROM meta WHERE key = 'overview'")) as? String ?? ""
+        }) ?? ""
+        let updated: String? = try? await MemoryStore.shared.perform(scope: scope) { db in
+            (try db.scalar("SELECT value FROM meta WHERE key = 'overview_updated_at'")) as? String
+        }
+        let info = await MainActor.run { MemoryStore.shared.overviewInfo(scope: scope) }
+        return BrowserJSMemoryOverview(scope: scope.uuidString, text: text, updatedAt: updated, status: info.status.rawValue, statusDetail: info.statusDetail)
+    }
+
+    public func memorySetOverview(scope: String?, text: String) async throws -> BrowserJSMemoryOverview {
+        let scope = try await resolvedMemoryScope(scope)
+        await MainActor.run { MemoryStore.shared.setOverview(scope: scope, text: text) }
+        let info = await MainActor.run { MemoryStore.shared.overviewInfo(scope: scope) }
+        return BrowserJSMemoryOverview(scope: scope.uuidString, text: text, updatedAt: info.updatedAt.map { ISO8601DateFormatter().string(from: $0) }, status: info.status.rawValue, statusDetail: info.statusDetail)
     }
 }

@@ -15,6 +15,19 @@ enum BrowserJSDispatch {
     static func handle(fn: String, argsJSON: String, host: any BrowserJSHost) async throws -> String? {
         let data = argsJSON.data(using: .utf8) ?? Data()
         let raw = (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any] ?? [:]
+        // The originating terminal pane rides along on every call from the
+        // runtime (see BrowserJSCallOrigin). Bind it for the host call so
+        // window/space selection can prefer where the caller lives.
+        let origin = (raw[BrowserJSCallOrigin.argsKey] as? String).map { ID<WebContent>(raw: $0) }
+        let originSpace = (raw[BrowserJSCallOrigin.argsSpaceKey] as? String).map { ID<Profile>(raw: $0) }
+        return try await BrowserJSCallOrigin.$paneID.withValue(origin) {
+            try await BrowserJSCallOrigin.$spaceID.withValue(originSpace) {
+                try await handleUnscoped(fn: fn, raw: raw, host: host)
+            }
+        }
+    }
+
+    private static func handleUnscoped(fn: String, raw: [String: Any], host: any BrowserJSHost) async throws -> String? {
 
         func str(_ k: String) -> String? { raw[k] as? String }
         func optStr(_ k: String) -> String? { raw[k] as? String }
@@ -209,6 +222,33 @@ enum BrowserJSDispatch {
             try await host.spacesSetChatMode(spaceId: spaceId, enabled: bool("enabled", true))
             return nil
 
+        case "folders.list":
+            let info = try await host.foldersList(spaceId: optStr("spaceId"), windowId: optStr("windowId"))
+            return try encodeValue(info)
+        case "folders.get":
+            guard let folderId = str("folderId") else { throw BrowserJSError.invalidArgs("folderId") }
+            return try encodeValue(try await host.foldersGet(folderId: folderId))
+        case "folders.create":
+            guard let name = str("name") else { throw BrowserJSError.invalidArgs("name") }
+            let id = try await host.foldersCreate(name: name, spaceId: optStr("spaceId"), windowId: optStr("windowId"))
+            return try encodeValue(id)
+        case "folders.rename":
+            guard let folderId = str("folderId"), let name = str("name") else { throw BrowserJSError.invalidArgs("folderId, name") }
+            try await host.foldersRename(folderId: folderId, name: name)
+            return nil
+        case "folders.delete":
+            guard let folderId = str("folderId") else { throw BrowserJSError.invalidArgs("folderId") }
+            try await host.foldersDelete(folderId: folderId, closeTabs: bool("closeTabs"), windowId: optStr("windowId"))
+            return nil
+        case "folders.addTab":
+            guard let tabId = str("tabId"), let folderId = str("folderId") else { throw BrowserJSError.invalidArgs("tabId, folderId") }
+            try await host.foldersAddTab(tabId: tabId, folderId: folderId, open: bool("open"))
+            return nil
+        case "folders.removeTab":
+            guard let tabId = str("tabId") else { throw BrowserJSError.invalidArgs("tabId") }
+            try await host.foldersRemoveTab(tabId: tabId)
+            return nil
+
         case "webapp.create":
             guard let name = str("name") else { throw BrowserJSError.invalidArgs("name") }
             let files = (raw["files"] as? [String: Any])?.compactMapValues { $0 as? String } ?? [:]
@@ -333,6 +373,55 @@ enum BrowserJSDispatch {
             let info = try await host.notesWrite(agentKey: optStr("agentKey"), title: title, markdown: optStr("markdown"), html: optStr("html"), show: optStr("show") ?? "both")
             return try encodeValue(info)
 
+        case "tasks.list":
+            return try encodeValue(try await host.tasksList())
+
+        case "toolbar.list":
+            return try encodeValue(try await host.toolbarListButtons())
+        case "toolbar.get":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            return try encodeValue(try await host.toolbarGetButton(id: id))
+        case "toolbar.create":
+            guard let label = str("label") else { throw BrowserJSError.invalidArgs("label") }
+            return try encodeValue(try await host.toolbarCreateButton(label: label, icon: optStr("icon"), bjs: optStr("bjs"), instructions: optStr("instructions")))
+        case "toolbar.update":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            let clearBJS = raw["bjs"] is NSNull
+            return try encodeValue(try await host.toolbarUpdateButton(id: id, label: optStr("label"), icon: optStr("icon"), bjs: optStr("bjs"), clearBJS: clearBJS, instructions: optStr("instructions")))
+        case "toolbar.remove":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            try await host.toolbarRemoveButton(id: id)
+            return nil
+        case "toolbar.click":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            try await host.toolbarClickButton(id: id, tabId: optStr("tabId"))
+            return nil
+
+        case "inject.get":
+            guard let h = str("host") else { throw BrowserJSError.invalidArgs("host") }
+            return try encodeValue(try await host.injectGet(host: h))
+        case "inject.set":
+            guard let h = str("host") else { throw BrowserJSError.invalidArgs("host") }
+            return try encodeValue(try await host.injectSet(host: h, css: optStr("css"), js: optStr("js")))
+        case "inject.clear":
+            guard let h = str("host") else { throw BrowserJSError.invalidArgs("host") }
+            try await host.injectClear(host: h)
+            return nil
+
+        case "memory.scopes":
+            return try encodeValue(try await host.memoryScopes())
+        case "memory.schema":
+            return try encodeAny(try await host.memorySchema())
+        case "memory.query":
+            guard let sql = str("sql") else { throw BrowserJSError.invalidArgs("sql") }
+            let rows = try await host.memoryQuery(scope: optStr("scope"), sql: sql, params: (raw["params"] as? [Any]) ?? [], limit: int("limit") ?? 200)
+            return try encodeAny(rows)
+        case "memory.overview":
+            return try encodeValue(try await host.memoryOverview(scope: optStr("scope")))
+        case "memory.setOverview":
+            guard let text = str("text") else { throw BrowserJSError.invalidArgs("text") }
+            return try encodeValue(try await host.memorySetOverview(scope: optStr("scope"), text: text))
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -391,6 +480,15 @@ enum BrowserJSBridgeSource {
             activate:   function(spaceId, opts) { opts = opts || {}; return __browserCall('spaces.activate', { spaceId: spaceId, windowId: opts.windowId }); },
             setChatMode: function(spaceId, enabled) { return __browserCall('spaces.setChatMode', { spaceId: spaceId, enabled: !!enabled }); },
         },
+        folders: {
+            list:      function(opts) { opts = opts || {}; return __browserCall('folders.list', { spaceId: opts.spaceId, windowId: opts.windowId }); },
+            get:       function(folderId) { return __browserCall('folders.get', { folderId: folderId }); },
+            create:    function(name, opts) { opts = opts || {}; return __browserCall('folders.create', { name: name, spaceId: opts.spaceId, windowId: opts.windowId }); },
+            rename:    function(folderId, name) { return __browserCall('folders.rename', { folderId: folderId, name: name }); },
+            delete:    function(folderId, opts) { opts = opts || {}; return __browserCall('folders.delete', { folderId: folderId, closeTabs: !!opts.closeTabs, windowId: opts.windowId }); },
+            addTab:    function(tabId, folderId, opts) { opts = opts || {}; return __browserCall('folders.addTab', { tabId: tabId, folderId: folderId, open: !!opts.open }); },
+            removeTab: function(tabId) { return __browserCall('folders.removeTab', { tabId: tabId }); },
+        },
         net: {
             log:           function(filter)  { return __browserCall('net.log', filter || {}); },
             grep:          function(pattern, where) { return __browserCall('net.grep', { pattern: pattern, where: where }); },
@@ -403,6 +501,29 @@ enum BrowserJSBridgeSource {
         },
         notes: {
             write: function(opts) { return __browserCall('notes.write', opts || {}); },
+        },
+        tasks: {
+            list: function() { return __browserCall('tasks.list', {}); },
+        },
+        toolbar: {
+            list:   function() { return __browserCall('toolbar.list', {}); },
+            get:    function(id) { return __browserCall('toolbar.get', { id: id }); },
+            create: function(opts) { return __browserCall('toolbar.create', opts || {}); },
+            update: function(id, opts) { opts = opts || {}; return __browserCall('toolbar.update', { id: id, label: opts.label, icon: opts.icon, bjs: opts.bjs, instructions: opts.instructions }); },
+            remove: function(id) { return __browserCall('toolbar.remove', { id: id }); },
+            click:  function(id, opts) { opts = opts || {}; return __browserCall('toolbar.click', { id: id, tabId: opts.tabId }); },
+        },
+        inject: {
+            get:   function(host) { return __browserCall('inject.get', { host: host }); },
+            set:   function(host, opts) { opts = opts || {}; return __browserCall('inject.set', { host: host, css: opts.css, js: opts.js }); },
+            clear: function(host) { return __browserCall('inject.clear', { host: host }); },
+        },
+        memory: {
+            scopes:      function() { return __browserCall('memory.scopes', {}); },
+            schema:      function() { return __browserCall('memory.schema', {}); },
+            query:       function(opts) { return __browserCall('memory.query', opts || {}); },
+            overview:    function(opts) { return __browserCall('memory.overview', opts || {}); },
+            setOverview: function(opts) { return __browserCall('memory.setOverview', opts || {}); },
         },
         fs: {
             read:   function(path, opts) { opts = opts || {}; return __browserCall('fs.read', { path: path, encoding: opts.encoding || 'utf8' }); },

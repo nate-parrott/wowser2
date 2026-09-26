@@ -6,7 +6,8 @@ public struct Sidebar: View {
     @Environment(\.windowID) private var windowID
     @Environment(\.profileID) private var profileID
     private let browserStore = BrowserStore.shared
-    var width: CGFloat? = UIConstants.sidebarWidth
+    @AppStorage(DefaultsKeys.sidebarWidth.rawValue) private var storedWidth = Double(UIConstants.defaultSidebarWidth)
+    @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
 
     #if os(macOS)
     @State private var hostWindow: NSWindow?
@@ -22,15 +23,17 @@ public struct Sidebar: View {
                 profileID: nil, // Use window's current profile
                 windows: state.windows,
                 tabs: state.tabs,
-                profiles: state.profiles
+                profiles: state.profiles,
+                shareTabsAcrossWindows: allWindowsShareTabs,
+                state: state
             )
         } main: { snapshot in
             SidebarContent(snapshot: snapshot, floating: floating)
-                .frame(width: width)
+                .frame(width: UIConstants.clampSidebarWidth(CGFloat(storedWidth)))
+                #if os(macOS)
+                .overlay(alignment: .trailing) { SidebarResizeHandle() }
+                #endif
                 .modifier(SidebarFramePublisher())
-                // Only the fixed sidebar reports blur regions to the space
-                // background; the floating sidebar has its own material.
-                .environment(\.sidebarReportsBlurRegions, !floating)
         }
     }
 }
@@ -89,18 +92,22 @@ private struct SidebarSnapshot: Equatable {
     let currentTabID: ID<Tab>?
     
     // Whether the current space has a dropped background image (for the
-    // "Remove Background Image" context menu item)
+    // "Background Image Mode" / "Remove Background Image" context menu items)
     let hasBackgroundImage: Bool
+    let backgroundImageMode: SpaceBackgroundMode
     // Folder attached to the current space ("Add Folder…" / "Change Folder…")
     let folderPath: String?
-    // Chat-mode spaces have the coordinator thread in the sidebar; no split-chat button there.
-    let isChatMode: Bool
+    // Chat mode (browser-wide): the sidebar shows the space's coordinator thread.
+    // The editable space name only appears once there's more than one space.
+    let showSpaceTitle: Bool
 
     init(windowID: ID<WindowState>, 
          profileID: ID<Profile>?, // Can be nil, will use window's current profile
          windows: [ID<WindowState>: WindowState],
          tabs: [ID<Tab>: Tab],
-         profiles: [ID<Profile>: Profile]) {
+         profiles: [ID<Profile>: Profile],
+         shareTabsAcrossWindows: Bool,
+         state: BrowserState) {
         
         self.windowID = windowID
         
@@ -122,11 +129,14 @@ private struct SidebarSnapshot: Equatable {
         }
         self.favoriteTabIDs = favoriteIDs
         self.hasBackgroundImage = profiles[effectiveProfileID]?.imageInfo != nil
+        self.backgroundImageMode = profiles[effectiveProfileID]?.imageInfo?.effectiveMode ?? .fade
         self.folderPath = profiles[effectiveProfileID]?.folderPath
-        self.isChatMode = profiles[effectiveProfileID]?.isChatMode ?? false
+        self.showSpaceTitle = profiles.values.filter({ !$0.isHidden }).count > 1
 
         // Process tabs in their original order but add headers when group changes
-        let regularTabIDs = perProfileData?.tabs ?? []
+        let regularTabIDs = shareTabsAcrossWindows
+            ? state.sharedSidebarTabIDs(windowID: windowID, profileID: effectiveProfileID)
+            : (perProfileData?.tabs ?? [])
         var tabGroups: [TabGroup] = []
         var currentGroupName: String? = nil
         var currentGroupTabs: [ID<Tab>] = []
@@ -184,15 +194,25 @@ private struct SidebarContent: View {
 //                Spacer().frame(height: 30)
 //            }
             
-            HStack {
+            HStack(spacing: 4) {
                 MacWindowControlsIfValidElse {
                     EmptyView()
                 }
-                Spacer()
+                // Space name + icon share the chrome row with the traffic lights;
+                // it swaps with a quick fade when the current space changes.
+                if snapshot.showSpaceTitle {
+                    SpaceNameLabel(windowID: snapshot.windowID, profileID: snapshot.profileID)
+                        .id(snapshot.profileID)
+                        .transition(.opacity)
+                        .frame(maxWidth: .infinity)
+                        .padding(.trailing, -2)
+                } else {
+                    Spacer()
+                }
                 topButtons
             }
             .padding(6)
-            .reportsSpaceBackgroundRegion("top-chrome", edge: .top)
+            .animation(.easeInOut(duration: 0.12), value: snapshot.profileID)
 
             // Swipeable profile content (favorites and tabs)
             SidebarSwipeView(windowID: snapshot.windowID)
@@ -204,18 +224,24 @@ private struct SidebarContent: View {
 //                .padding(.bottom, 8)
         }
         .contextMenu {
-            ProfilePicker(
-                currentProfileID: snapshot.profileID,
-                windowID: snapshot.windowID
-            )
             #if os(macOS)
-            Divider()
             Button(snapshot.folderPath == nil ? "Add Folder…" : "Change Folder…") {
                 SpaceMenu.pickFolder(profileID: snapshot.profileID, currentPath: snapshot.folderPath)
             }
             #endif
             if snapshot.hasBackgroundImage {
                 Divider()
+                // A Picker inside a context menu renders as a submenu with a
+                // checkmark on the selected item (Label images don't reliably
+                // show in macOS menus).
+                Picker("Background Image Mode", selection: Binding(
+                    get: { snapshot.backgroundImageMode },
+                    set: { BrowserStore.shared.setSpaceBackgroundMode($0, profileID: snapshot.profileID) }
+                )) {
+                    ForEach(SpaceBackgroundMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
                 Button("Remove Background Image") {
                     BrowserStore.shared.clearSpaceBackgroundImage(profileID: snapshot.profileID)
                 }
@@ -255,6 +281,37 @@ private struct SidebarContent: View {
         }
     }
 }
+
+#if os(macOS)
+/// Invisible strip along the sidebar's trailing edge that drags the sidebar
+/// width. Only the cursor changes on hover; a faint line shows while dragging.
+private struct SidebarResizeHandle: View {
+    @State private var dragStartWidth: CGFloat?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .overlay(alignment: .trailing) {
+                if dragStartWidth != nil {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 2)
+                }
+            }
+            .pointerStyle(.columnResize)
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = dragStartWidth ?? UIConstants.sidebarWidth
+                        dragStartWidth = start
+                        UIConstants.setSidebarWidth(start + value.translation.width)
+                    }
+                    .onEnded { _ in dragStartWidth = nil }
+            )
+    }
+}
+#endif
 
 private struct GroupHeader: View {
     var name: String
@@ -332,6 +389,8 @@ private enum TabListCell: Equatable, Identifiable {
 
 // Grouped tabs section
 struct GroupedTabsView: View {
+    /// Folder tabs in the list, keyed by tab id; rendered in place of the row.
+    var folders: [ID<Tab>: FolderSnapshot] = [:]
     let tabGroups: [TabGroup]
     let currentTabID: ID<Tab>?
     let windowID: ID<WindowState>
@@ -353,6 +412,16 @@ struct GroupedTabsView: View {
                                     .padding(.vertical, 6)
                             }
                         case .tabID(let tabID):
+                            if let folder = folders[tabID] {
+                                FolderSection(
+                                    folder: folder,
+                                    currentTabID: currentTabID,
+                                    windowID: windowID
+                                )
+                                .sidebarDropTarget { _, _ in
+                                    .folder(folderTab: folder.id, before: nil, open: false)
+                                }
+                            } else {
                             RegularTabRow(
                                 tabID: tabID,
                                 isSelected: tabID == currentTabID,
@@ -362,6 +431,7 @@ struct GroupedTabsView: View {
                                 // Drop before this tab in the window's regular tabs
                                 return .ordinaryTabs(window: windowID, before: tabID)
                             }
+                            }
                         }
                     }
                     NewTabCell(windowID: windowID)
@@ -369,11 +439,6 @@ struct GroupedTabsView: View {
                 .padding(isMobile() ? 12 : 0)
                 .frame(maxWidth: .infinity)
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
-                .overlay(alignment: .bottom) {
-                    Color.clear.frame(height: 2000)
-                        .reportsSpaceBackgroundRegion("tabs-\(profileID.raw)", edge: .top)
-                        .frame(height: 1, alignment: .bottom)
-                }
             }
             .scrollBounceBehavior(.basedOnSize)
             // Background drop target for the entire area
@@ -417,50 +482,6 @@ extension Shape {
             })
         } else {
             self.fill(Color.primary.opacity(isHovered ? 0.12 : 0.07))
-        }
-    }
-}
-
-// Profile picker for context menu
-private struct ProfilePicker: View {
-    let currentProfileID: ID<Profile>
-    let windowID: ID<WindowState>
-    
-    var body: some View {
-        WithSnapshotMain(store: BrowserStore.shared) { state in
-            state.visibleProfiles.map(\.id)
-        } main: { profileIDs in
-            Group {
-                ForEach(profileIDs, id: \.raw) { profileID in
-                    Button {
-                        switchToProfile(profileID: profileID)
-                    } label: {
-                        Text(profileID.raw)
-                    }
-                }
-                
-                Divider()
-                
-                Button("New Profile") {
-                    createNewProfile()
-                }
-            }
-        }
-    }
-    
-    private func createNewProfile() {
-        BrowserStore.shared.modify { state in
-            let newProfileID = state.createNewProfile()
-            state.windows[windowID]?.profile = newProfileID
-        }
-    }
-    
-    private func switchToProfile(profileID: ID<Profile>) {
-        BrowserStore.shared.modify { state in
-            if state.windows[windowID]?.perProfileData[profileID] == nil {
-                state.windows[windowID]?.perProfileData[profileID] = WindowState.PerProfileData(tabs: [])
-            }
-            state.windows[windowID]?.profile = profileID
         }
     }
 }

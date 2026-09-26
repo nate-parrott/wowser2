@@ -24,16 +24,6 @@
 			<key>orderHint</key>
 			<integer>12</integer>
 		</dict>
-		<key>Tangerine.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>0</integer>
-		</dict>
-		<key>TangerineMobile.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>2</integer>
-		</dict>
 		<key>Tour (Playground).xcscheme</key>
 		<dict>
 			<key>orderHint</key>
@@ -47,7 +37,12 @@
 		<key>Wowser.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>1</integer>
+			<integer>0</integer>
+		</dict>
+		<key>WowserMobile.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>2</integer>
 		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>

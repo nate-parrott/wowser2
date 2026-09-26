@@ -25,6 +25,10 @@ struct SearchableItem: Equatable {
         /// Spin up an in-browser agent tab for this query. Match strength
         /// drives ranking (">" prefix = top of list).
         case askAgent(query: String, match: AskAgentMatchStrength)
+        /// Run the typed text as a shell command in a new terminal tab (cwd =
+        /// the space folder). Likelihood drives ranking: only `.likely` may
+        /// take the top slot.
+        case terminalCommand(String, likelihood: TerminalCommandLikelihood)
     }
 
     var id: ID<SearchableItem>
@@ -42,6 +46,7 @@ struct SearchableItem: Equatable {
         case .tab(let tabId, let info): return "tab:\(tabId.raw):\(info.url?.historyKey ?? "")"
         case .searchAction(let action): return "action:\(action.title)"
         case .askAgent(let query, _): return "askagent:\(query)"
+        case .terminalCommand(let cmd, _): return "terminal:\(cmd)"
         }
     }
 }
@@ -132,6 +137,14 @@ struct SearchResult: Equatable, Identifiable {
             case .trigger: return 5
             case .triggerPrefix: return 3
             case .fallback: return 0.1
+            }
+        case .terminalCommand(_, let likelihood):
+            // Only a confident match outranks a literal URL / everything else;
+            // a "possibly" trails the search suggestions.
+            switch likelihood {
+            case .likely: return 101
+            case .possibly: return 0.05
+            case .unlikely: return 0
             }
         }
     }
@@ -301,7 +314,7 @@ extension CharacterSet {
         }
         
         // Add "I'm feeling lucky" result only if the setting is enabled
-        if classification == .nav && DefaultsKeys.enableGoDirectQueries.boolValue(defaultValue: true) {
+        if classification == .nav && DefaultsKeys.enableGoDirectQueries.boolValue(defaultValue: false) {
             results.append(.navItem(query))
         }
         
@@ -326,6 +339,7 @@ extension CharacterSet {
                 results.append(agentResult)
             }
         }
+        
         #endif
 
         // Add matching actions
@@ -351,6 +365,7 @@ extension CharacterSet {
         for match in webAppKeywordMatches(query: query) {
             results.insert(match, at: 0)
         }
+        
 
         // Check for matching tab in current window (fast, synchronous)
         if let tabMatch = tabMatch(query: normQuery) {
@@ -455,10 +470,27 @@ extension CharacterSet {
             .compactMap { $0.match(query: q) }
             .sorted(by: { $0.score > $1.score })
         
-        let newResults = (historyMatches + searchSuggestions + actionMatches)
+        var results = fastPath
+        var extras = historyMatches + searchSuggestions + actionMatches
+
+        #if os(macOS)
+        // "Run in terminal": a confident match goes straight to the top;
+        // anything weaker trails the search suggestions.
+        let terminalLikelihood = TerminalCommandCache.shared.isTerminalCommand(query)
+        if terminalLikelihood != .unlikely {
+            let cwd = model.spaceFolderPath(windowID: self.windowID) ?? model.mostRecentNativeFolderPath(windowID: self.windowID)
+            let terminalResult = SearchResult.terminalCommand(query.trimmingCharacters(in: .whitespacesAndNewlines), cwd: cwd, likelihood: terminalLikelihood)
+            if terminalLikelihood == .likely {
+                results.insert(terminalResult, at: 0)
+            } else {
+                extras.append(terminalResult)
+            }
+        }
+        #endif
+
+        let newResults = extras
             .sorted(by: { $0.score > $1.score })
             .prefix(n)
-        var results = fastPath
         for result in newResults {
             if results.count >= n { break }
             results.append(result)
@@ -564,6 +596,11 @@ private extension SearchResult {
     
     static func customAction(action: SearchAction) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "action:\(action.title)"), content: .searchAction(action)), matchQuality: .prefixMatchTitle)
+    }
+
+    static func terminalCommand(_ command: String, cwd: String?, likelihood: TerminalCommandLikelihood) -> SearchResult {
+        // The cwd rides in the id so a space switch mid-typing refreshes the row.
+        return .init(item: SearchableItem(id: .init(raw: "terminal:\(cwd ?? ""):\(command)"), content: .terminalCommand(command, likelihood: likelihood)), matchQuality: .prefixMatchTitle)
     }
 
     static func askAgent(_ query: String, match: AskAgentMatchStrength) -> SearchResult {

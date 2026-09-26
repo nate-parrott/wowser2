@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Native chat UI for agent tabs (NativePageKey.agent). User messages render as
 // liquid-glass capsules with iMessage-style tails; the agent's replies are
@@ -45,6 +46,8 @@ private struct AgentChatContent: View {
     // session.savedScrollY with the clamped-to-top offset.
     @State private var pendingScrollRestoreY: CGFloat?
     @State private var inputText = ""
+    @State private var attachments: [URL] = []
+    @State private var dictating = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -103,9 +106,10 @@ private struct AgentChatContent: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
-                // Room at the bottom so the top of the latest message can sit
-                // at the top of the viewport while its reply streams in below.
-                Color.clear.frame(height: max(0, viewportHeight - 120))
+                // Half a viewport of room below the last row: a sent message
+                // lands mid-screen and the reply streams into the space beneath
+                // it without the viewport moving.
+                Color.clear.frame(height: viewportHeight * 0.5)
             }
             .padding(.horizontal, 18)
             .padding(.top, 18)
@@ -136,15 +140,15 @@ private struct AgentChatContent: View {
             session.savedScrollY = info.offsetY
         }
         .onChange(of: latestJumpTarget) { _, newValue in
+            // Only the user's own send moves the viewport: scroll to the
+            // bottom, so the message sits above the half-viewport pad. Model
+            // output never scrolls — the reply fills in below without the
+            // view shifting.
             guard let newValue, newValue != lastJumpedToIndex else { return }
-            let isOwnSend: Bool = { if case .user? = rows.last(where: { $0.id == newValue }) { return true }; return false }()
-            // Scroll only if necessary: don't yank the transcript if the user
-            // has scrolled up to read older messages (unless they just sent).
-            if isOwnSend || distanceFromBottom < viewportHeight * 1.5 {
-                lastJumpedToIndex = newValue
-                withAnimation(.easeOut(duration: 0.25)) {
-                    scrollPos.scrollTo(id: newValue, anchor: .top)
-                }
+            guard case .user? = rows.last(where: { $0.id == newValue }) else { return }
+            lastJumpedToIndex = newValue
+            withAnimation(.easeOut(duration: 0.25)) {
+                scrollPos.scrollTo(edge: .bottom)
             }
         }
     }
@@ -165,46 +169,148 @@ private struct AgentChatContent: View {
 
     // MARK: - Input
 
-    private var inputBar: some View {
-        HStack(spacing: 8) {
-            TextField("Ask a follow-up…", text: $inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .focused($inputFocused)
-                .onSubmit { sendInput() }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+    private var canSend: Bool {
+        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+    }
 
-            if session.isWorking {
-                Button(action: { session.interrupt() }) {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 22))
+    private var inputBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !attachments.isEmpty {
+                attachmentChips
+            }
+            HStack(spacing: 8) {
+                #if os(macOS)
+                Button(action: pickAttachments) {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
-                .help("Stop")
-            } else {
-                Button(action: { sendInput() }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
+                .help("Attach files")
+                #endif
+
+                inputField
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+                    .modifier(DictationAgentInputHighlightIfAvailable(paneID: paneID, cornerRadius: 19, dictating: $dictating))
+
+                if session.isWorking {
+                    Button(action: { session.interrupt() }) {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 22))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stop")
+                } else {
+                    Button(action: { sendInput() }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                    .help("Send")
                 }
-                .buttonStyle(.plain)
-                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .help("Send")
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: 640)
         .frame(maxWidth: .infinity)
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            loadDroppedFiles(providers)
+            return true
+        }
+    }
+
+    @ViewBuilder private var inputField: some View {
+        #if os(macOS)
+        if dictating {
+            DictationTranscriptView(fgColor: nil, fontSize: 13)
+                .frame(minHeight: 17)
+        } else {
+            textField
+        }
+        #else
+        textField
+        #endif
+    }
+
+    private var textField: some View {
+        TextField("Ask a follow-up…", text: $inputText, axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(1...5)
+            .focused($inputFocused)
+            .onSubmit { sendInput() }
+    }
+
+    private var attachmentChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(attachments, id: \.self) { url in
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc")
+                            .font(.system(size: 11))
+                        Text(url.lastPathComponent)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                        Button(action: { attachments.removeAll { $0 == url } }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .glassEffect(.regular, in: Capsule())
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    #if os(macOS)
+    private func pickAttachments() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.message = "Attach files to send to the agent"
+        panel.begin { response in
+            guard response == .OK else { return }
+            addAttachments(panel.urls)
+        }
+    }
+    #endif
+
+    private func loadDroppedFiles(_ providers: [NSItemProvider]) {
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
+                var url: URL?
+                if let data = item as? Data { url = URL(dataRepresentation: data, relativeTo: nil) }
+                else if let u = item as? URL { url = u }
+                guard let url else { return }
+                DispatchQueue.main.async { addAttachments([url]) }
+            }
+        }
+    }
+
+    private func addAttachments(_ urls: [URL]) {
+        for url in urls where !attachments.contains(url) {
+            attachments.append(url)
+        }
     }
 
     private func sendInput() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard canSend else { return }
+        let files = attachments
         inputText = ""
-        session.send(text: text)
+        attachments = []
+        session.send(text: text, attachments: files)
     }
 }
 

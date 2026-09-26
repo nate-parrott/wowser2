@@ -8,20 +8,20 @@ final class TangSchemeTests: XCTestCase {
     // MARK: - Slugging
 
     func testSlug() {
-        XCTAssertEqual(TangerineApps.slug(for: "My Cool App"), "my-cool-app")
-        XCTAssertEqual(TangerineApps.slug(for: "  Hello!!World  "), "hello-world")
-        XCTAssertEqual(TangerineApps.slug(for: "Foo_Bar.baz"), "foo-bar-baz")
-        XCTAssertEqual(TangerineApps.slug(for: "already-slugged"), "already-slugged")
-        XCTAssertEqual(TangerineApps.slug(for: "***"), "app")
-        XCTAssertEqual(TangerineApps.slug(for: ""), "app")
+        XCTAssertEqual(TangAppStore.slug(for: "My Cool App"), "my-cool-app")
+        XCTAssertEqual(TangAppStore.slug(for: "  Hello!!World  "), "hello-world")
+        XCTAssertEqual(TangAppStore.slug(for: "Foo_Bar.baz"), "foo-bar-baz")
+        XCTAssertEqual(TangAppStore.slug(for: "already-slugged"), "already-slugged")
+        XCTAssertEqual(TangAppStore.slug(for: "***"), "app")
+        XCTAssertEqual(TangAppStore.slug(for: ""), "app")
     }
 
     // MARK: - On-disk create / resolve
 
-    private func tempApps() -> TangerineApps {
+    private func tempApps() -> TangAppStore {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("tang-tests-\(UUID().uuidString)", isDirectory: true)
-        return TangerineApps(dir: dir)
+        return TangAppStore(dir: dir)
     }
 
     func testCreateWritesFilesAndResolves() throws {
@@ -48,7 +48,7 @@ final class TangSchemeTests: XCTestCase {
     func testCreateRequiresIndex() {
         let apps = tempApps()
         XCTAssertThrowsError(try apps.create(name: "no-index", files: ["main.js": "x"])) { err in
-            guard case TangerineApps.TangError.missingIndex = err else {
+            guard case TangAppStore.TangError.missingIndex = err else {
                 return XCTFail("expected missingIndex, got \(err)")
             }
         }
@@ -60,8 +60,8 @@ final class TangSchemeTests: XCTestCase {
         _ = try apps.create(name: "app", files: ["index.html": "v2"])
         XCTAssertEqual(try String(contentsOf: apps.resolveFile(forHost: "app", path: "/")!, encoding: .utf8), "v2")
         // stale file from the first create must be gone
-        let stale = apps.resolveFile(forHost: "app", path: "/old.js")!
-        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path))
+        XCTAssertNil(apps.resolveFile(forHost: "app", path: "/old.js"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: apps.appDir(slug: "app").appendingPathComponent("old.js").path))
     }
 
     func testPathTraversalRejected() throws {
@@ -74,6 +74,34 @@ final class TangSchemeTests: XCTestCase {
             "index.html": "x",
             "../escape.txt": "nope",
         ]))
+    }
+
+    // MARK: - Bundled apps
+
+    func testBundledNotesAppServedWhenNotOnDisk() throws {
+        let apps = tempApps()
+        XCTAssertTrue(apps.list().contains("notes"))
+        let index = try XCTUnwrap(apps.resolveFile(forHost: "notes", path: "/"))
+        XCTAssertTrue(try String(contentsOf: index, encoding: .utf8).contains("<title>Notes</title>"))
+        XCTAssertNotNil(apps.manifestURL(slug: "notes"))
+        XCTAssertNil(apps.resolveFile(forHost: "notes", path: "/../other/index.html"))
+        XCTAssertNil(apps.resolveFile(forHost: "notes", path: "/nope.html"))
+    }
+
+    func testOnDiskAppShadowsBundled() throws {
+        let apps = tempApps()
+        _ = try apps.create(name: "notes", files: ["index.html": "mine"])
+        let index = try XCTUnwrap(apps.resolveFile(forHost: "notes", path: "/"))
+        XCTAssertEqual(try String(contentsOf: index, encoding: .utf8), "mine")
+        // Files the override doesn't provide still fall through to the bundle.
+        XCTAssertNotNil(apps.resolveFile(forHost: "notes", path: "/manifest.json"))
+        XCTAssertEqual(apps.list().filter { $0 == "notes" }.count, 1)
+    }
+
+    func testNotesDirWithoutIndexIsNotListedWithoutBundle() throws {
+        let apps = TangAppStore(dir: tempApps().dir, bundledDir: nil)
+        _ = try apps.writeNote(title: "Hello", markdown: "hi", html: nil)
+        XCTAssertFalse(apps.list().contains("notes"))
     }
 
     // MARK: - MIME

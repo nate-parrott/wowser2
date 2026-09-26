@@ -1,13 +1,13 @@
 //
-//  TangerineMobileUITestsLaunchTests.swift
-//  TangerineMobileUITests
+//  WowserMobileUITestsLaunchTests.swift
+//  WowserMobileUITests
 //
 //  Created by Nate Parrott on 5/17/25.
 //
 
 import XCTest
 
-final class TangerineMobileUITestsLaunchTests: XCTestCase {
+final class WowserMobileUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

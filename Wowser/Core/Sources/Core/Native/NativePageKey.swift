@@ -136,6 +136,7 @@ extension BrowserState {
             candidateTabIDs.append(contentsOf: proj.tabs)
         }
         candidateTabIDs.append(contentsOf: favorites(profileId: win.profile))
+        candidateTabIDs.append(contentsOf: folderMemberIDs(profileId: win.profile))
 
         let scored: [(Date, String)] = candidateTabIDs.compactMap { tabID in
             guard let tab = tabs[tabID] else { return nil }
@@ -249,7 +250,10 @@ extension NativePageKey {
         switch self {
         case .terminal(let cwd, _):
             let command = info.terminalForegroundCommand?.nilIfEmpty
-            appearance.icon = .terminal(running: command != nil)
+            // `displayCommand` already unwraps interpreter shims and reduces
+            // argv[0] to its last path component, so "claude --resume" → "claude".
+            let isClaude = command?.split(separator: " ").first == "claude"
+            appearance.icon = isClaude ? .claude : .terminal(running: command != nil)
             let titleFromTerm = info.title?.nilIfEmpty ?? baseInfo?.title?.nilIfEmpty
             appearance.title = titleFromTerm ?? "Terminal"
             // While a command runs the title shows the command, so surface the

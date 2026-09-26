@@ -7,6 +7,11 @@ public class WebContentWebView: WKWebView {
     /// Fired on clicks, key presses and scrolls so the owner can re-poll
     /// page state that has no push notification (e.g. the focused text field).
     var onUserInteraction: (() -> Void)?
+    #if os(macOS)
+    /// Fired with the raw event before WebKit handles a mouse-down, so the
+    /// owner can hit-test the DOM as it was at click time (memory log).
+    var onMouseDown: ((NSEvent) -> Void)?
+    #endif
     
     var shrunk: Bool = false {
         didSet {
@@ -122,6 +127,7 @@ public class WebContentWebView: WKWebView {
     private static let reservedKeyEquivalents: Set<String> = ["t"]
 
     public override func mouseDown(with event: NSEvent) {
+        onMouseDown?(event)
         super.mouseDown(with: event)
         onUserInteraction?()
     }

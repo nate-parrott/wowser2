@@ -17,13 +17,15 @@ struct DictationButton: View {
     var body: some View {
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { state -> Bool in
             guard let paneID, let pane = state.pane(forId: paneID) else { return false }
-            if let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true { return true }
+            if let url = pane.info.url, let key = NativePageKey(url: url), key.isTerminal || key.isAgent { return true }
             return pane.info.focusedEditable != nil && !pane.info.isEmptyPage
         }) { fieldFocused in
             Button(action: toggle) {
                 Image(systemName: symbol(fieldFocused: fieldFocused))
                     .imageScale(emptyPage ? .large : .medium)
-                    .foregroundStyle(isActiveForThisPane ? Color.red : (fgColor?.color ?? Color.primary))
+                    // Inherit the toolbar's content color (WithContentColorScheme)
+                    // unless recording or given an explicit color.
+                    .foregroundColor(isActiveForThisPane ? Color.red : fgColor?.color)
                     .opacity(isActiveForThisPane ? 1 : (emptyPage ? 0.4 : (fieldFocused ? 0.85 : 0.6)))
                     .frame(width: emptyPage ? 34 : 30, height: emptyPage ? 34 : 30)
             }
@@ -48,7 +50,7 @@ struct DictationButton: View {
 
     private func helpText(fieldFocused: Bool) -> String {
         if isActiveForThisPane { return "Finish dictating (⌘D or Return; Esc to cancel)" }
-        if fieldFocused { return "Dictate into the focused text field or terminal (⌘D)" }
+        if fieldFocused { return "Dictate into the focused text field, terminal, or chat (⌘D)" }
         return "Dictate a question for the agent (⌘D)"
     }
 

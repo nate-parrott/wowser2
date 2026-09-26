@@ -26,24 +26,20 @@ public struct WrappedWebView: View {
         ZStack {
             receivers
 
-            ZStack {
-                WebView(webContent: webContent, shrunk: shrunk)
-                    .onAppearOrChange(of: webviewFocusToken, perform: { token in
-                        if token != nil {
-                            webContent.focus()
-                        }
-                    })
-                    .onAppearOrChange(of: extractedReaderContent != nil, perform: { reader in
-                        webContent.silenced = reader
-                    })
-                    .id(webContent)
-
+        WebView(webContent: webContent, shrunk: shrunk)
+            .onAppearOrChange(of: webviewFocusToken, perform: { token in
+                if token != nil {
+                    webContent.focus()
+                }
+            })
+            .onAppearOrChange(of: extractedReaderContent != nil, perform: { reader in
+                webContent.silenced = reader
+            })
+            .id(webContent)
+            .overlay(alignment: .topTrailing) {
                 findInPageContent
-
-                #if os(macOS)
-                DictationOverlay(webContent: webContent)
-                #endif
             }
+            .animation(.toastDropCurve, value: isFindInPageActive)
 
             if let nativePageKey {
                 NativePageOverlay(key: nativePageKey, webContent: webContent)
@@ -56,6 +52,12 @@ public struct WrappedWebView: View {
                 LoadingFailureOverlay(failure: loadingFailure, webContent: webContent)
                     .modifier(NewTabAnimation(shrunk: shrunk))
             }
+
+            // Above the native overlays so the terminal outline isn't hidden
+            // behind the terminal's own background.
+            #if os(macOS)
+            DictationOverlay(webContent: webContent)
+            #endif
         }
         .animation(.niceDefault(duration: 0.3), value: extractedReaderContent != nil)
         .modifier(ByInjectingGeneratedPages(webContent: webContent))
@@ -87,7 +89,6 @@ public struct WrappedWebView: View {
                 paneID: webContent.id,
                 onClose: { closeFindInPage() }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding()
             .transition(.move(edge: .top))
         }
@@ -126,6 +127,7 @@ public struct WrappedWebView: View {
 
     private func cleanModeOptionsChanged(_ options: CleanModeSnapshotForPane) {
         webContent.injectedCSS = options.wantsCSS ?? ""
+        webContent.injectedJS = options.wantsJS ?? ""
         webContent.fullContentExtractionMode = options.wantsReader ? .reader : .none
     }
 

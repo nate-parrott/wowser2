@@ -1,5 +1,88 @@
 import SwiftUI
 
+struct NewToastView: View {
+    var toast: Toast
+    var dismiss: () -> Void
+    
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
+    
+    var body: some View {
+        ToastLike(icon: toast.icon) {
+            Text(toast.message)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+            }
+            .help("Dismiss Message")
+        }
+    }
+}
+
+// Standard component to use with ToastLike
+struct ToastIconButtonStyle: ButtonStyle {
+    var primary: Bool = false
+    @State private var hovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        let pressAdjustOpacity: CGFloat = configuration.isPressed ? 0.1 : 0
+        configuration.label
+            .frame(both: 26)
+            .fontWeight(.semibold)
+            .background {
+                Circle()
+                    .fill(Color.primary)
+                    .opacity(pressAdjustOpacity + (primary ? (hovered ? 0.35 : 0.2) : (hovered ? 0.15 : 0)))
+            }
+            .onHover(perform: { hovered = $0 })
+    }
+}
+
+extension Animation {
+    static let toastDropCurve: Animation = .spring(duration: 0.2, bounce: 0.4, blendDuration: 0.1)
+}
+
+// Standard component to use
+struct ToastLike<B: View>: View {
+    var icon: String? = nil
+    var alignment: VerticalAlignment = .firstTextBaseline
+    @ViewBuilder var content: () -> B
+    
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    
+    var body: some View {
+        let bgColor: Color = colorScheme == .dark ? Color.black : Color.white
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let grad = LinearGradient(colors: [Color.black.opacity(0.75), Color.black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+        
+        HStack(alignment: alignment) {
+            if let icon {
+                Image(systemName: icon)
+                    .foregroundStyle(Color.white)
+                    .frame(both: 26)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor))
+    //                .foregroundColor(.accentColor)
+    //                .frame(both: 30)
+    //                .background {
+    //                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+    //                        .fill(Color.primary)
+    //                        .opacity(0.15)
+    //                }
+                    .mask(grad)
+                    .shadow(color: Color.accentColor.opacity(0.1), radius: 6, x: 0, y: 2)
+            }
+            
+            content()
+                .multilineTextAlignment(.leading)
+        }
+        .buttonStyle(ToastIconButtonStyle(primary: true))
+        .padding(10)
+        .frame(width: 320)
+        .background(shape.fill(bgColor).opacity(0.3))
+        .glassEffect(.regular, in: shape)
+    }
+}
+
 public struct ToastViewer: View {
     @Environment(\.windowID) private var windowID: ID<WindowState>?
     
@@ -19,17 +102,18 @@ public struct ToastViewer: View {
             ) { snapshot in
                 Group {
                     if let toast = snapshot.toast {
-                        ToastView(toast: toast) {
+                        NewToastView(toast: toast) {
                             // Close action
                             BrowserStore.shared.modify { state in
                                 state.removeToast(id: toast.id, in: windowID)
                             }
                         }
-                        .transition(.move(edge: .bottom))
+                        .padding()
+                        .transition(.move(edge: .top))
                         .id(toast.id) // Important for transitions when toast changes
                         .onAppear {
-                            // Auto-dismiss after 5 seconds
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                            // Auto-dismiss after 4 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                                 // Check if this is still the current toast
                                 if BrowserStore.shared.model.windows[windowID]?.currentToast?.id == toast.id {
                                     BrowserStore.shared.modify { state in
@@ -114,4 +198,10 @@ struct KeyboardHint: View {
                     .opacity(0.15)
             }
     }
+}
+
+#Preview {
+    NewToastView(toast: .init(message: "I am a short toast!", icon: "bolt.fill"), dismiss: {})
+    
+    NewToastView(toast: .init(message: "I am a toast and i am very long, and I am proud of it!!", icon: "bolt.fill"), dismiss: {})
 }

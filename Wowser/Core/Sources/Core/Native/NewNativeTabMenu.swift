@@ -40,6 +40,10 @@ struct NewNativeTabMenu: View {
                 AgentChatTabs.newChat(windowID: windowID)
             }
         })
+        menu.addItem(.separator())
+        menu.addItem(CallbackMenuItem(title: "New Folder…") {
+            newFolder(windowID: windowID)
+        })
         // Webapp "new" entry points from installed apps' manifests
         for (app, entry) in TangAppRegistry.shared.entryPoints(.new) {
             menu.addItem(CallbackMenuItem(title: entry.label) {

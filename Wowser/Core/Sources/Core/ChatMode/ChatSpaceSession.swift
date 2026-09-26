@@ -38,6 +38,10 @@ public final class ChatSpaceSession: ObservableObject {
     @Published public private(set) var errorText: String?
     /// Scroll offset of the transcript, preserved across view remounts.
     public var savedScrollY: CGFloat?
+    /// Per-turn collapse state the user set by clicking a chevron, keyed by
+    /// the user message's entry id. Turns without an entry here follow the
+    /// sidebar's auto-collapse rule.
+    @Published public var turnCollapseOverrides: [String: Bool] = [:]
 
     private var agentID: String?
     private var creating: Task<String?, Never>?
@@ -52,6 +56,9 @@ public final class ChatSpaceSession: ObservableObject {
     private var lastCurrentTab: ID<Tab>?
     private var lastSeenInfo: [ID<Tab>: (url: URL?, title: String?)] = [:]
     private var seededTabs = false
+    /// When the memory brief was last prepended (nil = not yet for this agent).
+    private var lastMemoryBriefAt: Date?
+    private static let memoryBriefInterval: TimeInterval = 10 * 60
 
     private init(profileID: ID<Profile>) {
         self.profileID = profileID
@@ -74,9 +81,22 @@ public final class ChatSpaceSession: ObservableObject {
     /// Called when the chat-mode sidebar for this space appears in `windowID`.
     /// Creates (or resumes) the coordinator agent and starts watching tabs.
     public func attach(windowID: ID<WindowState>) {
+        track(windowID: windowID)
+        Task { _ = await ensureAgent() }
+    }
+
+    /// Start mirroring `windowID`'s tabs for this space into the thread (cards
+    /// for new tabs, closed-tab events) without creating the coordinator.
+    /// Called for every space a window shows, in both modes, so the thread is
+    /// already current when chat mode is switched on. If the window we were
+    /// watching is gone, retarget to the new one.
+    public func track(windowID: ID<WindowState>) {
+        if let current = self.windowID, current != windowID {
+            guard BrowserStore.shared.model.windows[current] == nil else { return }
+            tabObservation = nil
+        }
         self.windowID = windowID
         observeTabsIfNeeded()
-        Task { _ = await ensureAgent() }
     }
 
     /// The coordinator's agent id, creating/resuming the agent on first use.
@@ -90,7 +110,8 @@ public final class ChatSpaceSession: ObservableObject {
                 key: self.key,
                 name: "Coordinator",
                 effort: "low",
-                systemPrompt: self.systemPrompt()
+                systemPrompt: self.systemPrompt(),
+                workingDirectory: BrowserStore.shared.model.profiles[self.profileID]?.folderPath
             )
             do {
                 let id = try await BrowserAgentManager.shared.create(options: options)
@@ -115,9 +136,10 @@ public final class ChatSpaceSession: ObservableObject {
         guard !trimmed.isEmpty else { return }
         errorText = nil
         setWorking(true)
-        let context = takeContextBlock()
+        let base = takeContextBlock()
         Task {
             guard let id = await ensureAgent() else { setWorking(false); return }
+            let context = await self.enrichContext(base)
             do {
                 try await BrowserAgentManager.shared.send(
                     id: id,
@@ -137,6 +159,17 @@ public final class ChatSpaceSession: ObservableObject {
         Task { try? await BrowserAgentManager.shared.interrupt(id: agentID) }
     }
 
+    /// Wipe the visible transcript only. The agent session is kept, so it
+    /// still remembers the conversation; cards for open tabs are re-seeded.
+    public func clearTranscript() {
+        ChatThreadStore.shared.clear(profileID: profileID)
+        errorText = nil
+        savedScrollY = nil
+        seededTabs = false
+        knownTabIDs.removeAll()
+        seedTabsIfNeeded()
+    }
+
     /// Wipe the thread and start a fresh conversation (the agent session is
     /// disposed so it forgets too).
     public func clearThread() {
@@ -145,6 +178,7 @@ public final class ChatSpaceSession: ObservableObject {
         let id = agentID
         agentID = nil
         nextIndex = 0
+        lastMemoryBriefAt = nil
         setWorking(false)
         Task {
             if let id { try? await BrowserAgentManager.shared.dispose(id: id) }
@@ -205,6 +239,67 @@ public final class ChatSpaceSession: ObservableObject {
         lines.append("[End of browser context]")
         pendingEvents.removeAll()
         return lines.joined(separator: "\n")
+    }
+
+    /// Async additions to the context block: text the user has selected in
+    /// the current tab's panes, and (on the first message, then every ten
+    /// minutes) the memory brief for this space.
+    private func enrichContext(_ base: String) async -> String {
+        var out = base
+        let selections = await selectedTextInCurrentTab()
+        if !selections.isEmpty {
+            var lines = ["[Selected text — highlighted by the user right now]"]
+            for (paneID, text) in selections {
+                lines.append("In tab \(paneID):\n\"\"\"\n\(text)\n\"\"\"")
+            }
+            lines.append("[End of selected text]")
+            out += "\n\n" + lines.joined(separator: "\n")
+        }
+        if let brief = await memoryBriefIfDue() {
+            out += "\n\n" + brief
+        }
+        return out
+    }
+
+    /// `(paneID, selection)` for each web pane in the current tab with a
+    /// non-empty selection. Native panes and about: pages are skipped.
+    private func selectedTextInCurrentTab() async -> [(String, String)] {
+        let state = BrowserStore.shared.model
+        guard let windowID, let tabID = state.windows[windowID]?.perProfileData[profileID]?.currentTab, let tab = state.tabs[tabID] else { return [] }
+        var out: [(String, String)] = []
+        for pane in tab.panes {
+            guard let url = pane.info.url, NativePageKey(url: url) == nil, !url.absoluteString.hasPrefix("about:"),
+                  let webview = BrowserStore.shared.existingWebContent(forId: pane.id)?.wkWebview else { continue }
+            let js = "(window.getSelection ? String(window.getSelection()) : '').slice(0, 3000)"
+            guard let text = (try? await webview.evalReturningValue(js)) as? String else { continue }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { out.append((pane.id.raw, trimmed)) }
+        }
+        return out
+    }
+
+    private func memoryBriefIfDue() async -> String? {
+        let state = BrowserStore.shared.model
+        guard let profile = state.profiles[profileID], MemoryStore.shared.isEnabled(profile.dataStoreUUID) else { return nil }
+        if let last = lastMemoryBriefAt, Date().timeIntervalSince(last) < Self.memoryBriefInterval { return nil }
+        var tabs: [MemoryStore.BriefTab] = []
+        if let windowID, let per = state.windows[windowID]?.perProfileData[profileID] {
+            for id in per.tabs {
+                guard let tab = state.tabs[id], !tab.panes.allSatisfy({ $0.isGhost }) else { continue }
+                let pane = tab.focusedPane ?? tab.panes.first
+                tabs.append(MemoryStore.BriefTab(tabID: id.raw, paneID: pane?.id.raw ?? "", title: tab.appearance().title,
+                                                 url: pane?.info.url?.absoluteString, isCurrent: per.currentTab == id))
+            }
+        }
+        var spaces: [MemoryStore.BriefSpace] = []
+        if let windowID, let win = state.windows[windowID] {
+            for p in state.profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder }) {
+                spaces.append(MemoryStore.BriefSpace(id: p.id.raw, name: p.displayName, tabCount: win.perProfileData[p.id]?.tabs.count ?? 0, isCurrent: p.id == profileID))
+            }
+        }
+        guard let brief = await MemoryStore.shared.brief(scope: profile.dataStoreUUID, spaceID: profileID.raw, openTabs: tabs, spaces: spaces) else { return nil }
+        lastMemoryBriefAt = Date()
+        return brief
     }
 
     // MARK: - Tab observation
@@ -357,8 +452,10 @@ public final class ChatSpaceSession: ObservableObject {
         ## Your job
         You are the user's guide around the web and the dispatcher for everything that takes real \
         work. When the user types something, decide: open pages for them, answer briefly, or hand \
-        the work off as a TASK (a background agent you spawn). Keep your replies short — this is a \
-        narrow sidebar, not a document. Prefer showing a page over describing it.
+        the work off as a TASK (a background agent you spawn). Be SUPER concise, short, and \
+        conversational — like a quick text from a sharp friend, not a document. Respond fast: \
+        reply in seconds, and delegate anything slower to tasks. This is a narrow sidebar. \
+        Prefer showing a page over describing it.
 
         ## Hard rules
         1. NEVER do slow work yourself. Anything that would take more than ~5 seconds — reading \
@@ -393,7 +490,11 @@ public final class ChatSpaceSession: ObservableObject {
         Relay what matters to the user in a sentence or two, and present any pages they mention.
         7. Each user message is preceded by a "[Browser context …]" block written by the browser: \
         the current tab and what changed since your last message. Use it to know what "this page" \
-        means; never quote it back.
+        means; never quote it back. It may be followed by a "[Selected text …]" block (what the \
+        user has highlighted — usually what "this" refers to) and, now and then, a "[Memory brief …]" \
+        block: a digest of the browser's memory log — recent pages and events from THIS space, the \
+        open tabs, all spaces, and the user's top sites across every space. For anything the brief hints at but doesn't answer ("that article from yesterday", \
+        "what did I type into X"), query the log with `browser.memory.query` as the brief describes.
 
         8. NEVER send the user more than ~8 lines of chat. When you have more to say — a \
         comparison, a list of options, a summary of what tasks found, a plan — write it up as a \
@@ -401,8 +502,19 @@ public final class ChatSpaceSession: ObservableObject {
         a card here) and reply with one or two sentences pointing at it. Notes are markdown: use \
         headings, lists, and links freely there.
 
+        9. SCHEDULED TASKS: when the user wants something done later, at a set time, or on a \
+        cadence ("every morning check…", "remind me Friday", "once a week…"), register a scheduled \
+        task — see `browser.tasks` in the BrowserJS docs: `browser.tasks.list()` gives the \
+        tasks.json path; read it, add/edit the entry (id, title, prompt, fireDates and/or \
+        recurrence), and write it back. The prompt must be self-contained: a background agent runs \
+        it with no other context and only its data file to remember prior runs. Confirm the \
+        schedule in one sentence. Tasks appear in Settings › Tasks; the user can't edit them there, \
+        so changes and deletions also go through you.
+
         ## Style
-        - One to three sentences per reply. No headers. EVERY URL or page you mention must be a \
+        - One to three SHORT sentences per reply, casual and conversational. No headers, no \
+        preamble, no recap of what the user asked. Speed beats thoroughness: give the quick answer \
+        now and let a task do the thorough version. EVERY URL or page you mention must be a \
         markdown link (`[title](url)`) — never a bare URL; clicking a link in this thread opens it \
         as a tab. The same goes for notes you write and for anything you relay from a task.
         - Don't narrate tool calls. Don't ask permission for routine actions like opening a page.

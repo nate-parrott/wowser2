@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes</title>
+<link rel="icon" type="image/png" href="icon.png">
+<style>
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: #fff; color: #111; }
+  body { font-family: ui-serif, "New York", "Iowan Old Style", Georgia, serif; overflow-y: auto; -webkit-font-smoothing: antialiased; }
+  #bar {
+    position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; gap: 18px;
+    padding: 40px 16px 18px; z-index: 1; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 60%);
+    transition: opacity .25s;
+  }
+  body.typing #bar { opacity: 0; }
+  #bar a, #bar button {
+    font: inherit; font-family: -apple-system, sans-serif; font-size: 12px; color: #b5b5b5;
+    background: none; border: none; padding: 0; cursor: pointer; text-decoration: none; pointer-events: auto;
+  }
+  #bar a:hover, #bar button:hover { color: #555; }
+  #note, #list { display: block; max-width: 680px; margin: 0 auto; padding: 40px 40px 50vh; box-sizing: border-box; }
+  #note { font-size: 19px; line-height: 1.55; outline: none; min-height: 100vh; caret-color: #111; word-wrap: break-word; }
+  #note:empty::before { content: "Start writing…"; color: #bbb; pointer-events: none; }
+  #note h1 { font-size: 34px; line-height: 1.15; margin: 0 0 24px; letter-spacing: -0.02em; }
+  #note h2 { font-size: 24px; line-height: 1.25; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  #note p, #note div { margin: 0 0 1em; }
+  #note ul, #note ol { padding-left: 1.2em; }
+  #note a { color: #06c; cursor: pointer; }
+  #list h1 { font-size: 32px; margin: 0 0 24px; }
+  #list ul { list-style: none; padding: 0; margin: 0; }
+  #list li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid #eee; }
+  #list li a { flex: 1; color: inherit; text-decoration: none; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #list li time { color: #999; font-size: 13px; }
+  #list li button { background: none; border: none; color: #bbb; cursor: pointer; font-size: 13px; }
+  #list li button:hover { color: #c00; }
+  #list .empty { color: #bbb; }
+  @media (prefers-color-scheme: dark) {
+    html, body { background: #111; color: #eee; }
+    #bar { background: linear-gradient(to bottom, rgba(17,17,17,0), #111 60%); }
+    #bar a, #bar button { color: #555; }
+    #bar a:hover, #bar button:hover { color: #aaa; }
+    #note { caret-color: #eee; }
+    #note:empty::before { color: #555; }
+    #list li { border-color: #222; }
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="note" contenteditable="true" spellcheck="true" hidden></div>
+<div id="list" hidden></div>
+<script>
+  // Notes live next to the app's other files on disk (tang://<host>/ maps to
+  // ~/Library/Application Support/Wowser/Tangerine/<host>/), under data/.
+  const DATA_DIR = '~/Library/Application Support/Wowser/Tangerine/' + location.host + '/data';
+  const params = new URLSearchParams(location.search);
+  const bar = document.getElementById('bar');
+  const note = document.getElementById('note');
+  const list = document.getElementById('list');
+
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const path = id => DATA_DIR + '/' + id + '.json';
+
+  async function loadNote(id) {
+    try { return JSON.parse(await browser.fs.read(path(id))); } catch { return null; }
+  }
+  async function saveNote(id, html) {
+    const existing = await loadNote(id);
+    const created = existing?.created ?? Date.now();
+    await browser.fs.write(path(id), JSON.stringify({ id, html, created, updated: Date.now() }));
+  }
+  async function allNotes() {
+    await browser.fs.mkdir(DATA_DIR);
+    const files = await browser.fs.list(DATA_DIR);
+    const notes = [];
+    for (const f of files) if (f.name.endsWith('.json')) {
+      try { notes.push(JSON.parse(await browser.fs.read(f.path))); } catch {}
+    }
+    return notes.sort((a, b) => b.updated - a.updated);
+  }
+  function titleOf(n) {
+    const d = document.createElement('div'); d.innerHTML = n.html.replace(/<(div|p|br|h[1-6]|li)[^>]*>/gi, m => '\n' + m);
+    return (d.textContent || '').trim().split('\n')[0].slice(0, 80) || 'Untitled';
+  }
+
+  async function showList() {
+    document.title = 'All Notes';
+    bar.innerHTML = '<a href="?id=' + newId() + '">+ New note</a>';
+    list.hidden = false;
+    const notes = await allNotes();
+    list.innerHTML = '<h1>All Notes</h1>' + (notes.length ? '<ul>' + notes.map(n =>
+      '<li><a href="?id=' + n.id + '">' + titleOf(n).replace(/</g, '&lt;') + '</a>' +
+      '<time>' + new Date(n.updated).toLocaleDateString() + '</time>' +
+      '<button data-del="' + n.id + '">delete</button></li>').join('') + '</ul>'
+      : '<p class="empty">No notes yet.</p>');
+    list.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (!confirm('Delete this note?')) return;
+      await browser.fs.remove(path(b.dataset.del));
+      showList();
+    });
+  }
+
+  async function showNote(id) {
+    bar.innerHTML = '<a href="?list">All notes</a><a href="?id=' + newId() + '">+ New note</a>';
+    note.hidden = false;
+    const n = await loadNote(id);
+    note.innerHTML = n?.html || '';
+    document.title = n ? titleOf(n) : 'New Note';
+    let t, dirty = false;
+    const flush = () => { if (dirty) { dirty = false; saveNote(id, note.innerHTML); document.title = titleOf({ html: note.innerHTML }); } };
+    note.addEventListener('save', () => { dirty = true; clearTimeout(t); t = setTimeout(flush, 150); });
+    note.addEventListener('input', () => { dirty = true; clearTimeout(t); t = setTimeout(flush, 150); });
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+    note.addEventListener('paste', e => {
+      e.preventDefault();
+      document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+    });
+    // Markdown-style list shortcuts ("- ", "* ", "1. ") and auto-linking URLs, triggered on space
+    const URL_RE = /(https?:\/\/[^\s<]+|www\.[^\s<]+)$/i;
+    function inList(n) { return n && (n.nodeType === 3 ? n.parentElement : n).closest('li'); }
+    note.addEventListener('input', e => {
+      if (!/^insert(Text|Paragraph|LineBreak)$/.test(e.inputType)) return;
+      const isSpace = e.inputType === 'insertText' && /^[ \u00a0]$/.test(e.data || '');
+      if (!isSpace && e.inputType === 'insertText') return;
+      const sel = getSelection(); if (!sel.rangeCount || !sel.isCollapsed) return;
+      let r = sel.getRangeAt(0);
+      let node = r.startContainer, off = r.startOffset;
+      if (e.inputType !== 'insertText') {
+        // Enter: look at the previous block's last text node
+        let prev = node.nodeType === 3 ? node.parentElement : node;
+        while (prev && prev !== note && !prev.previousSibling) prev = prev.parentElement;
+        prev = prev && prev !== note ? prev.previousSibling : null;
+        if (!prev) return;
+        const w = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT); let last = null;
+        while (w.nextNode()) last = w.currentNode;
+        if (!last) return; node = last; off = last.textContent.length;
+      }
+      if (node.nodeType !== 3) return;
+      const text = node.textContent.slice(0, off);
+      // Lists
+      if (isSpace && !inList(node)) {
+        const m = text.match(/^(-|\*|1\.)[ \u00a0]$/);
+        if (m) {
+          const del = document.createRange(); del.setStart(node, 0); del.setEnd(node, off);
+          sel.removeAllRanges(); sel.addRange(del);
+          document.execCommand('delete');
+          document.execCommand(m[1] === '1.' ? 'insertOrderedList' : 'insertUnorderedList');
+          return;
+        }
+      }
+      // Links
+      if (node.parentElement.closest('a')) return;
+      const body = isSpace ? text.slice(0, -1) : text;
+      const lm = body.match(URL_RE);
+      if (!lm) return;
+      let url = lm[1].replace(/[.,;:!?)]+$/, '');
+      const start = body.length - lm[1].length;
+      const lr = document.createRange(); lr.setStart(node, start); lr.setEnd(node, start + url.length);
+      const a = document.createElement('a');
+      a.href = /^https?:/i.test(url) ? url : 'https://' + url;
+      lr.surroundContents(a);
+      const after = document.createRange();
+      after.setStart(r.startContainer, r.startOffset); after.collapse(true);
+      sel.removeAllRanges(); sel.addRange(after);
+      note.dispatchEvent(new Event('save'));
+    });
+    note.addEventListener('click', e => {
+      const a = e.target.closest('a');
+      if (a && !e.altKey) { e.preventDefault(); window.open(a.href, '_blank'); }
+    });
+    let ht;
+    note.addEventListener('keydown', () => { document.body.classList.add('typing'); clearTimeout(ht); ht = setTimeout(() => document.body.classList.remove('typing'), 2500); });
+    document.addEventListener('mousemove', () => { clearTimeout(ht); document.body.classList.remove('typing'); });
+    note.focus();
+  }
+
+  (async () => {
+    await browser.fs.mkdir(DATA_DIR);
+    if (params.has('list')) return showList();
+    let id = params.get('id');
+    if (!id) { id = newId(); history.replaceState(null, '', '?id=' + id); }
+    showNote(id);
+  })();
+</script>
+</body>
+</html>

@@ -72,12 +72,17 @@ final class BrowserAgentBJSTests: XCTestCase {
         let resumedID = try await second.create(options: .init(key: "chat"))
         XCTAssertEqual(resumedID, id, "resumed agent should keep its id")
 
-        // Memory comes from resuming the harness session, NOT from replaying
-        // the old transcript at the caller.
+        // Memory comes from resuming the harness session; the transcript is
+        // restored from disk so the UI shows history and indices continue.
         let resumedSessions = await provider.resumedSessionIDs
         XCTAssertEqual(resumedSessions, ["echo-session"], "harness should be asked to resume the prior session")
         let restored = try await second.messages(id: resumedID, since: 0)
-        XCTAssertTrue(restored.isEmpty, "old messages must not be replayed, got \(restored.map(\.role))")
+        XCTAssertEqual(restored.map(\.role), ["user", "assistant"], "saved transcript should be restored")
+        try await second.send(id: resumedID, text: "again", images: [])
+        try await drain(second, id: resumedID)
+        let after = try await second.messages(id: resumedID, since: 0)
+        XCTAssertEqual(after.map(\.index), Array(0..<after.count), "indices continue past the restored transcript")
+        XCTAssertEqual(after.count, 4)
     }
 
     /// `await` returns as soon as there's something new, so a UI can render
@@ -292,10 +297,17 @@ private final class MemoryStore: AgentSessionStoring, @unchecked Sendable {
         lock.lock(); records[record.key] = record; lock.unlock()
     }
     func delete(key: String) {
-        lock.lock(); records[key] = nil; lock.unlock()
+        lock.lock(); records[key] = nil; transcripts[key] = nil; lock.unlock()
     }
     func all() -> [AgentSessionRecord] {
         lock.lock(); defer { lock.unlock() }; return Array(records.values)
+    }
+    private var transcripts: [String: [BrowserJSAgentMessage]] = [:]
+    func loadTranscript(key: String) -> [BrowserJSAgentMessage] {
+        lock.lock(); defer { lock.unlock() }; return transcripts[key] ?? []
+    }
+    func saveTranscript(key: String, messages: [BrowserJSAgentMessage]) {
+        lock.lock(); transcripts[key] = messages; lock.unlock()
     }
 }
 

@@ -323,6 +323,20 @@ extension SearchableItem {
             return action.title
         case .askAgent(let query, _):
             return query
+        case .terminalCommand(let command, _):
+            return command
+        }
+    }
+
+    /// Terminal-flavored rows (a typed shell command, or the "Open Terminal" /
+    /// "New Claude" actions) render in monospace with a black selection.
+    public var isTerminalStyled: Bool {
+        switch content {
+        case .terminalCommand: return true
+        case .searchAction(.openURL(let url)):
+            if case .terminal = NativePageKey(url: url) { return true }
+            return false
+        default: return false
         }
     }
     
@@ -353,6 +367,8 @@ extension SearchableItem {
             return "Action"
         case .askAgent:
             return "Ask Agent"
+        case .terminalCommand:
+            return "Run in Terminal"
         }
     }
     
@@ -375,6 +391,8 @@ extension SearchableItem {
         case .searchAction:
             return nil
         case .askAgent:
+            return nil
+        case .terminalCommand:
             return nil
         }
     }

@@ -23,7 +23,7 @@ import MCP
 /// would pass against the half-fix.
 final class MCPTransportSessionTests: XCTestCase {
 
-    private let serverName = "TangerineTest"
+    private let serverName = "WowserTest"
     private let serverVersion = "0.1.0"
     private var capabilities: Server.Capabilities {
         Server.Capabilities(tools: .init(listChanged: false))

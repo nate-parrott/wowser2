@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "357E5AEC2D7E3510009CD80F"
-               BuildableName = "Tangerine.app"
-               BlueprintName = "Tangerine"
+               BuildableName = "Wowser.app"
+               BlueprintName = "Wowser"
                ReferencedContainer = "container:Wowser.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -69,8 +69,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "357E5AEC2D7E3510009CD80F"
-            BuildableName = "Tangerine.app"
-            BlueprintName = "Tangerine"
+            BuildableName = "Wowser.app"
+            BlueprintName = "Wowser"
             ReferencedContainer = "container:Wowser.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -86,8 +86,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "357E5AEC2D7E3510009CD80F"
-            BuildableName = "Tangerine.app"
-            BlueprintName = "Tangerine"
+            BuildableName = "Wowser.app"
+            BlueprintName = "Wowser"
             ReferencedContainer = "container:Wowser.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

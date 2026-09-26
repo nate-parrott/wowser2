@@ -1,13 +1,14 @@
 import Foundation
 
 // Optional `manifest.json` at the root of a tang:// webapp
-// (~/Library/Application Support/Wowser/Tangerine/<slug>/manifest.json).
+// (~/Library/Application Support/Wowser/Apps/<slug>/manifest.json, or
+// Core/TangApps/<slug>/manifest.json for apps bundled with the browser).
 //
 // Gives an app a display title/metadata and lets it register "entry points" —
 // hooks that surface the app elsewhere in the browser:
 //   - kind "new":    an item in the new-tab "…" menu (below "New Claude")
-//   - kind "tab":    an item in the puzzle-piece extensions menu on web tabs
 //   - kind "search": a keyword-triggered result in the omnibox
+// (Toolbar buttons are user-owned — see browser.toolbar / BrowserState+Toolbar.)
 //
 // Each entry point's `bjs` is the body of an async BrowserJS function, run in
 // the shared BrowserJS runtime with `browser` and a kind-specific `args`
@@ -26,12 +27,35 @@ public struct TangAppManifest: Equatable, Codable {
         self.icon = icon
         self.entryPoints = entryPoints
     }
+
+    enum CodingKeys: String, CodingKey { case title, description, icon, entryPoints }
+
+    /// Entry points with an unknown `kind` are skipped instead of failing the
+    /// whole manifest (apps written against an older schema keep working).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        icon = try c.decodeIfPresent(String.self, forKey: .icon)
+        if var list = try? c.nestedUnkeyedContainer(forKey: .entryPoints) {
+            var out: [TangAppEntryPoint] = []
+            while !list.isAtEnd {
+                if let ep = try? list.decode(TangAppEntryPoint.self) {
+                    out.append(ep)
+                } else {
+                    _ = try? list.decode(SkippedEntryPoint.self)
+                }
+            }
+            entryPoints = out
+        }
+    }
 }
+
+private struct SkippedEntryPoint: Decodable { init(from decoder: Decoder) throws {} }
 
 public struct TangAppEntryPoint: Equatable, Codable {
     public enum Kind: String, Codable {
         case new
-        case tab
         case search
     }
 
@@ -42,7 +66,6 @@ public struct TangAppEntryPoint: Equatable, Codable {
     public var keyword: String?
     /// Body of an async BrowserJS function. `browser` and `args` are in scope:
     ///   new:    args = { windowId, profileId }
-    ///   tab:    args = { tabId, url, windowId }
     ///   search: args = { query, windowId }
     public var bjs: String
 
@@ -74,10 +97,10 @@ public final class TangAppRegistry: ObservableObject, @unchecked Sendable {
     /// Main-thread only.
     @Published public private(set) var apps: [App] = []
 
-    private let tangerineApps: TangerineApps
+    private let appStore: TangAppStore
 
-    public init(tangerineApps: TangerineApps = .shared) {
-        self.tangerineApps = tangerineApps
+    public init(appStore: TangAppStore = .shared) {
+        self.appStore = appStore
     }
 
     public func reload() {
@@ -97,9 +120,10 @@ public final class TangAppRegistry: ObservableObject, @unchecked Sendable {
     }
 
     private func loadFromDisk() -> [App] {
-        tangerineApps.list().map { slug in
-            let manifestURL = tangerineApps.appDir(slug: slug).appendingPathComponent("manifest.json")
-            let manifest = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode(TangAppManifest.self, from: $0) }
+        appStore.list().map { slug in
+            let manifest = appStore.manifestURL(slug: slug)
+                .flatMap { try? Data(contentsOf: $0) }
+                .flatMap { try? JSONDecoder().decode(TangAppManifest.self, from: $0) }
             return App(slug: slug, manifest: manifest)
         }
     }

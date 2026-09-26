@@ -104,6 +104,7 @@ private struct RegularTabButton: View {
             // Icon based on the type in the snapshot
             TabIconView(icon: snapshot.appearance.icon)
                 .opacity(snapshot.appearance.isGhost || snapshot.appearance.isUnloaded ? 0.55 : 1)
+                .modifier(TabBadgeModifier(badge: snapshot.appearance.badge))
 
             // Title (and optional subtitle) with truncation
             VStack(alignment: .leading, spacing: 1) {
@@ -146,6 +147,63 @@ private struct RegularTabButton: View {
         // tab starts or stops running a command.
         .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
+    }
+}
+
+/// Attention marker pinned to the top-right corner of a tab's favicon, with a
+/// 1.5pt ring masked out of the icon around it. See `TabAppearance.Badge`.
+struct TabBadgeModifier: ViewModifier {
+    var badge: TabAppearance.Badge?
+
+    private let margin: CGFloat = 1.5
+    private var badgeSize: CGFloat {
+        switch badge {
+        case .dot: return 6
+        case .cursor: return 8
+        case nil: return 0
+        }
+    }
+    /// Badge center, relative to a 16pt icon's top-right corner.
+    private var badgeCenter: CGPoint { CGPoint(x: 16 - 2, y: 2) }
+
+    func body(content: Content) -> some View {
+        if let badge {
+            content
+                .mask {
+                    ZStack {
+                        Rectangle()
+                        Circle()
+                            .frame(width: badgeSize + margin * 2, height: badgeSize + margin * 2)
+                            .position(badgeCenter)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+                }
+                .overlay {
+                    TabBadgeView(badge: badge)
+                        .frame(width: badgeSize, height: badgeSize)
+                        .position(badgeCenter)
+                }
+                .frame(width: 16, height: 16)
+        } else {
+            content
+        }
+    }
+}
+
+struct TabBadgeView: View {
+    var badge: TabAppearance.Badge
+
+    var body: some View {
+        switch badge {
+        case .dot:
+            Circle()
+                .fill(Color.accentColor)
+        case .cursor:
+            Image(systemName: "cursorarrow")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
