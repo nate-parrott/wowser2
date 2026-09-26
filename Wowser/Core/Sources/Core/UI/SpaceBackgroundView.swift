@@ -33,6 +33,12 @@ final class SpaceBackgroundImageCache {
         for key in keys { image(for: key) { _ in } }
     }
 
+    func cachedImage(for key: Key) -> CGImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return images[key]
+    }
+
     /// `completion` runs on the main thread — synchronously if already cached.
     func image(for key: Key, completion: @escaping (CGImage?) -> Void) {
         lock.lock()
@@ -117,41 +123,42 @@ struct SpaceBackgroundPrewarmer: ViewModifier {
 struct SpaceBackgroundView: View {
     var info: SpaceImageInfo
 
-    @State private var image: CGImage?
-    /// Key the displayed/in-flight `image` belongs to. Tracked in @State rather
-    /// than compared against `self.key`, because the deprecated
-    /// `onChange(of:perform:)` closure captures the *old* self.
-    @State private var loadedKey: SpaceBackgroundImageCache.Key?
+    var body: some View {
+        let key = SpaceBackgroundImageCache.Key(fileURL: info.fileURL, mode: info.effectiveMode)
+        ZStack {
+            // Fresh view (and fresh state) per image: no stale-image bookkeeping.
+            SpaceBackgroundImage(key: key).id(key)
+            if info.effectiveMode == .fade {
+                info.effectiveDominantColor.color.opacity(0.75)
+            }
+        }
+    }
+}
 
-    private var key: SpaceBackgroundImageCache.Key {
-        .init(fileURL: info.fileURL, mode: info.effectiveMode)
+/// Shows the cached bitmap for one key. Reads the cache synchronously on
+/// creation (prewarmed spaces show in the first frame); otherwise loads once.
+private struct SpaceBackgroundImage: View {
+    let key: SpaceBackgroundImageCache.Key
+    @State private var image: CGImage?
+
+    init(key: SpaceBackgroundImageCache.Key) {
+        self.key = key
+        _image = State(initialValue: SpaceBackgroundImageCache.shared.cachedImage(for: key))
     }
 
     var body: some View {
         GeometryReader { geo in
-            ZStack {
-                if let image {
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geo.size.width, height: geo.size.height)
-                }
-                if info.effectiveMode == .fade {
-                    info.effectiveDominantColor.color.opacity(0.75)
-                }
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
             }
         }
         .clipped()
-        .onAppearOrChange(of: key) { key in
-            if loadedKey != key {
-                loadedKey = key
-                image = nil
-            }
-            SpaceBackgroundImageCache.shared.image(for: key) { result in
-                // Ignore late results for a key we've since moved past.
-                guard key == loadedKey else { return }
-                image = result
-            }
+        .onAppear {
+            guard image == nil else { return }
+            SpaceBackgroundImageCache.shared.image(for: key) { image = $0 }
         }
     }
 }
