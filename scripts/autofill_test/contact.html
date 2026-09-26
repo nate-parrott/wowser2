@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contact form — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Contact form (first / last / email / phone)</h1>
+<p class="expected"><b>Expected:</b> Focusing any identity field offers the saved profile. Choosing it fills first name,
+last name, email and phone in one go (each with input events). The "Subject" and "Message" fields and the "Company"
+field (unless a company is saved) stay empty. Phone should be filled in a format the field accepts.</p>
+<p class="creds">Test identity: Alice Liddell, <code>alice@example.com</code>, <code>+1 415 555 0134</code></p>
+
+<form class="card" method="post" action="/submit/contact">
+  <div class="grid2">
+    <div class="row"><label for="fn">First name</label><input id="fn" name="firstname" autocomplete="given-name"></div>
+    <div class="row"><label for="ln">Last name</label><input id="ln" name="lastname" autocomplete="family-name"></div>
+  </div>
+  <div class="row"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="email"></div>
+  <div class="row"><label for="ph">Phone</label><input id="ph" name="phone" type="tel" autocomplete="tel"></div>
+  <div class="row"><label for="co">Company</label><input id="co" name="company"></div>
+  <div class="row"><label for="subj">Subject</label><input id="subj" name="subject"></div>
+  <div class="row"><label for="msg">Message</label><textarea id="msg" name="message" rows="4"></textarea></div>
+  <button class="primary" type="submit">Send</button>
+</form>
+
+<form class="card" method="post" action="/submit/contact-bare">
+  <h3>Same form, no autocomplete attributes</h3>
+  <div class="grid2">
+    <div class="row"><label for="b-fn">Given name</label><input id="b-fn" name="fname"></div>
+    <div class="row"><label for="b-ln">Surname</label><input id="b-ln" name="lname"></div>
+  </div>
+  <div class="row"><label for="b-em">E-mail address</label><input id="b-em" name="mail"></div>
+  <div class="row"><label for="b-ph">Mobile number</label><input id="b-ph" name="mobile"></div>
+  <button type="submit">Send</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

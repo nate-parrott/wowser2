@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disabled options — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Disabled options, disabled select, hidden options</h1>
+<p class="expected"><b>Expected:</b> Disabled options appear greyed and cannot be chosen by click or Return; keyboard
+highlight skips them. The placeholder "Select a size" (<code>disabled selected hidden</code>) must not appear in the
+menu. The fully <code>disabled</code> select must not open at all. Options with <code>hidden</code> must not be listed.
+An address fill must not choose a disabled option.</p>
+
+<form class="card" method="post" action="/submit/select-disabled">
+  <div class="row"><label for="size">Size</label>
+    <select id="size" name="size" required>
+      <option value="" disabled selected hidden>Select a size</option>
+      <option value="xs" disabled>XS — sold out</option>
+      <option value="s">S</option>
+      <option value="m" disabled>M — sold out</option>
+      <option value="l">L</option>
+      <option value="xl">XL</option>
+      <option value="xxl" hidden>XXL (hidden option)</option>
+    </select></div>
+  <div class="row"><label for="ship">Shipping speed</label>
+    <select id="ship" name="shipping">
+      <option value="std">Standard (free)</option>
+      <option value="exp">Express ($9)</option>
+      <option value="ovn" disabled>Overnight (unavailable to your address)</option>
+    </select></div>
+  <div class="row"><label for="st">State <span class="note">(some states disabled: "we don't ship to")</span></label>
+    <select id="st" name="state" autocomplete="address-level1">
+      <option value="">State</option>
+      <option value="AK" disabled>Alaska</option><option value="AZ">Arizona</option><option value="CA">California</option>
+      <option value="HI" disabled>Hawaii</option><option value="NY">New York</option><option value="TX">Texas</option>
+    </select></div>
+  <div class="row"><label for="locked">Locked select</label>
+    <select id="locked" name="locked" disabled><option>Can't touch this</option><option>Other</option></select></div>
+  <button class="primary" type="submit">Submit</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

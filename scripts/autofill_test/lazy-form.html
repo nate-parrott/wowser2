@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lazily inserted form — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> .filler { height: 140px; border: 1px solid #eee; margin: 8px 0; padding: 8px; color: #999; } </style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Form inserted 2 s after load, plus infinite scroll</h1>
+<p class="expected"><b>Expected:</b> At load there are no fields. After 2 s a login form is inserted at the top — the
+browser must pick it up (no stale "no fields on this page" cache): focusing the email shows suggestions. Scrolling to the
+bottom appends more content, and after 3 pages a newsletter sign-up form appears at the end; it must not be treated as a
+login. The login saves <code>tina@example.com</code>.</p>
+<p class="creds">Test credentials: <code>tina@example.com</code> / <code>Lazy-Load-2</code></p>
+
+<div id="slot"><p class="note" id="waiting">Form arrives in 2 s…</p></div>
+<div id="feed"></div>
+<p id="sentinel" class="note">Loading more…</p>
+</main>
+<script src="playground.js"></script>
+<script>
+  setTimeout(function () {
+    document.getElementById("slot").innerHTML =
+      '<form class="card" method="post" action="/submit/lazy-login"><h3>Sign in to comment</h3>' +
+      '<div class="row"><label for="le">Email</label><input id="le" name="email" type="email" autocomplete="username"></div>' +
+      '<div class="row"><label for="lp">Password</label><input id="lp" name="password" type="password" autocomplete="current-password"></div>' +
+      '<button class="primary" type="submit">Sign in</button></form>';
+    PG.log("login form inserted");
+  }, 2000);
+
+  var page = 0, feed = document.getElementById("feed");
+  function more() {
+    if (page >= 3) return;
+    page++;
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement("div"); d.className = "filler"; d.textContent = "Post " + page + "." + (i + 1) + " — scroll for more";
+      feed.appendChild(d);
+    }
+    if (page === 3) {
+      var f = document.createElement("form");
+      f.className = "card"; f.method = "post"; f.action = "/submit/lazy-newsletter";
+      f.innerHTML = '<h3>Enjoying the feed? Subscribe</h3><div class="row"><label for="ne">Email</label><input id="ne" name="email" type="email"></div><button type="submit">Subscribe</button>';
+      feed.appendChild(f);
+      PG.log("newsletter form appended at end of feed");
+      document.getElementById("sentinel").textContent = "End of feed.";
+      io.disconnect();
+    }
+  }
+  var io = new IntersectionObserver(function (entries) { if (entries[0].isIntersecting) setTimeout(more, 300); });
+  more();
+  io.observe(document.getElementById("sentinel"));
+</script>
+</body></html>

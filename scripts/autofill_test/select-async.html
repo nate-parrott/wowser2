@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Async select options — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Select whose options load after 1 s</h1>
+<p class="expected"><b>Expected:</b> For the first second the State select only has "Loading…". Opening the menu after
+options arrive shows all of them (the browser must read options at open time, not cache them). If the menu is open while
+options arrive, it should refresh or at least not pick a stale index. <b>Dependent select:</b> choosing a Country
+repopulates City after 1 s; an address fill that sets Country then City must wait for / handle the repopulation (a naive
+fill leaves City empty).</p>
+
+<form class="card" method="post" action="/submit/select-async">
+  <div class="row"><label for="state">State</label>
+    <select id="state" name="state" autocomplete="address-level1"><option value="">Loading…</option></select>
+    <div class="state" id="state-status">loading…</div></div>
+  <div class="row"><label for="country">Country</label>
+    <select id="country" name="country" autocomplete="country">
+      <option value="">Choose…</option><option value="US">United States</option><option value="CA">Canada</option><option value="DE">Germany</option>
+    </select></div>
+  <div class="row"><label for="city">City</label>
+    <select id="city" name="city" autocomplete="address-level2" disabled><option value="">Choose a country first</option></select></div>
+  <button class="primary" type="submit">Submit</button>
+</form>
+</main>
+<script src="playground.js"></script>
+<script>
+  var STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["CA","California"],["CO","Colorado"],["FL","Florida"],["GA","Georgia"],["IL","Illinois"],["MA","Massachusetts"],["NY","New York"],["OR","Oregon"],["TX","Texas"],["WA","Washington"]];
+  setTimeout(function () {
+    var s = document.getElementById("state");
+    s.innerHTML = '<option value="">Select state</option>' + STATES.map(function (p) { return '<option value="' + p[0] + '">' + p[1] + "</option>"; }).join("");
+    document.getElementById("state-status").textContent = "loaded " + STATES.length + " options";
+    PG.log("state options loaded");
+  }, 1000);
+  var CITIES = { US: ["Cupertino", "New York", "San Francisco", "Seattle"], CA: ["Montréal", "Toronto", "Vancouver"], DE: ["Berlin", "Hamburg", "München"] };
+  document.getElementById("country").addEventListener("change", function (e) {
+    var city = document.getElementById("city");
+    city.disabled = true;
+    city.innerHTML = '<option value="">Loading…</option>';
+    var cc = e.target.value;
+    setTimeout(function () {
+      if (document.getElementById("country").value !== cc) return;
+      city.innerHTML = '<option value="">Select city</option>' + (CITIES[cc] || []).map(function (c) { return "<option>" + c + "</option>"; }).join("");
+      city.disabled = !cc;
+      PG.log("city options loaded for " + cc);
+    }, 1000);
+  });
+</script>
+</body></html>

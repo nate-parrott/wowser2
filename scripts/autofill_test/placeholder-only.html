@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Placeholder-only fields — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Inputs with no name / id / label — placeholder only</h1>
+<p class="expected"><b>Expected:</b> None of these inputs has a name, id, label, or autocomplete attribute; the
+only hint is the placeholder (and, for the password, <code>type</code>). The classifier should still find the login pair
+and the identity fields. Submit posts nothing named (unnamed inputs aren't submitted) — so the save prompt must come from
+the browser's own view of the field values, offering <code>paul@example.com</code>.</p>
+<p class="creds">Test credentials: <code>paul@example.com</code> / <code>Placeholder-2</code></p>
+
+<form class="card" method="post" action="/submit/placeholder-login">
+  <h3>Login</h3>
+  <div class="row"><input type="text" placeholder="Email or phone"></div>
+  <div class="row"><input type="password" placeholder="Password"></div>
+  <button class="primary" type="submit">Sign in</button>
+</form>
+
+<form class="card" method="post" action="/submit/placeholder-identity">
+  <h3>Delivery details</h3>
+  <div class="grid2">
+    <div class="row"><input placeholder="First name"></div>
+    <div class="row"><input placeholder="Last name"></div>
+  </div>
+  <div class="row"><input placeholder="Street and house number"></div>
+  <div class="grid3">
+    <div class="row"><input placeholder="City"></div>
+    <div class="row"><input placeholder="State"></div>
+    <div class="row"><input placeholder="ZIP"></div>
+  </div>
+  <div class="row"><input placeholder="Phone number"></div>
+  <div class="row"><input placeholder="Search our store…"></div>
+  <button type="submit">Save</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

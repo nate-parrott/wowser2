@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Two-step login (same page) — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Username-first login (same page)</h1>
+<p class="expected"><b>Expected:</b> Step 1 shows only an email field — the menu should still offer saved logins.
+Choosing one fills the email; after Continue the password field appears (the email input is hidden, not removed, like
+Google/Microsoft) and the browser should offer/fill the matching password. Submit → offer to save
+<code>alice@example.com</code> (the username comes from the earlier step).</p>
+<p class="creds">Test credentials: <code>alice@example.com</code> / <code>Correct-Horse-42</code></p>
+
+<form class="card" id="f" method="post" action="/submit/login-two-step">
+  <div id="step1">
+    <div class="row"><label for="identifier">Email</label>
+      <input id="identifier" name="identifier" type="email" autocomplete="username webauthn"></div>
+    <div class="row"><button class="primary" type="button" id="next">Continue</button></div>
+  </div>
+  <div id="step2" class="hidden">
+    <p>Signing in as <b id="who"></b> · <a href="#" id="back">change</a></p>
+    <div class="row"><label for="Passwd">Enter your password</label>
+      <input id="Passwd" name="Passwd" type="password" autocomplete="current-password"></div>
+    <div class="row"><button class="primary" type="submit">Sign in</button></div>
+  </div>
+</form>
+</main>
+<script src="playground.js"></script>
+<script>
+  var ident = document.getElementById("identifier");
+  function next() {
+    if (!ident.value) { PG.log("empty email — staying on step 1"); return; }
+    PG.log("step 1 -> step 2 (after 400 ms fake network)");
+    setTimeout(function () {
+      document.getElementById("who").textContent = ident.value;
+      document.getElementById("step1").classList.add("hidden");
+      document.getElementById("step2").classList.remove("hidden");
+      document.getElementById("Passwd").focus();
+    }, 400);
+  }
+  document.getElementById("next").onclick = next;
+  ident.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); next(); } });
+  document.getElementById("back").onclick = function (e) {
+    e.preventDefault();
+    document.getElementById("step2").classList.add("hidden");
+    document.getElementById("step1").classList.remove("hidden");
+    ident.focus();
+  };
+</script>
+</body></html>

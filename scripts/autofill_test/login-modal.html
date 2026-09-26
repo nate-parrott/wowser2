@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login in modal — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style>
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal { background: #fff; padding: 18px 22px; border-radius: 10px; width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+  dialog { border: none; border-radius: 10px; padding: 18px 22px; width: 380px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+</style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Login in a modal dialog</h1>
+<p class="expected"><b>Expected:</b> The fields don't exist until you click a button. Once the modal opens, focusing the
+email shows the menu <em>above</em> the modal (not clipped/behind the backdrop), and fill works. Two variants: a native
+<code>&lt;dialog&gt;</code> (top layer) and a div-based modal injected into the DOM. The div modal submits via
+<code>fetch</code> and then closes — it should still count as a submission (password field vanished). Save
+<code>erin@example.com</code>.</p>
+<p class="creds">Test credentials: <code>erin@example.com</code> / <code>Modal-Pass-9</code></p>
+
+<p><button class="primary" id="open-dialog">Sign in (native &lt;dialog&gt;)</button>
+   <button id="open-div">Sign in (div modal, fetch)</button></p>
+
+<dialog id="dlg">
+  <h3>Sign in</h3>
+  <form method="post" action="/submit/login-modal-dialog">
+    <div class="row"><label for="d-email">Email</label><input id="d-email" name="email" type="email" autocomplete="username"></div>
+    <div class="row"><label for="d-pass">Password</label><input id="d-pass" name="password" type="password" autocomplete="current-password"></div>
+    <div class="row"><button class="primary" type="submit">Sign in</button> <button type="button" onclick="this.closest('dialog').close()">Cancel</button></div>
+  </form>
+</dialog>
+<p id="status"></p>
+</main>
+<script src="playground.js"></script>
+<script>
+  document.getElementById("open-dialog").onclick = function () { document.getElementById("dlg").showModal(); };
+  document.getElementById("open-div").onclick = function () {
+    var back = document.createElement("div");
+    back.className = "backdrop";
+    back.innerHTML =
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><h3 id="mt">Welcome back</h3>' +
+      '<form id="mf"><div class="row"><label for="m-email">Email</label><input id="m-email" name="email" type="email"></div>' +
+      '<div class="row"><label for="m-pass">Password</label><input id="m-pass" name="password" type="password"></div>' +
+      '<div class="row"><button class="primary" type="submit">Continue</button> <button type="button" id="mc">Cancel</button></div></form></div>';
+    document.body.appendChild(back);
+    back.querySelector("#m-email").focus();
+    back.querySelector("#mc").onclick = function () { back.remove(); };
+    back.querySelector("#mf").onsubmit = function (e) {
+      e.preventDefault();
+      var body = JSON.stringify({ email: back.querySelector("#m-email").value, password: back.querySelector("#m-pass").value });
+      PG.log("fetch /api/login …");
+      fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          PG.log("api/login -> " + JSON.stringify(j) + "; removing modal");
+          if (j.ok) { back.remove(); document.getElementById("status").innerHTML = '<span class="ok">Signed in as ' + j.user + "</span>"; }
+        });
+    };
+  };
+</script>
+</body></html>

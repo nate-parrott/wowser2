@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Multiple forms — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Multiple forms on one page</h1>
+<p class="expected"><b>Expected:</b> Only the <b>login</b> form gets login suggestions. The <b>search</b> box must never
+get any suggestion (no email, no username). The <b>newsletter</b> email may offer the profile email, but choosing it must
+not also fill the login form, and filling the login must not touch the newsletter field. Submitting the newsletter must
+<em>not</em> trigger a save-password prompt; submitting login should (<code>frank@example.com</code>).</p>
+<p class="creds">Test credentials: <code>frank@example.com</code> / <code>Multi-Form-7</code></p>
+
+<form class="card" role="search" method="get" action="multi-form.html">
+  <h3>Search</h3>
+  <input type="search" name="q" placeholder="Search products, e.g. email marketing" aria-label="Search">
+  <button type="submit">Search</button>
+</form>
+
+<form class="card" id="login" method="post" action="/submit/multi-form-login">
+  <h3>Log in</h3>
+  <div class="row"><label for="login-email">Email</label><input id="login-email" name="email" type="email" autocomplete="username"></div>
+  <div class="row"><label for="login-pass">Password</label><input id="login-pass" name="password" type="password" autocomplete="current-password"></div>
+  <button class="primary" type="submit">Log in</button>
+</form>
+
+<form class="card" id="newsletter" method="post" action="/submit/multi-form-newsletter">
+  <h3>Newsletter</h3>
+  <p class="note">Get weekly deals.</p>
+  <div class="row"><label for="nl-email">Your email</label><input id="nl-email" name="email" type="email"></div>
+  <div class="row"><label for="nl-name">First name</label><input id="nl-name" name="first_name" type="text"></div>
+  <button type="submit">Subscribe</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

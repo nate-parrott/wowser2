@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign up — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Create account (new-password + confirm)</h1>
+<p class="expected"><b>Expected:</b> Name/email fields may offer saved identity data. The password fields must
+<b>not</b> offer existing saved passwords; the browser may offer to generate a strong password, which should fill
+<em>both</em> "Password" and "Confirm password" identically. After submit, offer to save the new login
+(<code>judy@example.com</code> + the new password, not the confirm field as a separate entry).</p>
+<p class="creds">Test data: Judy Example, <code>judy@example.com</code>, any new password</p>
+
+<form class="card" method="post" action="/submit/signup">
+  <div class="grid2">
+    <div class="row"><label for="given">First name</label><input id="given" name="first_name" autocomplete="given-name"></div>
+    <div class="row"><label for="family">Last name</label><input id="family" name="last_name" autocomplete="family-name"></div>
+  </div>
+  <div class="row"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email"></div>
+  <div class="row"><label for="uname">Username</label><input id="uname" name="username" autocomplete="username"></div>
+  <div class="row"><label for="new-password">Password</label>
+    <input id="new-password" name="password" type="password" autocomplete="new-password" minlength="8" aria-describedby="pwreq">
+    <div class="note" id="pwreq">At least 8 characters, one number, one symbol.</div></div>
+  <div class="row"><label for="confirm">Confirm password</label>
+    <input id="confirm" name="password_confirmation" type="password" autocomplete="new-password"></div>
+  <div class="row"><label class="inline"><input type="checkbox" name="tos" required> I agree to the terms</label></div>
+  <button class="primary" type="submit">Create account</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

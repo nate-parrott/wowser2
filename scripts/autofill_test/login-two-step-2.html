@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Two-page login, step 2 — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a> · <a href="login-two-step-1.html">← step 1</a></p>
+<h1>Two-page login — step 2 of 2 (password)</h1>
+<p class="expected"><b>Expected:</b> The username is present only as a <code>readonly</code> visible field plus a hidden
+<code>type=hidden autocomplete=username</code> input. The browser should offer the password saved for that username
+(not other accounts first). Submit → offer to save with the username from this page.</p>
+<p class="creds">Test credentials: <code>bob@example.com</code> / <code>Tr0ub4dor&amp;3</code></p>
+
+<form class="card" method="post" action="/submit/login-two-step">
+  <input type="hidden" name="username" id="hidden-username" autocomplete="username">
+  <div class="row"><label for="shown">Account</label>
+    <input id="shown" type="email" readonly tabindex="-1"></div>
+  <div class="row"><label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus></div>
+  <div class="row"><button class="primary" type="submit">Sign in</button></div>
+</form>
+</main>
+<script src="playground.js"></script>
+<script>
+  var email = new URLSearchParams(location.search).get("email") || "";
+  document.getElementById("hidden-username").value = email;
+  document.getElementById("shown").value = email;
+</script>
+</body></html>

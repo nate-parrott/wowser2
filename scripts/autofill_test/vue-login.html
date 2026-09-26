@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vue login — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Vue 3 v-model login</h1>
+<p class="expected"><b>Expected:</b> <code>v-model</code> listens for <code>input</code> events (and ignores them while an
+IME composition is active). After autofill, both "Vue state:" readouts must match the DOM. Submitting posts to
+<code>/api/login</code>, swaps the form for a welcome panel (<code>v-if</code>) and changes the URL hash — expect a save
+prompt for <code>liam@example.com</code>. The <code>v-model.lazy</code> field only syncs on <code>change</code>: a fill
+that dispatches <code>input</code> but not <code>change</code> leaves it red until blur.</p>
+<p class="creds">Test credentials: <code>liam@example.com</code> / <code>Vue-Three-3</code></p>
+
+<div id="app" class="card">Loading Vue from jsdelivr…</div>
+</main>
+<script src="playground.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<script>
+(function () {
+  if (!window.Vue) { document.getElementById("app").textContent = "Failed to load Vue (offline?)"; return; }
+  var app = Vue.createApp({
+    data: function () { return { email: "", password: "", nickname: "", busy: false, user: null, error: "", tick: 0 }; },
+    mounted: function () { var self = this; this._t = setInterval(function () { self.tick++; }, 300); },
+    unmounted: function () { clearInterval(this._t); },
+    methods: {
+      dom: function (ref) { this.tick; var el = this.$refs[ref]; return el ? el.value : ""; },
+      submit: function () {
+        var self = this; this.busy = true; this.error = "";
+        PG.log("Vue submit with state email=" + JSON.stringify(this.email) + " password.length=" + this.password.length);
+        fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: this.email, password: this.password }) })
+          .then(function (r) { return r.json(); }).then(function (j) {
+            PG.log("api/login -> " + JSON.stringify(j));
+            self.busy = false;
+            if (j.ok) { self.user = j.user; history.pushState(null, "", "#/welcome"); } else self.error = "Invalid email or password";
+          });
+      }
+    },
+    template:
+      '<div v-if="user"><h2>Welcome</h2><p class="ok">Signed in as {{ user }}; the form was removed by v-if.</p></div>' +
+      '<form v-else @submit.prevent="submit">' +
+      '<div class="row"><label for="v-email">Email</label><input id="v-email" ref="email" name="email" type="email" autocomplete="username" v-model="email">' +
+      '<div :class="[\'state\', dom(\'email\') !== email ? \'mismatch\' : \'\']">Vue state: {{ JSON.stringify(email) }} {{ dom(\'email\') !== email ? \'≠ DOM \' + JSON.stringify(dom(\'email\')) : \'(matches DOM)\' }}</div></div>' +
+      '<div class="row"><label for="v-pass">Password</label><input id="v-pass" ref="password" name="password" type="password" autocomplete="current-password" v-model="password">' +
+      '<div :class="[\'state\', dom(\'password\') !== password ? \'mismatch\' : \'\']">Vue state: {{ password.length }} chars {{ dom(\'password\') !== password ? \'≠ DOM (\' + dom(\'password\').length + \' chars)\' : \'(matches DOM)\' }}</div></div>' +
+      '<div class="row"><label for="v-nick">Display name <span class="note">(v-model.lazy — optional)</span></label><input id="v-nick" ref="nickname" name="nickname" autocomplete="nickname" v-model.lazy="nickname">' +
+      '<div :class="[\'state\', dom(\'nickname\') !== nickname ? \'mismatch\' : \'\']">Vue state: {{ JSON.stringify(nickname) }}</div></div>' +
+      '<p v-if="error" class="bad">{{ error }}</p>' +
+      '<button class="primary" type="submit" :disabled="busy || !email || !password">{{ busy ? "Signing in…" : "Sign in" }}</button>' +
+      '</form>'
+  });
+  if (location.hash) history.replaceState(null, "", location.pathname);
+  app.mount("#app");
+})();
+</script>
+</body></html>

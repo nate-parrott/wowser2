@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Re-rendered inputs — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Inputs that get replaced (stale element references)</h1>
+<p class="expected"><b>Expected:</b> <b>A)</b> Every <code>input</code> event replaces the input element with a fresh
+clone (same id/name/value, focus + caret restored) — like a naive virtual-DOM re-render. Filling the username then
+the password must still land in the <em>current</em> elements; a browser holding a stale reference fills a detached node and
+nothing visible changes. <b>B)</b> 2 s after load (and every 5 s after), the whole form is torn down and rebuilt,
+preserving values. Open the menu, wait for a rebuild (log says "rebuilt"), then pick a suggestion — it should still fill
+the new fields (or the menu should close cleanly). The "generation" counter shows how many times elements were replaced.
+Both save <code>sam@example.com</code>.</p>
+<p class="creds">Test credentials: <code>sam@example.com</code> / <code>Stale-Ref-11</code></p>
+
+<form class="card" id="a" method="post" action="/submit/rerender-keystroke">
+  <h3>A) replace on every keystroke <span class="state" id="gen-a">generation 0</span></h3>
+  <div class="row"><label for="a-user">Email</label><input id="a-user" name="email" type="email" autocomplete="username"></div>
+  <div class="row"><label for="a-pass">Password</label><input id="a-pass" name="password" type="password" autocomplete="current-password"></div>
+  <button class="primary" type="submit">Sign in</button>
+</form>
+
+<div class="card">
+  <h3>B) whole form rebuilt after 2 s, then every 5 s <span class="state" id="gen-b">generation 0</span></h3>
+  <div id="b-host"></div>
+</div>
+</main>
+<script src="playground.js"></script>
+<script>
+  // A
+  var genA = 0;
+  document.getElementById("a").addEventListener("input", function (e) {
+    var old = e.target;
+    if (old.tagName !== "INPUT") return;
+    var start = old.selectionStart, end = old.selectionEnd, hadFocus = document.activeElement === old;
+    var fresh = old.cloneNode(false);
+    fresh.value = old.value;
+    old.replaceWith(fresh);
+    if (hadFocus) { fresh.focus(); try { fresh.setSelectionRange(start, end); } catch (_) {} }
+    document.getElementById("gen-a").textContent = "generation " + (++genA);
+  });
+
+  // B
+  var genB = 0;
+  function renderB() {
+    var host = document.getElementById("b-host");
+    var prev = { email: "", password: "" }, focusedName = null;
+    var oldForm = host.querySelector("form");
+    if (oldForm) {
+      prev.email = oldForm.elements.email.value; prev.password = oldForm.elements.password.value;
+      if (oldForm.contains(document.activeElement)) focusedName = document.activeElement.name;
+    }
+    host.innerHTML =
+      '<form method="post" action="/submit/rerender-timer">' +
+      '<div class="row"><label for="b-user">Email</label><input id="b-user" name="email" type="email" autocomplete="username"></div>' +
+      '<div class="row"><label for="b-pass">Password</label><input id="b-pass" name="password" type="password" autocomplete="current-password"></div>' +
+      '<button class="primary" type="submit">Sign in</button></form>';
+    var f = host.querySelector("form");
+    f.elements.email.value = prev.email; f.elements.password.value = prev.password;
+    if (focusedName) f.elements[focusedName].focus();
+    document.getElementById("gen-b").textContent = "generation " + genB;
+    if (genB > 0) PG.log("form B rebuilt (generation " + genB + ")");
+    genB++;
+  }
+  renderB();
+  setTimeout(function () { renderB(); setInterval(renderB, 5000); }, 2000);
+</script>
+</body></html>

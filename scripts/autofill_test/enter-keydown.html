@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enter handled in keydown — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Submit via Enter in a keydown listener (preventDefault, no form)</h1>
+<p class="expected"><b>Expected:</b> No form, no button. The page listens for <code>keydown</code> Enter on the inputs,
+calls <code>preventDefault()</code>, and posts via fetch; on success the inputs are replaced by a message. <b>Important:</b>
+if the suggestion menu is open, Return must be consumed by the browser to <em>pick the suggestion</em> — the page must
+not see that Enter (the log should show no keydown Enter from that press, and no premature login attempt with an empty
+password). A second Return (menu closed) submits. The browser should then detect the Enter-triggered submission and
+offer to save <code>ruth@example.com</code>.</p>
+<p class="creds">Test credentials: <code>ruth@example.com</code> / <code>Enter-Key-0</code></p>
+
+<div class="card" id="box">
+  <div class="row"><div class="lbl">Username</div><input id="u" type="email" autocomplete="username"></div>
+  <div class="row"><div class="lbl">Password</div><input id="p" type="password" autocomplete="current-password"></div>
+  <p class="note">Press Return to sign in.</p>
+  <div id="attempts" class="state"></div>
+</div>
+</main>
+<script src="playground.js"></script>
+<script>
+  var attempts = 0;
+  function onKey(e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    var u = document.getElementById("u").value, p = document.getElementById("p").value;
+    attempts++;
+    document.getElementById("attempts").textContent = "login attempts seen by page: " + attempts + (p ? "" : " (last one had EMPTY password!)");
+    if (!u || !p) { PG.log("page saw Enter with empty field(s) — would be a premature submit"); if (!p && u) document.getElementById("p").focus(); return; }
+    fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        PG.log("api/login -> " + JSON.stringify(j));
+        if (j.ok) document.getElementById("box").innerHTML = '<p class="ok">Signed in as ' + j.user + "</p>";
+      });
+  }
+  document.getElementById("u").addEventListener("keydown", onKey);
+  document.getElementById("p").addEventListener("keydown", onKey);
+</script>
+</body></html>

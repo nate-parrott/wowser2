@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Two-page login, step 1 — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Two-page login — step 1 of 2 (username)</h1>
+<p class="expected"><b>Expected:</b> Suggestion menu on the email field; choosing a saved login fills the email only
+(there is no password field on this page). Next navigates (GET) to a <em>different page</em> which carries the username
+in a hidden/readonly field; the browser should suggest the password for that username there.</p>
+<p class="creds">Test credentials: <code>bob@example.com</code> / <code>Tr0ub4dor&amp;3</code></p>
+
+<form class="card" method="get" action="login-two-step-2.html">
+  <div class="row"><label for="email">Email address</label>
+    <input id="email" name="email" type="email" autocomplete="username"></div>
+  <div class="row"><button class="primary" type="submit">Next</button></div>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

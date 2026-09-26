@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shadow DOM login — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Web components / shadow DOM</h1>
+<p class="expected"><b>Expected:</b> <b>Open shadow root:</b> the browser should find the inputs (via the focused
+element / composed tree), show the menu under the field and fill both. Submission is via a button inside the shadow root
+that fetches <code>/api/login</code> and replaces the component content. <b>Closed shadow root:</b> the page can't see
+inside it with <code>shadowRoot</code>; native focus still lands on the inner input, so a browser that works from the
+focused element should still fill — record whether it does. <b>Form-associated custom element:</b> the input is in a shadow
+root but participates in the outer <code>&lt;form&gt;</code> via ElementInternals; classic submit should be detected.</p>
+<p class="creds">Test credentials: <code>mia@example.com</code> / <code>Shadow-Root-6</code></p>
+
+<h2>Open shadow root</h2>
+<login-box mode="open"></login-box>
+<h2>Closed shadow root</h2>
+<login-box mode="closed"></login-box>
+
+<h2>Form-associated custom elements in a real &lt;form&gt;</h2>
+<form class="card" method="post" action="/submit/shadow-form-associated">
+  <fa-input name="email" label="Email" type="email" ac="username"></fa-input>
+  <fa-input name="password" label="Password" type="password" ac="current-password"></fa-input>
+  <button class="primary" type="submit">Sign in</button>
+</form>
+</main>
+<script src="playground.js"></script>
+<script>
+  var CSS = "<style>:host{display:block;border:1px dashed #888;border-radius:8px;padding:10px 14px;margin:10px 0;max-width:420px}" +
+    "label{display:block;font-size:13px;margin:8px 0 3px}input{font:inherit;padding:6px 8px;border:1px solid #b8b8bd;border-radius:5px;width:100%;box-sizing:border-box}" +
+    "button{margin-top:10px;font:inherit;padding:6px 14px}.ok{color:#1a7f37;font-weight:600}</style>";
+
+  customElements.define("login-box", class extends HTMLElement {
+    connectedCallback() {
+      var mode = this.getAttribute("mode") || "open";
+      var root = this.attachShadow({ mode: mode });
+      root.innerHTML = CSS + '<b>' + mode + ' shadow root</b>' +
+        '<label for="e">Email</label><input id="e" name="email" type="email" autocomplete="username">' +
+        '<label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password">' +
+        '<button type="button" id="go">Sign in</button>';
+      if (mode === "closed") PG.watch(root); // closed roots are invisible to the panel otherwise
+      var go = function () {
+        var email = root.getElementById("e").value, pw = root.getElementById("p").value;
+        PG.log(mode + " shadow submit: " + email);
+        fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email, password: pw }) })
+          .then(function (r) { return r.json(); }).then(function (j) {
+            PG.log("api/login -> " + JSON.stringify(j));
+            if (j.ok) root.innerHTML = CSS + '<p class="ok">Signed in as ' + j.user + " (" + mode + " root)</p>";
+          });
+      };
+      root.getElementById("go").onclick = go;
+      root.getElementById("p").addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+    }
+  });
+
+  customElements.define("fa-input", class extends HTMLElement {
+    static get formAssociated() { return true; }
+    constructor() { super(); this._internals = this.attachInternals(); }
+    connectedCallback() {
+      var root = this.attachShadow({ mode: "open", delegatesFocus: true });
+      root.innerHTML = CSS.replace(":host{display:block;border:1px dashed #888", ":host{display:block;border:none") +
+        '<label for="i">' + this.getAttribute("label") + '</label><input id="i" type="' + this.getAttribute("type") +
+        '" name="' + this.getAttribute("name") + '" autocomplete="' + this.getAttribute("ac") + '">';
+      var inp = root.getElementById("i"), self = this;
+      var sync = function () { self._internals.setFormValue(inp.value); };
+      inp.addEventListener("input", sync); inp.addEventListener("change", sync);
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter" && self._internals.form) self._internals.form.requestSubmit(); });
+    }
+  });
+</script>
+</body></html>

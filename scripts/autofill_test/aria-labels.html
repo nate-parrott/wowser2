@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Non-&lt;label&gt; labelling — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Labels that aren't &lt;label for&gt;</h1>
+<p class="expected"><b>Expected:</b> Names/ids are meaningless (<code>f1</code>, <code>f2</code>…). Meaning comes only
+from: a sibling <code>&lt;span&gt;</code> before the input, <code>aria-labelledby</code> pointing elsewhere (even
+multiple ids), <code>aria-label</code>, and a wrapping <code>&lt;label&gt;</code> with extra text. The classifier should
+still recognise email, password, first/last name, phone and postal code. The "Referral code" must stay empty.</p>
+<p class="creds">Test credentials: <code>quinn@example.com</code> / <code>Aria-Label-8</code></p>
+
+<form class="card" method="post" action="/submit/aria-labels">
+  <h3 id="acct">Account</h3>
+  <div class="row"><span>Email address</span><br><input type="text" name="f1"></div>
+  <div class="row"><span id="pwl">Password</span> <span id="pwhint" class="note">(8+ characters)</span><br>
+    <input type="password" name="f2" aria-labelledby="pwl pwhint"></div>
+  <h3 id="you">About you</h3>
+  <div class="grid2">
+    <div class="row"><input type="text" name="f3" aria-label="Given name"></div>
+    <div class="row"><input type="text" name="f4" aria-label="Family name"></div>
+  </div>
+  <div class="row"><div id="tel-l">Mobile</div><div><input type="text" name="f5" aria-labelledby="you tel-l"></div></div>
+  <div class="row"><label>Postal code <em class="note">— used for tax only</em> <input type="text" name="f6"></label></div>
+  <div class="row"><span>Referral code</span><br><input type="text" name="f7"></div>
+  <button class="primary" type="submit">Create account</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

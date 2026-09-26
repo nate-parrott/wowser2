@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login with extras — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Email + password + remember me + hidden inputs + honeypot</h1>
+<p class="expected"><b>Expected:</b> Filling touches only the visible email and password. The "remember me" checkbox,
+the hidden <code>csrf_token</code>/<code>return_to</code> inputs, and the off-screen honeypot <code>website</code>
+field (and the hidden <code>email_confirm</code> honeypot) must stay unchanged — check the Submitted page: honeypots empty.
+Submit → offer to save <code>carol@example.com</code>.</p>
+<p class="creds">Test credentials: <code>carol@example.com</code> / <code>s3cret-Carol</code></p>
+
+<form class="card" method="post" action="/submit/login-remember">
+  <input type="hidden" name="csrf_token" value="abc123-static-token">
+  <input type="hidden" name="return_to" value="/dashboard">
+  <div class="row"><label for="user_email">Email</label>
+    <input id="user_email" name="user[email]" type="email" autocomplete="email"></div>
+  <div class="row"><label for="user_password">Password</label>
+    <input id="user_password" name="user[password]" type="password" autocomplete="current-password"></div>
+  <!-- honeypots: bots fill these, humans (and good autofill) do not -->
+  <div style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden" aria-hidden="true">
+    <label for="website">Website</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+  </div>
+  <div style="display:none"><label>Confirm email <input name="email_confirm" type="email" tabindex="-1"></label></div>
+  <div class="row"><label class="inline"><input type="checkbox" name="remember_me" value="1"> Remember me</label></div>
+  <div class="row"><button class="primary" type="submit" name="commit" value="Log in">Log in</button></div>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

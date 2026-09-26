@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>contenteditable fields — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> .fake-input { min-height: 34px; } .fake-input:empty::before { content: attr(data-placeholder); color: #999; } </style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>contenteditable "fake inputs"</h1>
+<p class="expected"><b>Expected:</b> These are <code>&lt;div contenteditable&gt;</code> with <code>role=textbox</code> and
+<code>aria-label</code>s (like some rich editors / chat apps). Decide deliberately: a conservative browser offers
+<b>nothing</b> here (the log will show no suggestion-driven input). If it does support them, a fill must arrive as
+<code>beforeinput insertText</code> + <code>input</code> so the page's model (readout below each) updates. The last one
+is a real password input for comparison. Nothing here should ever be saved as a login.</p>
+<p class="creds">Test data: <code>olivia@example.com</code>, Olivia Example</p>
+
+<div class="card">
+  <div class="row"><span class="lbl" id="l1">Email</span>
+    <div class="fake-input" contenteditable="true" role="textbox" aria-labelledby="l1" data-placeholder="you@example.com" id="ce-email"></div>
+    <div class="state" id="m-email"></div></div>
+  <div class="row"><span class="lbl" id="l2">Full name</span>
+    <div class="fake-input" contenteditable="plaintext-only" role="textbox" aria-labelledby="l2" data-placeholder="Your name" id="ce-name"></div>
+    <div class="state" id="m-name"></div></div>
+  <div class="row"><span class="lbl">Real password input (for comparison)</span>
+    <input type="password" id="real-pass" autocomplete="current-password"></div>
+  <div class="row"><button class="primary" id="send">Continue</button></div>
+</div>
+</main>
+<script src="playground.js"></script>
+<script>
+  // The page's "model" is only updated from input events, like an editor framework.
+  var model = { email: "", name: "" };
+  function bind(id, key, out) {
+    var el = document.getElementById(id);
+    el.addEventListener("input", function () { model[key] = el.textContent; });
+    setInterval(function () {
+      var o = document.getElementById(out), mismatch = model[key] !== el.textContent;
+      o.textContent = "model: " + JSON.stringify(model[key]) + (mismatch ? "   ≠ DOM " + JSON.stringify(el.textContent) : "");
+      o.className = "state" + (mismatch ? " mismatch" : "");
+    }, 300);
+  }
+  bind("ce-email", "email", "m-email");
+  bind("ce-name", "name", "m-name");
+  document.getElementById("send").onclick = function () { PG.log("model = " + JSON.stringify(model)); };
+</script>
+</body></html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Card checkout — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Checkout with payment-card fields</h1>
+<p class="expected"><b>Expected:</b> Email and billing ZIP may be filled from identity/address. The card number,
+cardholder name, expiry, CVC, gift card and promo code fields must <b>never</b> be filled with identity data (no name in
+"Name on card" from the profile unless the browser deliberately supports cards, no phone number in the card field, no ZIP in
+the CVC). Those fields should show no identity/login menu at all. The second "Security code" is <code>type=password</code>: submitting must <b>not</b> offer to save a login.</p>
+<p class="creds">Test card (fake): <code>4242 4242 4242 4242</code>, 12/34, CVC 123</p>
+
+<form class="card" method="post" action="/submit/checkout-card">
+  <div class="row"><label for="email">Email for receipt</label><input id="email" name="email" type="email" autocomplete="email"></div>
+  <h3>Payment</h3>
+  <div class="row"><label for="ccname">Name on card</label><input id="ccname" name="ccname" autocomplete="cc-name"></div>
+  <div class="row"><label for="cardnumber">Card number</label><input id="cardnumber" name="cardnumber" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234"></div>
+  <div class="grid3">
+    <div class="row"><label for="exp">Expiry (MM/YY)</label><input id="exp" name="exp-date" autocomplete="cc-exp" placeholder="MM / YY"></div>
+    <div class="row"><label for="cvc">CVC</label><input id="cvc" name="cvc" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></div>
+    <div class="row"><label for="bzip">Billing ZIP</label><input id="bzip" name="billing_zip" autocomplete="billing postal-code"></div>
+  </div>
+  <h3>Same fields, no autocomplete attributes</h3>
+  <div class="row"><label for="n2">Cardholder</label><input id="n2" name="holder"></div>
+  <div class="row"><label for="c2">Credit card #</label><input id="c2" name="ccnum"></div>
+  <div class="grid3">
+    <div class="row"><label for="m2">Month</label><select id="m2" name="exp_month"><option value="">MM</option><option>01</option><option>02</option><option>03</option><option>04</option><option>05</option><option>06</option><option>07</option><option>08</option><option>09</option><option>10</option><option>11</option><option>12</option></select></div>
+    <div class="row"><label for="y2">Year</label><select id="y2" name="exp_year"><option value="">YYYY</option><option>2026</option><option>2027</option><option>2028</option><option>2029</option><option>2030</option><option>2034</option></select></div>
+    <div class="row"><label for="s2">Security code</label><input id="s2" name="security_code" type="password" maxlength="4"></div>
+  </div>
+  <div class="grid2">
+    <div class="row"><label for="gift">Gift card number</label><input id="gift" name="gift_card"></div>
+    <div class="row"><label for="promo">Promo code</label><input id="promo" name="promo_code"></div>
+  </div>
+  <button class="primary" type="submit">Pay $42.00</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>No form element (SPA) — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> .divbtn { display: inline-block; background: #0a58ca; color: #fff; padding: 7px 16px; border-radius: 5px; cursor: pointer; user-select: none; } </style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>No &lt;form&gt; at all — divs, a div "button", fetch + DOM swap</h1>
+<p class="expected"><b>Expected:</b> There is no <code>&lt;form&gt;</code>, so WebKit's form-submission callback never
+fires. The inputs are siblings in <code>&lt;div&gt;</code>s. Clicking the div "Sign in" (or pressing Enter in the password
+field) calls <code>fetch('/api/login')</code>; ~300 ms later the whole login block is replaced with a welcome message
+(password field vanishes, URL gets <code>?signed-in</code> via replaceState). The browser should detect this within its
+post-click window and offer to save <code>noah@example.com</code>.</p>
+<p class="creds">Test credentials: <code>noah@example.com</code> / <code>No-Form-Here-1</code></p>
+
+<div class="card" id="app">
+  <div class="row"><div class="lbl">Email</div><input id="email" type="text" autocomplete="username"></div>
+  <div class="row"><div class="lbl">Password</div><input id="password" type="password" autocomplete="current-password"></div>
+  <div class="row"><div class="divbtn" id="signin" role="button" tabindex="0">Sign in</div></div>
+</div>
+</main>
+<script src="playground.js"></script>
+<script>
+  function signIn() {
+    var email = document.getElementById("email").value, pw = document.getElementById("password").value;
+    PG.log("div button -> fetch /api/login");
+    fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email, password: pw }) })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        PG.log("api/login -> " + JSON.stringify(j));
+        if (!j.ok) return;
+        document.getElementById("app").innerHTML = '<p class="ok">Welcome back, ' + j.user + '!</p><p class="note">Login DOM removed.</p>';
+        history.replaceState(null, "", location.pathname + "?signed-in");
+      });
+  }
+  document.getElementById("signin").addEventListener("click", signIn);
+  document.getElementById("signin").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); signIn(); } });
+  document.getElementById("password").addEventListener("keydown", function (e) { if (e.key === "Enter") signIn(); });
+</script>
+</body></html>

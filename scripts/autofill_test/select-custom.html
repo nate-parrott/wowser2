@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Custom-styled select — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style>
+  /* Pattern 1: real select made transparent and stretched over a styled div (common in design systems). */
+  .overlay-wrap { position: relative; width: 260px; }
+  .overlay-face { border: 2px solid #0a58ca; border-radius: 20px; padding: 8px 14px; background: #eef4ff; font-weight: 600; }
+  .overlay-face::after { content: " ▾"; float: right; }
+  .overlay-wrap select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; max-width: none; }
+  /* Pattern 2: select visually hidden; a div listbox is the UI and syncs the select. */
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+  .combo { width: 260px; border: 1px solid #999; border-radius: 6px; }
+  .combo .face { padding: 8px 12px; cursor: pointer; }
+  .combo ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid #ccc; max-height: 180px; overflow: auto; }
+  .combo li { padding: 5px 12px; cursor: pointer; }
+  .combo li[aria-selected=true] { background: #dbe7ff; }
+</style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Selects hidden under custom UI</h1>
+<p class="expected"><b>Expected:</b> <b>1)</b> The real <code>&lt;select&gt;</code> is <code>opacity:0</code> on top of a
+styled div; clicking it should open the searchable menu anchored to the visible box, and the div face updates via the
+page's <code>change</code> listener. <b>2)</b> The select is visually hidden (<code>sr-only</code>) and a div listbox is
+the UI: the browser should not show its menu for the div; an address fill that sets the hidden select must fire
+<code>change</code> so the div updates (watch the face text).</p>
+
+<form class="card" method="post" action="/submit/select-custom">
+  <div class="row"><span class="lbl">1) Transparent select over a div — Country</span>
+    <div class="overlay-wrap">
+      <div class="overlay-face" id="face1">Choose a country</div>
+      <select id="c1" name="country" autocomplete="country" aria-label="Country">
+        <option value="">Choose a country</option>
+        <option value="US">United States</option><option value="CA">Canada</option><option value="GB">United Kingdom</option>
+        <option value="DE">Germany</option><option value="FR">France</option><option value="JP">Japan</option><option value="AU">Australia</option>
+      </select>
+    </div></div>
+
+  <div class="row"><span class="lbl" id="l2">2) Hidden select + div listbox — Province</span>
+    <select id="c2" name="province" class="sr-only" autocomplete="address-level1" tabindex="-1" aria-hidden="true">
+      <option value="">Province</option><option value="ON">Ontario</option><option value="QC">Quebec</option>
+      <option value="BC">British Columbia</option><option value="AB">Alberta</option><option value="NS">Nova Scotia</option>
+    </select>
+    <div class="combo" id="combo" role="combobox" aria-labelledby="l2" aria-expanded="false" tabindex="0">
+      <div class="face" id="face2">Province</div>
+      <ul role="listbox" class="hidden" id="list2"></ul>
+    </div></div>
+  <button class="primary" type="submit">Submit</button>
+</form>
+</main>
+<script src="playground.js"></script>
+<script>
+  var c1 = document.getElementById("c1");
+  c1.addEventListener("change", function () { document.getElementById("face1").textContent = c1.options[c1.selectedIndex].text; });
+
+  var c2 = document.getElementById("c2"), combo = document.getElementById("combo"), list = document.getElementById("list2"), face2 = document.getElementById("face2");
+  Array.prototype.forEach.call(c2.options, function (o, i) {
+    if (!o.value) return;
+    var li = document.createElement("li"); li.setAttribute("role", "option"); li.textContent = o.text; li.dataset.value = o.value;
+    li.onclick = function (e) { e.stopPropagation(); c2.value = o.value; c2.dispatchEvent(new Event("change", { bubbles: true })); close(); };
+    list.appendChild(li);
+  });
+  function close() { list.classList.add("hidden"); combo.setAttribute("aria-expanded", "false"); }
+  combo.onclick = function () { var open = list.classList.toggle("hidden"); combo.setAttribute("aria-expanded", String(!open)); };
+  combo.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); combo.onclick(); } if (e.key === "Escape") close(); };
+  c2.addEventListener("change", function () {
+    face2.textContent = c2.value ? c2.options[c2.selectedIndex].text : "Province";
+    Array.prototype.forEach.call(list.children, function (li) { li.setAttribute("aria-selected", String(li.dataset.value === c2.value)); });
+  });
+</script>
+</body></html>

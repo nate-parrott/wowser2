@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login in iframe — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> iframe { width: 100%; max-width: 460px; height: 330px; border: 2px dashed #999; border-radius: 6px; } </style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Login inside an iframe</h1>
+<p class="expected"><b>Expected:</b> <b>Same-origin iframe:</b> focusing the username inside the frame shows the menu
+positioned under the field (not offset by the frame's position); filling works; submit (which navigates only the frame)
+offers to save <code>dave@example.com</code>. <b>Cross-origin iframe</b> (same server, other hostname): decide deliberately —
+it is a different host, so logins saved for the top page's host should <em>not</em> be offered unless the browser matches
+by frame origin. Each frame has its own event panel.</p>
+<p class="creds">Test credentials: <code>dave@example.com</code> / <code>Frame-Pass-1</code></p>
+
+<h2>Same-origin iframe</h2>
+<iframe src="login-iframe-inner.html" title="same-origin login"></iframe>
+
+<h2>Cross-origin iframe (<span id="otherhost"></span>)</h2>
+<iframe id="xo" title="cross-origin login"></iframe>
+</main>
+<script src="playground.js"></script>
+<script>
+  var other = location.hostname === "localhost" ? "127.0.0.1" : "localhost";
+  var url = location.protocol + "//" + other + (location.port ? ":" + location.port : "") + "/login-iframe-inner.html";
+  document.getElementById("otherhost").textContent = url;
+  document.getElementById("xo").src = url;
+</script>
+</body></html>

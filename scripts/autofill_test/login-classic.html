@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Classic login — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Classic login (well-annotated)</h1>
+<p class="expected"><b>Expected:</b> Focusing the username shows the saved-login menu. Choosing an entry fills
+<em>both</em> username and password (log shows <code>beforeinput insertText/insertReplacementText</code> + <code>input</code> on each).
+After Sign in, the browser offers to save <code>alice@example.com</code>. On a second visit, the saved login is suggested.</p>
+<p class="creds">Test credentials: <code>alice@example.com</code> / <code>Correct-Horse-42</code></p>
+
+<form class="card" method="post" action="/submit/login-classic">
+  <div class="row"><label for="username">Email or username</label>
+    <input id="username" name="username" type="email" autocomplete="username" required></div>
+  <div class="row"><label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required></div>
+  <div class="row"><button class="primary" type="submit">Sign in</button></div>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

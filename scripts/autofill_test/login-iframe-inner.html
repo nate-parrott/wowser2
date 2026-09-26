@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Iframe login form — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> :root { --panel-w: 0px; } #pg-panel { display: none; } main { padding: 10px 14px; } </style></head>
+<body>
+<main>
+<b>Frame origin:</b> <code id="origin"></code>
+<form method="post" action="/submit/login-iframe">
+  <div class="row"><label for="u">Email</label><input id="u" name="email" type="email" autocomplete="username"></div>
+  <div class="row"><label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password"></div>
+  <div class="row"><button class="primary" type="submit">Sign in</button></div>
+</form>
+<details><summary>frame event log</summary><div id="mini" class="state"></div></details>
+</main>
+<script>
+  document.getElementById("origin").textContent = location.origin;
+  // Minimal in-frame log (the side panel doesn't fit inside a small frame).
+  ["focusin", "beforeinput", "input", "change", "submit"].forEach(function (t) {
+    document.addEventListener(t, function (e) {
+      var el = e.target, d = document.createElement("div");
+      d.textContent = t + (e.inputType ? " " + e.inputType : "") + " " + (el.id || el.tagName) + (el.value !== undefined && el.type !== "password" ? " = " + JSON.stringify(el.value) : "");
+      var m = document.getElementById("mini"); m.appendChild(d);
+    }, true);
+  });
+</script>
+</body></html>

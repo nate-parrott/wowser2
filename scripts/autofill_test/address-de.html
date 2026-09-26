@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lieferadresse (DE) — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Internationale Adresse (German labels)</h1>
+<p class="expected"><b>Expected:</b> No autocomplete attributes; names are German abbreviations. The classifier should
+recognise Vorname (given name), Nachname (family name), Straße + Hausnummer (street / house number — separate fields),
+PLZ (postal code, <em>before</em> Ort), Ort (city), Land (country select, "Deutschland"), Telefon, E-Mail. The
+"Firma" and "Packstation" fields should stay empty unless such data is saved. Postcode must not end up in the city field.</p>
+<p class="creds">Test address: Max Mustermann, Musterstraße 12, 10115 Berlin, Deutschland, +49 30 1234567, <code>max@example.de</code></p>
+
+<form class="card" method="post" action="/submit/address-de">
+  <div class="row"><label for="anrede">Anrede</label>
+    <select id="anrede" name="anrede"><option value="">Bitte wählen</option><option>Frau</option><option>Herr</option><option>Divers</option></select></div>
+  <div class="grid2">
+    <div class="row"><label for="vorname">Vorname</label><input id="vorname" name="vorname"></div>
+    <div class="row"><label for="nachname">Nachname</label><input id="nachname" name="nachname"></div>
+  </div>
+  <div class="row"><label for="firma">Firma (optional)</label><input id="firma" name="firma"></div>
+  <div class="grid3">
+    <div class="row"><label for="strasse">Straße</label><input id="strasse" name="strasse"></div>
+    <div class="row"><label for="hausnr">Hausnummer</label><input id="hausnr" name="hausnr"></div>
+    <div class="row"><label for="packstation">Packstation</label><input id="packstation" name="packstation"></div>
+  </div>
+  <div class="grid3">
+    <div class="row"><label for="plz">PLZ</label><input id="plz" name="plz" inputmode="numeric" maxlength="5"></div>
+    <div class="row"><label for="ort">Ort</label><input id="ort" name="ort"></div>
+    <div class="row"><label for="land">Land</label>
+      <select id="land" name="land"><option value="DE" selected>Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="NL">Niederlande</option><option value="FR">Frankreich</option><option value="US">Vereinigte Staaten</option></select></div>
+  </div>
+  <div class="row"><label for="telefon">Telefon</label><input id="telefon" name="telefon" type="tel"></div>
+  <div class="row"><label for="mail">E-Mail-Adresse</label><input id="mail" name="mail" type="email"></div>
+  <button class="primary" type="submit">Weiter zur Zahlung</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

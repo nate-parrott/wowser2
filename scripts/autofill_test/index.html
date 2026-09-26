@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<h1>Autofill Playground</h1>
+<p>Local test pages for the browser's autofill: logins, sign-up, identity/address, <code>&lt;select&gt;</code> menus, and
+framework / unorthodox markup. Every page has an event panel on the right that logs <code>focusin</code>,
+<code>keydown</code>, <code>beforeinput</code> (with <code>inputType</code>), <code>input</code>, <code>change</code> and
+<code>submit</code>, plus a live values table that turns <span class="bad">red</span> when a value changed without any
+input/change event.</p>
+<p class="note">Same server, two hosts: <a id="host-a" href="#">localhost</a> vs <a id="host-b" href="#">127.0.0.1</a>
+are different hosts to the browser (see <a href="cross-host.html">cross-host</a>). Form POSTs land on an echo page;
+<code>/api/login</code> answers JSON after ~300 ms (password <code>wrong</code> → 401).</p>
+
+<h2>Logins</h2>
+<ul class="scenarios">
+  <li><a href="login-classic.html">Classic login</a><span>POST form with autocomplete attrs. Menu on focus, fill both, save on submit.</span></li>
+  <li><a href="login-ambiguous.html">No autocomplete attrs</a><span><code>name="login"</code> / <code>name="pwd"</code> plus a decoy "company" field; classifier must infer.</span></li>
+  <li><a href="login-two-step.html">Username-first, same page</a><span>Email → Continue → password step revealed (Google/Microsoft style). Save uses the step-1 username.</span></li>
+  <li><a href="login-two-step-1.html">Username-first, two pages</a><span>Email on page 1, GET navigates to page 2 with a hidden username + password.</span></li>
+  <li><a href="login-remember.html">Remember me + hidden + honeypot</a><span>Only email and password get filled; checkbox, hidden inputs and honeypots untouched.</span></li>
+  <li><a href="login-iframe.html">Login in an iframe</a><span>Same-origin and cross-origin (other hostname) frames. Menu positioned correctly; host matching.</span></li>
+  <li><a href="login-modal.html">Login in a modal</a><span>Fields appear on click: native &lt;dialog&gt; (POST) and div modal (fetch, then removed).</span></li>
+  <li><a href="multi-form.html">Multiple forms</a><span>Search + login + newsletter on one page; suggestions and saves stay in the right form.</span></li>
+  <li><a href="login-password-toggle.html">Password type switching</a><span>type=text until focus; show/hide toggle. Still treated and saved as a password.</span></li>
+  <li><a href="login-otp.html">Password then 2FA code</a><span>SPA step change; OTP fields (one-time-code + 6 digit boxes) never get identity/login data.</span></li>
+  <li><a href="cross-host.html">Cross-host matching</a><span>Links to the same pages on localhost and 127.0.0.1.</span></li>
+</ul>
+
+<h2>Sign-up / change password</h2>
+<ul class="scenarios">
+  <li><a href="signup.html">Sign up</a><span>new-password + confirm: no saved passwords offered; generated password fills both; save after submit.</span></li>
+  <li><a href="change-password.html">Change password</a><span>Current / new / confirm (with and without attrs). Offer to update, not duplicate.</span></li>
+</ul>
+
+<h2>Identity &amp; address</h2>
+<ul class="scenarios">
+  <li><a href="contact.html">Contact form</a><span>First/last/email/phone filled together; subject/message untouched. Also a no-attrs copy.</span></li>
+  <li><a href="shipping.html">Shipping address</a><span>Street, city, ZIP plus Country and State selects set to the right options (with change events).</span></li>
+  <li><a href="billing-shipping.html">Shipping + billing sections</a><span>Filling one section must not bleed into the other.</span></li>
+  <li><a href="address-de.html">German address</a><span>Vorname / Nachname / Straße / Hausnummer / PLZ / Ort / Land, no attrs.</span></li>
+  <li><a href="checkout-card.html">Checkout with card fields</a><span>Card number / name on card / expiry / CVC never receive identity data; password-typed CVC isn't a login.</span></li>
+</ul>
+
+<h2>Selects</h2>
+<ul class="scenarios">
+  <li><a href="select-countries.html">Long country list</a><span>~230 options: searchable menu, diacritics, Return picks, change fires.</span></li>
+  <li><a href="select-optgroups.html">Optgroups</a><span>Group headings shown; disabled optgroup unselectable; initial selection highlighted.</span></li>
+  <li><a href="select-disabled.html">Disabled / hidden options</a><span>Disabled options skipped, hidden placeholder not listed, disabled select won't open.</span></li>
+  <li><a href="select-custom.html">Select under custom UI</a><span>Transparent select over a styled div; visually hidden select driven by a div listbox.</span></li>
+  <li><a href="select-async.html">Async options</a><span>Options arrive after 1 s; dependent Country → City select repopulates.</span></li>
+</ul>
+
+<h2>Unorthodox / framework</h2>
+<ul class="scenarios">
+  <li><a href="no-form.html">No &lt;form&gt; element</a><span>Inputs in divs, div "button", fetch then DOM swap. SPA submission detection.</span></li>
+  <li><a href="react-login.html">React 18 controlled inputs</a><span>"React state" readouts reveal silent fills; fetch, pushState to #/dashboard, form unmounts. (CDN)</span></li>
+  <li><a href="vue-login.html">Vue 3 v-model</a><span>v-model and v-model.lazy readouts; fetch then v-if swap. (CDN)</span></li>
+  <li><a href="shadow-dom.html">Shadow DOM</a><span>Open and closed shadow roots, and form-associated custom elements.</span></li>
+  <li><a href="contenteditable.html">contenteditable fake inputs</a><span>role=textbox divs; decide whether to fill; if so, the page model must update.</span></li>
+  <li><a href="placeholder-only.html">Placeholder-only fields</a><span>No name/id/label; only placeholders. Unnamed inputs aren't in the POST.</span></li>
+  <li><a href="aria-labels.html">Sibling span / aria-labelledby</a><span>Meaningless names; labels via spans, aria-labelledby, aria-label, wrapping label.</span></li>
+  <li><a href="enter-keydown.html">Enter in keydown, no form</a><span>Return must pick the suggestion, not reach the page; second Return submits via fetch.</span></li>
+  <li><a href="rerender.html">Re-rendered inputs</a><span>Inputs replaced per keystroke and whole form rebuilt on a timer (stale references).</span></li>
+  <li><a href="lazy-form.html">Lazily inserted form</a><span>Login appears after 2 s; infinite scroll appends a newsletter form.</span></li>
+</ul>
+</main>
+<script src="playground.js"></script>
+<script>
+  var port = location.port ? ":" + location.port : "";
+  document.getElementById("host-a").href = location.protocol + "//localhost" + port + "/";
+  document.getElementById("host-b").href = location.protocol + "//127.0.0.1" + port + "/";
+</script>
+</body></html>

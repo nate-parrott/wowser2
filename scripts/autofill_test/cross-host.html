@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cross-host matching — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Same server, two hostnames</h1>
+<p class="expected"><b>Expected:</b> <code>localhost</code> and <code>127.0.0.1</code> are different hosts. Save a login
+on one (use the classic login below), then open the same page on the other host. Decide what the browser should do: a
+strict matcher offers nothing on the other host; a lenient one might list it under "other sites". It must never
+<em>auto</em>-fill a credential from a different host.</p>
+<p class="creds">Test credentials: <code>ivan@example.com</code> / <code>Cross-Host-4</code></p>
+<ul id="links"></ul>
+<p class="note">You are on <code id="here"></code>.</p>
+</main>
+<script src="playground.js"></script>
+<script>
+  var port = location.port ? ":" + location.port : "";
+  document.getElementById("here").textContent = location.origin;
+  ["localhost", "127.0.0.1"].forEach(function (h) {
+    ["login-classic.html", "login-ambiguous.html", "login-iframe.html"].forEach(function (p) {
+      var li = document.createElement("li"), a = document.createElement("a");
+      a.href = location.protocol + "//" + h + port + "/" + p; a.textContent = a.href;
+      li.appendChild(a); document.getElementById("links").appendChild(li);
+    });
+  });
+</script>
+</body></html>

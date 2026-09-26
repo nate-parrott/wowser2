@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login + 2FA — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css">
+<style> .otp input { width: 2.4em; text-align: center; font-size: 20px; } .otp { display: flex; gap: 6px; } </style></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Password, then a one-time code</h1>
+<p class="expected"><b>Expected:</b> Step 1 fills and saves normally (<code>heidi@example.com</code>). After "Sign in"
+the password step disappears (SPA-style) and a code step appears — the browser should detect the submission here (password
+field vanished). In step 2, the OTP inputs must <b>never</b> be filled with username/password/identity data. If the browser
+supports one-time codes, the <code>autocomplete="one-time-code"</code> input may offer a code; typing/pasting a code into
+the 6 single-digit boxes should work (a paste of "123456" is distributed across boxes by the page).</p>
+<p class="creds">Test credentials: <code>heidi@example.com</code> / <code>Two-Factor-5</code>, code <code>123456</code></p>
+
+<form class="card" id="pw-step">
+  <h3>Step 1: password</h3>
+  <div class="row"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username"></div>
+  <div class="row"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password"></div>
+  <button class="primary" type="submit">Sign in</button>
+</form>
+
+<div id="code-step" class="hidden">
+  <form class="card" method="post" action="/submit/otp-single">
+    <h3>Step 2a: one-time-code input</h3>
+    <div class="row"><label for="otc">Verification code</label>
+      <input id="otc" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="\d{6}" maxlength="6"></div>
+    <button class="primary" type="submit">Verify</button>
+  </form>
+  <form class="card" method="post" action="/submit/otp-boxes">
+    <h3>Step 2b: six single-digit boxes</h3>
+    <div class="otp" id="boxes"></div>
+    <div class="row"><button class="primary" type="submit">Verify</button></div>
+  </form>
+</div>
+</main>
+<script src="playground.js"></script>
+<script>
+  document.getElementById("pw-step").onsubmit = function (e) {
+    e.preventDefault();
+    var f = e.target;
+    fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: f.email.value, password: f.password.value }) })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        PG.log("api/login -> " + JSON.stringify(j));
+        if (!j.ok) return;
+        f.remove();
+        document.getElementById("code-step").classList.remove("hidden");
+        document.getElementById("otc").focus();
+      });
+  };
+  var boxes = document.getElementById("boxes");
+  for (var i = 0; i < 6; i++) {
+    var inp = document.createElement("input");
+    inp.name = "code" + i; inp.maxLength = 1; inp.inputMode = "numeric"; inp.autocomplete = "off";
+    inp.setAttribute("aria-label", "Digit " + (i + 1));
+    boxes.appendChild(inp);
+  }
+  var all = boxes.querySelectorAll("input");
+  all.forEach(function (inp, i) {
+    inp.addEventListener("input", function () { if (inp.value && i < 5) all[i + 1].focus(); });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Backspace" && !inp.value && i > 0) all[i - 1].focus(); });
+    inp.addEventListener("paste", function (e) {
+      var t = (e.clipboardData.getData("text") || "").replace(/\D/g, "");
+      if (t.length < 2) return;
+      e.preventDefault();
+      for (var k = 0; k < 6; k++) all[k].value = t[k] || "";
+      all[Math.min(t.length, 6) - 1].focus();
+      PG.log("pasted code distributed across boxes");
+    });
+  });
+</script>
+</body></html>

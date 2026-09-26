@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>React login — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>React 18 controlled-input login</h1>
+<p class="expected"><b>Expected:</b> After autofill, each "React state:" readout matches the DOM value (black). A
+<span class="bad">red</span> readout means the browser set <code>.value</code> without React noticing (React ignores
+<code>input</code> events when its value tracker already saw the new value via the setter) — the Sign in button then
+stays disabled / posts empty values. Submit posts JSON to <code>/api/login</code>, then <code>history.pushState</code>s
+to <code>#/dashboard</code> and <b>unmounts the form</b>: the browser should detect this as a successful login (URL
+changed + password field vanished) and offer to save <code>kate@example.com</code>. Password <code>wrong</code> makes the
+API return 401 and the form stays — no save prompt expected.</p>
+<p class="creds">Test credentials: <code>kate@example.com</code> / <code>React-Rocks-18</code> (or password <code>wrong</code>)</p>
+<div id="root" class="card">Loading React from jsdelivr…</div>
+</main>
+<script src="playground.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+(function () {
+  if (!window.React || !window.ReactDOM) { document.getElementById("root").textContent = "Failed to load React (offline?)"; return; }
+  var h = React.createElement, useState = React.useState, useRef = React.useRef, useEffect = React.useEffect;
+
+  function StateReadout(props) {
+    var dom = props.inputRef.current ? props.inputRef.current.value : "";
+    var mismatch = dom !== props.value;
+    return h("div", { className: "state" + (mismatch ? " mismatch" : "") },
+      "React state: " + JSON.stringify(props.secret && !mismatch ? mask(props.value) : props.value) +
+      (mismatch ? "   ≠ DOM " + JSON.stringify(dom) : "   (matches DOM)"));
+  }
+  function mask(s) { return s.replace(/./g, "•"); }
+
+  function LoginForm(props) {
+    var _e = useState(""), email = _e[0], setEmail = _e[1];
+    var _p = useState(""), password = _p[0], setPassword = _p[1];
+    var _b = useState(false), busy = _b[0], setBusy = _b[1];
+    var _err = useState(""), error = _err[0], setError = _err[1];
+    var _t = useState(0), setTick = _t[1];
+    var emailRef = useRef(null), pwRef = useRef(null);
+    // Poll so the readout can show DOM/state mismatches that produced no React event.
+    useEffect(function () { var id = setInterval(function () { setTick(function (t) { return t + 1; }); }, 300); return function () { clearInterval(id); }; }, []);
+
+    function onSubmit(e) {
+      e.preventDefault();
+      setBusy(true); setError("");
+      PG.log("React submit with state email=" + JSON.stringify(email) + " password.length=" + password.length);
+      fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email, password: password }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          PG.log("api/login -> " + JSON.stringify(j));
+          setBusy(false);
+          if (j.ok) props.onLogin(j.user); else setError("Invalid email or password");
+        });
+    }
+    return h("form", { onSubmit: onSubmit, noValidate: true },
+      h("div", { className: "row" },
+        h("label", { htmlFor: "r-email" }, "Email"),
+        h("input", { id: "r-email", type: "email", autoComplete: "username", value: email, ref: emailRef,
+          onChange: function (e) { setEmail(e.target.value); } }),
+        h(StateReadout, { value: email, inputRef: emailRef })),
+      h("div", { className: "row" },
+        h("label", { htmlFor: "r-pass" }, "Password"),
+        h("input", { id: "r-pass", type: "password", autoComplete: "current-password", value: password, ref: pwRef,
+          onChange: function (e) { setPassword(e.target.value); } }),
+        h(StateReadout, { value: password, inputRef: pwRef, secret: true })),
+      error ? h("p", { className: "bad" }, error) : null,
+      h("button", { className: "primary", type: "submit", disabled: busy || !email || !password }, busy ? "Signing in…" : "Sign in"),
+      h("p", { className: "note" }, "Button is disabled until React state (not the DOM) has both values."));
+  }
+
+  function Dashboard(props) {
+    return h("div", null, h("h2", null, "Dashboard"), h("p", { className: "ok" }, "Signed in as " + props.user + ". The form has been unmounted."),
+      h("button", { onClick: props.onLogout }, "Sign out"));
+  }
+
+  function App() {
+    var _u = useState(null), user = _u[0], setUser = _u[1];
+    var _r = useState(location.hash), route = _r[0], setRoute = _r[1];
+    useEffect(function () {
+      function pop() { setRoute(location.hash); }
+      window.addEventListener("popstate", pop);
+      return function () { window.removeEventListener("popstate", pop); };
+    }, []);
+    if (route === "#/dashboard" && user) return h(Dashboard, { user: user, onLogout: function () { history.pushState(null, "", location.pathname); setRoute(""); setUser(null); } });
+    return h(LoginForm, { onLogin: function (u) {
+      setUser(u);
+      history.pushState(null, "", "#/dashboard");
+      PG.log("pushState -> " + location.href);
+      setRoute("#/dashboard");
+    } });
+  }
+
+  if (location.hash) history.replaceState(null, "", location.pathname);
+  ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+})();
+</script>
+</body></html>

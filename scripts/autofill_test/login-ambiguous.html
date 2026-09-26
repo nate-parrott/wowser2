@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ambiguous login — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Login with no autocomplete attributes</h1>
+<p class="expected"><b>Expected:</b> The classifier still recognises <code>name="login"</code> (type=text) as a username and
+<code>name="pwd"</code> as the current password purely from names/labels/form context. Suggestion menu appears on both;
+choosing a login fills both. Submitting offers to save <code>alice</code>. The "Company" field must never be filled.</p>
+<p class="creds">Test credentials: <code>alice</code> / <code>Correct-Horse-42</code></p>
+
+<form class="card" method="post" action="/submit/login-ambiguous">
+  <div class="row">Company code <span class="note">(optional)</span><br><input type="text" name="org"></div>
+  <div class="row">Login<br><input type="text" name="login"></div>
+  <div class="row">Pass<br><input type="password" name="pwd"></div>
+  <div class="row"><input type="submit" value="Log in"></div>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>

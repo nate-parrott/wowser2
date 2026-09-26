@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Select with optgroups — Autofill Playground</title>
+<link rel="stylesheet" href="playground.css"></head>
+<body>
+<main>
+<p class="crumb"><a href="index.html">← Playground</a></p>
+<h1>Select with optgroups</h1>
+<p class="expected"><b>Expected:</b> The searchable menu shows group headings (Europe / Asia / … and the time-zone groups)
+as non-selectable section labels. Searching "paris" finds the option inside its group; searching a group name
+("Americas") may show that group's items. A whole <code>&lt;optgroup disabled&gt;</code> ("Retired") must be
+unselectable. The initially <code>selected</code> option should be highlighted when the menu opens.</p>
+
+<form class="card" method="post" action="/submit/select-optgroups">
+  <div class="row"><label for="city">Nearest office</label>
+    <select id="city" name="office">
+      <optgroup label="Europe">
+        <option value="ams">Amsterdam</option><option value="ber">Berlin</option><option value="lon">London</option>
+        <option value="par">Paris</option><option value="zrh">Zürich</option>
+      </optgroup>
+      <optgroup label="Americas">
+        <option value="nyc">New York</option><option value="sfo" selected>San Francisco</option><option value="sao">São Paulo</option>
+        <option value="yyz">Toronto</option>
+      </optgroup>
+      <optgroup label="Asia-Pacific">
+        <option value="sin">Singapore</option><option value="syd">Sydney</option><option value="tyo">Tokyo</option>
+      </optgroup>
+      <optgroup label="Retired" disabled>
+        <option value="old1">Atlantis</option><option value="old2">Pompeii</option>
+      </optgroup>
+    </select></div>
+  <div class="row"><label for="tz">Time zone</label>
+    <select id="tz" name="timezone">
+      <option value="">— choose —</option>
+      <optgroup label="UTC−08:00"><option>America/Los_Angeles</option><option>America/Tijuana</option><option>America/Vancouver</option></optgroup>
+      <optgroup label="UTC−05:00"><option>America/New_York</option><option>America/Toronto</option><option>America/Bogota</option></optgroup>
+      <optgroup label="UTC±00:00"><option>Europe/London</option><option>Europe/Lisbon</option><option>Africa/Abidjan</option></optgroup>
+      <optgroup label="UTC+01:00"><option>Europe/Berlin</option><option>Europe/Paris</option><option>Africa/Lagos</option></optgroup>
+      <optgroup label="UTC+09:00"><option>Asia/Tokyo</option><option>Asia/Seoul</option></optgroup>
+    </select></div>
+  <button class="primary" type="submit">Submit</button>
+</form>
+</main>
+<script src="playground.js"></script>
+</body></html>
