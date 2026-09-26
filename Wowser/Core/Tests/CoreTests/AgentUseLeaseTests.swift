@@ -34,8 +34,12 @@ final class AgentUseLeaseTests: XCTestCase {
         XCTAssertTrue(state.touchAgentUse(paneID: id, now: now, lease: 3600, slack: 600))
         XCTAssertEqual(until(state, id), now.addingTimeInterval(3600))
 
-        // Five minutes later the lease still has > 50 min left → no rewrite.
-        XCTAssertFalse(state.touchAgentUse(paneID: id, now: now.addingTimeInterval(300), lease: 3600, slack: 600))
+        // Five minutes later the lease still has > 50 min left → not extended,
+        // but the touch itself is recorded (at most every agentUseTouchSlack)…
+        XCTAssertTrue(state.touchAgentUse(paneID: id, now: now.addingTimeInterval(300), lease: 3600, slack: 600))
+        XCTAssertEqual(until(state, id), now.addingTimeInterval(3600))
+        // …and a second touch right after is a no-op.
+        XCTAssertFalse(state.touchAgentUse(paneID: id, now: now.addingTimeInterval(310), lease: 3600, slack: 600))
         XCTAssertEqual(until(state, id), now.addingTimeInterval(3600))
 
         // Fifteen minutes in, under the slack threshold → renewed from now.

@@ -249,19 +249,41 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
             let captured = allowlisted && rootTrusted
             FileHandle.standardError.write(Data("LocalProxy CONNECT \(host):\(port) -> allowlisted=\(allowlisted) rootTrusted=\(rootTrusted) mitm=\(captured)\n".utf8))
             ctx.eventLoop.execute {
-                let head = HTTPResponseHead(version: state.head.version, status: .ok)
-                ctx.write(self.wrapOutboundOut(.head(head)), promise: nil)
-                let okPromise = ctx.eventLoop.makePromise(of: Void.self)
-                ctx.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: okPromise)
-                okPromise.futureResult.whenComplete { _ in
-                    if captured {
+                if captured {
+                    self.respondConnectOK(context: ctx, version: state.head.version) {
                         self.startMITM(context: ctx, host: host, port: port)
-                    } else {
-                        self.startBlindTunnel(context: ctx, host: host, port: port)
                     }
+                } else {
+                    self.startBlindTunnel(context: ctx, host: host, port: port, version: state.head.version)
                 }
             }
         }
+    }
+
+    /// Sends `200 Connection Established`, then runs `swap` in the write's
+    /// completion — on the event loop, before any further client bytes are
+    /// read, so the client's TLS ClientHello can never reach the HTTP decoder.
+    private func respondConnectOK(context: ChannelHandlerContext, version: HTTPVersion, then swap: @escaping () -> Void) {
+        let head = HTTPResponseHead(version: version, status: .ok)
+        context.write(wrapOutboundOut(.head(head)), promise: nil)
+        let okPromise = context.eventLoop.makePromise(of: Void.self)
+        context.writeAndFlush(wrapOutboundOut(.end(nil)), promise: okPromise)
+        okPromise.futureResult.whenComplete { _ in swap() }
+    }
+
+    /// Removes everything `configureHTTPServerPipeline()` installed — encoder,
+    /// decoder, and NIO's `HTTPServerPipelineHandler`, protocol error handler
+    /// and response-headers validator (leaving any of those in place makes
+    /// raw TLS bytes trap on their typed `unwrapInboundIn`/`unwrapOutboundIn`)
+    /// — plus this handler. (The decoder leaves on the next loop tick; NIO
+    /// defers `ByteToMessageHandler` removal.)
+    private func removeHTTPServerHandlers(_ sync: ChannelPipeline.SynchronousOperations) throws {
+        try sync.removeHandler(context: sync.context(handlerType: HTTPResponseEncoder.self))
+        try sync.removeHandler(context: sync.context(handlerType: ByteToMessageHandler<HTTPRequestDecoder>.self))
+        if let c = try? sync.context(handlerType: HTTPServerPipelineHandler.self) { try sync.removeHandler(context: c) }
+        if let c = try? sync.context(handlerType: HTTPServerProtocolErrorHandler.self) { try sync.removeHandler(context: c) }
+        if let c = try? sync.context(handlerType: NIOHTTPResponseHeadersValidator.self) { try sync.removeHandler(context: c) }
+        try sync.removeHandler(self)
     }
 
     // MARK: - MITM path
@@ -279,53 +301,43 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
         let captureStore = self.captureStore
         let ca = self.ca
 
-        // Swap the pipeline atomically on the event loop. If we used the async
-        // futures form, decrypted TLS bytes from the client could race in
-        // *between* removal of the HTTP decoder and installation of NIOSSL,
-        // landing on `self` (which expects `HTTPServerRequestPart`) and
-        // crashing the channel. Doing it via `syncOperations` keeps the
-        // pipeline consistent for the duration of the swap.
-        clientChannel.eventLoop.execute {
-            let sync = clientChannel.pipeline.syncOperations
-            do {
-                let encoderCtx = try sync.context(handlerType: HTTPResponseEncoder.self)
-                try sync.removeHandler(context: encoderCtx)
-                let decoderCtx = try sync.context(handlerType: ByteToMessageHandler<HTTPRequestDecoder>.self)
-                try sync.removeHandler(context: decoderCtx)
-                try sync.removeHandler(self)
-                try sync.addHandler(serverHandler, position: .first)
-                // Re-install HTTP server pipeline *after* NIOSSL so it
-                // operates on the decrypted bytes.
-                try sync.configureHTTPServerPipeline()
-                try sync.addHandler(LocalProxyHTTPHandler(captureStore: captureStore, ca: ca, mitmHost: (host: host, port: port)))
-                FileHandle.standardError.write(Data("LocalProxy MITM swap done for \(host):\(port)\n".utf8))
-            } catch {
-                FileHandle.standardError.write(Data("LocalProxy MITM setup failed: \(error)\n".utf8))
-                clientChannel.close(promise: nil)
-            }
+        // Swap the pipeline synchronously, still inside the 200's write
+        // completion (see `respondConnectOK`): no client bytes can be read
+        // between removing the HTTP handlers and installing NIOSSL.
+        clientChannel.eventLoop.assertInEventLoop()
+        let sync = clientChannel.pipeline.syncOperations
+        do {
+            try removeHTTPServerHandlers(sync)
+            try sync.addHandler(serverHandler, position: .first)
+            // Re-install HTTP server pipeline *after* NIOSSL so it
+            // operates on the decrypted bytes.
+            try sync.configureHTTPServerPipeline()
+            try sync.addHandler(LocalProxyHTTPHandler(captureStore: captureStore, ca: ca, mitmHost: (host: host, port: port)))
+            FileHandle.standardError.write(Data("LocalProxy MITM swap done for \(host):\(port)\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("LocalProxy MITM setup failed: \(error)\n".utf8))
+            clientChannel.close(promise: nil)
         }
     }
 
     // MARK: - Blind tunnel (origins not in the capture allowlist)
 
-    private func startBlindTunnel(context: ChannelHandlerContext, host: String, port: Int) {
+    private func startBlindTunnel(context: ChannelHandlerContext, host: String, port: Int, version: HTTPVersion) {
         let clientChannel = context.channel
         let bootstrap = ClientBootstrap(group: clientChannel.eventLoop)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
 
+        // Connect upstream *before* answering 200: the client starts TLS as
+        // soon as it sees the 200, and those bytes must go to the tunnel.
         bootstrap.connect(host: host, port: port).whenComplete { result in
             switch result {
             case .failure:
                 self.sendError(context: context, status: .badGateway, message: "tunnel connect failed")
             case .success(let upstream):
-                clientChannel.eventLoop.execute {
+                self.respondConnectOK(context: context, version: version) {
                     let sync = clientChannel.pipeline.syncOperations
                     do {
-                        let encoderCtx = try sync.context(handlerType: HTTPResponseEncoder.self)
-                        try sync.removeHandler(context: encoderCtx)
-                        let decoderCtx = try sync.context(handlerType: ByteToMessageHandler<HTTPRequestDecoder>.self)
-                        try sync.removeHandler(context: decoderCtx)
-                        try sync.removeHandler(self)
+                        try self.removeHTTPServerHandlers(sync)
                         try sync.addHandler(TunnelHandler(peer: upstream))
                         try upstream.pipeline.syncOperations.addHandler(TunnelHandler(peer: clientChannel))
                     } catch {

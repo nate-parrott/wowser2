@@ -105,6 +105,12 @@ public final class LocalCA: @unchecked Sendable {
         return value
     }
 
+    /// Tests: pretend this CA's root is (or isn't) trusted by the system, so
+    /// the proxy's MITM path can be exercised with a throwaway CA.
+    func overrideRootTrustedForTesting(_ trusted: Bool) {
+        trustLock.lock(); rootTrustedCache = trusted; trustLock.unlock()
+    }
+
     private func computeRootTrusted() -> Bool {
         guard let leaf = try? leafSecCertificate(forHost: "wowser-capture-probe.invalid"),
               let rootSec = try? rootSecCertificate() else { return false }

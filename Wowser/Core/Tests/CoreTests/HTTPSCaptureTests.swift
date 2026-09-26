@@ -17,6 +17,9 @@ final class HTTPSCaptureTests: XCTestCase {
         try? FileManager.default.createDirectory(at: caDir, withIntermediateDirectories: true)
         let ca = LocalCA(keychainService: "com.wowser.test-ca-\(UUID().uuidString)")
         _ = try ca.ensureRoot()
+        // The proxy only MITMs when its root is system-trusted; this throwaway
+        // CA isn't, but the test client below trusts it explicitly.
+        ca.overrideRootTrustedForTesting(true)
 
         // 1. Spin up a local HTTPS origin. It uses a leaf cert signed by our
         //    test CA — the proxy's URLSession forwarder trusts that CA via
