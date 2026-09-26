@@ -1,4 +1,3 @@
-import ChatToys
 import SwiftUI
 
 public struct ArchiveItem: Identifiable, Codable, Equatable {
@@ -126,49 +125,7 @@ public class ArchiveStore: DataStore<ArchiveState> {
     }
     
     private func runAI(on item: ArchiveItem) async throws {
-        let prompt = """
-        Your job is to act as an archivist, helping to organize and tidy a user's web browser.
-        
-        I will give you a tab that they've bookmarked or archived, and your job is to expertly, consistently
-        determine the proper metadata for it to be filed away.
-        
-        You will respond in JSON (only json!) according to this exact format:
-        ```
-        {
-            "tidyTitle": string,
-            "category": string
-        }
-        ```
-        
-        # Tidy title
-        A short, "tidy" version of the page title, 1-5 words, with cruft and junk removed.
-        Remove the site title suffix, if it's not the only thing in the title.
-        Remove notification counters, but not emoji.
-        Remove SEO.
-        
-        Examples of full titles and what you might shorten them to:
-        "The New York Times: Breaking News, Sports, Stocks and More" -> "New York Times"
-        "PERKINS Space heater for small medium size apartment, radiator – Amazon" -> "PERKINS Space heater"
-        "The One That Got Away: a Fishing Odyssey" -> "The One That Got Away: a Fishing Odyssey"
-        "Amazon | Products and Services" -> "Amazon | Products and Services"
-        "(1) 🏡 House Hunting - Notion" -> "🏡 House Hunting"
-        
-        # Category
-        Assign the most specific category that is appropriate. You may ONLY use a category from this list:
-        \(ArchiveItem.Category.allCases.map({ "- \($0)" }).joined(separator: "\n"))
-        
-        # Here is information about the tab you will process:
-        - Title: \(item.title?.truncateTailWithEllipsis(chars: 500) ?? "")
-        - URL: \(item.url.absoluteString.truncateTailWithEllipsis(chars: 500))
-        
-        Below, write your JSON:
-        """
-        
-        struct Response: Codable {
-            var tidyTitle: String
-            var category: ArchiveItem.Category
-        }
-        let resp = try await LLMs.currentOrThrow(json: true).completeJSONObject(prompt: [LLMMessage(role: .user, content: prompt)], type: Response.self)
+        let resp = try await ArchiveTidyTask.run(title: item.title, url: item.url)
         print("[🤖 Archive classification] Finished:\n\(resp)")
         await self.modifyAsync { state in
             state.itemsByHistoryKey[item.historyKey]?.aiCategory = resp.category

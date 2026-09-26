@@ -234,55 +234,25 @@ private func aiAnswer(query: String, results: [WebSearchResult]) -> AsyncThrowin
     return AsyncThrowingStream { continuation in
         Task {
             do {
-                let context = try await WebContext.from(results: results, query: query, timeout: 3, resultCount: 6, charLimit: 10_000, urlMode: .truncate(200))
-                let sys = "The assistant is understanding a user's search query, reviewing Markdown webpage content from the top search results, and describing any information, if any, from the webpage is relevant to the user's query."
-                let prompt = """
-                Here is the user's search query: '\(query)'
-                Here is the Markdown content extracted from the first few results:
-                \(context.asXML)
-                
-                # YOUR TASK
-                Now, your task is to analyze the user's search query to determine what information they want. Then, look at the content (which may be incomplete, out-of-date, improperly parsed or irrelevant) and extracting any relevant details or facts.
-                Your job is not to answer the question. Your job is to describe the information you find that is relevant to the queation.
-                For every fact you state, describe WHERE it came from.
-                LEAD with the most relevant information to the user's question, then describe what the sources say in more detail.
-                Do not use the word 'Overview' or 'Conclusion.' Cut to the chase; specific facts first.
-                
-                # QUERY EXPANSION
-                You will be asked to expand the user's query into a RICHER query. It is this RICHER query that you should use as a guide when deciding which information to provide.
-                If the user's query is vague, or just the name of a thing, you should assume they want to learn the most likely facts about this thing.
-                
-                Examples of query expansions:
-                "the bear hulu" -> "Tell me about the premise, availability to stream, airing time and critical reception of the show The Bear on Hulu."
-                "iphone 6s release date" -> "Tell me when the iPhone 6s will be released."
-                "weather": -> "Tell me the weather forecast."
-                "apple inc" -> "Tell me the latest news, company details, products, and key metrics for Apple Inc."
-                "swift string to markdown" -> "Provide commented code samples for converting a string to Markdown in Swift."
-                
-                # RESPONSE FORMAT
-                Respond in JSON in this exact format:
-                
-                ```
-                {
-                    "expanded_query": string,
-                    "markdown": string // 2-3 paragraphs of text, with headers and bullets if appropriate.
-                }
-                ```
-                
-                Your markdown should include citations like this:
-                "This is a fact [(en.wikipedia.org)](https://source.com)."
+                // The on-device model has a ~4K-token window.
+                let small = MicroAI.backend(for: .searchAnswer) == .onDevice
+                let context = try await WebContext.from(results: results, query: query, timeout: 3, resultCount: small ? 4 : 6, charLimit: small ? 4_000 : 10_000, urlMode: .truncate(200))
+                let sys = """
+                You read the top web search results for a user's query and describe the information in them that is relevant to it.
+                First work out what the user most likely wants: a vague query or a bare name usually means "the most likely facts about this thing" (e.g. "the bear hulu" → premise, where to stream, reception; "iphone 6s release date" → the date; "apple inc" → latest news, company details, products).
+                Lead with the most relevant specific facts, then what the sources say in more detail. Don't answer from your own knowledge; describe what the sources say, and cite where every fact came from, like: "This is a fact [(en.wikipedia.org)](https://source.com)."
+                Write 2-3 paragraphs of Markdown, with headers and bullets if useful. Don't use the words "Overview" or "Conclusion". Output only the Markdown.
                 """
-                
-                struct Response: Codable {
-                    var expanded_query: String // dont rlly care abt this; just for the model
-                    var markdown: String
-                }
-                
+                let prompt = """
+                Search query: '\(query)'
+
+                Markdown content extracted from the first few results (may be incomplete, out of date, or irrelevant):
+                \(context.asXML)
+                """
+
                 let parser = MarkdownParser()
-                let llm = try LLMs.currentOrThrow(json: true)
-                for try await partial in llm.completeStreamingWithJSONObject(prompt: [LLMMessage(role: .system, content: sys), LLMMessage(role: .user, content: prompt)], type: Response.self, completeLinesOnly: false) {
-                    let html = parser.html(from: partial.markdown)
-                    continuation.yield(html)
+                for try await markdown in MicroAI.streamText(.searchAnswer, MicroAIPrompt(instructions: sys, input: prompt)) {
+                    continuation.yield(parser.html(from: markdown))
                 }
                 continuation.finish()
             } catch {

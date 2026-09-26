@@ -1,5 +1,4 @@
 import Foundation
-import ChatToys
 
 // Links handed to us by other apps open in the current space right away, then
 // an LLM picks the space they fit best (by space names, open tabs, and each
@@ -60,7 +59,7 @@ extension BrowserStore {
               DefaultsKeys.sortExternalLinksIntoSpaces.boolValue(defaultValue: true),
               url.scheme?.hasPrefix("http") == true,
               model.visibleProfiles.count > 1,
-              LLMs.current(json: true) != nil
+              MicroAI.isAvailable(.linkSpace)
         else { return }
 
         modify { state in
@@ -82,45 +81,19 @@ extension BrowserStore {
         }
     }
 
-    /// The space the LLM thinks `url` belongs in, or nil to leave it put.
+    /// The space the model thinks `url` belongs in, or nil to leave it put.
     private func classifySpace(for url: URL, windowID: ID<WindowState>) async throws -> ID<Profile>? {
         let (spaces, currentID) = await readAsync { state in
             (state.spacesForClassification(windowID: windowID), state.windows[windowID]?.profile)
         }
         guard spaces.count > 1 else { return nil }
-        let currentIdx = spaces.firstIndex(where: { $0.id == currentID }).map { $0 + 1 }
-
-        var lines = [String]()
-        lines.append("A link was just opened from another app. Pick the browser space (workspace) it belongs in.")
-        lines.append("")
-        lines.append("Link: \(url.absoluteString)")
-        lines.append("")
-        lines.append("Spaces:")
-        for (i, space) in spaces.enumerated() {
-            lines.append("\(i + 1). \"\(space.name)\"" + (i + 1 == currentIdx ? " (current space)" : ""))
-            if !space.recentDomains.isEmpty {
-                lines.append("   Recently visited: " + space.recentDomains.joined(separator: ", "))
-            }
-            if !space.openTabs.isEmpty {
-                lines.append("   Open tabs:")
-                for tab in space.openTabs { lines.append("     - \(tab)") }
-            }
-        }
-        lines.append("")
-        lines.append("Choose the space whose name, recent sites, or open tabs best match this link's domain and likely topic. Only leave the current space if another space is a clearly better fit; when unsure, keep the current space.")
-        lines.append("Respond with JSON: {\"space\": <number>, \"reason\": \"<short>\"}")
-
-        struct Response: Codable {
-            var space: Int
-            var reason: String?
-        }
-        let resp = try await LLMs.currentOrThrow(json: true).completeJSONObject(
-            prompt: [LLMMessage(role: .user, content: lines.joined(separator: "\n"))],
-            type: Response.self
+        let (index, reason) = try await LinkSpaceTask.run(
+            url: url,
+            spaces: spaces.map { .init(name: $0.name, recentDomains: $0.recentDomains, openTabs: $0.openTabs) },
+            currentIndex: spaces.firstIndex(where: { $0.id == currentID })
         )
-        print("[🗂️ External link] \(url.hostWithoutWWW) → space \(resp.space): \(resp.reason ?? "")")
-        guard spaces.indices.contains(resp.space - 1) else { return nil }
-        return spaces[resp.space - 1].id
+        print("[🗂️ External link] \(url.hostWithoutWWW) → \(index.map { spaces[$0].name } ?? "nil"): \(reason)")
+        return index.map { spaces[$0].id }
     }
 
     /// Move the tab to `profileID`. If the user is still looking at it, the

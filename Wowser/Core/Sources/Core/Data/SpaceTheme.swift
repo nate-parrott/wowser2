@@ -1,5 +1,4 @@
 import SwiftUI
-import ChatToys
 
 /// Auto-generated visual identity for a space (profile), derived from its
 /// title. Stores hues only — saturation/brightness/opacity are fixed at render
@@ -147,35 +146,9 @@ extension BrowserStore {
     }
 
     private static func generateEmojiAndPalette(forTitle title: String) async -> (emoji: String?, palette: SpacePalette) {
-        struct Response: Codable {
-            var emoji: String
-            var color: String
-        }
-        let colorNames = SpacePalette.allCases.map(\.rawValue).joined(separator: ", ")
-        let prompt = """
-        A browser workspace ("space") is named "\(title)".
-        Pick a visual identity for it:
-        1. A single emoji that best represents the name. Prefer objects, places and symbols over faces.
-        2. The best-fitting color, chosen ONLY from this list: \(colorNames)
-
-        Respond in JSON only, in this exact format:
-        {"emoji": "🌵", "color": "green"}
-        """
         do {
-            let resp = try await LLMs.currentOrThrow(json: true).completeJSONObject(
-                prompt: [LLMMessage(role: .user, content: prompt)],
-                type: Response.self
-            )
-            let palette = SpacePalette(rawValue: resp.color.lowercased().trimmingCharacters(in: .whitespaces))
-                ?? .fallback(forTitle: title)
-            // Guardrail: keep only the first grapheme and make sure it's
-            // actually emoji-presenting, not a letter or word.
-            let emoji: String? = resp.emoji.first.flatMap { char in
-                char.unicodeScalars.first?.properties.isEmojiPresentation == true
-                    || char.unicodeScalars.contains(where: { $0.properties.isEmojiModifierBase || $0.value == 0xFE0F })
-                    ? String(char) : nil
-            }
-            return (emoji, palette)
+            let (emoji, palette) = try await SpaceIconTask.run(title: title)
+            return (emoji, palette ?? .fallback(forTitle: title))
         } catch {
             print("[SpaceTheme] generation failed (\(error)); using fallback palette")
             return (nil, .fallback(forTitle: title))
