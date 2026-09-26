@@ -37,8 +37,9 @@ public final class AutofillStore: DataStore<AutofillState> {
 
     /// The space/profile that owns a webview, by its website data store.
     /// (Ghost/agent tabs have no window, so this beats window lookup.)
+    /// Spaces that share a data store share autofill, kept under one owner.
     public func profileID(forDatastoreUUID uuid: UUID) -> ID<Profile>? {
-        BrowserStore.shared.model.profiles.values.first { $0.dataStoreUUID == uuid }?.id
+        BrowserStore.shared.model.autofillOwner(ofDataStore: uuid)
     }
 
     /// The profile shown in the most recently active window.
@@ -224,5 +225,17 @@ public extension ToastAction.Kind {
         case .autofillNeverRemember(let profile, let domain, let ids):
             AutofillStore.shared.neverRemember(domain: domain, forgetting: ids, profile: profile)
         }
+    }
+}
+
+extension BrowserState {
+    /// The profile whose autofill data a website data store uses: the
+    /// earliest-created space with that store (spaces "sharing logins" share
+    /// one). Deterministic, unlike dictionary order.
+    func autofillOwner(ofDataStore uuid: UUID) -> ID<Profile>? {
+        profiles.values
+            .filter { $0.dataStoreUUID == uuid }
+            .min { ($0.creationOrder, $0.id.raw) < ($1.creationOrder, $1.id.raw) }?
+            .id
     }
 }

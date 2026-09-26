@@ -12,6 +12,7 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
     private var bookmarksMenu: NSMenu! { bookmarksMenuItem.submenu }
     
     static private(set) var shared: ArchiveMenuManager?
+    static let bookmarksMenuLimit = 200
     
     public init(bookmarksMenuItem: NSMenuItem, openURL: @escaping (URL) -> Void) {
         self.oldTabsMenu = NSMenu(title: "Old Tabs")
@@ -101,9 +102,11 @@ public class ArchiveMenuManager: NSObject, NSMenuDelegate {
     private func populateBookmarksMenu() async {
         let state = await ArchiveStore.shared.readAsync()
         // Get all bookmark items
+        // Most recent only: imports can bring in thousands.
         let bookmarks = state.itemsByHistoryKey.values
             .filter { $0.kind == .bookmark }
             .sorted { $0.added > $1.added }
+            .prefix(Self.bookmarksMenuLimit)
         if bookmarks.isEmpty {
             let emptyItem = NSMenuItem(title: "No Bookmarks", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false

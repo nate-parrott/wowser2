@@ -37,9 +37,9 @@ public enum AutofillKeychain {
 
     /// Runs `op` against the data-protection keychain, retrying against the
     /// legacy keychain when the entitlement is missing.
-    private static func withKeychainVariants(_ op: (Bool) -> OSStatus) -> OSStatus {
+    private static func withKeychainVariants(retryOnNotFound: Bool = false, _ op: (Bool) -> OSStatus) -> OSStatus {
         let status = op(true)
-        if status == missingEntitlement { return op(false) }
+        if status == missingEntitlement || (retryOnNotFound && status == errSecItemNotFound) { return op(false) }
         return status
     }
 
@@ -68,7 +68,10 @@ public enum AutofillKeychain {
 
     public static func password(credentialID: UUID, profile: ID<Profile>) throws -> String? {
         var found: Data?
-        let status = withKeychainVariants { dp in
+        // Look in both keychains: without the entitlement, a data-protection
+        // *query* can report "not found" (rather than -34018) even though the
+        // earlier write fell back to the legacy keychain.
+        let status = withKeychainVariants(retryOnNotFound: true) { dp in
             var query = baseQuery(profile: profile, credentialID: credentialID, dataProtection: dp)
             query[kSecReturnData as String] = true
             query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -83,8 +86,9 @@ public enum AutofillKeychain {
     }
 
     public static func deletePassword(credentialID: UUID, profile: ID<Profile>) {
-        _ = withKeychainVariants { dp in
-            SecItemDelete(baseQuery(profile: profile, credentialID: credentialID, dataProtection: dp) as CFDictionary)
+        // Both keychains, for the same reason as `password(credentialID:profile:)`.
+        for dp in [true, false] {
+            _ = SecItemDelete(baseQuery(profile: profile, credentialID: credentialID, dataProtection: dp) as CFDictionary)
         }
     }
     #else

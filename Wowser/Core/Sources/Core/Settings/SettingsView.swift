@@ -162,6 +162,9 @@ struct ProfilesSettings: View {
         // Must put form WITHIN WithSnapshotMain; cannot put WithSnapshotMain within Form
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { HiddenProfilesSnapshot(state: $0) }) { snapshot in
             Form {
+                #if os(macOS)
+                ImportSettingsSection()
+                #endif
                 Section("Hidden Profiles") {
                     if snapshot.profiles.isEmpty {
                         Text("No hidden profiles. Right-click a profile dot in the sidebar to hide one.")

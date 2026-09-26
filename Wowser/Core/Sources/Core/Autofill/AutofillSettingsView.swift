@@ -54,7 +54,7 @@ struct AutofillSettingsView: View {
     }
 }
 
-private struct AutofillProfilesSnapshot: Equatable {
+struct AutofillProfilesSnapshot: Equatable {
     struct Entry: Equatable {
         var id: ID<Profile>
         var displayName: String
