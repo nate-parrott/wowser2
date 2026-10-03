@@ -70,8 +70,11 @@ struct WindowSnapshot: Equatable {
         self.sidebarLocked = window.sidebarLocked
         self.tabId = window.currentTab
         self.profileID = window.profile
-        self.theme = state.profiles[window.profile]?.theme
-        self.imageInfo = state.profiles[window.profile]?.imageInfo
+        // On the sidebar's "new profile" page, don't wear the last space's look.
+        if window.showingNewProfilePage != true {
+            self.theme = state.profiles[window.profile]?.theme
+            self.imageInfo = state.profiles[window.profile]?.imageInfo
+        }
         self.swipeGestureOffset = window.swipeGestureOffset
         self.hasToast = window.currentToast != nil
         let focusSnap = state.focusState(windowID: id)

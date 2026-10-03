@@ -89,6 +89,22 @@ public extension Notification.Name {
     /// Posted (on main) to ask the app to open the Settings window. `userInfo[SettingsTab.userInfoKey]`
     /// may carry a `SettingsTab` to select.
     static let showSettings = Notification.Name("wowser.showSettings")
+    /// Posted (on main) to ask the app to bring a browser window to the front.
+    /// `userInfo[bringBrowserWindowToFrontIDKey]` is the window's `ID<WindowState>`.
+    static let bringBrowserWindowToFront = Notification.Name("wowser.bringBrowserWindowToFront")
+}
+
+public let bringBrowserWindowToFrontIDKey = "windowID"
+
+extension BrowserStore {
+    /// Settings' "New Profile…": shows the sidebar's new-profile page in the
+    /// active window (or a new one) and brings that window forward.
+    public func showNewProfilePage() {
+        var windowID: ID<WindowState>?
+        modify { windowID = $0.showNewProfilePage() }
+        guard let windowID else { return }
+        NotificationCenter.default.post(name: .bringBrowserWindowToFront, object: nil, userInfo: [bringBrowserWindowToFrontIDKey: windowID])
+    }
 }
 
 public extension SettingsTab {

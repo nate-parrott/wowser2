@@ -3,9 +3,9 @@ import Combine
 
 // MARK: - Settings
 
-/// Autofill's on/off switches. All default ON; the settings pane writes the
-/// same keys via @AppStorage. (`DefaultsKeys.boolValue` ignores its default
-/// argument, so "unset means on" is decided here.)
+/// Autofill's on/off switches. Default ON unless noted; the settings panes
+/// write the same keys via @AppStorage. (`DefaultsKeys.boolValue` ignores its
+/// default argument, so "unset means on" is decided here.)
 public enum AutofillSettings {
     private static func flag(_ key: DefaultsKeys) -> Bool {
         (UserDefaults.standard.object(forKey: key.rawValue) as? Bool) ?? true
@@ -16,7 +16,8 @@ public enum AutofillSettings {
     /// Remember what the user submits in forms (logins, name, address…).
     public static var remembersForms: Bool { isEnabled && flag(.autofillRememberForms) }
     /// Replace the native `<select>` popup with the searchable menu.
-    public static var searchableSelects: Bool { flag(.autofillSearchableSelects) }
+    /// Experimental, default OFF (Settings → Experimental).
+    public static var searchableSelects: Bool { DefaultsKeys.autofillSearchableSelects.boolValue() }
     /// Put name / email / address in agents' system prompts.
     public static var sharesIdentityWithAgents: Bool { isEnabled && flag(.autofillShareWithAgents) }
     /// Let agents type a saved password into a password field via BrowserJS.

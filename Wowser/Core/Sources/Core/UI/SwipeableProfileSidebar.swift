@@ -12,7 +12,8 @@ public struct SidebarSwipeView: View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
             SidebarSwipeSnapshot(
                 profileIDs: state.visibleProfiles.map(\.id),
-                currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0")
+                currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0"),
+                showingNewProfilePage: state.windows[windowID]?.showingNewProfilePage == true
             )
         } main: { snapshot in
             SidebarSwipeContent(
@@ -28,6 +29,7 @@ private struct SidebarSwipeSnapshot: Equatable {
     /// Visible profiles in carousel order.
     let profileIDs: [ID<Profile>]
     let currentProfileID: ID<Profile>
+    let showingNewProfilePage: Bool
 }
 
 private struct SidebarSwipeContent: View {
@@ -51,7 +53,7 @@ private struct SidebarSwipeContent: View {
                     
                     NewProfileView(windowID: windowID)
                         .frame(width: width)
-                        .id("new-profile")
+                        .id(Self.newProfilePageID)
                 }
             }
             .scrollTargetLayout()
@@ -60,12 +62,25 @@ private struct SidebarSwipeContent: View {
             .scrollPosition(id: $selectedProfileID)
             .onAppear {
                 // Initialize the selectedProfileID to the current profile when view appears
-                selectedProfileID = snapshot.currentProfileID.raw
+                selectedProfileID = snapshot.showingNewProfilePage ? Self.newProfilePageID : snapshot.currentProfileID.raw
             }
             .onChange(of: selectedProfileID) { oldValue, newValue in
-                if let idString = newValue, idString != "new-profile", idString != snapshot.currentProfileID.raw {
+                if newValue == Self.newProfilePageID {
+                    if !snapshot.showingNewProfilePage { setShowingNewProfilePage(true) }
+                } else if let idString = newValue, idString != snapshot.currentProfileID.raw {
                     // When user swipes to a different profile, update the current profile
                     switchToProfile(ID<Profile>(raw: idString))
+                } else if snapshot.showingNewProfilePage {
+                    setShowingNewProfilePage(false)
+                }
+            }
+            .onChange(of: snapshot.showingNewProfilePage) { _, showing in
+                // Something else (a paging dot, Settings' "New Profile…") moved
+                // on or off the new-profile page.
+                if showing, selectedProfileID != Self.newProfilePageID {
+                    selectedProfileID = Self.newProfilePageID
+                } else if !showing, selectedProfileID == Self.newProfilePageID {
+                    selectedProfileID = snapshot.currentProfileID.raw
                 }
             }
             .onChange(of: snapshot.currentProfileID) { oldValue, newValue in
@@ -77,7 +92,7 @@ private struct SidebarSwipeContent: View {
             .measureSize({ width = $0.width })
             
             // Add the paging dots below the carousel
-            if snapshot.profileIDs.count > 1 {
+            if snapshot.profileIDs.count > 1 || snapshot.showingNewProfilePage {
                 ProfilePagingDots(windowID: windowID)
                     .padding(.top, 4)
                     .padding(.bottom, 8)
@@ -85,9 +100,18 @@ private struct SidebarSwipeContent: View {
         }
     }
     
+    private static let newProfilePageID = "new-profile"
+
     private func switchToProfile(_ profileID: ID<Profile>) {
         BrowserStore.shared.modify { state in
             state.windows[windowID]?.profile = profileID
+            state.windows[windowID]?.showingNewProfilePage = nil
+        }
+    }
+
+    private func setShowingNewProfilePage(_ showing: Bool) {
+        BrowserStore.shared.modify { state in
+            state.windows[windowID]?.showingNewProfilePage = showing ? true : nil
         }
     }
 }
@@ -255,46 +279,23 @@ private struct NewProfileSnapshot: Equatable {
     struct Entry: Equatable {
         var id: ID<Profile>
         var displayName: String
-        var dataStoreUUID: UUID
     }
-    /// Visible profiles in creation order.
-    var profiles: [Entry]
+    /// See `BrowserState.loginGroups`.
+    var loginGroups: [[Entry]]
+    var lastProfileID: ID<Profile>?
 
     init(state: BrowserState) {
-        profiles = state.visibleProfiles.map { profile in
-            Entry(
-                id: profile.id,
-                displayName: profile.title ?? profile.autoTitle ?? profile.emoji ?? "Profile \(profile.creationOrder + 1)",
-                dataStoreUUID: profile.dataStoreUUID
-            )
+        loginGroups = state.loginGroups.map { group in
+            group.map { Entry(id: $0.id, displayName: $0.displayName) }
         }
+        lastProfileID = state.visibleProfiles.last?.id
     }
 
-    var lastProfile: Entry? { profiles.last }
-
-    func contains(_ id: ID<Profile>) -> Bool { profiles.contains(where: { $0.id == id }) }
-
-    // Profiles grouped by the data store they share (i.e. profiles that already
-    // share logins). Each group is ordered by creation; groups are ordered by
-    // their earliest-created member.
-    var loginGroups: [[Entry]] {
-        var groups = [[Entry]]()
-        var indexByStore = [UUID: Int]()
-        for profile in profiles {
-            if let i = indexByStore[profile.dataStoreUUID] {
-                groups[i].append(profile)
-            } else {
-                indexByStore[profile.dataStoreUUID] = groups.count
-                groups.append([profile])
-            }
-        }
-        return groups
-    }
+    func contains(_ id: ID<Profile>) -> Bool { loginGroup(for: id) != nil }
 
     // The group of profiles that share logins with the given profile.
     func loginGroup(for id: ID<Profile>) -> [Entry]? {
-        guard let dataStoreUUID = profiles.first(where: { $0.id == id })?.dataStoreUUID else { return nil }
-        return loginGroups.first(where: { $0.contains(where: { $0.dataStoreUUID == dataStoreUUID }) })
+        loginGroups.first(where: { $0.contains(where: { $0.id == id }) })
     }
 }
 
@@ -321,36 +322,45 @@ private struct NewProfileContent: View {
     }
 
     private var defaultChoice: NewProfileSharingChoice {
-        if let last = snapshot.lastProfile {
-            return .shareLogins(last.id)
+        if let lastProfileID = snapshot.lastProfileID {
+            return .shareLogins(lastProfileID)
         }
         return .isolated
     }
 
     var body: some View {
         VStack(spacing: 12) {
-            Spacer()
-            
-            Button(action: createNewProfile) {
-                Text("New Profile")
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 12) {
+                HStack {
+                    Text("New Profile")
+                        .font(.headline)
+                    Spacer()
+                }
+                
+                Divider()
+                    .padding(.horizontal, -16)
+                
+                profileSharingMenu
+                
+                Button(action: createNewProfile) {
+                    Text("New Profile")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
             }
-            .buttonStyle(.glassProminent)
+            .padding(12)
+            .background {
+                RecessedSidebarShape(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
             
-            profileSharingMenu
-            
-//            .opacity(0.5)
-//            .fixedSize(horizontal: false, vertical: true)
-
-
             #if os(macOS)
-            Divider()
-            
-            Button("From Folder…", action: createProfileFromFolder)
-                .buttonStyle(.glass)
+            Button(action: createProfileFromFolder) {
+                Text("From Folder…")
+                    .padding(4)
+            }
+            .buttonStyle(GhostButtonStyle())
+
             #endif
-            
-            Spacer()
         }
         .padding()
     }
@@ -413,6 +423,7 @@ private struct NewProfileContent: View {
             }
             let newProfileId = state.createNewProfile(sharingLoginsWith: sourceID)
             state.windows[windowID]?.profile = newProfileId
+            state.windows[windowID]?.showingNewProfilePage = nil
         }
     }
 
@@ -432,6 +443,7 @@ private struct NewProfileContent: View {
             BrowserStore.shared.modify { state in
                 let newProfileId = state.createNewProfile(forFolderPath: path, sharingLoginsWith: sourceID)
                 state.windows[windowID]?.profile = newProfileId
+                state.windows[windowID]?.showingNewProfilePage = nil
             }
         }
     }

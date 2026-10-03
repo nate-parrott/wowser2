@@ -197,6 +197,7 @@ struct FieldDropdownFilterHeader: View {
             Rectangle()
                 .fill(Color.accentColor)
                 .frame(width: 1.5, height: 15)
+                .padding(.leading, -7)
             Spacer(minLength: 0)
             if let count {
                 Text("\(count)")
@@ -251,7 +252,8 @@ private struct CompactKeyLabelStyle: LabelStyle {
             configuration.icon
                 .padding(.horizontal, 3)
                 .padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.primary.opacity(0.08)))
+//                .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.primary.opacity(0.08)))
+            
             configuration.title
         }
     }
@@ -271,7 +273,7 @@ struct FieldDropdownSuggestionList: View {
     var items: [Item]
     var highlighted: Int
     var hints: [FieldDropdownKeyHint] = [.choose, .fill, .hide]
-    var trailingSystemImage: String? = "lock.fill"
+    var trailingSystemImage: String? = nil
     var onHover: (Int) -> Void = { _ in }
     var onChoose: (Int) -> Void = { _ in }
 
@@ -354,6 +356,22 @@ struct FieldDropdownOptionList: View {
     static func estimatedHeight(rows: Int) -> CGFloat { CGFloat(max(1, min(rows, 9))) * rowHeight + 52 }
 }
 
+private struct DictationIcon: View {
+    var listening: Bool
+    
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    var body: some View {
+        let darkMode = colorScheme == .dark
+        Image(systemName: "mic.fill")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(listening ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
+            .frame(width: 20)
+            .brightness(listening && darkMode ? 0.3 : 0)
+            .shadow(color: Color.red.opacity(listening ? (darkMode ? 1 : 0.5) : 0), radius: 4, x: 0, y: 0)
+//            .padding(.top, 1)
+    }
+}
+
 /// Live dictation: mic + running transcript + key hints.
 struct FieldDropdownDictation: View {
     var transcript: String
@@ -364,10 +382,11 @@ struct FieldDropdownDictation: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(phase == .listening ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
-                    .frame(width: 20)
+//                Image(systemName: "mic.fill")
+//                    .font(.system(size: 13, weight: .semibold))
+//                    .foregroundStyle(phase == .listening ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
+//                    .frame(width: 20)
+                DictationIcon(listening: phase == .listening)
                     .padding(.top, 1)
                 Text(displayText)
                     .font(.system(size: 13))
@@ -395,5 +414,23 @@ struct FieldDropdownDictation: View {
     }
 
     static let estimatedHeight: CGFloat = 76
+}
+
+// Every component at once; more states (with a mock field) live in FieldDropdownPreviews.swift.
+#Preview("Gallery") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+            FieldDropdownSuggestionList(items: FieldDropdownSamples.logins, highlighted: 0)
+            FieldDropdownSuggestionList(items: FieldDropdownSamples.identity, highlighted: 2, trailingSystemImage: nil)
+            FieldDropdownOptionList(filter: "an", options: FieldDropdownSamples.countries.filter { $0.label.lowercased().contains("an") }, highlighted: 1, selectedID: 3, maxListHeight: 180)
+            FieldDropdownDictation(transcript: "", phase: .starting)
+            FieldDropdownDictation(transcript: "Remind me to call the bank tomorrow", phase: .listening)
+            FieldDropdownDictation(transcript: "Remind me to call the bank tomorrow", phase: .committing)
+        }
+        .frame(width: 340)
+        .padding(24)
+    }
+    .frame(height: 700)
+    .background(LinearGradient(colors: [.blue.opacity(0.25), .purple.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing))
 }
 #endif

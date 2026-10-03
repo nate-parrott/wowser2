@@ -156,8 +156,25 @@ public struct SettingsView: View {
 }
 
 struct ExperimentalSettings: View {
+    @AppStorage(DefaultsKeys.autofillSearchableSelects.rawValue) private var searchableSelects = false
+
     var body: some View {
         Form {
+            Section("Features") {
+                Toggle("Searchable dropdown menus", isOn: $searchableSelects)
+                    .help("Replaces the native <select> popup on pages with a menu you can type into to filter options.")
+            }
+
+            #if os(macOS)
+            Section {
+                NetworkProxyKillSwitchSection()
+            }
+
+            Section {
+                HTTPSCaptureSettingsSection()
+            }
+            #endif
+
             Section("Debug") {
                 Button(action: { BrowserStore.shared.model.clearAllAITags() }) {
                     Text("Clear AI tags")
@@ -177,47 +194,79 @@ struct ExperimentalSettings: View {
 struct ProfilesSettings: View {
     var body: some View {
         // Must put form WITHIN WithSnapshotMain; cannot put WithSnapshotMain within Form
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { HiddenProfilesSnapshot(state: $0) }) { snapshot in
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { ProfilesSettingsSnapshot(state: $0) }) { snapshot in
             Form {
-                #if os(macOS)
-                ImportSettingsSection()
-                #endif
-                Section("Hidden Profiles") {
-                    if snapshot.profiles.isEmpty {
-                        Text("No hidden profiles. Right-click a profile dot in the sidebar to hide one.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(snapshot.profiles, id: \.id.raw) { profile in
-                            HStack {
-                                Text(profile.displayName)
-                                Spacer()
-                                Button("Restore") {
-                                    BrowserStore.shared.modify { $0.unhideProfile(profile.id) }
-                                }
-                            }
+                Section {
+                    Button("New Profile…") { BrowserStore.shared.showNewProfilePage() }
+                } header: {
+                    Text("Profiles")
+                } footer: {
+                    Text("Profiles grouped together share logins, passwords and autofill. Hidden profiles keep their tabs but don't appear in the sidebar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(snapshot.loginGroups, id: \.first?.id.raw) { group in
+                    Section(group.count > 1 ? "Shared logins" : "") {
+                        ForEach(group, id: \.id.raw) { entry in
+                            ProfileSettingsRow(entry: entry)
                         }
                     }
                 }
+                #if os(macOS)
+                ImportSettingsSection()
+                #endif
             }
         }
     }
 }
 
-private struct HiddenProfilesSnapshot: Equatable {
+private struct ProfilesSettingsSnapshot: Equatable {
     struct Entry: Equatable {
         var id: ID<Profile>
         var displayName: String
+        var visible: Bool
+        /// False for the last visible profile: we never hide down to zero.
+        var canToggle: Bool
     }
-    var profiles: [Entry]
+    /// See `BrowserState.allLoginGroups`.
+    var loginGroups: [[Entry]]
 
     init(state: BrowserState) {
-        profiles = state.hiddenProfiles.map { profile in
-            let name = profile.title?.nilIfEmpty ?? profile.autoTitle?.nilIfEmpty ?? "Space \(profile.creationOrder + 1)"
-            if let emoji = profile.emoji?.nilIfEmpty {
-                return Entry(id: profile.id, displayName: "\(emoji) \(name)")
+        loginGroups = state.allLoginGroups.map { group in
+            group.map { profile in
+                Entry(
+                    id: profile.id,
+                    displayName: (profile.emoji?.nilIfEmpty.map { "\($0) " } ?? "") + profile.displayName,
+                    visible: !profile.isHidden,
+                    canToggle: profile.isHidden || state.canHideProfile(profile.id)
+                )
             }
-            return Entry(id: profile.id, displayName: name)
+        }
+    }
+}
+
+private struct ProfileSettingsRow: View {
+    var entry: ProfilesSettingsSnapshot.Entry
+
+    var body: some View {
+        HStack {
+            Text(entry.displayName)
+                .foregroundStyle(entry.visible ? .primary : .secondary)
+            Spacer()
+            Toggle("Visible", isOn: Binding(get: { entry.visible }, set: { setVisible($0) }))
+                .fixedSize()
+                .disabled(!entry.canToggle)
+                .help(entry.canToggle ? "Show this profile in the sidebar" : "At least one profile must stay visible")
+        }
+    }
+
+    private func setVisible(_ visible: Bool) {
+        BrowserStore.shared.modify { state in
+            if visible {
+                state.unhideProfile(entry.id)
+            } else {
+                state.hideProfile(entry.id)
+            }
         }
     }
 }

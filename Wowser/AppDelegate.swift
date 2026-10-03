@@ -172,6 +172,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] ids in
                 self?.windowIDs = Set(ids)
             }.store(in: &subscriptions)
+        NotificationCenter.default.publisher(for: .bringBrowserWindowToFront)
+            .sink { [weak self] note in
+                guard let id = note.userInfo?[bringBrowserWindowToFrontIDKey] as? ID<WindowState> else { return }
+                // A brand-new window may not have a controller yet; `windowIDs`
+                // makes those key when it creates them.
+                self?.windowControllers.first(where: { $0.browserViewController?.windowID == id })?
+                    .window?.makeKeyAndOrderFront(nil)
+            }.store(in: &subscriptions)
         createInitialWindowIfNeeded()
         setupTabSwitchingMenuItems()
         PipPanelManager.shared.start()

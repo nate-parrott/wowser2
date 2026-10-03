@@ -151,7 +151,7 @@ struct TabStyleButtonModifier: ViewModifier {
             .font(.system(size: isMobile() ? 16 : 13))
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(isSelected ? .regular : .identity, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .glassEffect(isSelected ? .regular.tint(Color.accentColor) : .identity, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 //            .background{
 //                if isSelected {
 //                    RoundedRectangle(cornerRadius: 8, style: .continuous)

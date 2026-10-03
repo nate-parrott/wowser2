@@ -65,7 +65,7 @@ public enum DefaultsKeys: String {
     case memoryEnabledScopes // [string] — dataStoreUUIDs whose memory store (event log) is on; see MemoryStore.swift
     case autofillEnabled // bool (default on) — suggestion menu under form fields + agent credential hooks; see AutofillSettings
     case autofillRememberForms // bool (default on) — remember logins / name / address from submitted forms
-    case autofillSearchableSelects // bool (default on) — replace the native <select> popup with a searchable menu
+    case autofillSearchableSelects // bool (default off, experimental) — replace the native <select> popup with a searchable menu
     case autofillShareWithAgents // bool (default on) — put the profile's name / email / address in agents' system prompts
     case autofillAgentPasswordFill // bool (default on) — allow browser.credentials.fillPassword from BrowserJS
 

@@ -264,6 +264,10 @@ public struct WindowState: Equatable, Codable {
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
+    /// The sidebar carousel is scrolled to the "new profile" page (past the
+    /// last space). `profile` still points at the last space, so views use this
+    /// to stop showing that space's look. Transient; the carousel resets it.
+    public var showingNewProfilePage: Bool?
     /// Active element-picker session (transient UI state). See BrowserState+SelectorPicker.swift.
     public var selectorPicker: SelectorPickerSession?
     public var perProfileData = [ID<Profile>: PerProfileData]()

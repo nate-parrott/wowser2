@@ -437,6 +437,7 @@ struct GroupedTabsView: View {
                     FancyPlus(windowID: windowID)
                         .padding(4)
                         .frame(maxWidth: .infinity)
+                        .padding(.top, 20)
 //                    NewTabCell(windowID: windowID)
                 }
                 .padding(isMobile() ? 12 : 0)

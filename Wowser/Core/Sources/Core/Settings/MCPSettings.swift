@@ -20,16 +20,6 @@ struct MCPSettings: View {
                     .padding(.top, 4)
             }
 
-            #if os(macOS)
-            Section {
-                NetworkProxyKillSwitchSection()
-            }
-
-            Section {
-                HTTPSCaptureSettingsSection()
-            }
-            #endif
-
 //            Section {
 //                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
 //                    VStack(alignment: .leading, spacing: 14) {
@@ -117,7 +107,7 @@ private struct ToolRow: View {
 /// Opt-in switch for the local capturing proxy. Off by default (registered
 /// default sets `disableNetworkProxy` true): all webview traffic flows
 /// directly with no HTTP capture and no HTTPS MITM.
-private struct NetworkProxyKillSwitchSection: View {
+struct NetworkProxyKillSwitchSection: View {
     @AppStorage(DefaultsKeys.disableNetworkProxy.rawValue) private var disabled = true
 
     var body: some View {
@@ -139,7 +129,7 @@ private struct NetworkProxyKillSwitchSection: View {
 /// allowlisted origins can be captured (`browser.net.*`). Without this, WebKit
 /// rejects the forged certs for proxied TLS, so allowlisted HTTPS origins are
 /// left untouched (loaded normally but uncaptured).
-private struct HTTPSCaptureSettingsSection: View {
+struct HTTPSCaptureSettingsSection: View {
     @State private var trusted: Bool = false
     @State private var working = false
     @State private var errorText: String?

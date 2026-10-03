@@ -9,7 +9,8 @@ public struct ProfilePagingDots: View {
         WithSnapshotMain(store: BrowserStore.shared) { state in
             ProfilePagingDotsSnapshot(
                 dots: state.visibleProfiles.map { ProfilePagingDotsSnapshot.Dot(id: $0.id, emoji: $0.emoji?.nilIfEmpty) },
-                currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0")
+                currentProfileID: state.windows[windowID]?.profile ?? .init(raw: "p0"),
+                showingNewProfilePage: state.windows[windowID]?.showingNewProfilePage == true
             )
         } main: { snapshot in
             ProfilePagingDotsContent(
@@ -28,6 +29,8 @@ private struct ProfilePagingDotsSnapshot: Equatable {
     /// Visible profiles in carousel order.
     var dots: [Dot]
     var currentProfileID: ID<Profile>
+    /// The carousel is on the "new profile" page: show a selected "+" after the dots.
+    var showingNewProfilePage: Bool
 }
 
 private struct ProfilePagingDotsContent: View {
@@ -35,22 +38,40 @@ private struct ProfilePagingDotsContent: View {
     let windowID: ID<WindowState>
     
     var body: some View {
-        // Only show paging dots if we have more than one profile
-        if snapshot.dots.count > 1 {
+        // Only show paging dots if there's somewhere to page to
+        if snapshot.dots.count > 1 || snapshot.showingNewProfilePage {
             HStack(spacing: 0) {
                 ForEach(snapshot.dots, id: \.id.raw) { dot in
                     ProfileDotView(
                         profileID: dot.id,
-                        isSelected: dot.id == snapshot.currentProfileID,
+                        isSelected: !snapshot.showingNewProfilePage && dot.id == snapshot.currentProfileID,
                         windowID: windowID,
                         emoji: dot.emoji
                     )
+                }
+                if snapshot.showingNewProfilePage {
+                    NewProfileDotView()
                 }
             }
             .padding(.top, 8)
         } else {
             // No need to show paging dots if there's only one profile
             EmptyView()
+        }
+    }
+}
+
+/// Only appears while the carousel is on the "new profile" page, as its
+/// (selected) indicator.
+private struct NewProfileDotView: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.accentColor.opacity(0.3))
+                .frame(width: 26, height: 26)
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.accentColor)
         }
     }
 }
@@ -74,9 +95,11 @@ private struct ProfileDotView: View {
         }) {
             ZStack {
                 // Background circle for consistent sizing
-                Circle()
-                    .fill(isSelected ? Color.accentColor.opacity(0.3) : Color.white.opacity(0.01))
+//                Circle()
+//                    .fill(isSelected ? Color.accentColor.opacity(0.3) : Color.white.opacity(0.01))
+                Color.clear
                     .frame(width: 26, height: 26)
+                    .glassEffect(isSelected ? .regular : .identity, in: Circle())
                 
                 if let emoji {
                     // Display the emoji if it's been set
@@ -135,6 +158,7 @@ private struct ProfileDotView: View {
     private func switchToProfile() {
         BrowserStore.shared.modify { state in
             state.windows[windowID]?.profile = profileID
+            state.windows[windowID]?.showingNewProfilePage = nil
         }
     }
 }

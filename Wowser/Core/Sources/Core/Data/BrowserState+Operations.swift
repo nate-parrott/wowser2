@@ -112,6 +112,40 @@ extension BrowserState {
         profiles.values.filter({ !$0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
     }
 
+    /// Visible profiles grouped by the website data store they share (i.e.
+    /// profiles that share logins). Each group is in creation order; groups
+    /// are ordered by their earliest-created member.
+    public var loginGroups: [[Profile]] {
+        Self.groupedByDataStore(visibleProfiles)
+    }
+
+    /// Like `loginGroups`, but including hidden profiles.
+    public var allLoginGroups: [[Profile]] {
+        Self.groupedByDataStore(profiles.values.sorted(by: { $0.creationOrder < $1.creationOrder }))
+    }
+
+    private static func groupedByDataStore(_ profiles: [Profile]) -> [[Profile]] {
+        var groups = [[Profile]]()
+        var indexByStore = [UUID: Int]()
+        for profile in profiles {
+            if let i = indexByStore[profile.dataStoreUUID] {
+                groups[i].append(profile)
+            } else {
+                indexByStore[profile.dataStoreUUID] = groups.count
+                groups.append([profile])
+            }
+        }
+        return groups
+    }
+
+    /// Points the active window (or a new one, if there are none) at the
+    /// sidebar's "new profile" page. Returns that window.
+    public mutating func showNewProfilePage() -> ID<WindowState> {
+        let windowID = getOrCreateActiveWindow().id
+        windows[windowID]?.showingNewProfilePage = true
+        return windowID
+    }
+
     public var hiddenProfiles: [Profile] {
         profiles.values.filter({ $0.isHidden }).sorted(by: { $0.creationOrder < $1.creationOrder })
     }

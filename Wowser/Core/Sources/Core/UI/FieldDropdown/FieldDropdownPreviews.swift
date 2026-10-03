@@ -48,7 +48,7 @@ private struct MockFieldPage<Dropdown: View>: View {
 
 // MARK: - Sample data
 
-private enum Samples {
+enum FieldDropdownSamples {
     static let logins: [FieldDropdownSuggestionList.Item] = [
         .init(id: "1", systemImage: "key.fill", title: "alice@example.com", subtitle: "example.com · used today"),
         .init(id: "2", systemImage: "key.fill", title: "alice.work@example.com", subtitle: "accounts.example.com"),
@@ -135,31 +135,31 @@ private struct DictationPreview: View {
 // MARK: - Previews
 
 #Preview("Autofill · logins") {
-    SuggestionsPreview(label: "Email", value: "", items: Samples.logins)
+    SuggestionsPreview(label: "Email", value: "", items: FieldDropdownSamples.logins)
 }
 
 #Preview("Autofill · identity") {
-    SuggestionsPreview(label: "Full name", value: "Al", items: Samples.identity, trailing: nil)
+    SuggestionsPreview(label: "Full name", value: "Al", items: FieldDropdownSamples.identity, trailing: nil)
 }
 
 #Preview("Autofill · single") {
-    SuggestionsPreview(label: "Username", value: "", items: Array(Samples.logins.prefix(1)))
+    SuggestionsPreview(label: "Username", value: "", items: Array(FieldDropdownSamples.logins.prefix(1)))
 }
 
 #Preview("Select · countries") {
-    OptionsPreview(label: "Country", filter: "", options: Samples.countries)
+    OptionsPreview(label: "Country", filter: "", options: FieldDropdownSamples.countries)
 }
 
 #Preview("Select · filtered") {
-    OptionsPreview(label: "Country", filter: "united", options: Samples.countries)
+    OptionsPreview(label: "Country", filter: "united", options: FieldDropdownSamples.countries)
 }
 
 #Preview("Select · no matches") {
-    OptionsPreview(label: "Country", filter: "zzz", options: Samples.countries)
+    OptionsPreview(label: "Country", filter: "zzz", options: FieldDropdownSamples.countries)
 }
 
 #Preview("Select · optgroups + disabled") {
-    OptionsPreview(label: "Shipping", filter: "", options: Samples.grouped)
+    OptionsPreview(label: "Shipping", filter: "", options: FieldDropdownSamples.grouped)
 }
 
 #Preview("Dictation · starting") {
@@ -184,24 +184,7 @@ private struct DictationPreview: View {
 
 #Preview("Placement · field near bottom") {
     MockFieldPage(label: "Password", value: "••••••", fieldRect: CGRect(x: 180, y: 300, width: 220, height: 30), estimatedHeight: FieldDropdownSuggestionList.estimatedHeight(rows: 3)) { _ in
-        FieldDropdownSuggestionList(items: Samples.logins, highlighted: 1)
+        FieldDropdownSuggestionList(items: FieldDropdownSamples.logins, highlighted: 1)
     }
-}
-
-#Preview("Gallery") {
-    ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-            FieldDropdownSuggestionList(items: Samples.logins, highlighted: 0)
-            FieldDropdownSuggestionList(items: Samples.identity, highlighted: 2, trailingSystemImage: nil)
-            FieldDropdownOptionList(filter: "an", options: Samples.countries.filter { $0.label.lowercased().contains("an") }, highlighted: 1, selectedID: 3, maxListHeight: 180)
-            FieldDropdownDictation(transcript: "", phase: .starting)
-            FieldDropdownDictation(transcript: "Remind me to call the bank tomorrow", phase: .listening)
-            FieldDropdownDictation(transcript: "Remind me to call the bank tomorrow", phase: .committing)
-        }
-        .frame(width: 340)
-        .padding(24)
-    }
-    .frame(height: 700)
-    .background(LinearGradient(colors: [.blue.opacity(0.25), .purple.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing))
 }
 #endif
