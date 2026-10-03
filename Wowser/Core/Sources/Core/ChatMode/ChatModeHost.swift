@@ -53,7 +53,7 @@ extension BrowserJSLiveHost {
     fileprivate static func presentPane(_ paneID: ID<WebContent>, show: String, note: String?, ctx: ChatAgentRegistry.CallerContext) async throws {
         let state = BrowserStore.shared.model
         guard let tabID = state.paneToTabMapping[paneID] else { throw BrowserJSError.tabNotFound(paneID.raw) }
-        let winID = state.windowContaining(tabId: tabID)?.id ?? ctx.windowID
+        let winID = state.windowAndSpace(containingTabId: tabID)?.window ?? ctx.windowID
         let wantsCard = show == "card" || show == "both"
         let wantsMain = show == "main" || show == "both"
 
@@ -273,10 +273,10 @@ extension BrowserJSLiveHost {
     static func terminalSession(forID id: String) throws -> TerminalSession {
         let pid = ID<WebContent>(raw: id)
         let state = BrowserStore.shared.model
-        guard let pane = state.pane(forId: pid), let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true,
-              let winID = state.windowContaining(webContentId: pid)?.id,
-              let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
+        guard let pane = state.pane(forId: pid) else { throw BrowserJSError.tabNotFound(id) }
+        guard let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true
         else { throw BrowserJSError.invalidArgs("\(id) is not a terminal tab") }
+        let wc = try BrowserJSLiveHost.liveWebContent(forTabID: id)
         let session = TerminalSession.ensure(for: wc)
         session.startIfNeededFromURL()
         return session

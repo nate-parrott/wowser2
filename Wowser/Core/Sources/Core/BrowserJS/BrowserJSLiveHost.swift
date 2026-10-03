@@ -81,18 +81,8 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                 AgentStageWindow.shared.ensureRenderable(wc.view)
                 #endif
                 // Don't hand the id back while the webview is still showing the
-                // initial about:blank — a `page.waitFor(readyState === 'complete')`
-                // would resolve against the wrong document. Wait (briefly) for
-                // the real navigation to commit.
-                // (`webview.url` is set as soon as the load is *provisional*,
-                // so it can't be the signal; the back/forward list only gets its
-                // current item once the navigation commits.)
-                if let webview = wc.wkWebview {
-                    let deadline = Date().addingTimeInterval(8)
-                    while webview.backForwardList.currentItem == nil, Date() < deadline {
-                        try await Task.sleep(nanoseconds: 50_000_000)
-                    }
-                }
+                // initial about:blank.
+                try await Self.waitForInitialCommit(wc)
             }
             return paneID.raw
         }
@@ -115,13 +105,11 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             var ok = false
             BrowserStore.shared.modify { st in ok = st.setAgentUse(paneID: pid, until: until) }
             guard ok else { throw BrowserJSError.tabNotFound(id) }
-            // Make sure it's live and rendering.
-            if let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-               let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID) {
-                #if os(macOS)
-                AgentStageWindow.shared.ensureRenderable(wc.view)
-                #endif
-            }
+            // Make sure it's live and rendering — a lease that doesn't is a lie.
+            let wc = try Self.liveWebContent(forTabID: id)
+            #if os(macOS)
+            AgentStageWindow.shared.ensureRenderable(wc.view)
+            #endif
             return until.timeIntervalSince1970
         }
     }
@@ -187,10 +175,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         // Load via about:blank then write HTML once the webview is live.
         let id = try await tabsOpen(url: "about:blank", background: false, windowId: windowId)
         try await main {
-            guard let paneID = ID<WebContent>?.some(.init(raw: id)),
-                  let winID = BrowserStore.shared.model.windowContaining(webContentId: paneID)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(id) }
+            let wc = try Self.liveWebContent(forTabID: id)
             wc.load(html: html, baseURL: nil)
             // Title: best-effort — we set it on the next info update via JS.
             if let title {
@@ -205,6 +190,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func tabsClose(id: String) async throws {
         try await main {
             let pid = ID<WebContent>(raw: id)
+            guard BrowserStore.shared.model.paneToTabMapping[pid] != nil else { throw BrowserJSError.tabNotFound(id) }
             BrowserStore.shared.close(webContentId: pid, removeIfPinned: false)
         }
     }
@@ -215,16 +201,19 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             let pid = ID<WebContent>(raw: id)
             guard let tabID = state.paneToTabMapping[pid],
                   let tab = state.tabs[tabID],
-                  let winID = state.windowContaining(tabId: tabID)?.id
+                  let loc = state.windowAndSpace(containingTabId: tabID)
             else { throw BrowserJSError.tabNotFound(id) }
             // Activating a pane inside a split must also focus that pane —
             // otherwise the tab comes forward still showing a sibling.
             let paneIdx = tab.panes.asArray.firstIndex { $0.id == pid }
             BrowserStore.shared.modify { st in
-                st.activate(tabId: tabID, in: winID)
-                st.unghostTab(id: tabID)
-                if let paneIdx {
-                    st.modifyTab(id: tabID) { $0.focusedPaneIdx = paneIdx }
+                // Bring the tab's space forward too, if the window shows another.
+                st.performInSpace(loc.space, window: loc.window, keepSwitched: true) { st in
+                    st.activate(tabId: tabID, in: loc.window)
+                    st.unghostTab(id: tabID)
+                    if let paneIdx {
+                        st.modifyTab(id: tabID) { $0.focusedPaneIdx = paneIdx }
+                    }
                 }
             }
         }
@@ -237,16 +226,16 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             // Folders have no panes, so accept their tab id directly.
             let asTab = ID<Tab>(raw: id)
             guard let tabID = state.paneToTabMapping[pid] ?? (state.tabs[asTab]?.isFolder == true ? asTab : nil),
-                  let winID = state.windowContaining(tabId: tabID)?.id
+                  let loc = state.windowAndSpace(containingTabId: tabID)
             else { throw BrowserJSError.tabNotFound(id) }
             BrowserStore.shared.modify { st in
-                guard var tabs = st.windows[winID]?.tabs,
+                guard var tabs = st.windows[loc.window]?.perProfileData[loc.space]?.tabs,
                       let oldIdx = tabs.firstIndex(of: tabID)
                 else { return }
                 tabs.remove(at: oldIdx)
                 let clamped = max(0, min(tabs.count, toIndex))
                 tabs.insert(tabID, at: clamped)
-                st.windows[winID]?.tabs = tabs
+                st.windows[loc.window]?.perProfileData[loc.space]?.tabs = tabs
             }
         }
     }
@@ -259,19 +248,16 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
                   let tab = state.tabs[tabID],
                   let pane = tab.panes[pid]
             else { throw BrowserJSError.tabNotFound(id) }
-            let winID = state.windowContaining(tabId: tabID)?.id
-            let idx = winID.flatMap { state.windows[$0]?.tabs.firstIndex(of: tabID) }
-            return self.tabInfo(forPane: pane, tab: tab, windowID: winID, indexInWindow: idx, spaceID: winID.flatMap { state.windows[$0]?.profile }, state: state)
+            let loc = state.windowAndSpace(containingTabId: tabID)
+            let idx = loc.flatMap { state.windows[$0.window]?.perProfileData[$0.space]?.tabs.firstIndex(of: tabID) }
+            return self.tabInfo(forPane: pane, tab: tab, windowID: loc?.window, indexInWindow: idx, spaceID: loc?.space, state: state)
         }
     }
 
     public func tabsNavigate(id: String, url urlStr: String) async throws {
         guard let url = URL(string: urlStr) else { throw BrowserJSError.invalidArgs("url") }
         try await main {
-            let pid = ID<WebContent>(raw: id)
-            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(id) }
+            let wc = try Self.liveWebContent(forTabID: id)
             wc.load(url: url)
         }
     }
@@ -280,10 +266,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     public func contentRead(id: String, as kind: String) async throws -> String {
         try await mainAsync { @MainActor in
-            let pid = ID<WebContent>(raw: id)
-            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(id) }
+            let wc = try await Self.loadedWebContent(forTabID: id)
             switch kind {
             case "html":
                 let html = try await wc.wkWebviewOrThrow.evaluateAsyncJS("return document.documentElement.outerHTML;")
@@ -307,9 +290,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func contentScreenshot(id: String) async throws -> BrowserJSImage {
         try await mainAsync { @MainActor in
             let pid = ID<WebContent>(raw: id)
-            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(id) }
+            let wc = try await Self.loadedWebContent(forTabID: id)
             #if os(macOS)
             let webview = try wc.wkWebviewOrThrow
             self.touchAgentUse(pid)
@@ -366,9 +347,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func pageEval(id: String, js: String) async throws -> Any? {
         try await mainAsync { @MainActor in
             let pid = ID<WebContent>(raw: id)
-            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(id) }
+            let wc = try await Self.loadedWebContent(forTabID: id)
             let webview = try wc.wkWebviewOrThrow
             self.touchAgentUse(pid)
             #if os(macOS)
@@ -385,7 +364,15 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             // bare-expression predicate's value (e.g. `document.readyState ===
             // 'complete'`). Wrapping it in a return-less IIFE, as before, always
             // yielded undefined → null and the wait never resolved.
-            let v = try? await pageEval(id: id, js: predicateJs)
+            let v: Any?
+            do {
+                v = try await pageEval(id: id, js: predicateJs)
+            } catch let error as BrowserJSError {
+                if case .tabNotFound = error { throw error }
+                v = nil
+            } catch {
+                v = nil
+            }
             if let v, !(v is NSNull) {
                 if let b = v as? Bool, b { return v }
                 if (v as? Bool) == nil { return v }
@@ -400,8 +387,8 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func pageClick(id: String, x: Double, y: Double, button: String, clickCount: Int) async throws {
         #if os(macOS)
         try await mainAsync { @MainActor in
-            let webview = try self.webview(forID: id)
-            BrowserJSInputDispatcher.click(in: webview, x: CGFloat(x), y: CGFloat(y), button: button, clickCount: max(1, clickCount))
+            let webview = try await self.webview(forID: id)
+            await BrowserJSInputDispatcher.click(in: webview, x: CGFloat(x), y: CGFloat(y), button: button, clickCount: max(1, clickCount))
         }
         #else
         throw BrowserJSError.notImplemented("pageClick (macOS only)")
@@ -411,8 +398,8 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func pageType(id: String, text: String) async throws {
         #if os(macOS)
         try await mainAsync { @MainActor in
-            let webview = try self.webview(forID: id)
-            BrowserJSInputDispatcher.type(in: webview, text: text)
+            let webview = try await self.webview(forID: id)
+            await BrowserJSInputDispatcher.type(in: webview, text: text)
         }
         #else
         throw BrowserJSError.notImplemented("pageType (macOS only)")
@@ -422,8 +409,8 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func pageKey(id: String, key: String, modifiers: [String]) async throws {
         #if os(macOS)
         try await mainAsync { @MainActor in
-            let webview = try self.webview(forID: id)
-            BrowserJSInputDispatcher.key(in: webview, key: key, modifiers: modifiers)
+            let webview = try await self.webview(forID: id)
+            await BrowserJSInputDispatcher.key(in: webview, key: key, modifiers: modifiers)
         }
         #else
         throw BrowserJSError.notImplemented("pageKey (macOS only)")
@@ -433,7 +420,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
     public func pageScroll(id: String, dx: Double, dy: Double) async throws {
         #if os(macOS)
         try await mainAsync { @MainActor in
-            let webview = try self.webview(forID: id)
+            let webview = try await self.webview(forID: id)
             BrowserJSInputDispatcher.scroll(in: webview, dx: CGFloat(dx), dy: CGFloat(dy))
         }
         #else
@@ -441,12 +428,46 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         #endif
     }
 
+    /// Like `liveWebContent`, but if the WebContent had to be created, waits
+    /// for its first navigation to commit — otherwise the caller would act on
+    /// the brand-new webview's initial about:blank document.
     @MainActor
-    private func webview(forID id: String) throws -> WKWebView {
+    static func loadedWebContent(forTabID id: String) async throws -> WebContent {
+        let wasLive = BrowserStore.shared.liveWebContent(forId: ID<WebContent>(raw: id)) != nil
+        let wc = try liveWebContent(forTabID: id)
+        if !wasLive { try await waitForInitialCommit(wc) }
+        return wc
+    }
+
+    /// Waits (briefly) for a fresh webview's real navigation to commit.
+    /// (`webview.url` is set as soon as the load is *provisional*, so it can't
+    /// be the signal; the back/forward list only gets its current item once
+    /// the navigation commits.)
+    @MainActor
+    static func waitForInitialCommit(_ wc: WebContent) async throws {
+        guard let webview = wc.wkWebview else { return }
+        let deadline = Date().addingTimeInterval(8)
+        while webview.backForwardList.currentItem == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
+
+    /// The live WebContent for a BrowserJS tab id, creating it if needed.
+    /// Resolves across every space (not just the ones windows are displaying),
+    /// so agents can drive tabs the user isn't looking at.
+    @MainActor
+    static func liveWebContent(forTabID id: String) throws -> WebContent {
         let pid = ID<WebContent>(raw: id)
-        guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-              let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
+        guard let loc = BrowserStore.shared.model.windowAndSpace(containingWebContentId: pid),
+              let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: loc.window)
         else { throw BrowserJSError.tabNotFound(id) }
+        return wc
+    }
+
+    @MainActor
+    private func webview(forID id: String) async throws -> WKWebView {
+        let pid = ID<WebContent>(raw: id)
+        let wc = try await Self.loadedWebContent(forTabID: id)
         let webview = try wc.wkWebviewOrThrow
         touchAgentUse(pid)
         #if os(macOS)
@@ -509,9 +530,9 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
             guard let tabID = state.paneToTabMapping[pid], let tab = state.tabs[tabID] else {
                 throw BrowserJSError.tabNotFound(tabId)
             }
-            let winID = state.windowContaining(tabId: tabID)?.id
-            let idx = winID.flatMap { state.windows[$0]?.tabs.firstIndex(of: tabID) }
-            return self.splitInfo(forTab: tab, windowID: winID, spaceID: winID.flatMap { state.windows[$0]?.profile }, indexInWindow: idx)
+            let loc = state.windowAndSpace(containingTabId: tabID)
+            let idx = loc.flatMap { state.windows[$0.window]?.perProfileData[$0.space]?.tabs.firstIndex(of: tabID) }
+            return self.splitInfo(forTab: tab, windowID: loc?.window, spaceID: loc?.space, indexInWindow: idx)
         }
     }
 
@@ -801,9 +822,7 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
         #if os(macOS)
         return try await mainAsync { @MainActor in
             let pid = ID<WebContent>(raw: tabId)
-            guard let winID = BrowserStore.shared.model.windowContaining(webContentId: pid)?.id,
-                  let wc = BrowserStore.shared.getOrCreateWebContent(forId: pid, toBeActiveInWindow: winID)
-            else { throw BrowserJSError.tabNotFound(tabId) }
+            let wc = try await Self.loadedWebContent(forTabID: tabId)
             guard let session = wc.autofill else {
                 throw BrowserJSError.notImplemented("credentials.fillPassword is not supported on this tab's engine")
             }
@@ -880,13 +899,12 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     private func folderInfo(folderTabID: ID<Tab>, state: BrowserState) -> BrowserJSFolderInfo? {
         guard let folder = state.folder(id: folderTabID) else { return nil }
-        let win = state.windowContaining(tabId: folderTabID)
-        let spaceID = win.flatMap { state.space(containingTabId: folderTabID, inWindow: $0.id) }
-        let index = win.flatMap { w in spaceID.flatMap { w.perProfileData[$0]?.tabs.firstIndex(of: folderTabID) } }
+        let loc = state.windowAndSpace(containingTabId: folderTabID)
+        let index = loc.flatMap { state.windows[$0.window]?.perProfileData[$0.space]?.tabs.firstIndex(of: folderTabID) }
         return BrowserJSFolderInfo(
             id: folderTabID.raw,
-            spaceId: spaceID?.raw,
-            windowId: win?.id.raw,
+            spaceId: loc?.space.raw,
+            windowId: loc?.window.raw,
             index: index,
             name: folder.name,
             tabIds: folder.tabs.flatMap { state.tabs[$0]?.panes.map { $0.id.raw } ?? [] },
@@ -1158,7 +1176,7 @@ extension BrowserJSLiveHost {
         try await main {
             let state = BrowserStore.shared.model
             guard state.toolbarConfig.customButton(id: id) != nil else { throw BrowserJSError.underlying("toolbar button not found: \(id)") }
-            let windowID = paneID.flatMap { state.windowContaining(webContentId: $0)?.id } ?? state.windows.values.first?.id
+            let windowID = paneID.flatMap { state.windowAndSpace(containingWebContentId: $0)?.window } ?? state.windows.values.first?.id
             guard let windowID else { throw BrowserJSError.windowNotFound("none") }
             ToolbarButtonRunner.click(buttonID: id, webContentID: paneID, windowID: windowID)
         }

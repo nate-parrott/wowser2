@@ -402,7 +402,7 @@ public final class AutofillSession: ObservableObject {
         _ = await eval(AutofillFieldQuery.focusFieldJS(AutofillFieldQuery.FieldRef(active.descriptor), selectAll: false))
         restoreWebviewFocus()
         if let webview {
-            BrowserJSInputDispatcher.key(in: webview, key: "Tab", modifiers: [])
+            await BrowserJSInputDispatcher.key(in: webview, key: "Tab", modifiers: [])
         }
         requestRefresh?()
     }
@@ -431,8 +431,8 @@ public final class AutofillSession: ObservableObject {
         webview.wowser_insertText(value)
         if await readValue(ref) == value { return }
 
-        BrowserJSInputDispatcher.key(in: webview, key: "a", modifiers: ["command"])
-        BrowserJSInputDispatcher.type(in: webview, text: value)
+        await BrowserJSInputDispatcher.key(in: webview, key: "a", modifiers: ["command"])
+        await BrowserJSInputDispatcher.type(in: webview, text: value)
         if await readValue(ref) == value { return }
 
         _ = await eval(AutofillFieldQuery.setValueJS(ref, value: value))

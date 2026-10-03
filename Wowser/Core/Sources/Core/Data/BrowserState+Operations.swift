@@ -535,6 +535,16 @@ extension BrowserState {
     
     // Call the method on BrowserStore instead
     mutating func _close(webContentId id: ID<WebContent>, removeIfPinned: Bool) {
+        // A tab in a space its window isn't displaying: close it with the
+        // window temporarily showing that space, so sidebar bookkeeping
+        // (tab list, reselection) targets the right space.
+        if let tabId = paneToTabMapping[id], windowContaining(tabId: tabId) == nil,
+           let loc = windowAndSpace(containingTabId: tabId), windows[loc.window]?.profile != loc.space {
+            performInSpace(loc.space, window: loc.window, keepSwitched: false) { st in
+                st._close(webContentId: id, removeIfPinned: removeIfPinned)
+            }
+            return
+        }
         guard let tabId = self.paneToTabMapping[id],
               let tab = tabs[tabId],
               let winId = self.windowContaining(tabId: tabId)?.id
@@ -633,6 +643,26 @@ extension BrowserState {
         return nil
     }
     
+    /// The window + space holding `tabId`, searching every space of every
+    /// window — `windowContaining(tabId:)` only sees the space each window is
+    /// currently displaying. Agents drive tabs in spaces the user isn't
+    /// looking at, so BrowserJS resolves tabs through this.
+    func windowAndSpace(containingTabId id: ID<Tab>) -> (window: ID<WindowState>, space: ID<Profile>)? {
+        if let win = windowContaining(tabId: id) {
+            return (win.id, space(containingTabId: id, inWindow: win.id) ?? win.profile)
+        }
+        for window in windowsMostRecentFirst {
+            if let space = space(containingTabId: id, inWindow: window.id) {
+                return (window.id, space)
+            }
+        }
+        return nil
+    }
+
+    func windowAndSpace(containingWebContentId id: ID<WebContent>) -> (window: ID<WindowState>, space: ID<Profile>)? {
+        paneToTabMapping[id].flatMap { windowAndSpace(containingTabId: $0) }
+    }
+
     var windowsMostRecentFirst: [WindowState] {
         windows.values.sorted { w0, w1 in
             (w0.lastActive ?? Date.distantPast) > (w1.lastActive ?? Date.distantPast)

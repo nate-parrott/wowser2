@@ -480,7 +480,8 @@ public class BrowserStore: DataStore<BrowserState> {
                 let pane = model.tabs[tabId]?.panes[id],
 //              let win = model.windowContaining(tabId: tabId),
               let win = model.windows[windowID],
-              let profile = model.profiles[win.profile]
+              // The tab's own space (it may not be the one the window shows).
+              let profile = model.profiles[model.space(containingTabId: tabId, inWindow: windowID) ?? win.profile]
         else {
             return nil
         }

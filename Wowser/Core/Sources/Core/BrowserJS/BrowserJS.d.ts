@@ -320,7 +320,12 @@ declare global {
        * Clicking an input focuses it, so follow with `type`.
        */
       click(id: TabId, x: number, y: number, opts?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void>;
-      /** Type text into the focused element as real keystrokes ("\n" presses Enter). */
+      /**
+       * Type text into the tab's focused element ("\n" presses Enter). Text is
+       * inserted natively (pages get real `beforeinput`/`input` events) and each
+       * character also fires keydown/keyup. Input only ever reaches this tab,
+       * whether or not it's visible or focused.
+       */
       type(id: TabId, text: string): Promise<void>;
       /**
        * Press one key: a character ("a", "/") or a name — "Enter", "Tab",
