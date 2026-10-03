@@ -135,16 +135,20 @@ extension BrowserJSLiveHost {
         }.value
     }
 
-    public func agentsSend(agentKey: String?, toKey: String, text: String) async throws {
-        // Coordinators are created lazily by their space session; make sure
-        // the target exists before resolving.
-        let targetID: String? = await Task { @MainActor () -> String? in
-            if let pid = ChatAgentRegistry.profileID(forCoordinatorKey: toKey) {
+    /// The live agent id for a key, resuming a saved agent if needed.
+    /// Coordinators are created lazily by their space session; make sure the
+    /// target exists before resolving.
+    static func resolveAgentID(forKey key: String) async -> String? {
+        await Task { @MainActor () -> String? in
+            if let pid = ChatAgentRegistry.profileID(forCoordinatorKey: key) {
                 return await ChatSpaceSession.session(for: pid).ensureAgent()
             }
-            return await BrowserAgentManager.shared.agentID(forKey: toKey)
+            return await BrowserAgentManager.shared.agentID(forKey: key)
         }.value
-        guard let targetID else { throw BrowserJSError.invalidArgs("no agent with key \(toKey)") }
+    }
+
+    public func agentsSend(agentKey: String?, toKey: String, text: String) async throws {
+        guard let targetID = await Self.resolveAgentID(forKey: toKey) else { throw BrowserJSError.invalidArgs("no agent with key \(toKey)") }
         let senderName: String = await MainActor.run {
             if let agentKey { return ChatAgentRegistry.displayName(forKey: agentKey) }
             return "an outside agent"
@@ -266,7 +270,7 @@ extension BrowserJSLiveHost {
 
     #if os(macOS)
     @MainActor
-    private static func terminalSession(forID id: String) throws -> TerminalSession {
+    static func terminalSession(forID id: String) throws -> TerminalSession {
         let pid = ID<WebContent>(raw: id)
         let state = BrowserStore.shared.model
         guard let pane = state.pane(forId: pid), let url = pane.info.url, NativePageKey(url: url)?.isTerminal == true,

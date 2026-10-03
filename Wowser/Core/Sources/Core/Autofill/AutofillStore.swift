@@ -215,20 +215,6 @@ public extension AutofillStore {
     }
 }
 
-// MARK: - Toast actions
-
-public extension ToastAction.Kind {
-    /// Runs the action. Called by the toast UI when its button is tapped.
-    func perform() {
-        switch self {
-        case .autofillForget(let profile, let ids):
-            AutofillStore.shared.forget(ids: ids, profile: profile)
-        case .autofillNeverRemember(let profile, let domain, let ids):
-            AutofillStore.shared.neverRemember(domain: domain, forgetting: ids, profile: profile)
-        }
-    }
-}
-
 extension BrowserState {
     /// The profile whose autofill data a website data store uses: the
     /// earliest-created space with that store (spaces "sharing logins" share

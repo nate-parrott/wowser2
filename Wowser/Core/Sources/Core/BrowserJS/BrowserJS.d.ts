@@ -479,6 +479,47 @@ declare global {
     };
 
     /**
+     * Toasts in the user's frontmost window — use them to get the user's
+     * attention when you're running in the background and need a decision,
+     * or to say a long job finished. The user is probably doing something
+     * else, so:
+     *   - `title` names YOUR task in a few words ("Fix login redirect"), so
+     *     they know which session is asking. Required with actions/sticky.
+     *   - `message` is one short sentence: the question or the news.
+     *   - `actions` are 1–3 short verbs ("Approve", "Retry", "Skip"), not
+     *     sentences. First one is styled as the primary choice.
+     *
+     * Clicking an action dismisses the toast and sends you a message:
+     *   [Toast reply] The user clicked "Approve" on your toast "<message>".
+     * In-browser agents get it as a new user turn; a `claude` session in a
+     * terminal tab gets it typed into its prompt. `show` returns right away —
+     * don't wait for the reply; end your turn and continue when it arrives.
+     *
+     * `sticky: true` toasts never auto-dismiss; they stay until the user picks
+     * an action or closes them (closing sends "...dismissed your toast..."
+     * so you're never left waiting). Plain toasts vanish after ~4s
+     * (`durationMs` to change).
+     *
+     *   await browser.toast.show({
+     *     title: "Fix login redirect",
+     *     message: "Tests pass. Push 3 commits to main?",
+     *     actions: ["Push", "Not yet"],
+     *     sticky: true,
+     *   });
+     */
+    toast: {
+      show(opts: {
+        message: string;          // ≤160 chars
+        title?: string;           // ≤60 chars; your task's name
+        actions?: string[];       // ≤3, each ≤24 chars
+        sticky?: boolean;
+        icon?: string;            // SF Symbol name
+        durationMs?: number;      // non-sticky only
+      }): Promise<{ id: string }>;
+      dismiss(id: string): Promise<void>;
+    };
+
+    /**
      * User-customizable buttons on the trailing edge of every web tab's
      * toolbar (right-click that area to reorder/hide them). A custom button is
      * { id, label, icon, bjs?, instructions? }: `icon` is an SF Symbol name,

@@ -8,14 +8,61 @@ struct NewToastView: View {
     
     var body: some View {
         ToastLike(icon: toast.icon) {
-            Text(toast.message)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    if let title = toast.title {
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(toast.message)
+                }
+                if let actions = toast.actions, !actions.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(Array(actions.enumerated()), id: \.element.id) { idx, action in
+                            Button(action.title) {
+                                action.kind.perform()
+                                // Remove without `onDismiss`: an action was taken.
+                                if let windowID {
+                                    BrowserStore.shared.modify { $0.removeToast(id: toast.id, in: windowID) }
+                                }
+                            }
+                            .buttonStyle(ToastPillButtonStyle(prominent: idx == 0))
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             
             Button(action: dismiss) {
                 Image(systemName: "xmark")
             }
             .help("Dismiss Message")
         }
+    }
+    
+    @Environment(\.windowID) private var windowID: ID<WindowState>?
+}
+
+/// Text buttons on a toast (agent actions, "Forget" on the autofill toast).
+/// The first one is filled with the accent color.
+struct ToastPillButtonStyle: ButtonStyle {
+    var prominent: Bool
+    @State private var hovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(1)
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(prominent ? Color.accentColor : Color.primary.opacity(0.12))
+                    .brightness(configuration.isPressed ? -0.1 : (hovered ? 0.05 : 0))
+            }
+            .onHover { hovered = $0 }
     }
 }
 
@@ -104,6 +151,7 @@ public struct ToastViewer: View {
                     if let toast = snapshot.toast {
                         NewToastView(toast: toast) {
                             // Close action
+                            toast.onDismiss?.perform()
                             BrowserStore.shared.modify { state in
                                 state.removeToast(id: toast.id, in: windowID)
                             }
@@ -112,6 +160,7 @@ public struct ToastViewer: View {
                         .transition(.move(edge: .top))
                         .id(toast.id) // Important for transitions when toast changes
                         .onAppear {
+                            guard toast.sticky != true else { return }
                             // Auto-dismiss after 4 seconds (or the toast's own timeout)
                             DispatchQueue.main.asyncAfter(deadline: .now() + (toast.dismissAfter ?? 4)) {
                                 // Check if this is still the current toast
@@ -231,4 +280,15 @@ struct KeyboardHint: View {
     NewToastView(toast: .init(message: "I am a short toast!", icon: "bolt.fill"), dismiss: {})
     
     NewToastView(toast: .init(message: "I am a toast and i am very long, and I am proud of it!!", icon: "bolt.fill"), dismiss: {})
+    
+    NewToastView(toast: {
+        let target = AgentToastReplyTarget.agent(key: "preview")
+        var t = Toast(message: "Ready to push 3 commits to main?", icon: "hand.raised.fill", actions: [
+            ToastAction(title: "Push", kind: .agentReply(target: target, toast: "", choice: "Push")),
+            ToastAction(title: "Not yet", kind: .agentReply(target: target, toast: "", choice: "Not yet")),
+        ])
+        t.title = "Fix login redirect"
+        t.sticky = true
+        return t
+    }(), dismiss: {})
 }

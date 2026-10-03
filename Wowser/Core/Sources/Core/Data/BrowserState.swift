@@ -171,6 +171,12 @@ public struct Toast: Equatable, Codable, Identifiable {
     public var actions: [ToastAction]?
     /// Seconds before auto-dismiss; nil = the default (5s).
     public var dismissAfter: TimeInterval?
+    /// Small heading above the message, e.g. which agent task this is about.
+    public var title: String?
+    /// Never auto-dismisses; stays until the user clicks an action or the X.
+    public var sticky: Bool?
+    /// Run when the user closes the toast with the X (not when it times out).
+    public var onDismiss: ToastAction.Kind?
     
     public enum ToastLocation: String, Codable {
         case normal
@@ -200,12 +206,22 @@ public struct ToastAction: Equatable, Codable, Identifiable {
         case autofillForget(profile: Core.ID<Profile>, ids: [UUID])
         /// Forget them AND stop remembering logins for this domain.
         case autofillNeverRemember(profile: Core.ID<Profile>, domain: String, ids: [UUID])
+        /// Tell the agent that posted the toast (via `browser.toast.show`)
+        /// which button the user picked (nil = closed it). See ToastActions.swift.
+        case agentReply(target: AgentToastReplyTarget, toast: String, choice: String?)
     }
 
     public init(title: String, kind: Kind) {
         self.title = title
         self.kind = kind
     }
+}
+
+/// Where an agent toast's reply goes: the in-app agent with this key, or the
+/// terminal tab whose `claude` session made the BrowserJS call.
+public enum AgentToastReplyTarget: Equatable, Codable {
+    case agent(key: String)
+    case terminal(pane: Core.ID<WebContent>)
 }
 
 public struct WindowState: Equatable, Codable {
