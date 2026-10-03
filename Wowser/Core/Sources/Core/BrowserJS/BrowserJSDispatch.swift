@@ -373,6 +373,15 @@ enum BrowserJSDispatch {
             let info = try await host.notesWrite(agentKey: optStr("agentKey"), title: title, markdown: optStr("markdown"), html: optStr("html"), show: optStr("show") ?? "both")
             return try encodeValue(info)
 
+        case "toast.show":
+            guard let message = str("message") else { throw BrowserJSError.invalidArgs("message") }
+            let info = try await host.toastShow(agentKey: optStr("agentKey"), message: message, title: optStr("title"), icon: optStr("icon"), actions: (raw["actions"] as? [String]) ?? [], sticky: bool("sticky"), durationMs: int("durationMs"))
+            return try encodeValue(info)
+        case "toast.dismiss":
+            guard let id = str("id") else { throw BrowserJSError.invalidArgs("id") }
+            try await host.toastDismiss(id: id)
+            return nil
+
         case "tasks.list":
             return try encodeValue(try await host.tasksList())
 
@@ -515,6 +524,10 @@ enum BrowserJSBridgeSource {
         },
         tasks: {
             list: function() { return __browserCall('tasks.list', {}); },
+        },
+        toast: {
+            show:    function(opts) { opts = opts || {}; return __browserCall('toast.show', { agentKey: __selfKey(), message: opts.message, title: opts.title, icon: opts.icon, actions: opts.actions || [], sticky: !!opts.sticky, durationMs: opts.durationMs }); },
+            dismiss: function(id) { return __browserCall('toast.dismiss', { id: id }); },
         },
         toolbar: {
             list:   function() { return __browserCall('toolbar.list', {}); },

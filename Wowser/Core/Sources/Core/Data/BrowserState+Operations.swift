@@ -617,8 +617,10 @@ enum SidebarLocation: Equatable {
 }
 
 extension WindowState {
+    /// Transient toasts jump ahead of sticky ones, so a toast waiting on the
+    /// user doesn't hold up the rest of the queue.
     public var currentToast: Toast? {
-        return toasts.first
+        return toasts.first(where: { $0.sticky != true }) ?? toasts.first
     }
 }
 

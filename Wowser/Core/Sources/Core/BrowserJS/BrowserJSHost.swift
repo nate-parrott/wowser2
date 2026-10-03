@@ -157,6 +157,11 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// Scheduled tasks: the tasks.json path, data directory, and parsed tasks.
     func tasksList() async throws -> BrowserJSTasksInfo
 
+    /// Show a toast in the user's frontmost window. Action clicks (and closing
+    /// a sticky toast) are sent back to the calling agent. See BrowserJSToast.swift.
+    func toastShow(agentKey: String?, message: String, title: String?, icon: String?, actions: [String], sticky: Bool, durationMs: Int?) async throws -> BrowserJSToastInfo
+    func toastDismiss(id: String) async throws
+
     // User-created toolbar buttons (BrowserState.toolbar). See BrowserState+Toolbar.swift.
     func toolbarListButtons() async throws -> [CustomToolbarButton]
     func toolbarGetButton(id: String) async throws -> CustomToolbarButton?
@@ -650,6 +655,19 @@ public enum BrowserJSError: LocalizedError, Equatable {
         case .notImplemented(let what): return "not implemented in v1: \(what)"
         case .underlying(let msg): return msg
         }
+    }
+}
+
+public struct BrowserJSToastInfo: Codable, Sendable {
+    public var id: String
+}
+
+public extension BrowserJSHost {
+    func toastShow(agentKey: String?, message: String, title: String?, icon: String?, actions: [String], sticky: Bool, durationMs: Int?) async throws -> BrowserJSToastInfo {
+        throw BrowserJSError.notImplemented("toast.show")
+    }
+    func toastDismiss(id: String) async throws {
+        throw BrowserJSError.notImplemented("toast.dismiss")
     }
 }
 
