@@ -76,6 +76,7 @@ let package = Package(
                 .copy("ElementPicker/styleSelectors.js"),
                 .copy("BrowserJS/BrowserJS.d.ts"),
                 .copy("TangApps"),
+                .copy("BuiltinBackgrounds"),
                 .process("Assets.xcassets"),
             ]
         ),

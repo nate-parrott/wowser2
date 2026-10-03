@@ -1,8 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// The Space menu: shown when right-clicking a space's paging dot and when
-/// clicking the space icon in the sidebar header. Shows the title, rename,
-/// the attached folder, an icon submenu, and hide/delete.
+/// The Space menu: shown when right-clicking a space's paging dot, when
+/// right-clicking the sidebar, and when clicking the space icon in the sidebar
+/// header. Shows the title, rename, the attached folder, icon and background
+/// image submenus, and hide/delete.
 struct SpaceMenuItems: View {
     let profileID: ID<Profile>
     let windowID: ID<WindowState>
@@ -23,6 +25,9 @@ private struct SpaceMenuSnapshot: Equatable {
     var canHide: Bool
     var canDelete: Bool
     var isChatMode: Bool
+    var hasBackgroundImage: Bool
+    var backgroundMode: SpaceBackgroundMode
+    var builtinBackgroundID: String?
 
     init(state: BrowserState, profileID: ID<Profile>) {
         let profile = state.profiles[profileID]
@@ -32,6 +37,9 @@ private struct SpaceMenuSnapshot: Equatable {
         canHide = state.canHideProfile(profileID)
         canDelete = state.profiles.count > 1
         isChatMode = state.isChatMode
+        hasBackgroundImage = profile?.imageInfo != nil
+        backgroundMode = profile?.imageInfo?.effectiveMode ?? .fade
+        builtinBackgroundID = profile?.imageInfo?.builtinID
     }
 
     var displayFolder: String? {
@@ -82,6 +90,7 @@ private struct SpaceMenuItemsContent: View {
                     Button("Clear Icon") { setEmoji(nil) }
                 }
             }
+            BackgroundImageMenu(snapshot: snapshot, profileID: profileID)
         }
 
         Section {
@@ -122,6 +131,46 @@ private struct SpaceMenuItemsContent: View {
     }
 }
 
+/// Everything about the space's background image in one submenu: built-in
+/// images, choosing a file, the rendering mode, and removal.
+private struct BackgroundImageMenu: View {
+    let snapshot: SpaceMenuSnapshot
+    let profileID: ID<Profile>
+
+    var body: some View {
+        Menu("Background Image") {
+            Section {
+                ForEach(BuiltinSpaceBackground.all) { background in
+                    Toggle(background.title, isOn: Binding(
+                        get: { snapshot.builtinBackgroundID == background.id },
+                        set: { _ in BrowserStore.shared.setBuiltinSpaceBackground(background, profileID: profileID) }
+                    ))
+                }
+            }
+            #if os(macOS)
+            Button("Choose Image…") { SpaceMenu.pickBackgroundImage(profileID: profileID) }
+            #endif
+            if snapshot.hasBackgroundImage {
+                Divider()
+                // A Picker inside a menu renders as a submenu with a checkmark
+                // on the selected item (Label images don't reliably show in
+                // macOS menus).
+                Picker("Mode", selection: Binding(
+                    get: { snapshot.backgroundMode },
+                    set: { BrowserStore.shared.setSpaceBackgroundMode($0, profileID: profileID) }
+                )) {
+                    ForEach(SpaceBackgroundMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                Button("Remove Background Image") {
+                    BrowserStore.shared.clearSpaceBackgroundImage(profileID: profileID)
+                }
+            }
+        }
+    }
+}
+
 enum SpaceMenu {
     /// Prompts for a new space title. An empty result clears the user title
     /// so the AI-generated `autoTitle` shows again.
@@ -149,6 +198,22 @@ enum SpaceMenu {
     }
 
     #if os(macOS)
+    static func pickBackgroundImage(profileID: ID<Profile>) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Set Background"
+        panel.message = "Choose a background image for this space"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let data = try? Data(contentsOf: url) else { return }
+                BrowserStore.shared.setSpaceBackgroundImage(data: data, profileID: profileID)
+            }
+        }
+    }
+
     /// Attaches a folder to the space (or swaps the existing one), pinning
     /// VS Code / terminal / files tabs for it.
     static func pickFolder(profileID: ID<Profile>, currentPath: String?) {

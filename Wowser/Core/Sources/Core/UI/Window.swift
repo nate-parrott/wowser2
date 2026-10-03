@@ -120,6 +120,7 @@ private struct WindowContent: View {
     @State private var topHovered = false
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @State private var sidebarHovered = false
+    @State private var windowSize: CGSize = .zero
     @AppStorage(DefaultsKeys.sidebarWidth.rawValue) private var storedSidebarWidth = Double(UIConstants.defaultSidebarWidth)
     
     var body: some View {
@@ -146,7 +147,7 @@ private struct WindowContent: View {
         .overlay(alignment: .leading) {
             if !snapshot.sidebarLocked {
                 Sidebar(floating: true)
-                    .withFloatingSidebarContainer()
+                    .withFloatingSidebarContainer(imageInfo: snapshot.imageInfo, windowSize: windowSize)
 //                    .padding(8)
                     .offset(x: sidebarHovered ? 0 : -sidebarWidth - 20)
                     .animation(.spring(duration: 0.16, bounce: 0.2, blendDuration: 0.1), value: sidebarHovered)
@@ -159,13 +160,15 @@ private struct WindowContent: View {
                 .edgesIgnoringSafeArea(.all)
         }
         .background { WindowBG(theme: snapshot.theme, imageInfo: snapshot.imageInfo, windowID: snapshot.windowID) }
+        .onGeometryChange(for: CGSize.self, of: { $0.size }) { windowSize = $0 }
         .modifier(SpaceBackgroundPrewarmer())
-        // In-window accent follows the space theme (or the tint derived from a
-        // dropped background image). `.tint` covers modern control styling;
-        // `.accentColor` covers existing `Color.accentColor` reads (toasts,
-        // loading indicator, paging dots, etc.).
-        .tint(snapshot.imageInfo?.tint.color ?? snapshot.theme?.tintColor)
-        .accentColor(snapshot.imageInfo?.tint.color ?? snapshot.theme?.tintColor ?? .accentColor)
+        // In-window accent follows the space theme. Over a background image a
+        // color tint isn't reliably legible, so use the UI's foreground color
+        // (white on dark images, black on light). `.tint` covers modern control
+        // styling; `.accentColor` covers existing `Color.accentColor` reads
+        // (toasts, loading indicator, paging dots, etc.).
+        .tint(snapshot.imageInfo?.foregroundTint ?? snapshot.theme?.tintColor)
+        .accentColor(snapshot.imageInfo?.foregroundTint ?? snapshot.theme?.tintColor ?? .accentColor)
         .edgesIgnoringSafeArea(.all)
         .modifier(SpaceUISchemeOverride(prefersDarkUI: snapshot.imageInfo?.prefersDarkUI))
     }
@@ -306,15 +309,28 @@ public struct BrowserWindow_Previews: PreviewProvider {
 }
 
 extension View {
+    /// With a space background image, the floating sidebar shows the window's
+    /// backdrop cropped to its own frame (laid out at `windowSize` from the
+    /// top-leading corner, which is where the sidebar sits when shown).
     @ViewBuilder
-    func withFloatingSidebarContainer() -> some View {
+    func withFloatingSidebarContainer(imageInfo: SpaceImageInfo? = nil, windowSize: CGSize = .zero) -> some View {
         // Glass effect doesnt look so good
 //        self
 //            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         
-        self.background(.ultraThickMaterial)
+        self
+            .background {
+                if let imageInfo, windowSize != .zero {
+                    SpaceBackgroundView(info: imageInfo)
+                        .frame(width: windowSize.width, height: windowSize.height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .clipped()
+                } else {
+                    Rectangle().fill(.ultraThickMaterial)
+                }
+            }
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)

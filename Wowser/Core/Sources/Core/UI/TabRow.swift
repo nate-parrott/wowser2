@@ -67,10 +67,27 @@ struct TabSnapshot: Equatable {
     /// A finished file (download or file-browser file target) that the hover
     /// "open" button can hand to the default app.
     var openableFileURL: URL?
+    /// Two-pane splits render as two side-by-side cells (see `SplitPairContent`);
+    /// 3+ panes keep the single-row numbered appearance.
+    var splitPair: [SplitCell]?
+
+    struct SplitCell: Equatable {
+        var paneID: ID<WebContent>
+        var appearance: TabAppearance
+    }
 
     // Factory method to create a snapshot from a tab
     static func from(tab: Tab) -> TabSnapshot {
-        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1, isPip: tab.isPip, fileURL: tab.draggableFileURL, animationCount: tab.animationCount, openableFileURL: tab.openableFileURL)
+        TabSnapshot(tabID: tab.id, appearance: tab.appearance(), showSeparateSplitButton: tab.panes.count > 1, isPip: tab.isPip, fileURL: tab.draggableFileURL, animationCount: tab.animationCount, openableFileURL: tab.openableFileURL, splitPair: tab.splitPairCells)
+    }
+}
+
+private extension Tab {
+    /// Non-nil for a plain two-pane split. Folders and user-named/iconed tabs
+    /// read as one unit, so they keep the single-row look.
+    var splitPairCells: [TabSnapshot.SplitCell]? {
+        guard panes.count == 2, folder == nil, customTitle?.nilIfEmpty == nil, customEmoji?.nilIfEmpty == nil else { return nil }
+        return panes.asArray.map { TabSnapshot.SplitCell(paneID: $0.id, appearance: $0.tabAppearance()) }
     }
 }
 
@@ -100,6 +117,14 @@ private struct RegularTabButton: View {
     }
     
     @ViewBuilder private var content: some View {
+        if let splitPair = snapshot.splitPair {
+            SplitPairContent(tabID: snapshot.tabID, cells: splitPair, isHovered: isHovered, windowID: windowID)
+        } else {
+            singleContent
+        }
+    }
+
+    @ViewBuilder private var singleContent: some View {
         HStack(spacing: 8) {
             // Icon based on the type in the snapshot
             TabIconView(icon: snapshot.appearance.icon)
@@ -147,6 +172,90 @@ private struct RegularTabButton: View {
         // tab starts or stops running a command.
         .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
+    }
+}
+
+/// A two-pane split: each pane gets its own cell (icon, title, hover close
+/// button) with a divider between them; hovering the row shows a "separate"
+/// button over the divider. Clicking a cell selects the tab and focuses that pane.
+private struct SplitPairContent: View {
+    var tabID: ID<Tab>
+    var cells: [TabSnapshot.SplitCell]
+    var isHovered: Bool
+    var windowID: ID<WindowState>
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(cells.enumerated()), id: \.element.paneID) { idx, cell in
+                if idx > 0 {
+                    Divider()
+                        .padding(.vertical, 7)
+                }
+                SplitPaneCell(cell: cell, isHovered: isHovered) {
+                    select(paneIdx: idx)
+                }
+            }
+        }
+        .overlay {
+            if isHovered || isMobile() {
+                SeparateSplitTabsButton(tabID: tabID)
+                    .background(Circle().fill(.background))
+            }
+        }
+        .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
+        .contentShape(Rectangle())
+    }
+
+    private func select(paneIdx: Int) {
+        didClickTabToSelect(tabID: tabID, windowID: windowID)
+        BrowserStore.shared.modify { state in
+            guard state.windows[windowID]?.currentTab == tabID else { return }
+            state.modifyTab(id: tabID) { $0.focusedPaneIdx = paneIdx }
+        }
+    }
+}
+
+private struct SplitPaneCell: View {
+    var cell: TabSnapshot.SplitCell
+    var isHovered: Bool
+    var onSelect: () -> Void
+
+    var body: some View {
+        let dimmed = cell.appearance.isGhost || cell.appearance.isUnloaded
+        HStack(spacing: 6) {
+            TabIconView(icon: cell.appearance.icon)
+                .opacity(dimmed ? 0.55 : 1)
+                .modifier(TabBadgeModifier(badge: cell.appearance.badge))
+            Text(cell.appearance.title)
+                .opacity(cell.appearance.specialTitle ? 0.66 : 1)
+                .opacity(dimmed ? 0.65 : 1)
+                .truncationMode(.tail)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if isHovered || isMobile() {
+                ClosePaneButton(paneID: cell.paneID)
+            }
+        }
+        .padding(.leading, isMobile() ? 14 : 8)
+        .padding(.trailing, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+    }
+}
+
+/// Closes one pane of a split (the tab survives with the other pane).
+private struct ClosePaneButton: View {
+    var paneID: ID<WebContent>
+
+    var body: some View {
+        Button(action: {
+            BrowserStore.shared.close(webContentId: paneID, removeIfPinned: true)
+        }) {
+            Image(systemName: "xmark")
+                .help("Close Pane")
+        }
+        .buttonStyle(TabAccessoryButtonStyle())
     }
 }
 

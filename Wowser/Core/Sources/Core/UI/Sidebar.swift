@@ -91,12 +91,6 @@ private struct SidebarSnapshot: Equatable {
     // Current tab ID
     let currentTabID: ID<Tab>?
     
-    // Whether the current space has a dropped background image (for the
-    // "Background Image Mode" / "Remove Background Image" context menu items)
-    let hasBackgroundImage: Bool
-    let backgroundImageMode: SpaceBackgroundMode
-    // Folder attached to the current space ("Add Folder…" / "Change Folder…")
-    let folderPath: String?
     // Chat mode (browser-wide): the sidebar shows the space's coordinator thread.
     // The editable space name only appears once there's more than one space.
     let showSpaceTitle: Bool
@@ -128,9 +122,6 @@ private struct SidebarSnapshot: Equatable {
             favoriteIDs = profile.manualFavorites + profile.autoFavorites
         }
         self.favoriteTabIDs = favoriteIDs
-        self.hasBackgroundImage = profiles[effectiveProfileID]?.imageInfo != nil
-        self.backgroundImageMode = profiles[effectiveProfileID]?.imageInfo?.effectiveMode ?? .fade
-        self.folderPath = profiles[effectiveProfileID]?.folderPath
         self.showSpaceTitle = profiles.values.filter({ !$0.isHidden }).count > 1
 
         // Process tabs in their original order but add headers when group changes
@@ -224,28 +215,7 @@ private struct SidebarContent: View {
 //                .padding(.bottom, 8)
         }
         .contextMenu {
-            #if os(macOS)
-            Button(snapshot.folderPath == nil ? "Add Folder…" : "Change Folder…") {
-                SpaceMenu.pickFolder(profileID: snapshot.profileID, currentPath: snapshot.folderPath)
-            }
-            #endif
-            if snapshot.hasBackgroundImage {
-                Divider()
-                // A Picker inside a context menu renders as a submenu with a
-                // checkmark on the selected item (Label images don't reliably
-                // show in macOS menus).
-                Picker("Background Image Mode", selection: Binding(
-                    get: { snapshot.backgroundImageMode },
-                    set: { BrowserStore.shared.setSpaceBackgroundMode($0, profileID: snapshot.profileID) }
-                )) {
-                    ForEach(SpaceBackgroundMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                Button("Remove Background Image") {
-                    BrowserStore.shared.clearSpaceBackgroundImage(profileID: snapshot.profileID)
-                }
-            }
+            SpaceMenuItems(profileID: snapshot.profileID, windowID: snapshot.windowID)
         }
     }
 

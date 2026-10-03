@@ -89,7 +89,7 @@ extension BrowserState {
                 if atPrompt, titleIsJustCwd, info.badged != true, age > Self.cleanupTerminalAge {
                     return .idleTerminal
                 }
-            case .agent, .vscode, .fileBrowser:
+            case .agent, .vscode, .fileBrowser, .welcome:
                 break
             }
             return nil

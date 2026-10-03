@@ -99,6 +99,7 @@ struct NativePanePlaceholder: View {
         case .fileBrowser: return "folder.fill"
         case .vscode: return "chevron.left.forwardslash.chevron.right"
         case .agent: return "sparkles"
+        case .welcome: return "hand.wave"
         }
     }
 }

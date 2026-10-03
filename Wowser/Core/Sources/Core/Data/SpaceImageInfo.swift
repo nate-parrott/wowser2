@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import CoreGraphics
 import ImageIO
 
@@ -18,9 +19,17 @@ public struct SpaceImageInfo: Equatable, Codable {
     public var dominantColor: HSBA?
     /// How the image is rendered behind the window. Optional for old persisted state.
     public var mode: SpaceBackgroundMode?
+    /// Set when the image is one of `BuiltinSpaceBackground.all` (its `id`).
+    public var builtinID: String?
 
     public var effectiveMode: SpaceBackgroundMode { mode ?? .fade }
     public var effectiveDominantColor: HSBA { dominantColor ?? tint }
+}
+
+extension SpaceImageInfo {
+    /// Accent used over the image: the UI's foreground color, since a color
+    /// tint may not be legible against an arbitrary image.
+    var foregroundTint: Color { prefersDarkUI ? .white : .black }
 }
 
 /// Per-space rendering treatment for the background image
@@ -176,9 +185,11 @@ private struct ImageAnalysis {
 }
 
 public extension BrowserStore {
-    /// Handles an image dropped on a space's sidebar: writes it to app
+    /// Handles an image dropped on (or chosen for) a space: writes it to app
     /// storage, derives tint + UI scheme, and sets it as the space background.
-    func setSpaceBackgroundImage(data: Data, profileID: ID<Profile>) {
+    /// Without an explicit `mode`, swapping the image keeps the space's chosen
+    /// rendering mode.
+    func setSpaceBackgroundImage(data: Data, profileID: ID<Profile>, mode: SpaceBackgroundMode? = nil, builtinID: String? = nil) {
         DispatchQueue.global(qos: .userInitiated).async {
             guard var info = SpaceImageInfo.ingest(imageData: data) else {
                 print("[SpaceBG] Could not decode dropped image")
@@ -186,8 +197,8 @@ public extension BrowserStore {
             }
             let oldInfo = self.model.profiles[profileID]?.imageInfo
             let oldFileURL = oldInfo?.fileURL
-            // Swapping the image keeps the space's chosen rendering mode.
-            info.mode = oldInfo?.effectiveMode ?? info.mode
+            info.mode = mode ?? oldInfo?.effectiveMode ?? info.mode
+            info.builtinID = builtinID
             self.modify { state in
                 state.profiles[profileID]?.imageInfo = info
             }

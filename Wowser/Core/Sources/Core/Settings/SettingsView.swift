@@ -59,6 +59,7 @@ public struct SettingsView: View {
         case .memory: MemorySettings()
         case .mcp: MCPSettings()
         case .experimental: ExperimentalSettings()
+        case .credits: CreditsSettings()
 //        case .debug: DebugSettings()
         }
     }

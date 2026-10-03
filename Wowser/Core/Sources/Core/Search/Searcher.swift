@@ -671,7 +671,7 @@ extension HistoryItem {
                 if let path {
                     return .init(path: path, item: self, keywords: ["folder", "finder"], historyKey: key)
                 }
-            case .agent:
+            case .agent, .welcome:
                 () // agent tabs are ephemeral; no special history treatment
             }
         }

@@ -30,7 +30,7 @@ extension WebContent.Info {
             case .vscode: () // fall thru -- this is a normal webview
             case .fileBrowser:
                 return nil
-            case .agent:
+            case .agent, .welcome:
                 return nil
             }
         }

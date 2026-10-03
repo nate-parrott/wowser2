@@ -45,6 +45,8 @@ struct NativePageOverlay: View {
                     initialQuery: query,
                     webContent: webContent
                 )
+            case .welcome:
+                WelcomePage()
             }
         }
     }

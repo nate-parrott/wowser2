@@ -16,6 +16,8 @@ public enum NativePageKey: Hashable, Codable {
     /// A native AI-agent chat tab. `key` is the stable BrowserAgentManager
     /// session key; `query` is the question that spawned it (used for the title).
     case agent(key: String, query: String? = nil)
+    /// First-launch onboarding page (`WelcomePage`).
+    case welcome
 
     public init?(url: URL) {
         if VSCodeConfig.isServeWebURL(url) {
@@ -34,6 +36,8 @@ public enum NativePageKey: Hashable, Codable {
         case "agent":
             guard let key = url.queryParam(name: "key") else { return nil }
             self = .agent(key: key, query: url.queryParam(name: "q"))
+        case "welcome":
+            self = .welcome
         default:
             return nil
         }
@@ -46,6 +50,7 @@ public enum NativePageKey: Hashable, Codable {
         case .vscode: return "vscode"
         case .fileBrowser: return "files"
         case .agent: return "agent"
+        case .welcome: return "welcome"
         }
     }
 
@@ -82,6 +87,12 @@ public enum NativePageKey: Hashable, Codable {
             if let query { items.append(URLQueryItem(name: "q", value: query)) }
             components.queryItems = items
             return components.url!
+        case .welcome:
+            var components = URLComponents()
+            components.scheme = "about"
+            components.path = "blank"
+            components.queryItems = [URLQueryItem(name: "native", value: "welcome")]
+            return components.url!
         }
     }
 
@@ -91,6 +102,7 @@ public enum NativePageKey: Hashable, Codable {
         case .vscode: return "VS Code"
         case .fileBrowser: return "Files"
         case .agent(_, let query): return query?.nilIfEmpty ?? "Chat"
+        case .welcome: return "Welcome"
         }
     }
 
@@ -106,7 +118,7 @@ public enum NativePageKey: Hashable, Codable {
         case .terminal(let cwd, _): return cwd
         case .vscode(let folder): return folder
         case .fileBrowser(let path): return path
-        case .agent: return nil
+        case .agent, .welcome: return nil
         }
     }
 
@@ -175,6 +187,8 @@ extension NativePageKey {
             FileBrowserFavicon()
         case .agent(let key, _):
             AgentFruitIcon(flavor: .flavor(forKey: key), working: false)
+        case .welcome:
+            TabIconView(icon: .sfSymbol("hand.wave"))
         }
     }
     
@@ -187,6 +201,7 @@ extension NativePageKey {
         case .vscode: return "Open VS Code"
         case .fileBrowser: return "Open File Browser"
         case .agent: return "New Chat"
+        case .welcome: return "Welcome"
         }
     }
     
@@ -209,6 +224,7 @@ extension NativePageKey {
             if let query, !query.isEmpty {
                 return query
             }
+        case .welcome: break
         }
         return self.actionTitle
     }
@@ -229,13 +245,14 @@ extension NativePageKey {
             }
         case .agent:
             return "Agent chat"
+        case .welcome: break
         }
         return nil
     }
 
     var suppressTitleFromWebview: Bool {
         switch self {
-        case .terminal, .fileBrowser, .agent: return true
+        case .terminal, .fileBrowser, .agent, .welcome: return true
         case .vscode: return false
         }
     }
@@ -290,6 +307,11 @@ extension NativePageKey {
             appearance.icon = .agentFruit(flavor: .flavor(forKey: key), working: info.agentIsWorking ?? false)
             appearance.title = info.title?.nilIfEmpty ?? query?.nilIfEmpty ?? "Chat"
             appearance.subtitle = (info.agentIsWorking ?? false) ? (info.agentStatusDetail?.nilIfEmpty ?? "Working…") : nil
+            appearance.urlFieldTextSelected = appearance.title
+            appearance.urlFieldTextDeselected = appearance.title
+        case .welcome:
+            appearance.icon = .sfSymbol("hand.wave")
+            appearance.title = "Welcome"
             appearance.urlFieldTextSelected = appearance.title
             appearance.urlFieldTextDeselected = appearance.title
         }

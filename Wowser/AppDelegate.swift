@@ -197,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let appVer = 1
         if appVer > DefaultsKeys.lastShownWelcomePageForPageVersion.intValue() {
             DefaultsKeys.lastShownWelcomePageForPageVersion.setInt(appVer)
-            openURL(URL(string: "https://www.notion.so/nate223/Welcome-to-Tangerine-1f48cbaf64db80eeb4c3f443a4f85c82?pvs=4")!)
+            openURL(NativePageKey.welcome.url)
         }
         
         WExtensionStore.shared.reloadFromDisk()

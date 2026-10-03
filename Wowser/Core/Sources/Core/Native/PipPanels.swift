@@ -294,7 +294,7 @@ extension WebContent.Info {
             case .terminal: return true
             case .vscode: return false
             case .fileBrowser: return false
-            case .agent: return true
+            case .agent, .welcome: return true
             }
         }
         return false
