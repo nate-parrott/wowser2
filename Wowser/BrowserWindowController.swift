@@ -104,7 +104,31 @@ class BrowserNSWindow: NSWindow, SidebarFrameHostingWindow {
         super.close()
     }
 
+    override func layoutIfNeeded() {
+        RenderStats.hit("window.layoutIfNeeded")
+        super.layoutIfNeeded()
+    }
+
+    override func displayIfNeeded() {
+        RenderStats.hit("window.displayIfNeeded")
+        super.displayIfNeeded()
+    }
+
+    override func invalidateCursorRects(for view: NSView) {
+        RenderStats.hit("window.invalidateCursorRects")
+        super.invalidateCursorRects(for: view)
+    }
+
     override func sendEvent(_ event: NSEvent) {
+        if RenderStats.enabled {
+            switch event.type {
+            case .mouseMoved: RenderStats.hit("event.mouseMoved")
+            case .cursorUpdate: RenderStats.hit("event.cursorUpdate")
+            case .mouseEntered: RenderStats.hit("event.mouseEntered")
+            case .mouseExited: RenderStats.hit("event.mouseExited")
+            default: break
+            }
+        }
         switch event.type {
         case .leftMouseDown:
             // Arm split-drop targets *before* a potential tab drag starts —

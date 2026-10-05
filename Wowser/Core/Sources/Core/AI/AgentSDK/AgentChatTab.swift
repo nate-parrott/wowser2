@@ -169,6 +169,49 @@ public enum AgentChatTabs {
         }
     }
 
+    /// Bottom-toolbar chat: ask `query` in a chat split beside the window's
+    /// current pane, which the agent sees as context. If the split already
+    /// has a chat, the query goes to it as a follow-up.
+    public static func askInSplit(query: String, windowID: ID<WindowState>) {
+        installToolsIfNeeded()
+        let state = BrowserStore.shared.model
+        if let tabID = state.windows[windowID]?.currentTab, let tab = state.tabs[tabID],
+           let idx = tab.panes.elements.firstIndex(where: { $0.info.url.flatMap(NativePageKey.init)?.isAgent == true }),
+           let chatPane = tab.panes[idx],
+           let key = chatPane.info.url.flatMap(NativePageKey.init)?.agentKey,
+           AgentChatSession.session(forKey: key).canSend {
+            BrowserStore.shared.modify { st in
+                st.modifyTab(id: tabID) { $0.focusedPaneIdx = idx }
+            }
+            AgentChatSession.session(forKey: key).send(text: query)
+            return
+        }
+
+        let sourcePane = state.currentPane(forWindow: windowID)
+        let key = keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        let url = NativePageKey.agent(key: key, query: query).url
+        var paneID: ID<WebContent>?
+        BrowserStore.shared.modify { st in
+            paneID = st.openChatSplit(url: url, inWindow: windowID, replacingExistingChat: true)
+            if let paneID {
+                st.modifyPaneAndTab(forWebContentId: paneID) { pane, _ in pane.info.agentIsWorking = true }
+            }
+        }
+        guard let paneID else { return }
+        if let wc = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
+            wc.info.agentIsWorking = true
+            if wc.info.url != url { wc.load(url: url) }
+        }
+        let tookOverSource = sourcePane?.id == paneID
+        AgentChatSession.session(forKey: key).begin(
+            query: query,
+            ownPaneID: paneID,
+            sourcePaneID: tookOverSource ? nil : sourcePane?.id,
+            ownTabIsFocused: true,
+            mode: .chat
+        )
+    }
+
     /// Open a link the user clicked inside an agent chat: navigate the chat
     /// tab's existing split pane if it has one, otherwise open the link in a
     /// new split beside the chat. Keyboard focus stays on the chat.
@@ -275,12 +318,17 @@ extension BrowserState {
     /// it. Reuses an existing chat pane in that split, or takes over an empty
     /// new-tab pane. Returns the pane showing the chat (nil if the window has
     /// no current tab; then a new tab is opened instead).
-    mutating func openChatSplit(url: URL, inWindow windowID: ID<WindowState>) -> ID<WebContent>? {
+    /// `replacingExistingChat` loads `url` into an existing chat pane instead
+    /// of just focusing it.
+    mutating func openChatSplit(url: URL, inWindow windowID: ID<WindowState>, replacingExistingChat: Bool = false) -> ID<WebContent>? {
         guard let tabID = windows[windowID]?.currentTab, let tab = tabs[tabID] else {
             return openTab(url: url, activate: true, windowID: windowID).panes.first?.id
         }
         if let existing = tab.panes.elements.firstIndex(where: { $0.info.url.flatMap(NativePageKey.init)?.isAgent == true }) {
             modifyTab(id: tabID) { $0.focusedPaneIdx = existing }
+            if replacingExistingChat, let paneID = tab.panes[existing]?.id {
+                modifyPaneAndTab(forWebContentId: paneID) { pane, _ in pane.info = WebContent.Info(url: url) }
+            }
             return tab.panes[existing]?.id
         }
         if let current = tab.panes[tab.focusedPaneIdx], current.info.isEmptyPage {
@@ -552,6 +600,9 @@ public final class AgentChatSession: ObservableObject {
         setWorking(true)
         runTurnLoop()
     }
+
+    /// Whether the agent is live, so `send` will reach it.
+    public var canSend: Bool { agentID != nil }
 
     /// Send a follow-up message typed in the chat. Image attachments go to
     /// the model as image blocks; other files are listed by path so the agent

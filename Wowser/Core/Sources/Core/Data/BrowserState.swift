@@ -265,6 +265,10 @@ public struct WindowState: Equatable, Codable {
             }
         }
     }
+    /// Whether the command bar should open seeded with the page's URL (⌘L, or
+    /// clicking the site name). Only consulted by the bottom toolbar, which
+    /// otherwise opens empty, ready for a chat or a new address.
+    public var omniboxPrefillsURL: Bool?
     /// Pane currently displaying the find-in-page bar (if any). Drives
     /// `focusState` toward `.findInPage`. Cleared by closing the bar or
     /// switching focus targets — never set in two places at once.

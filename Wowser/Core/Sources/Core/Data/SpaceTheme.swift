@@ -50,31 +50,6 @@ public enum SpacePalette: String, CaseIterable, Codable {
 }
 
 public extension SpaceTheme {
-    // dark-tinted tint color suitable for text on light bg (light mode
-    var tintColorDark: Color {
-        let saturation = 0.65
-        var brightness = 0.78
-        while brightness > 0.35,
-              Self.relativeLuminance(hue: hue, saturation: saturation, brightness: brightness) > 0.26 {
-            brightness -= 0.05
-        }
-        return Color(hue: hue / 360, saturation: saturation, brightness: brightness)
-    }
-    
-    var tintColorLight: Color {
-        let saturation = 0.65
-        var brightness = 0.78
-        while brightness > 0.35,
-              Self.relativeLuminance(hue: hue, saturation: saturation, brightness: brightness) < 0.7 {
-            brightness += 0.05
-        }
-        return Color(hue: hue / 360, saturation: saturation, brightness: brightness)
-    }
-    
-    var tintColor: Color {
-        Color(darkMode: tintColorLight, light: tintColorDark)
-    }
-
     /// Subtle, somewhat-transparent background gradient (soft secondary hue
     /// at the top fading into the primary hue at the bottom). Low opacity so
     /// it reads as a wash over the window material in both light and dark.

@@ -188,20 +188,26 @@ private struct SplitPairContent: View {
         HStack(spacing: 0) {
             ForEach(Array(cells.enumerated()), id: \.element.paneID) { idx, cell in
                 if idx > 0 {
-                    Divider()
-                        .padding(.vertical, 7)
+                    SplittableDivider(showIcon: isHovered && !isMobile()) {
+                        // Unsplit:
+                        BrowserStore.shared.modify { state in
+                            state.separateSplitTabs(tabId: tabID)
+                        }
+                    }
+//                    Divider()
+//                        .padding(.vertical, 7)
                 }
                 SplitPaneCell(cell: cell, isHovered: isHovered) {
                     select(paneIdx: idx)
                 }
             }
         }
-        .overlay {
-            if isHovered || isMobile() {
-                SeparateSplitTabsButton(tabID: tabID)
-                    .background(Circle().fill(.background))
-            }
-        }
+//        .overlay {
+//            if isHovered && !isMobile() {
+//                SeparateSplitTabsButton(tabID: tabID)
+//                    .background(Circle().fill(.background))
+//            }
+//        }
         .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
     }
@@ -212,6 +218,44 @@ private struct SplitPairContent: View {
             guard state.windows[windowID]?.currentTab == tabID else { return }
             state.modifyTab(id: tabID) { $0.focusedPaneIdx = paneIdx }
         }
+    }
+}
+
+private struct SplittableDivider: View {
+    var showIcon: Bool
+    var onSplit: () -> Void
+    @State private var hoveredIcon = false
+    
+    var body: some View {
+//        let btnSize: CGFloat = 10
+        Divider()
+            .padding(.vertical, 7)
+            .reverseMask {
+                if showIcon {
+                    Circle().fill(Color.white).frame(both: 16)
+                }
+            }
+            .opacity(hoveredIcon ? 0 : 1)
+            .overlay {
+                if showIcon {
+                    Button(action: onSplit) {
+                        Image(systemName: "arrow.trianglehead.branch")
+                            .help("Separate Split Tabs")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(TabAccessoryButtonStyle())
+                    .onHover(perform: { hoveredIcon = $0 })
+                    .scaleEffect(0.8)
+                }
+            }
+            .padding(.horizontal, 4)
+    }
+}
+
+#Preview {
+    HStack {
+        SplittableDivider(showIcon: true, onSplit: {})
+            .frame(both: 50)
     }
 }
 

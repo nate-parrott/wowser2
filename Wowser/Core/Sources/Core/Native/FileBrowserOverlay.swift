@@ -534,21 +534,20 @@ private struct QuickLookFloatingToolbar: View {
                 }
                 .buttonStyle(.bordered)
 
-                Button {
-                    dismissed = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.bordered)
-                .foregroundStyle(.secondary)
-                .help("Hide toolbar")
+//                Button {
+//                    dismissed = true
+//                } label: {
+//                    Image(systemName: "xmark")
+//                        .font(.system(size: 14, weight: .semibold))
+//                        .contentShape(Rectangle())
+//                }
+//                .buttonStyle(.bordered)
+//                .foregroundStyle(.secondary)
+//                .help("Hide toolbar")
             }
             .controlSize(.extraLarge)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
             .glassEffect(in: Capsule(style: .continuous))
 //            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 //            .overlay {

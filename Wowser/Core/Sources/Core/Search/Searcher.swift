@@ -191,6 +191,10 @@ extension CharacterSet {
     
     var windowID: ID<WindowState>?
 
+    /// Bottom-toolbar omniboxes default to chatting: anything that isn't a
+    /// URL or path gets a top-ranked "Ask Agent" row.
+    var preferChat = false
+
     // Not the same as the profile ID, necessarily -- may be a shared container
     var datastoreProfileID: UUID? {
         didSet {
@@ -230,7 +234,7 @@ extension CharacterSet {
         if topSitesEnabled {
             results += topSites.map(\.asSearchResult)
         }
-        return Array(results.prefix(n))
+        return Array(results.deduplicate({ $0.item.dedupeKey }).prefix(n))
     }
 
     @Published var query = "" {
@@ -331,6 +335,9 @@ extension CharacterSet {
             agentResult = SearchResult.askAgent(trigger.query, match: match)
         } else if classification == .chat, let fallbackQuery = Searcher.askAgentFallbackQuery(query) {
             agentResult = SearchResult.askAgent(fallbackQuery, match: .classified)
+        }
+        if preferChat, let chatQuery = Searcher.preferredChatQuery(query) {
+            agentResult = SearchResult.askAgent(agentResult.flatMap(\.askAgentQuery) ?? chatQuery, match: .explicit)
         }
         if let agentResult {
             if let insertBefore = results.firstIndex(where: { agentResult.score > $0.score }) {
@@ -542,6 +549,16 @@ extension CharacterSet {
         return trimmed
     }
 
+    /// The chat to start for `query` when chat is the default: anything typed
+    /// except a URL or a filesystem path.
+    static func preferredChatQuery(_ query: String) -> String? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") { return nil }
+        if URL.withNaturalString(trimmed) != nil { return nil }
+        return trimmed
+    }
+
     /// Instachat is always reachable: every multi-word query keeps an
     /// "Ask Agent" row in the final list — at the bottom, unless the
     /// heuristics/classifier already ranked one higher.
@@ -578,6 +595,11 @@ extension CharacterSet {
 }
 
 private extension SearchResult {
+    var askAgentQuery: String? {
+        if case .askAgent(let query, _) = item.content { return query }
+        return nil
+    }
+
     static func urlYouTyped(_ url: URL) -> SearchResult {
         return .init(item: SearchableItem(id: .init(raw: "typed:\(url.historyKey)"), content: .urlYouTyped(url)), matchQuality: .prefixMatchURL)
     }

@@ -42,24 +42,23 @@ final class AgentStageWindowTests: XCTestCase {
         XCTAssertGreaterThan(img.size.height, 0)
     }
 
-    func testNativeClickAndTypeOnStagedView() async throws {
+    func testClickAndTypeOnStagedView() async throws {
         AgentStageWindow.shared.ensureRenderable(webview)
         try await waitForPredicate("innerWidth > 0")
         let before = try await readInt("window.__clicks")
-        // The fixture's click target sits at (100, 70) — same spot the DOM
-        // dispatcher tests use. Here it goes through a real NSEvent.
-        BrowserJSInputDispatcher.click(in: webview, x: 100, y: 70, button: "left", clickCount: 1)
+        // The fixture's click target sits at (100, 70).
+        await BrowserJSInputDispatcher.click(in: webview, x: 100, y: 70, button: "left", clickCount: 1)
         try await waitForPredicate("window.__clicks === \(before + 1)")
 
-        // Native typing: click into the input, then send keystrokes.
+        // Click into the input (focuses it), then send keystrokes.
         let rect = try await eval("document.getElementById('text').getBoundingClientRect().toJSON()") as? [String: Any]
         let x = (rect?["x"] as? Double ?? 0) + 5, y = (rect?["y"] as? Double ?? 0) + 5
-        BrowserJSInputDispatcher.click(in: webview, x: x, y: y, button: "left", clickCount: 1)
+        await BrowserJSInputDispatcher.click(in: webview, x: x, y: y, button: "left", clickCount: 1)
         try await waitForPredicate("document.activeElement && document.activeElement.id === 'text'")
-        BrowserJSInputDispatcher.type(in: webview, text: "hey")
+        await BrowserJSInputDispatcher.type(in: webview, text: "hey")
         try await waitForPredicate("document.getElementById('text').value === 'hey'")
         // Cmd+A routes to the selectAll: responder action.
-        BrowserJSInputDispatcher.key(in: webview, key: "a", modifiers: ["command"])
+        await BrowserJSInputDispatcher.key(in: webview, key: "a", modifiers: ["command"])
         try await waitForPredicate("document.getElementById('text').selectionStart === 0 && document.getElementById('text').selectionEnd === 3")
     }
 

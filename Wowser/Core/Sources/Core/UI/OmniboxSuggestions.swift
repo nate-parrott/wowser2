@@ -5,10 +5,13 @@ import SwiftUI
 /// new-tab page); selection and picking go through the coordinator.
 struct OmniboxSuggestionList: View {
     @ObservedObject var coordinator: OmniboxCoordinator
+    /// Best match at the bottom, nearest a field that sits below the list.
+    var growsUpward = false
 
     var body: some View {
+        let rows = Array(coordinator.results.enumerated())
         VStack(spacing: 0) {
-            ForEach(Array(coordinator.results.enumerated()), id: \.element.id) { index, result in
+            ForEach(growsUpward ? rows.reversed() : rows, id: \.element.id) { index, result in
                 SearchResultRow(
                     result: result,
                     isSelected: index == coordinator.selectedIndex,
@@ -21,17 +24,20 @@ struct OmniboxSuggestionList: View {
     }
 }
 
-/// Web-page placement: a card hanging under the toolbar.
+/// Web-page placement: a card hanging under the toolbar (or, for the bottom
+/// toolbar, standing on top of it).
 struct OmniboxDropdown: View {
     @ObservedObject var coordinator: OmniboxCoordinator
+    var growsUpward = false
 
     var body: some View {
         if !coordinator.results.isEmpty {
-            OmniboxSuggestionList(coordinator: coordinator)
+            OmniboxSuggestionList(coordinator: coordinator, growsUpward: growsUpward)
                 .background {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color("Background", bundle: .module))
-                        .padding(.top, -10) // square off the top corners
+                        // square off the corners touching the toolbar
+                        .padding(growsUpward ? .bottom : .top, -10)
                         .clipShape(Rectangle())
                         .shadow(color: Color.black.opacity(0.12), radius: 8, x: 2, y: 3)
                 }

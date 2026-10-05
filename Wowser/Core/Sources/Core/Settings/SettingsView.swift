@@ -19,6 +19,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
     @AppStorage(DefaultsKeys.dictationHotkey.rawValue) private var dictationHotkey = DictationHotkey.default.rawValue
     @AppStorage(DefaultsKeys.hideSiriAIOnTextSelection.rawValue) private var hideSiriAIOnTextSelection = true
+    @AppStorage(DefaultsKeys.toolbarAtBottom.rawValue) private var toolbarAtBottom = false
     
     @AppStorage(DefaultsKeys.searchEngine.rawValue) private var searchEngine = SearchEngine.google.rawValue
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var spaceThemeIntensity = 1.0
@@ -138,6 +139,8 @@ public struct SettingsView: View {
 
             Section("Appearance") {
 //                Toggle("Top bar hidden unless hovered", isOn: $topbarLocked.not())
+                Toggle("Toolbar at bottom", isOn: $toolbarAtBottom)
+                    .help("Put the page toolbar below the page. Typing there starts a chat beside the current page; click the site name or press ⌘L to edit the URL.")
                 Toggle("Dark mode on every site", isOn: $autoDarkModeEnabled)
                     .help("Automatically adjusts website appearance to match system dark mode when sites don't support it natively")
                 Toggle("Hide Siri AI on text selection", isOn: $hideSiriAIOnTextSelection)

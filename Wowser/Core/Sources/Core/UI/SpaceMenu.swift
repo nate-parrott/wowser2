@@ -150,19 +150,20 @@ private struct BackgroundImageMenu: View {
             #if os(macOS)
             Button("Choose Image…") { SpaceMenu.pickBackgroundImage(profileID: profileID) }
             #endif
-            if snapshot.hasBackgroundImage {
-                Divider()
-                // A Picker inside a menu renders as a submenu with a checkmark
-                // on the selected item (Label images don't reliably show in
-                // macOS menus).
-                Picker("Mode", selection: Binding(
-                    get: { snapshot.backgroundMode },
-                    set: { BrowserStore.shared.setSpaceBackgroundMode($0, profileID: profileID) }
-                )) {
-                    ForEach(SpaceBackgroundMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
-                    }
+            Divider()
+            // A Picker inside a menu renders as a submenu with a checkmark
+            // on the selected item (Label images don't reliably show in
+            // macOS menus).
+            Picker("Image Mode", selection: Binding(
+                get: { snapshot.backgroundMode },
+                set: { BrowserStore.shared.setSpaceBackgroundMode($0, profileID: profileID) }
+            )) {
+                ForEach(SpaceBackgroundMode.allCases, id: \.self) { mode in
+                    Text(mode.title).tag(mode)
                 }
+            }
+            .disabled(!snapshot.hasBackgroundImage)
+            if snapshot.hasBackgroundImage {
                 Button("Remove Background Image") {
                     BrowserStore.shared.clearSpaceBackgroundImage(profileID: profileID)
                 }

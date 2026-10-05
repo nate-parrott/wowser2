@@ -26,12 +26,6 @@ public struct SpaceImageInfo: Equatable, Codable {
     public var effectiveDominantColor: HSBA { dominantColor ?? tint }
 }
 
-extension SpaceImageInfo {
-    /// Accent used over the image: the UI's foreground color, since a color
-    /// tint may not be legible against an arbitrary image.
-    var foregroundTint: Color { prefersDarkUI ? .white : .black }
-}
-
 /// Per-space rendering treatment for the background image
 /// ("Background Image Mode" in the sidebar context menu).
 public enum SpaceBackgroundMode: String, Codable, CaseIterable, Equatable {

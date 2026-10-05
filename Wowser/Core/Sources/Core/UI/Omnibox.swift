@@ -13,6 +13,10 @@ struct OmniboxField: View {
     /// Whether an agent attached to this window's omnibox is working; its
     /// status replaces the URL while the command bar is closed.
     var hasWorkingAttachedAgent = false
+    var placeholder = "Search or enter website name"
+    /// Text inset above/below the line; nil sizes the field to fill a
+    /// `UIConstants.macHeaderHeight` bar.
+    var verticalInset: CGFloat?
 
     @Environment(\.windowID) private var windowID
     /// True while a dictation session targeting this pane's omnibox is live.
@@ -29,7 +33,9 @@ struct OmniboxField: View {
                 text: coordinator.isActive ? $coordinator.text : .constant(deselectedText),
                 coordinator: coordinator,
                 fgColor: fgColor,
-                fontSize: fontSize
+                fontSize: fontSize,
+                placeholder: placeholder,
+                verticalInset: verticalInset
             )
             .opacity(showsAttachedAgentIndicator || dictationTranscriptShown ? 0 : 1)
             // Hidden-agent indicator replaces the URL while an agent
@@ -56,6 +62,8 @@ private struct OmniboxTextField: View {
     var coordinator: OmniboxCoordinator
     var fgColor: HSBA?
     var fontSize: CGFloat
+    var placeholder: String
+    var verticalInset: CGFloat?
 
     @State private var contentSize: CGSize = .zero
     @State private var focusSnap = FocusSnap()
@@ -81,10 +89,10 @@ private struct OmniboxTextField: View {
         InputTextField(
             text: $text,
             options: InputTextFieldOptions(
-                placeholder: "Search or enter website name",
+                placeholder: placeholder,
                 font: .systemFont(ofSize: fontSize, weight: .regular),
                 color: fgColor?.uiColor ?? UINSColor.textColor,
-                insets: CGSize(width: 8, height: 12 - (fontSize - 14) / 2),
+                insets: CGSize(width: 8, height: verticalInset ?? 12 - (fontSize - 14) / 2),
                 wantsUpDownArrowEvents: true,
                 selectAllOnFocus: true,
                 lineLimit: 1,
@@ -98,12 +106,14 @@ private struct OmniboxTextField: View {
         .overlay {
             if focusDate == nil {
 #if os(macOS)
-                WindowDragView(onTapped: coordinator.open)
+                WindowDragView(onTapped: { coordinator.open() })
                     .background(Color.white.opacity(0.01))
 #endif
             }
         }
-        .onReceiveFocusSnap(windowID: windowID) { focusSnap = $0 }
+        .onReceiveFocusSnap(windowID: windowID) {
+            focusSnap = $0
+        }
     }
 
     private func handle(_ event: TextFieldEvent) {

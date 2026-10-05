@@ -12,6 +12,7 @@ struct NewTabCommandBar: View {
     }
 
     var body: some View {
+        let _ = RenderStats.hit("NewTabCommandBar.body")
         VStack(spacing: 0) {
             inputRow
             if showsSuggestions {

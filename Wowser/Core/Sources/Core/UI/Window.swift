@@ -124,9 +124,11 @@ private struct WindowContent: View {
     @AppStorage(DefaultsKeys.sidebarWidth.rawValue) private var storedSidebarWidth = Double(UIConstants.defaultSidebarWidth)
     
     var body: some View {
+        let _ = RenderStats.hit("WindowContent.body")
         let topbarLocked = snapshot.sidebarLocked
         let justWebpage = !snapshot.sidebarLocked && !topbarLocked
         let sidebarWidth = UIConstants.clampSidebarWidth(CGFloat(storedSidebarWidth))
+        let accent = spaceAccent
         
         HStack(spacing: 0) {
             if snapshot.sidebarLocked {
@@ -162,17 +164,21 @@ private struct WindowContent: View {
         .background { WindowBG(theme: snapshot.theme, imageInfo: snapshot.imageInfo, windowID: snapshot.windowID) }
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { windowSize = $0 }
         .modifier(SpaceBackgroundPrewarmer())
-        // In-window accent follows the space theme. Over a background image a
-        // color tint isn't reliably legible, so use the UI's foreground color
-        // (white on dark images, black on light). `.tint` covers modern control
-        // styling; `.accentColor` covers existing `Color.accentColor` reads
-        // (toasts, loading indicator, paging dots, etc.).
-        .tint(snapshot.imageInfo?.foregroundTint ?? snapshot.theme?.tintColor)
-        .accentColor(snapshot.imageInfo?.foregroundTint ?? snapshot.theme?.tintColor ?? .accentColor)
+        // In-window accent follows the space (image color, else theme hue),
+        // tuned per light/dark for legibility; `onAccentColor` is the matching
+        // text color for content drawn on the accent. `.tint` covers modern
+        // control styling; `.accentColor` covers `Color.accentColor` reads.
+        .tint(accent.accent)
+        .accentColor(accent.accent)
+        .environment(\.onAccentColor, accent.onAccent)
         .edgesIgnoringSafeArea(.all)
         .modifier(SpaceUISchemeOverride(prefersDarkUI: snapshot.imageInfo?.prefersDarkUI))
     }
     
+    private var spaceAccent: SpaceAccent {
+        SpaceAccent.forSpace(theme: snapshot.theme, imageInfo: snapshot.imageInfo) ?? .system
+    }
+
     private var topbarVisible: Bool {
         let topbarLocked = snapshot.sidebarLocked
         return topHovered || topbarLocked || snapshot.anyPaneHasSearchActive
@@ -221,10 +227,22 @@ private struct WindowBG: View {
     var windowID: ID<WindowState>
 
     @AppStorage(DefaultsKeys.spaceThemeIntensity.rawValue) private var intensity = 1.0
+    @Environment(\.isFullscreen) private var isFullscreen
 
     var body: some View {
         ZStack {
-            TransparentBg()
+            // A behind-window blur makes WindowServer re-blur the whole window
+            // whenever anything in it changes. Skip it where it shows nothing:
+            // under an opaque image, or in fullscreen (nothing behind).
+            if imageInfo == nil {
+                if isFullscreen {
+                    #if os(macOS)
+                    Color(.windowBackgroundColor)
+                    #endif
+                } else {
+                    TransparentBg()
+                }
+            }
             if let imageInfo {
                 SpaceBackgroundView(info: imageInfo)
             } else if let theme {
@@ -323,9 +341,16 @@ extension View {
         self
             .background {
                 if let imageInfo, windowSize != .zero {
-                    SpaceBackgroundView(info: imageInfo)
-                        .frame(width: windowSize.width, height: windowSize.height)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    // `.clipped()` only clips drawing, not hit-testing: the
+                    // window-sized image would otherwise swallow clicks across
+                    // the whole window. Hit-test the sidebar's own frame instead.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .overlay(alignment: .topLeading) {
+                            SpaceBackgroundView(info: imageInfo)
+                                .frame(width: windowSize.width, height: windowSize.height)
+                                .allowsHitTesting(false)
+                        }
                         .clipped()
                 } else {
                     Rectangle().fill(.ultraThickMaterial)

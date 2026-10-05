@@ -470,7 +470,10 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     }
 
     public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        if !navigationResponse.canShowMIMEType {
+        // WebKit doesn't honor `Content-Disposition: attachment` on its own; without
+        // this, displayable types (PDFs, images) render in place — e.g. inside the
+        // hidden iframe Gmail uses for attachment downloads.
+        if !navigationResponse.canShowMIMEType || navigationResponse.isAttachment {
             decisionHandler(.download)
             return
         }
@@ -484,13 +487,27 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     }
 
     public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
+        guard let windowID = downloadWindowID else {
+            download.cancel()
+            return
+        }
         DownloadManager.shared.webView(webView, navigationAction: navigationAction, didBecome: download, windowID: windowID)
     }
 
     public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
-        guard let windowID = BrowserStore.shared.model.windowContaining(webContentId: id)?.id else { return }
+        guard let windowID = downloadWindowID else {
+            download.cancel()
+            return
+        }
         DownloadManager.shared.webView(webView, navigationResponse: navigationResponse, didBecome: download, windowID: windowID)
+    }
+
+    /// The window a download from this web content should appear in. Falls back to the
+    /// active window for web content not (yet) attached to a tab, so the download
+    /// isn't left without a delegate and silently dropped.
+    private var downloadWindowID: ID<WindowState>? {
+        let model = BrowserStore.shared.model
+        return model.windowContaining(webContentId: id)?.id ?? model.activeWindow?.id
     }
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
@@ -725,5 +742,13 @@ extension UserDefaults {
             blocklists.insert(.cookies)
         }
         return blocklists
+    }
+}
+
+private extension WKNavigationResponse {
+    var isAttachment: Bool {
+        guard let http = response as? HTTPURLResponse,
+              let disposition = http.value(forHTTPHeaderField: "Content-Disposition") else { return false }
+        return disposition.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("attachment")
     }
 }

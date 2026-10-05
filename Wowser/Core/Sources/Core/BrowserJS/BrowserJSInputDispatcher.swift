@@ -6,20 +6,10 @@ import WebKit
 /// Synthesizes computer-use inputs (click, type, key, scroll) into a
 /// `WKWebView`.
 ///
-/// Two strategies:
-///
-/// 1. **Native** (preferred): build real `NSEvent`s and hand them straight to
-///    the webview's `mouseDown(with:)` / `keyDown(with:)` etc. These go through
-///    WebKit's own hit testing, focus handling, `:active`/`:hover`, pointer
-///    events, IME, and — crucially — default actions (Enter submits a form,
-///    Tab moves focus, clicking a link navigates, React/Vue handlers fire).
-///    Requires the view to be in a window; background tabs get one via
-///    `AgentStageWindow`, so this is the path agents normally take. The window
-///    does not need to be key or on screen.
-///
-/// 2. **DOM fallback**: dispatch JS-level events inside the page. Used only
-///    when the webview has no window at all (e.g. unit tests). Covers event
-///    listeners but not browser default actions.
+/// Nothing here hands synthesized `NSEvent`s to the webview: those are
+/// processed as if the user did them, so they can wedge or misdirect the
+/// user's real input. Clicks are DOM pointer/mouse events (see `click`);
+/// scrolling is `scrollBy`.
 ///
 /// Keyboard input never uses raw keyDowns (see `isolatedKey`). In editable
 /// content WebKit hands keyDowns to the text input system, which delivers the
@@ -38,71 +28,13 @@ enum BrowserJSInputDispatcher {
 
     // MARK: - Click
 
+    /// Clicks are DOM events only. Handing synthesized `NSEvent`s to
+    /// `mouseDown(with:)` could leave WebKit's mouse-event queue waiting on a
+    /// fabricated event, after which the tab ignored the user's real clicks.
     /// Returns once the page has handled the click, so input that follows
     /// (typing into the field it focused) can't overtake it.
     static func click(in webview: WKWebView, x: CGFloat, y: CGFloat, button: String, clickCount: Int) async {
-        if webview.window != nil {
-            nativeClick(in: webview, x: x, y: y, button: button, clickCount: max(1, clickCount))
-            await waitForPendingMouseEvents(in: webview)
-        } else {
-            domClick(in: webview, x: x, y: y, button: button, clickCount: max(1, clickCount))
-        }
-    }
-
-    private static func nativeClick(in webview: WKWebView, x: CGFloat, y: CGFloat, button: String, clickCount: Int) {
-        guard let window = webview.window else { return }
         prepareForInput(webview)
-        // WKWebView is flipped, so (x, y) from the top-left are view coords.
-        let winPoint = webview.convert(NSPoint(x: x, y: y), to: nil)
-        let (downType, upType): (NSEvent.EventType, NSEvent.EventType) = {
-            switch button.lowercased() {
-            case "right", "secondary": return (.rightMouseDown, .rightMouseUp)
-            case "middle": return (.otherMouseDown, .otherMouseUp)
-            default: return (.leftMouseDown, .leftMouseUp)
-            }
-        }()
-
-        func event(_ type: NSEvent.EventType, clicks: Int) -> NSEvent? {
-            NSEvent.mouseEvent(
-                with: type, location: winPoint, modifierFlags: [],
-                timestamp: ProcessInfo.processInfo.systemUptime,
-                windowNumber: window.windowNumber, context: nil,
-                eventNumber: nextEventNumber(), clickCount: clicks, pressure: type == downType ? 1 : 0
-            )
-        }
-
-        // Hover first so :hover styles / mouseenter handlers see the pointer.
-        if let move = event(.mouseMoved, clicks: 0) { webview.mouseMoved(with: move) }
-        for i in 1...clickCount {
-            guard let down = event(downType, clicks: i), let up = event(upType, clicks: i) else { continue }
-            switch downType {
-            case .rightMouseDown: webview.rightMouseDown(with: down); webview.rightMouseUp(with: up)
-            case .otherMouseDown: webview.otherMouseDown(with: down); webview.otherMouseUp(with: up)
-            default: webview.mouseDown(with: down); webview.mouseUp(with: up)
-            }
-        }
-    }
-
-    /// WebKit queues mouse events and sends each to the web process only once
-    /// the previous one is acknowledged, while editing commands go straight
-    /// through — so without this, text typed right after a click can land
-    /// before the click has moved focus. Uses WebKit's
-    /// `_doAfterProcessingAllPendingMouseEvents:` SPI; falls back to a JS
-    /// round trip plus a short grace period.
-    private static func waitForPendingMouseEvents(in webview: WKWebView) async {
-        let sel = NSSelectorFromString("_doAfterProcessingAllPendingMouseEvents:")
-        if webview.responds(to: sel), let imp = webview.method(for: sel) {
-            typealias Action = @convention(block) () -> Void
-            typealias Fn = @convention(c) (AnyObject, Selector, Action) -> Void
-            let fn = unsafeBitCast(imp, to: Fn.self)
-            await withCheckedContinuation { cont in fn(webview, sel) { cont.resume() } }
-        } else {
-            await evalJS(in: webview, "0")
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-    }
-
-    private static func domClick(in webview: WKWebView, x: CGFloat, y: CGFloat, button: String, clickCount: Int) {
         let buttonCode: Int = {
             switch button.lowercased() {
             case "right", "secondary": return 2
@@ -112,35 +44,70 @@ enum BrowserJSInputDispatcher {
         }()
         let js = """
         (function() {
-            var x = \(Self.jsNum(x));
-            var y = \(Self.jsNum(y));
-            var btn = \(buttonCode);
-            var clicks = \(clickCount);
-            var el = document.elementFromPoint(x, y);
-            var target = el || document.body;
-            function dispatch(type, count) {
-                var ev = new MouseEvent(type, {
-                    bubbles: true, cancelable: true, composed: true,
-                    clientX: x, clientY: y, button: btn, buttons: btn === 0 ? 1 : (btn === 2 ? 2 : 4),
-                    detail: count
-                });
-                target.dispatchEvent(ev);
+            var x = \(Self.jsNum(x)), y = \(Self.jsNum(y));
+            var btn = \(buttonCode), clicks = \(max(1, clickCount));
+            // Descend into open shadow roots and same-origin iframes.
+            var doc = document, cx = x, cy = y, target = null;
+            for (var depth = 0; depth < 10; depth++) {
+                var el = doc.elementFromPoint(cx, cy);
+                while (el && el.shadowRoot) {
+                    var inner = el.shadowRoot.elementFromPoint(cx, cy);
+                    if (!inner || inner === el) break;
+                    el = inner;
+                }
+                target = el;
+                if (!el || el.tagName !== 'IFRAME' && el.tagName !== 'FRAME') break;
+                var innerDoc = null;
+                try { innerDoc = el.contentDocument; } catch (_) {}
+                if (!innerDoc) break;
+                var r = el.getBoundingClientRect();
+                cx -= r.left + el.clientLeft; cy -= r.top + el.clientTop;
+                doc = innerDoc;
             }
+            target = target || doc.body;
+            if (!target) return false;
+            var view = doc.defaultView || window;
+            var buttons = btn === 0 ? 1 : (btn === 2 ? 2 : 4);
+            function init(pressed, detail) {
+                return { bubbles: true, cancelable: true, composed: true, view: view,
+                         clientX: cx, clientY: cy, screenX: cx, screenY: cy,
+                         button: btn, buttons: pressed ? buttons : 0, detail: detail };
+            }
+            function pointer(type, pressed) {
+                var o = init(pressed, 0);
+                o.pointerId = 1; o.pointerType = 'mouse'; o.isPrimary = true;
+                o.pressure = pressed ? 0.5 : 0;
+                target.dispatchEvent(new view.PointerEvent(type, o));
+            }
+            function mouse(type, pressed, detail) {
+                return target.dispatchEvent(new view.MouseEvent(type, init(pressed, detail)));
+            }
+            function focusAndPlaceCaret() {
+                var f = target.closest && target.closest('input, textarea, select, button, a[href], [tabindex], [contenteditable]:not([contenteditable="false"])');
+                if (f && f.focus) { try { f.focus({ preventScroll: true }); } catch (_) {} }
+                if (f && f.isContentEditable && doc.caretRangeFromPoint) {
+                    var range = doc.caretRangeFromPoint(cx, cy);
+                    if (range) { var sel = view.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+                }
+            }
+            pointer('pointerover', false); pointer('pointerenter', false);
+            mouse('mouseover', false, 0); mouse('mouseenter', false, 0);
+            pointer('pointermove', false); mouse('mousemove', false, 0);
             for (var i = 1; i <= clicks; i++) {
-                dispatch('mousedown', i);
-                dispatch('mouseup', i);
-                dispatch('click', i);
+                pointer('pointerdown', true);
+                // As in a real click, focus moves on mousedown unless it's cancelled.
+                if (mouse('mousedown', true, i) && i === 1) focusAndPlaceCaret();
+                pointer('pointerup', false);
+                mouse('mouseup', false, i);
+                if (btn === 0) mouse('click', false, i);
+                else if (btn === 1) mouse('auxclick', false, i);
             }
-            if (clicks === 2) dispatch('dblclick', 2);
-            if (btn === 2) {
-                var ctx = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y });
-                target.dispatchEvent(ctx);
-            }
-            try { if (target && target.focus) target.focus(); } catch (_) {}
+            if (btn === 0 && clicks === 2) mouse('dblclick', false, 2);
+            if (btn === 2) mouse('contextmenu', false, 1);
             return true;
         })();
         """
-        webview.evaluateJavaScript(js, completionHandler: nil)
+        _ = await evalJS(in: webview, js)
     }
 
     // MARK: - Type
@@ -397,7 +364,7 @@ enum BrowserJSInputDispatcher {
         let sel = NSSelectorFromString("_executeEditCommand:argument:completion:")
         guard webview.responds(to: sel), let imp = webview.method(for: sel) else { return nil }
         typealias Completion = @convention(block) (ObjCBool) -> Void
-        typealias Fn = @convention(c) (AnyObject, Selector, NSString, NSString, Completion) -> Void
+        typealias Fn = @convention(c) (AnyObject, Selector, NSString, NSString, @escaping Completion) -> Void
         let fn = unsafeBitCast(imp, to: Fn.self)
         return await withCheckedContinuation { cont in
             fn(webview, sel, command as NSString, argument as NSString) { ok in cont.resume(returning: ok.boolValue) }
@@ -489,12 +456,6 @@ enum BrowserJSInputDispatcher {
         if window.firstResponder !== webview {
             window.makeFirstResponder(webview)
         }
-    }
-
-    private static var eventCounter = 1
-    private static func nextEventNumber() -> Int {
-        eventCounter += 1
-        return eventCounter
     }
 
     private static func jsNum(_ v: CGFloat) -> String {

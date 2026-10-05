@@ -145,7 +145,7 @@ struct FavoriteCell: View {
     let isSelected: Bool
     let windowID: ID<WindowState>
     @State private var isHovered = false
-    
+
     var body: some View {
         // Look up the data from BrowserStore
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.tabs[tabID].map(FavoriteCellSnapshot.init(tab:)) }) { snapshot in
@@ -162,7 +162,7 @@ struct FavoriteCell: View {
                     }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.vertical, 8)
-                .glassEffect(Glass.regular.tint(isSelected ? Color.accentColor : nil).interactive(), in: Capsule(style: .continuous))
+                .glassEffect(Glass.regular.tint(isSelected ? Color.accentColor.opacity(SpaceAccent.selectedTabTintOpacity) : nil).interactive(), in: Capsule(style: .continuous))
 //                .glassEffect(isSelected ? Glass.regular.interactive() : .identity, in: true)
 //                .background {
 //                    if !isSelected  {
@@ -222,15 +222,10 @@ struct PlaceholderFavoriteCell: View {
 //            .frame(width: 24, height: 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 8)
-            .background {
-                RecessedSidebarShape(shape: Capsule(style: .continuous))
-//                Capsule()
-//                    .fill(Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05))
-//                Capsule()
-//                    .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom))
-//                    .opacity(colorScheme == .dark ? 0.2 : 0.15)
-////                    .fill(Color.primary.opacity(0.05))
-            }
+            .glassEffect(.regular, in: Capsule(style: .continuous))
+//            .background {
+//                RecessedSidebarShape(shape: Capsule(style: .continuous))
+//            }
             .contentShape(Capsule(style: .continuous))
 //            .onHover { hovering in
 //                isHovered = hovering

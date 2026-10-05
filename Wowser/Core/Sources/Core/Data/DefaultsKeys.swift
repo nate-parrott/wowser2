@@ -70,6 +70,8 @@ public enum DefaultsKeys: String {
     case autofillAgentPasswordFill // bool (default on) — allow browser.credentials.fillPassword from BrowserJS
 
     case vscodeUpdaterPID // int — pid of the background serve-web updater; killed at next launch if it orphaned (app quit mid-download). 0 = none.
+    case toolbarAtBottom // bool (default off) — web-page toolbar sits under the pane, chat-style: suggestions grow upward, typed text defaults to chatting in a side split. See PaneView / OmniboxCoordinator.
+    case renderStatsLogging // bool (default off) — log per-second render/layout/cursor counters (RenderStats); diagnostics only
     case newMenuQuickAction // string — NewMenuItem raw value; the quick-action segment of the sidebar's FancyPlus. Set to the last non-tab item picked from its overflow menu.
 }
 

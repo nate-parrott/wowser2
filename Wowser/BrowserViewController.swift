@@ -185,6 +185,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         
         // Show search overlay to edit URL
         BrowserStore.shared.modify { state in
+            state.windows[windowID]?.omniboxPrefillsURL = true
             state.windows[windowID]?.searchOverlayActive = true
         }
     }
@@ -249,10 +250,19 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
 
     override func viewWillLayout() {
         super.viewWillLayout()
+        RenderStats.hit("BVC.viewWillLayout")
         swipeGestureContainer.frame = view.bounds
         moveBlockingView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height - UIConstants.macHeaderHeight)
         rootHostingController?.view.frame = swipeGestureContainer.bounds
+        if RenderStats.enabled, let hostingView = rootHostingController?.view {
+            let geometry = "frame=\(hostingView.frame) safeArea=\(hostingView.safeAreaInsets)"
+            if geometry != lastLoggedHostingGeometry {
+                lastLoggedHostingGeometry = geometry
+                RenderStats.note("hosting view \(geometry)")
+            }
+        }
     }
+    private var lastLoggedHostingGeometry = ""
     
     deinit {
         print("BrowserViewController deinit")

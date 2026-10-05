@@ -16,6 +16,7 @@ struct PaneView: View {
     @StateObject private var topSitesFetcher = TopSitesFetcher()
     @Environment(\.profileID) private var profileID
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
+    @AppStorage(DefaultsKeys.toolbarAtBottom.rawValue) private var toolbarAtBottomSetting = false
     @State private var size: CGSize = .zero
     
     /// Assumed max height of the empty-page search UI (input box + fully
@@ -27,6 +28,7 @@ struct PaneView: View {
     private static let emptySearchUIMaxHeight: CGFloat = 274
 
     var body: some View {
+        let _ = RenderStats.hit("PaneView.body")
         if snapshot.blank {
             Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -38,11 +40,12 @@ struct PaneView: View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
         let emptyPageTopPadding: CGFloat = snapshot.emptyPage ? max(emptyPageSearchPadding, (size.height - Self.emptySearchUIMaxHeight) / 2) : 0
         let topbarLocked = snapshot.topbarLocked
+        let atBottom = toolbarAtBottom
 
         ZStack(alignment: .top) {
             content
-                .padding(.top, topbarLocked ? UIConstants.macHeaderHeight : 0)
-                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: .bottom)
+                .padding(atBottom ? .bottom : .top, topbarLocked ? UIConstants.macHeaderHeight : 0)
+                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: atBottom ? .top : .bottom)
 
             if snapshot.searchActive {
                 // Click outside the command bar to close it.
@@ -57,23 +60,25 @@ struct PaneView: View {
                         .padding(.horizontal, emptyPageSearchPadding)
                         .padding(.top, emptyPageTopPadding)
                 }
+            } else if atBottom {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    if snapshot.searchActive {
+                        OmniboxDropdown(coordinator: omnibox, growsUpward: true)
+                    }
+                    if !toolbarHidden {
+                        toolbar(atBottom: true)
+                            .offset(y: topbarVisible ? 0 : UIConstants.macHeaderHeight)
+                    }
+                }
             } else {
                 if snapshot.searchActive {
                     OmniboxDropdown(coordinator: omnibox)
                         .padding(.top, UIConstants.macHeaderHeight)
                 }
                 if !toolbarHidden {
-                    ToolbarView(
-                        webContentID: snapshot.webContentId,
-                        coordinator: omnibox,
-                        colorScheme: toolbarColorScheme
-                    )
-                    .overlay(alignment: .bottom) {
-                        (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
-                            .frame(height: 1)
-                    }
-                    .modifier(DictationCardHighlightIfAvailable(paneID: snapshot.webContentId, cornerRadius: 0))
-                    .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
+                    toolbar(atBottom: false)
+                        .offset(y: topbarVisible ? 0 : -UIConstants.macHeaderHeight)
                 }
             }
 
@@ -99,6 +104,7 @@ struct PaneView: View {
         })
         .onAppearOrChange(of: windowID) { omnibox.windowID = $0 }
         .onAppearOrChange(of: snapshot.webContentId) { omnibox.paneID = $0 }
+        .onAppearOrChange(of: atBottom) { omnibox.atBottom = $0 }
         .onAppearOrChange(of: snapshot.emptyPage) { omnibox.searcher.topSitesEnabled = $0 }
         .onReceive(topSitesFetcher.$topSites) { omnibox.searcher.topSites = $0 }
         .onAppearOrChange(of: snapshot.searchActive) { active in
@@ -109,6 +115,25 @@ struct PaneView: View {
         .animation(.niceDefault(duration: 0.12), value: topbarVisible)
     }
     
+    /// The empty-tab command bar stays centered regardless of the setting.
+    private var toolbarAtBottom: Bool {
+        toolbarAtBottomSetting && !snapshot.emptyPage
+    }
+
+    private func toolbar(atBottom: Bool) -> some View {
+        ToolbarView(
+            webContentID: snapshot.webContentId,
+            coordinator: omnibox,
+            colorScheme: toolbarColorScheme,
+            atBottom: atBottom
+        )
+        .overlay(alignment: atBottom ? .top : .bottom) {
+            (toolbarColorScheme?.foreground.color ?? Color.black).opacity(0.1)
+                .frame(height: 1)
+        }
+        .modifier(DictationCardHighlightIfAvailable(paneID: snapshot.webContentId, cornerRadius: 0))
+    }
+
     var profileDataStoreID: AnyPublisher<UUID?, Never> {
         guard let profileID else {
             return Just(nil).eraseToAnyPublisher()

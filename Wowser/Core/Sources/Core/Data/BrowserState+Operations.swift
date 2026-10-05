@@ -495,6 +495,9 @@ extension BrowserState {
     }
     
     public mutating func closeWindow(id: ID<WindowState>) {
+        if DefaultsKeys.allWindowsShareTabs.boolValue() {
+            return
+        }
         if let tabs = windows[id]?.tabs {
             for tab in tabs {
                 _removeTab_unsafe_doesntCloseWebContent(tabId: tab, removeFromParent: false)

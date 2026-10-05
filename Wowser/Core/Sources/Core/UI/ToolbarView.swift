@@ -75,6 +75,9 @@ struct ToolbarView: View {
     var webContentID: ID<WebContent>?
     @ObservedObject var coordinator: OmniboxCoordinator
     var colorScheme: ContentColorScheme?
+    /// Sits under the pane (`DefaultsKeys.toolbarAtBottom`): the field becomes
+    /// a chat box in a glass capsule, with the site name trailing.
+    var atBottom = false
 
     @Environment(\.windowID) private var windowID
 
@@ -82,9 +85,10 @@ struct ToolbarView: View {
     @ObservedObject private var devModeStore = DevModeStore.shared
 
     var body: some View {
+        let _ = RenderStats.hit("ToolbarView.body")
         WithSnapshotMain(store: browserStore, snapshot: { ToolbarViewSnapshot(state: $0, webContentId: webContentID, windowID: windowID) }) { snapshot in
             HStack(spacing: 4) {
-                if snapshot.makeRoomForTrafficLights {
+                if snapshot.makeRoomForTrafficLights && !atBottom {
                     MacWindowControlsIfValidElse(leftPadding: 12) {
                         EmptyView()
                     }
@@ -93,20 +97,31 @@ struct ToolbarView: View {
                 navControls(snapshot: snapshot)
                     .padding(.leading, 4)
 
-                // Security indicator and omnibox field
-                HStack(spacing: -2) {
-                    if snapshot.nativeKey == nil {
-                        LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil)
-                            .padding(.leading, 6)
-                    }
-                    OmniboxField(
+                if atBottom {
+                    BottomOmnibox(
                         paneID: webContentID,
                         coordinator: coordinator,
-                        deselectedText: snapshot.tabAppearance.urlFieldTextDeselected,
+                        siteName: snapshot.tabAppearance.urlFieldTextDeselected,
                         fgColor: colorScheme?.foreground,
-                        fontSize: 12,
                         hasWorkingAttachedAgent: snapshot.hasWorkingAttachedAgent
                     )
+                    .padding(.horizontal, 4)
+                } else {
+                    // Security indicator and omnibox field
+                    HStack(spacing: -2) {
+                        if snapshot.nativeKey == nil {
+                            LeadingIcon(isSecure: snapshot.url != nil ? snapshot.isSecure : nil)
+                                .padding(.leading, 6)
+                        }
+                        OmniboxField(
+                            paneID: webContentID,
+                            coordinator: coordinator,
+                            deselectedText: snapshot.tabAppearance.urlFieldTextDeselected,
+                            fgColor: colorScheme?.foreground,
+                            fontSize: 12,
+                            hasWorkingAttachedAgent: snapshot.hasWorkingAttachedAgent
+                        )
+                    }
                 }
 
                 // Trailing buttons: customizable region (right-click to customize)
@@ -244,6 +259,48 @@ struct ToolbarView: View {
         webContent.reload()
     }
 
+}
+
+/// The bottom toolbar's input: an empty "Chat" field in a glass capsule with
+/// the site name trailing. Clicking the site name (or ⌘L) opens the field
+/// seeded with the URL; clicking anywhere else opens it empty.
+private struct BottomOmnibox: View {
+    var paneID: ID<WebContent>?
+    @ObservedObject var coordinator: OmniboxCoordinator
+    var siteName: String
+    var fgColor: HSBA?
+    var hasWorkingAttachedAgent: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            OmniboxField(
+                paneID: paneID,
+                coordinator: coordinator,
+                deselectedText: "",
+                fgColor: fgColor,
+                fontSize: 13,
+                hasWorkingAttachedAgent: hasWorkingAttachedAgent,
+                placeholder: "Chat",
+                verticalInset: 7
+            )
+            .padding(.leading, 6)
+            if coordinator.text.isEmpty, !siteName.isEmpty, !hasWorkingAttachedAgent || coordinator.isActive {
+                Button(action: { coordinator.open(prefillURL: true) }) {
+                    Text(siteName)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .opacity(0.5)
+                        .padding(.horizontal, 14)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Edit URL (⌘L)")
+            }
+        }
+        .frame(height: 32)
+        .glassEffect(.regular, in: Capsule(style: .continuous))
+    }
 }
 
 // Style for toolbar buttons with consistent appearance

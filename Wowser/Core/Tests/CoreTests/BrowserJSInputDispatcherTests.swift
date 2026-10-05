@@ -25,7 +25,7 @@ final class BrowserJSInputDispatcherTests: XCTestCase {
 
     func testClickIncrementsCounter() async throws {
         let before = try await readInt("window.__clicks")
-        BrowserJSInputDispatcher.click(in: webview, x: 100, y: 70, button: "left", clickCount: 1)
+        await BrowserJSInputDispatcher.click(in: webview, x: 100, y: 70, button: "left", clickCount: 1)
         try await waitForPredicate("window.__clicks === \(before + 1)")
         let after = try await readInt("window.__clicks")
         XCTAssertEqual(after, before + 1)
@@ -34,7 +34,7 @@ final class BrowserJSInputDispatcherTests: XCTestCase {
     func testTypeWritesIntoInput() async throws {
         // Focus the input field first.
         _ = try await eval("document.getElementById('text').focus(); true")
-        BrowserJSInputDispatcher.type(in: webview, text: "hello")
+        await BrowserJSInputDispatcher.type(in: webview, text: "hello")
         try await waitForPredicate("document.getElementById('text').value === 'hello'")
         let value = try await readString("document.getElementById('text').value")
         XCTAssertEqual(value, "hello")
@@ -58,7 +58,7 @@ final class BrowserJSInputDispatcherTests: XCTestCase {
         document.getElementById('text').addEventListener('keydown', function(e) { window.__lastKey = e.key; });
         true
         """)
-        BrowserJSInputDispatcher.key(in: webview, key: "Enter", modifiers: [])
+        await BrowserJSInputDispatcher.key(in: webview, key: "Enter", modifiers: [])
         try await waitForPredicate("window.__lastKey === 'Enter'")
     }
 

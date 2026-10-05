@@ -51,6 +51,7 @@ private struct AgentChatContent: View {
     @FocusState private var inputFocused: Bool
 
     var body: some View {
+        let _ = RenderStats.hit("AgentChatContent.body")
         VStack(spacing: 0) {
             transcript
             inputBar

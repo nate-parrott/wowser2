@@ -99,7 +99,7 @@ struct SearchResultButtonStyle: ButtonStyle {
     var desaturatedHighlight: Bool // e.g. direct-to-site results
     var highlightColor: Color? // overrides the accent when selected (e.g. black for terminal rows)
     @State private var hovered = false
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.onAccentColor) private var onAccentColor
 
     init(isHighlighted: Bool = false, desaturatedHighlight: Bool = false, highlightColor: Color? = nil) {
         self.isHighlighted = isHighlighted
@@ -108,7 +108,12 @@ struct SearchResultButtonStyle: ButtonStyle {
     }
 
     func makeBody(configuration: Configuration) -> some View {
+        // Text and accent-colored icons on the highlight fill take the
+        // on-accent color. Applied to the label only, so the fill below still
+        // reads the real accent.
+        let onHighlight: Color? = isHighlighted ? (highlightColor == nil ? onAccentColor : Color.white) : nil
         configuration.label
+            .modifier(OnHighlightColor(color: onHighlight))
 //            .darkModeConditional({ v, dark in
 //                let color: Color? = isHighlighted ? (dark ? Color.black : Color.white) : nil
 //                v.foregroundColor(color)
@@ -120,10 +125,25 @@ struct SearchResultButtonStyle: ButtonStyle {
                     )
                     .saturation(isHighlighted && desaturatedHighlight ? 0.2 : 1)
             )
-            .foregroundColor(isHighlighted ? Color.white : nil)
-            .colorScheme(isHighlighted ? ColorScheme.light : colorScheme) // force dark mode if highlighted so we get white text and a dark-tinted variant of the accent
             .contentShape(Rectangle())
             .onHover(perform: { self.hovered = $0 })
+    }
+}
+
+/// Overrides foreground, accent and tint only when `color` is set, so
+/// unhighlighted rows keep inheriting the window's accent.
+private struct OnHighlightColor: ViewModifier {
+    var color: Color?
+
+    func body(content: Content) -> some View {
+        if let color {
+            content
+                .foregroundColor(color)
+                .accentColor(color)
+                .tint(color)
+        } else {
+            content
+        }
     }
 }
 
@@ -145,13 +165,13 @@ public extension Button {
 struct TabStyleButtonModifier: ViewModifier {
     var isSelected: Bool
     var pressed: () -> Void
-    
+
     func body(content: Content) -> some View {
         content
             .font(.system(size: isMobile() ? 16 : 13))
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(isSelected ? .regular.tint(Color.accentColor) : .identity, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .glassEffect(isSelected ? .regular.tint(Color.accentColor.opacity(SpaceAccent.selectedTabTintOpacity)) : .identity, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 //            .background{
 //                if isSelected {
 //                    RoundedRectangle(cornerRadius: 8, style: .continuous)

@@ -299,9 +299,7 @@ declare global {
 
     /**
      * In-page JS execution and computer-use input — runs against the page's
-     * WKWebView, visible or not. Input is dispatched as real native events
-     * (WebKit hit-testing, focus, default actions: Enter submits forms, clicking
-     * a link navigates, framework handlers fire), so it behaves like a user.
+     * WKWebView, visible or not. Input only ever reaches the target tab.
      */
     page: {
       /**
@@ -318,6 +316,13 @@ declare global {
        * top-left — the same coordinates as a screenshot or
        * `getBoundingClientRect()`. Pass `clickCount: 2` for a double-click.
        * Clicking an input focuses it, so follow with `type`.
+       *
+       * Dispatched as DOM pointer/mouse/click events on the element at that
+       * point (into open shadow roots and same-origin iframes), so framework
+       * handlers fire and links/checkboxes/buttons activate, but the events
+       * have `isTrusted: false`: native `<select>` popups and file pickers
+       * won't open (set `.value` + dispatch `change` via `eval` instead), and
+       * cross-origin iframes can't be reached.
        */
       click(id: TabId, x: number, y: number, opts?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void>;
       /**

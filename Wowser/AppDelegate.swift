@@ -141,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        RenderStats.start()
         SettingsWindow.observeShowSettingsRequests()
         DictationHotkeyMonitor.shared.resolveContext = {
             guard let vc = NSApp.keyWindow?.windowController?.contentViewController as? BrowserViewController,
