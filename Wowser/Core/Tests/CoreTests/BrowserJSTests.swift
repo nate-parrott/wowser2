@@ -67,6 +67,20 @@ final class BrowserJSTests: XCTestCase {
         XCTAssertEqual(result.logs, ["hello {\"x\":1}"])
     }
 
+    func testReadOnlyRuntimeAllowsReadsAndRefusesWrites() async throws {
+        let host = MockHost()
+        let rt = BrowserJSRuntime(host: host, helpers: MemoryHelpers(), readOnly: true)
+
+        let read = await rt.run(code: "return (await browser.tabs.list()).length;")
+        XCTAssertNil(read.error, read.error ?? "")
+
+        let write = await rt.run(code: "await browser.tabs.open('https://example.com'); return 1;")
+        XCTAssertNotNil(write.error)
+        XCTAssertTrue(write.error?.contains("read-only") == true, write.error ?? "")
+        let after = await BrowserJSRuntime(host: host, helpers: MemoryHelpers()).run(code: "return (await browser.tabs.list()).length;")
+        XCTAssertEqual(after.result, read.result)
+    }
+
     func testTabsListAndOpen() async throws {
         let host = MockHost()
         let helpers = MemoryHelpers()

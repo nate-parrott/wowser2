@@ -375,6 +375,7 @@ struct ChatToolGroupRow: View {
     static func friendlyToolName(_ name: String?) -> String {
         switch name {
         case "run_browser_js": return "Drove the browser"
+        case "read_browser_js": return "Looked at the browser"
         case "done": return "Wrapped up"
         case .some(let other): return other
         case nil: return "Tool"

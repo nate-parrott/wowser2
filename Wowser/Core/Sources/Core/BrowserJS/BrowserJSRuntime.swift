@@ -29,15 +29,19 @@ public actor BrowserJSRuntime {
     private let host: any BrowserJSHost
     private let helpers: BrowserJSHelpersProvider
     private let caps: Caps
+    /// Only `BrowserJSDispatch.readOnlyFns` may be called; everything else
+    /// throws. Backs the agents' `read_browser_js` tool.
+    private let readOnly: Bool
 
     // The JSContext, initialized lazily on first use. JSContexts are not
     // thread-safe; we only ever touch this from inside the actor.
     private var contextBox: ContextBox?
 
-    public init(host: any BrowserJSHost, helpers: BrowserJSHelpersProvider, caps: Caps = Caps()) {
+    public init(host: any BrowserJSHost, helpers: BrowserJSHelpersProvider, caps: Caps = Caps(), readOnly: Bool = false) {
         self.host = host
         self.helpers = helpers
         self.caps = caps
+        self.readOnly = readOnly
     }
 
     /// `preamble` is extra JS evaluated ahead of the helpers and user code —
@@ -180,7 +184,8 @@ public actor BrowserJSRuntime {
     }
 
     private func handleHostCall(fn: String, argsJSON: String) async throws -> String? {
-        try await BrowserJSDispatch.handle(fn: fn, argsJSON: argsJSON, host: host)
+        if readOnly, !BrowserJSDispatch.readOnlyFns.contains(fn) { throw BrowserJSError.readOnly(fn) }
+        return try await BrowserJSDispatch.handle(fn: fn, argsJSON: argsJSON, host: host)
     }
 }
 

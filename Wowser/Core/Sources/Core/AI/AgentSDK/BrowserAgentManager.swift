@@ -173,6 +173,7 @@ public actor BrowserAgentManager {
     /// One BrowserJS runtime per agent, so each agent's JS environment can
     /// carry its own identity (`__agentKey`) for the chat-mode tools.
     private var runtimes: [String: BrowserJSRuntime] = [:]
+    private var readOnlyRuntimes: [String: BrowserJSRuntime] = [:]
     private var entries: [String: Entry] = [:]
     private var keyToAgentID: [String: String] = [:]
     private var idleWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
@@ -267,7 +268,9 @@ public actor BrowserAgentManager {
             resumeSessionID: record.sessionID
         )
         if record.exposeBrowserJS {
-            spec.tools.append(makeRunBrowserJSTool(agentID: record.agentID, agentKey: isKeyed ? record.key : nil))
+            let agentKey = isKeyed ? record.key : nil
+            spec.tools.append(makeRunBrowserJSTool(agentID: record.agentID, agentKey: agentKey, readOnly: true))
+            spec.tools.append(makeRunBrowserJSTool(agentID: record.agentID, agentKey: agentKey, readOnly: false))
             spec.appendSystemPrompt = """
             ## Browser control
 
@@ -277,6 +280,15 @@ public actor BrowserAgentManager {
             `return <expr>` to produce a result. To see a page, call \
             `browser.viewImage(await browser.content.screenshot(tabId))`; the \
             screenshot comes back to you as an image.
+
+            `read_browser_js` takes the same code but only allows calls that \
+            read: listing/getting tabs, windows, spaces, folders and splits, \
+            `content.read`/`content.screenshot`, the network log, files, memory, \
+            agent/terminal transcripts. It runs immediately with no permission \
+            review, so prefer it for looking around. Anything that changes the \
+            browser, a page, the network or the disk — opening/closing tabs, \
+            navigating, `page.*` (including eval), `net.fetch`, writes — needs \
+            `run_browser_js`, whose calls are reviewed before they run.
 
             Work in the background by default: the user is using this browser \
             while you work. Open pages with `browser.tabs.openGhost(url)` — a \
@@ -530,6 +542,7 @@ public actor BrowserAgentManager {
             store.delete(key: key)
         }
         runtimes[id] = nil
+        readOnlyRuntimes[id] = nil
         resumeIdleWaiters(id: id)
         postDidUpdate(agentID: id)
         await entry.agent.shutdown()
@@ -632,23 +645,37 @@ public actor BrowserAgentManager {
         store.saveTranscript(key: key, messages: entry.messages)
     }
 
-    private func makeRunBrowserJSTool(agentID: String, agentKey: String?) -> AgentToolDefinition {
-        AgentToolDefinition(
-            name: "run_browser_js",
-            description: """
+    /// `readOnly` builds `read_browser_js`: refuses every call outside
+    /// `BrowserJSDispatch.readOnlyFns`, so it's pre-approved. The full
+    /// `run_browser_js` goes through the harness's permission review.
+    private func makeRunBrowserJSTool(agentID: String, agentKey: String?, readOnly: Bool) -> AgentToolDefinition {
+        let description = readOnly ? """
+            Read-only variant of `run_browser_js`: same environment and syntax, \
+            but only calls that read browser state are allowed (tabs.list/get, \
+            content.read/screenshot, windows/spaces/folders/splits lists, \
+            net.log/grep, fs.read/list/stat, memory reads, transcripts). Any \
+            call that would change the browser, a page, the network or the disk \
+            throws. Runs without permission review — prefer it for looking around.
+            """ : """
             Run JS in the browser's privileged BrowserJS environment (a global \
             `browser` object; see the BrowserJS docs in your system prompt). \
             Your code is the body of an async function: use top-level `await` \
             and `return <expr>` to produce a result. Call \
             `browser.viewImage(await browser.content.screenshot(tabId))` to see \
-            a screenshot — it is attached to the tool result as an image.
-            """,
-            inputSchemaJSON: #"{"type":"object","properties":{"code":{"type":"string","description":"BrowserJS source. May use top-level await."}},"required":["code"]}"#
+            a screenshot — it is attached to the tool result as an image. \
+            Calls are reviewed before they run; use `read_browser_js` when you \
+            only need to read.
+            """
+        return AgentToolDefinition(
+            name: readOnly ? "read_browser_js" : "run_browser_js",
+            description: description,
+            inputSchemaJSON: #"{"type":"object","properties":{"code":{"type":"string","description":"BrowserJS source. May use top-level await."}},"required":["code"]}"#,
+            requiresPermission: !readOnly
         ) { [weak self] inputJSON in
             guard let self else { return AgentToolOutput(text: "browser unavailable", isError: true) }
             let code = ((try? JSONSerialization.jsonObject(with: Data(inputJSON.utf8))) as? [String: Any])?["code"] as? String
             guard let code else { return AgentToolOutput(text: "missing `code` argument", isError: true) }
-            let result = await self.runBrowserJS(code: code, agentID: agentID, agentKey: agentKey)
+            let result = await self.runBrowserJS(code: code, agentID: agentID, agentKey: agentKey, readOnly: readOnly)
             var payload: [String: Any] = ["logs": result.logs]
             if let r = result.result { payload["result"] = r }
             if let e = result.error { payload["error"] = e }
@@ -663,13 +690,15 @@ public actor BrowserAgentManager {
         }
     }
 
-    private func runBrowserJS(code: String, agentID: String, agentKey: String?) async -> BrowserJSResult {
+    private func runBrowserJS(code: String, agentID: String, agentKey: String?, readOnly: Bool) async -> BrowserJSResult {
+        // Separate runtimes (and JSContexts) per mode: the gate is per runtime,
+        // and runs can interleave, so one context can't switch modes per call.
         let runtime: BrowserJSRuntime
-        if let existing = runtimes[agentID] {
+        if let existing = readOnly ? readOnlyRuntimes[agentID] : runtimes[agentID] {
             runtime = existing
         } else {
-            runtime = BrowserJSRuntime(host: host, helpers: helpers)
-            runtimes[agentID] = runtime
+            runtime = BrowserJSRuntime(host: host, helpers: helpers, readOnly: readOnly)
+            if readOnly { readOnlyRuntimes[agentID] = runtime } else { runtimes[agentID] = runtime }
         }
         // Identity preamble: the chat-mode BrowserJS calls (`present`,
         // `agents.*`) read `__agentKey` so the host knows who is asking.

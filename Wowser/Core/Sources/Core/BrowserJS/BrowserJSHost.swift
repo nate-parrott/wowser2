@@ -642,6 +642,7 @@ public enum BrowserJSError: LocalizedError, Equatable {
     case invalidArgs(String)
     case timeout
     case notImplemented(String)
+    case readOnly(String)
     case underlying(String)
 
     public var errorDescription: String? {
@@ -653,6 +654,7 @@ public enum BrowserJSError: LocalizedError, Equatable {
         case .invalidArgs(let msg): return "invalid args: \(msg)"
         case .timeout: return "timeout"
         case .notImplemented(let what): return "not implemented in v1: \(what)"
+        case .readOnly(let fn): return "`browser.\(fn)` is not available in read-only mode; use `run_browser_js` instead"
         case .underlying(let msg): return msg
         }
     }

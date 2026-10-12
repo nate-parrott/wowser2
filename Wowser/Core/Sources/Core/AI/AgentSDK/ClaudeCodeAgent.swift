@@ -25,6 +25,8 @@ public actor ClaudeCodeAgent: Agent {
         /// Edit, Bash, Glob, Grep, ...). Off by default: a browser-embedded
         /// agent normally acts through its BrowserJS tools instead.
         public var enableFileSystemTools: Bool
+        /// `auto`: the harness's classifier reviews tool calls that aren't
+        /// pre-approved (shell/file tools, tools with `requiresPermission`).
         public var permissionMode: String
         public var maxTurns: Int?
         public var workingDirectory: URL?
@@ -43,7 +45,7 @@ public actor ClaudeCodeAgent: Agent {
             systemPrompt: String? = nil,
             appendSystemPrompt: String? = nil,
             enableFileSystemTools: Bool = false,
-            permissionMode: String = "bypassPermissions",
+            permissionMode: String = "auto",
             maxTurns: Int? = nil,
             workingDirectory: URL? = nil,
             tools: [AgentToolDefinition] = [],
@@ -213,7 +215,7 @@ public actor ClaudeCodeAgent: Agent {
             ]
             let data = try JSONSerialization.data(withJSONObject: mcpConfig)
             args += ["--mcp-config", String(data: data, encoding: .utf8)!]
-            allowed += config.tools.map { "mcp__\(Self.mcpServerName)__\($0.name)" }
+            allowed += config.tools.filter { !$0.requiresPermission }.map { "mcp__\(Self.mcpServerName)__\($0.name)" }
         }
         if !allowed.isEmpty { args += ["--allowedTools", allowed.joined(separator: ",")] }
 
@@ -399,7 +401,8 @@ public actor ClaudeCodeAgent: Agent {
                 ])
             }
         case "can_use_tool":
-            // We only reach here for tools not covered by allowedTools; allow.
+            // Only sent with `--permission-prompt-tool stdio`, which we don't
+            // pass: in auto mode the classifier decides. Allow if it ever comes.
             try? writeLine([
                 "type": "control_response",
                 "response": [
@@ -557,7 +560,7 @@ public struct ClaudeCodeAgentProvider: AgentProvider {
 
     public func makeAgent(_ spec: AgentSpec) -> any Agent {
         // Settings › AI › "Give agents shell & file access" (default off) grants
-        // every agent the harness tools (permissions bypassed, as always).
+        // every agent the harness tools (reviewed by the auto-mode classifier).
         let shellTools = spec.enableFileSystemTools || DefaultsKeys.agentShellTools.boolValue()
         return ClaudeCodeAgent(configuration: .init(
             model: spec.model,

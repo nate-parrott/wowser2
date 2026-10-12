@@ -12,6 +12,30 @@ import Foundation
 // `handle` takes a method name + JSON-encoded args and returns a
 // JSON-stringified result (or nil for void), calling into the supplied host.
 enum BrowserJSDispatch {
+    /// Calls with no side effects on the browser, pages, or disk: no UI
+    /// changes, no navigation, no input, no JS in pages, no network requests.
+    /// A read-only runtime refuses everything else, which is what lets the
+    /// agents' `read_browser_js` tool skip permission review.
+    static let readOnlyFns: Set<String> = [
+        "tabs.list", "tabs.get",
+        "content.read", "content.screenshot",
+        "windows.list", "windows.getCurrent", "windows.getById",
+        "net.log", "net.grep",
+        "splits.list", "splits.get",
+        "spaces.list", "spaces.getCurrent",
+        "folders.list", "folders.get",
+        "agent.list", "agent.messages",
+        "agents.list", "agents.transcript",
+        "fs.read", "fs.list", "fs.stat",
+        "terminal.read",
+        "tasks.list",
+        "toolbar.list", "toolbar.get",
+        "inject.get",
+        "memory.scopes", "memory.schema", "memory.query", "memory.overview",
+        "credentials.lookup", "credentials.hasPassword",
+        "profile.get",
+    ]
+
     static func handle(fn: String, argsJSON: String, host: any BrowserJSHost) async throws -> String? {
         let data = argsJSON.data(using: .utf8) ?? Data()
         let raw = (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any] ?? [:]

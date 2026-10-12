@@ -810,6 +810,7 @@ public final class AgentChatSession: ObservableObject {
         case "tool_use":
             switch message.toolName {
             case "run_browser_js": return "Driving the browser…"
+            case "read_browser_js": return "Looking at the browser…"
             case "done": return "Wrapping up…"
             case .some(let name): return "Using \(name)…"
             case nil: return "Using a tool…"

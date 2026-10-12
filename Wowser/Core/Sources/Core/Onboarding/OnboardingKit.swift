@@ -1,3 +1,4 @@
+import SwiftUI
 //
 //  OnboardingKit.swift
 //  Core
@@ -19,8 +20,7 @@
  [Profile 1 - usage amt] [Import]
  [Profile 2 - usage amt] [Import]
  [Profile 3 - usage amt] [Import]
- // etc
- --
+ // -- etc --
  Imports cookies, logins, passwords into autofill [i] // allows checking/unchecking
  
  # Safari
@@ -29,6 +29,12 @@
  [Skip] // or 'done' if you pick some
  
  // Creates one space + profile per import; pins top sites as faves
+ 
+ -----
+ 
+ Set as default browser?
+ 
+ [Set as Default] [Not yet]
  
  -----
  
@@ -81,3 +87,98 @@
  [ ] Drag an image into the sidebar to set it as a space background (try it -- provides image thumbnail from preset unsplash images)
  
  */
+
+// Components: Button, Screen, Toggle, Well, FeatheredScroll, Radio
+
+private struct OnboardingScreen<C: View, Footer: View>: View {
+    @ViewBuilder var content: () -> C
+    @ViewBuilder var footer: () -> Footer
+    
+    var mainMaxWidth: CGFloat = 700
+    var padding: CGFloat {
+        smallViewport ? 20 : 50
+    }
+    
+    @State private var smallViewport = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical) {
+                content()
+                    .padding(padding)
+                    .frame(maxWidth: mainMaxWidth, alignment: .topLeading)
+                    .frame(maxWidth: .infinity)
+            }
+            .modifier(FeatherTopAndBottom(featherHeight: padding * 0.8))
+            
+            HStack {
+                footer()
+            }
+            .padding(.horizontal, padding)
+            .padding(.bottom, padding)
+        }
+        .controlSize(smallViewport ? .regular : .extraLarge)
+        .measureSize({ self.smallViewport = $0.width < 500 || $0.height < 500 })
+        .background {
+            LinearGradient(colors: [Color.accentColor.opacity(0), Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .opacity(0.05)
+        }
+    }
+}
+
+struct FeatherTopAndBottom: ViewModifier {
+    var featherHeight: CGFloat = 20
+    
+    @State private var contentHeight: CGFloat = 100
+    
+    func body(content: Content) -> some View {
+        let x = featherHeight / max(1, contentHeight)
+        content.mask {
+            LinearGradient(stops: [
+                Gradient.Stop(color: Color.clear, location: 0),
+                Gradient.Stop(color: Color.black, location: x),
+                Gradient.Stop(color: Color.black, location: 1 - x),
+                Gradient.Stop(color: Color.clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .measureSize({ self.contentHeight = $0.height })
+    }
+}
+
+private struct DividedStack<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Group(subviews: content) { subviews in
+                ForEach(subviews.indices, id: \.self) { i in
+                    subviews[i]
+                    if i < subviews.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct OnboardingDemoView: View {
+    var body: some View {
+        OnboardingScreen(content: {
+            Form {
+                Section {
+                    Text("hey!")
+                }
+            }
+            .formStyle(.grouped)
+        }, footer: {
+            Button(action: {}) {
+                Text("Continue")
+            }
+        })
+    }
+}
+
+#Preview {
+    OnboardingDemoView()
+}

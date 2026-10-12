@@ -113,11 +113,12 @@ private struct AgentChatContent: View {
                 Color.clear.frame(height: viewportHeight * 0.5)
             }
             .padding(.horizontal, 18)
-            .padding(.top, 18)
+            .padding(.vertical, 30)
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
         }
         .scrollPosition($scrollPos)
+        .modifier(FeatherTopAndBottom(featherHeight: 30))
         .onScrollGeometryChange(for: ScrollGeometryInfo.self) { geo in
             ScrollGeometryInfo(
                 offsetY: geo.contentOffset.y,

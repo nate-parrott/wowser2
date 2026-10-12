@@ -56,10 +56,14 @@ public struct AgentToolDefinition: Sendable {
     public var description: String
     public var inputSchemaJSON: String
     public var handler: @Sendable (_ inputJSON: String) async -> AgentToolOutput
+    /// When true, each call goes through the harness's permission mode (the
+    /// auto-mode classifier) instead of being pre-approved.
+    public var requiresPermission: Bool
 
-    public init(name: String, description: String, inputSchemaJSON: String, handler: @escaping @Sendable (String) async -> AgentToolOutput) {
+    public init(name: String, description: String, inputSchemaJSON: String, requiresPermission: Bool = false, handler: @escaping @Sendable (String) async -> AgentToolOutput) {
         self.name = name; self.description = description
-        self.inputSchemaJSON = inputSchemaJSON; self.handler = handler
+        self.inputSchemaJSON = inputSchemaJSON; self.requiresPermission = requiresPermission
+        self.handler = handler
     }
 }
 
