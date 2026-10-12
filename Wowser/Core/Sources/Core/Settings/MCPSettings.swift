@@ -10,6 +10,9 @@ struct MCPSettings: View {
 
     var body: some View {
         Form {
+            #if os(macOS)
+            MCPServerStatusSection()
+            #endif
             Section {
                 Text("Install in Claude Code")
                     .font(.headline)
@@ -74,6 +77,35 @@ struct MCPSettings: View {
         """
     }
 }
+
+#if os(macOS)
+/// Shown only when the server isn't running: the reason, plus a Retry button.
+private struct MCPServerStatusSection: View {
+    @ObservedObject private var status = MCPServerStatus.shared
+    @State private var retrying = false
+
+    var body: some View {
+        if let message = status.failureMessage {
+            Section {
+                Label("MCP server isn't running", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button(retrying ? "Retrying…" : "Retry") {
+                    retrying = true
+                    Task {
+                        try? await MCPServer.shared.start()
+                        retrying = false
+                    }
+                }
+                .disabled(retrying)
+            }
+        }
+    }
+}
+#endif
 
 private struct CopyableCommand: View {
     var text: String

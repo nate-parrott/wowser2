@@ -28,7 +28,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func createInitialWindowIfNeeded() {
         if windowControllers.count > 0 { return }
-        newWindow(nil)
+        // With shared tabs, closing the last window keeps its state around
+        // (see `BrowserState.closeWindow`); reopen it rather than adding another.
+        if let id = BrowserStore.shared.model.windowsMostRecentFirst.first?.id {
+            showWindowController(id: id)
+        } else {
+            newWindow(nil)
+        }
+    }
+
+    private func showWindowController(id: ID<WindowState>) {
+        let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
+        windowControllers.append(windowController)
+        windowController.browserViewController?.setupBrowserViewController(id: id)
+        windowController.window?.makeKeyAndOrderFront(nil)
     }
     
     private var windowIDs: Set<ID<WindowState>> = .init() {
@@ -36,10 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let addedWindowIDs = windowIDs.filter({ !oldValue.contains($0) })
             let removedWindowIDs = oldValue.filter({ !windowIDs.contains($0) })
             for id in addedWindowIDs {
-                let windowController = NSStoryboard.main!.instantiateController(withIdentifier: "BrowserWindowController") as! BrowserWindowController
-                windowControllers.append(windowController)
-                windowController.browserViewController?.setupBrowserViewController(id: id)
-                windowController.window?.makeKeyAndOrderFront(nil)
+                showWindowController(id: id)
             }
             for id in removedWindowIDs {
                 if let controller = windowControllers.first(where: { $0.browserViewController?.windowID == id }) {
@@ -187,11 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ScheduledTasksStore.shared.startScheduler()
 
         Task {
-            do {
-                try await MCPServer.shared.start()
-            } catch {
-                FileHandle.standardError.write(Data("MCP server failed to start: \(error)\n".utf8))
-            }
+            await MCPServer.shared.startAtLaunch()
         }
         
         // show welcome?

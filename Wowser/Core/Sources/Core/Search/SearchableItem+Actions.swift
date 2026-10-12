@@ -329,7 +329,8 @@ extension SearchableItem {
     }
 
     /// Terminal-flavored rows (a typed shell command, or the "Open Terminal" /
-    /// "New Claude" actions) render in monospace with a black selection.
+    /// "New Claude" actions) render in monospace with a black selection, when
+    /// `omniboxTerminalCommands` is on (checked by the row view).
     public var isTerminalStyled: Bool {
         switch content {
         case .terminalCommand: return true

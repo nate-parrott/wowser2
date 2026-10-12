@@ -45,6 +45,17 @@
  
  -----
  
+ Limitations:
+ 
+ - Very experimental
+ - No passkeys
+ - Some sites don't work
+ - Not security-tested
+ 
+ [I understand]
+ 
+ -----
+ 
  Enable other goodies
  
  [x] Ad blocker

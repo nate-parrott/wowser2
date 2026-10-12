@@ -270,6 +270,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     }
 
     override func silencedDidChange() {
+        let silenced = isEffectivelySilenced
         webview.setAllMediaPlaybackSuspended(silenced, completionHandler: nil)
         webview.setMicrophoneCaptureState(silenced ? .none : .active, completionHandler: nil)
         webview.setCameraCaptureState(silenced ? .none : .active, completionHandler: nil)

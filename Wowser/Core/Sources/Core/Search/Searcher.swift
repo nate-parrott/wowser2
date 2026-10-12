@@ -483,7 +483,9 @@ extension CharacterSet {
         #if os(macOS)
         // "Run in terminal": a confident match goes straight to the top;
         // anything weaker trails the search suggestions.
-        let terminalLikelihood = TerminalCommandCache.shared.isTerminalCommand(query)
+        let terminalLikelihood = DefaultsKeys.omniboxTerminalCommands.boolValue()
+            ? TerminalCommandCache.shared.isTerminalCommand(query)
+            : .unlikely
         if terminalLikelihood != .unlikely {
             let cwd = model.spaceFolderPath(windowID: self.windowID) ?? model.mostRecentNativeFolderPath(windowID: self.windowID)
             let terminalResult = SearchResult.terminalCommand(query.trimmingCharacters(in: .whitespacesAndNewlines), cwd: cwd, likelihood: terminalLikelihood)

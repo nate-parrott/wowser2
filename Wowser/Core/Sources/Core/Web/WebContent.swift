@@ -220,6 +220,17 @@ public class WebContent: NSObject, ObservableObject {
             silencedDidChange()
         }
     }
+    /// Set once BrowserStore drops this WebContent (tab closed or evicted). A
+    /// retired page stays silenced regardless of `silenced`, so a webview that
+    /// something still retains can't keep playing audio.
+    var retired = false {
+        didSet(old) {
+            guard retired != old else { return }
+            silencedDidChange()
+        }
+    }
+    /// What engines apply: `silenced`, or forced by `retired`.
+    var isEffectivelySilenced: Bool { silenced || retired }
     func silencedDidChange() {}
 
     /// Dev mode's mobile emulation. Takes effect on the next navigation — callers

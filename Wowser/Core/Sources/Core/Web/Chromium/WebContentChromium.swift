@@ -96,7 +96,8 @@ public final class WebContentChromium: WebContent {
     }
 
     override func silencedDidChange() {
-        onMain { $0.browser?.isAudioMuted = silenced }
+        let muted = isEffectivelySilenced
+        onMain { $0.browser?.isAudioMuted = muted }
     }
 }
 

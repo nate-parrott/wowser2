@@ -15,6 +15,7 @@ public struct SettingsView: View {
     @AppStorage(DefaultsKeys.cleanModeForRecipes.rawValue) private var cleanModeForRecipesEnabled = false
     @AppStorage(DefaultsKeys.enableGoDirectQueries.rawValue) private var enableGoDirectQueries = false
     @AppStorage(DefaultsKeys.searchToolbarEnabled.rawValue) private var searchToolbarEnabled = false
+    @AppStorage(DefaultsKeys.omniboxTerminalCommands.rawValue) private var omniboxTerminalCommands = false
     @AppStorage(DefaultsKeys.chromiumEngine.rawValue) private var chromiumEngineEnabled = false
     @AppStorage(DefaultsKeys.dictationCleanup.rawValue) private var dictationCleanupEnabled = false
     @AppStorage(DefaultsKeys.dictationHotkey.rawValue) private var dictationHotkey = DictationHotkey.default.rawValue
@@ -104,6 +105,9 @@ public struct SettingsView: View {
                 
                 Toggle("Show search toolbar on search pages", isOn: $searchToolbarEnabled)
                     .help("Shows a toolbar with search options when viewing search results")
+
+                Toggle("Suggest running shell commands in Terminal", isOn: $omniboxTerminalCommands)
+                    .help("When what you type looks like a shell command, the omnibox offers to run it in a new terminal tab, and terminal suggestions use a monospace style")
                                 
                 Toggle("Animate new tabs", isOn: $animateNewTabsEnabled)
                     .help("Show animation when new tabs are loaded")

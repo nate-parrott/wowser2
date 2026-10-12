@@ -495,7 +495,23 @@ extension BrowserState {
     }
     
     public mutating func closeWindow(id: ID<WindowState>) {
-        if DefaultsKeys.allWindowsShareTabs.boolValue() {
+        if DefaultsKeys.allWindowsShareTabs.boolValue(defaultValue: true), let closing = windows[id] {
+            // Tabs are shared, so closing a window shouldn't lose them: hand
+            // them to the most recent other window. The last window stays in
+            // state (tabs intact) and is reopened by the app on reactivation.
+            guard let heir = windowsMostRecentFirst.first(where: { $0.id != id }) else { return }
+            for (profileID, data) in closing.perProfileData {
+                let moving = data.tabs + (data.attachedAgentTabs ?? [])
+                guard !moving.isEmpty else { continue }
+                if windows[heir.id]!.perProfileData[profileID] == nil {
+                    windows[heir.id]!.perProfileData[profileID] = .init(tabs: [])
+                }
+                windows[heir.id]!.perProfileData[profileID]!.tabs.append(contentsOf: moving)
+                for tabID in moving {
+                    modifyTab(id: tabID) { $0.lastActiveInWindow = heir.id }
+                }
+            }
+            windows.removeValue(forKey: id)
             return
         }
         if let tabs = windows[id]?.tabs {
@@ -666,7 +682,7 @@ extension BrowserState {
         paneToTabMapping[id].flatMap { windowAndSpace(containingTabId: $0) }
     }
 
-    var windowsMostRecentFirst: [WindowState] {
+    public var windowsMostRecentFirst: [WindowState] {
         windows.values.sorted { w0, w1 in
             (w0.lastActive ?? Date.distantPast) > (w1.lastActive ?? Date.distantPast)
         }

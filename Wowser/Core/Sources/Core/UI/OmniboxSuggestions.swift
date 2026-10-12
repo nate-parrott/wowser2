@@ -50,9 +50,11 @@ private struct SearchResultRow: View {
     let result: SearchResult
     let isSelected: Bool
     let onSelect: () -> Void
-    
+    @AppStorage(DefaultsKeys.omniboxTerminalCommands.rawValue) private var terminalStylingEnabled = false
+
     var body: some View {
         let (title, subtitle) = titleSubtitle
+        let terminalStyled = terminalStylingEnabled && result.item.isTerminalStyled
         
         Button(action: onSelect) {
             HStack(spacing: 12) {
@@ -61,7 +63,7 @@ private struct SearchResultRow: View {
                 
                 if let title {
                     Text(title + "  ")
-                        .font(.system(size: result.item.isTerminalStyled ? 13 : 14, design: result.item.isTerminalStyled ? .monospaced : .default))
+                        .font(.system(size: terminalStyled ? 13 : 14, design: terminalStyled ? .monospaced : .default))
                         .layoutPriority(2)
                 }
                 
@@ -78,7 +80,7 @@ private struct SearchResultRow: View {
             .contentShape(Rectangle())
             .lineLimit(1)
         }
-        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, desaturatedHighlight: isDirectToSite, highlightColor: result.item.isTerminalStyled ? .black : nil))
+        .buttonStyle(SearchResultButtonStyle(isHighlighted: isSelected, desaturatedHighlight: isDirectToSite, highlightColor: terminalStyled ? .black : nil))
     }
 
     private var isDirectToSite: Bool {

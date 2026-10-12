@@ -53,7 +53,7 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
 // MARK: - Opening Settings from Core
 
 /// Tabs in the Settings window that can be targeted from elsewhere in the app.
-public enum SettingsTab: String, Hashable, CaseIterable {
+public enum SettingsTab: String, Hashable, CaseIterable, Codable {
     case general, profiles, autofill, ai, tasks, memory, mcp, experimental, credits
 
     public var title: String {

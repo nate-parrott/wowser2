@@ -18,8 +18,13 @@ public actor MCPServer {
 
     /// Fixed loopback port. We pick a stable port so the `claude mcp add`
     /// command in Settings stays valid across launches. If something else is
-    /// holding it, start() falls back to a random port and updates the URL.
-    public static let preferredPort: Int = 48197
+    /// holding it, start() fails (no random fallback: a URL on a random port
+    /// would be dead by the next launch) and Settings offers a retry.
+    /// Different per build flavor so dev and prod can run side-by-side without
+    /// one of them landing on a random port (which strands the installed URL).
+    public static var preferredPort: Int {
+        isProd() ? 48197 : 48198
+    }
 
     private let runtime: BrowserJSRuntime
     private let helpers: BrowserJSHelpersProvider
@@ -38,10 +43,52 @@ public actor MCPServer {
         self.runtime = BrowserJSRuntime(host: host, helpers: helpers)
     }
 
-    /// Start the server. Call once at app launch. Tries `preferredPort` first;
-    /// falls back to a random ephemeral port if that's taken.
+    /// Called once at app launch. On failure, posts a toast pointing at
+    /// Settings → MCP, where the user can retry.
+    public func startAtLaunch() async {
+        do {
+            try await start()
+        } catch {
+            FileHandle.standardError.write(Data("MCP server failed to start: \(error)\n".utf8))
+            let message = await MCPServerStatus.shared.failureMessage ?? "\(error)"
+            await MainActor.run {
+                BrowserStore.shared.modify { state in
+                    guard let windowID = state.mostRecentlyActiveWindowID else { return }
+                    var toast = Toast(
+                        message: "Couldn't start the MCP server. \(message)",
+                        icon: "exclamationmark.triangle",
+                        actions: [ToastAction(title: "Open Settings", kind: .openSettings(.mcp))]
+                    )
+                    toast.sticky = true
+                    state.addToast(toast, in: windowID)
+                }
+            }
+        }
+    }
+
+    /// Start the server on `preferredPort`. No-op if already running. Safe to
+    /// call again after a failure (Settings → MCP "Retry").
     public func start(port: Int = MCPServer.preferredPort) async throws {
         if listenChannel != nil { return }
+        await MCPServerStatus.shared.set(.starting)
+        do {
+            try await bindAndServe(port: port)
+            await MCPServerStatus.shared.set(.running)
+        } catch {
+            await stop()
+            await MCPServerStatus.shared.set(.failed(Self.describeStartError(error, port: port)))
+            throw error
+        }
+    }
+
+    private static func describeStartError(_ error: Error, port: Int) -> String {
+        if let ioError = error as? IOError, ioError.errnoCode == EADDRINUSE {
+            return "Port \(port) is already in use — probably by another copy of Wowser."
+        }
+        return "\(error)"
+    }
+
+    private func bindAndServe(port: Int) async throws {
 
         // Auth key is baked into the URL path (`/mcp/<key>`). The HTTP handler
         // 404s any other path. Persisted across launches so the `claude mcp
@@ -112,15 +159,7 @@ public actor MCPServer {
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
 
-        let chan: Channel
-        do {
-            chan = try await bootstrap.bind(host: "127.0.0.1", port: port).get()
-        } catch {
-            // Preferred port is busy. Fall back to a random one so the server
-            // still works; the displayed URL in Settings will reflect it.
-            FileHandle.standardError.write(Data("Wowser MCP: port \(port) unavailable (\(error)); falling back to random port.\n".utf8))
-            chan = try await bootstrap.bind(host: "127.0.0.1", port: 0).get()
-        }
+        let chan = try await bootstrap.bind(host: "127.0.0.1", port: port).get()
         self.listenChannel = chan
         self.boundPort = chan.localAddress?.port
         // Auth key is baked into the URL path. The HTTP handler validates that
@@ -164,6 +203,9 @@ public actor MCPServer {
         try? await eventLoopGroup?.shutdownGracefully()
         eventLoopGroup = nil
         await server?.stop()
+        server = nil
+        transport = nil
+        boundPort = nil
     }
 
     private func registerHandlers(on server: Server) async {

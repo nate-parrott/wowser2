@@ -209,6 +209,8 @@ public struct ToastAction: Equatable, Codable, Identifiable {
         /// Tell the agent that posted the toast (via `browser.toast.show`)
         /// which button the user picked (nil = closed it). See ToastActions.swift.
         case agentReply(target: AgentToastReplyTarget, toast: String, choice: String?)
+        /// Open the Settings window on this tab.
+        case openSettings(SettingsTab)
     }
 
     public init(title: String, kind: Kind) {
@@ -354,6 +356,11 @@ public class BrowserStore: DataStore<BrowserState> {
     
     private var liveWebContents = [ID<WebContent>: WebContent]() {
         didSet {
+            // Anything dropped from the store is dead to us: force it silent so
+            // a webview that's still retained elsewhere can't keep playing.
+            for (id, wc) in oldValue where liveWebContents[id] == nil {
+                wc.retired = true
+            }
             #if os(macOS)
             // Agent-driven background tabs are parked in the offscreen stage
             // window, which retains their views. Unmount anything that was just
@@ -530,8 +537,10 @@ public class BrowserStore: DataStore<BrowserState> {
         modify { state in
             state._close(webContentId: id, removeIfPinned: removeIfPinned)
         }
+        // Grab the webview before dropping it, so we can check it actually deallocates.
+        let wv = liveWebContents[id]?.wkWebview
         liveWebContents.removeValue(forKey: id) // the cleaner (removeWebContentNotInIds) handles this for tabs that were removed, but not ones that were pinned (bc their tabs are still alive)
-        if let wv = liveWebContents[id]?.wkWebview {
+        if let wv {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
                 if let wv {
                     softAssert("Expected to deallocate webview: \(wv)")

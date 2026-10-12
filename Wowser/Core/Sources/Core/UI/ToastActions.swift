@@ -10,6 +10,8 @@ public extension ToastAction.Kind {
             AutofillStore.shared.neverRemember(domain: domain, forgetting: ids, profile: profile)
         case .agentReply(let target, let toast, let choice):
             Task { await AgentToastReply.deliver(to: target, toast: toast, choice: choice) }
+        case .openSettings(let tab):
+            tab.open()
         }
     }
 }

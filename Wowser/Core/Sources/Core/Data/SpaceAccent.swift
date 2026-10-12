@@ -130,8 +130,9 @@ public struct SpaceAccent {
         // On-accent: a hue-tinted near-white or near-black, whichever reads
         // better on the solid accent.
         let lightOn = RGB(hue: hue, saturation: 0.06, brightness: 1)
-        let darkOn = RGB(hue: hue, saturation: min(s, 0.6), brightness: 0.16)
-        let on = contrast(lightOn.luminance, accent.luminance) >= contrast(darkOn.luminance, accent.luminance) ? lightOn : darkOn
+        let darkOn = RGB(hue: hue, saturation: max(0.2, min(s, 0.6)), brightness: 0.3)
+        // multiply the light contrast by 1.5x to prefer it
+        let on = contrast(lightOn.luminance, accent.luminance) * 1.5 >= contrast(darkOn.luminance, accent.luminance) ? lightOn : darkOn
 
         return (accent.color, on.color)
     }
