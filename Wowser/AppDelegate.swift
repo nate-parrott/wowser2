@@ -70,9 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @IBAction func becomeDefaultBrowser(_ sender: Any?) {
-        // Register as the default handler for http and https URLs
-        LSSetDefaultHandlerForURLScheme("http" as CFString, Bundle.main.bundleIdentifier! as CFString)
-        LSSetDefaultHandlerForURLScheme("https" as CFString, Bundle.main.bundleIdentifier! as CFString)
+        DefaultBrowser.makeDefault()
         
 //        // Show toast notification
 //        if let activeWindowID = activeWindowId{
@@ -200,11 +198,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             await MCPServer.shared.startAtLaunch()
         }
         
-        // show welcome?
-        let appVer = 1
-        if appVer > DefaultsKeys.lastShownWelcomePageForPageVersion.intValue() {
-            DefaultsKeys.lastShownWelcomePageForPageVersion.setInt(appVer)
-            openURL(NativePageKey.welcome.url)
+        // First run: onboarding (the welcome tab) until it's finished or skipped.
+        if !DefaultsKeys.hasCompletedOnboarding.boolValue() {
+            BrowserStore.shared.showOnboarding()
         }
         
         WExtensionStore.shared.reloadFromDisk()

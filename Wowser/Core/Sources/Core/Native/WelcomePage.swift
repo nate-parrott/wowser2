@@ -1,13 +1,22 @@
 import SwiftUI
 
-/// Onboarding page (`NativePageKey.welcome`), opened in a tab on first launch.
-/// Placeholder for now.
+/// Onboarding page (`NativePageKey.welcome`), opened in a tab on first launch
+/// and from the command bar / Settings. See `OnboardingFlow`.
 struct WelcomePage: View {
+    /// The tab's pane; closed when onboarding finishes.
+    var webContentID: ID<WebContent>?
+
     var body: some View {
-        Text("Welcome")
-            .font(.system(size: 34, weight: .bold))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color("Background", bundle: .module))
+        Group {
+            #if os(macOS)
+            OnboardingFlow(webContentID: webContentID)
+            #else
+            Text("Welcome")
+                .font(.system(size: 34, weight: .bold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #endif
+        }
+        .background(Color("Background", bundle: .module))
     }
 }
 

@@ -74,6 +74,7 @@ public enum DefaultsKeys: String {
     case toolbarAtBottom // bool (default off) — web-page toolbar sits under the pane, chat-style: suggestions grow upward, typed text defaults to chatting in a side split. See PaneView / OmniboxCoordinator.
     case renderStatsLogging // bool (default off) — log per-second render/layout/cursor counters (RenderStats); diagnostics only
     case newMenuQuickAction // string — NewMenuItem raw value; the quick-action segment of the sidebar's FancyPlus. Set to the last non-tab item picked from its overflow menu.
+    case hasCompletedOnboarding // bool — set when the user finishes or skips the first-run onboarding (welcome tab); until then it opens at launch. See BrowserState+Onboarding.swift
 }
 
 public extension DefaultsKeys {
