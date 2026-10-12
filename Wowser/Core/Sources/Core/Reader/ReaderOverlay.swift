@@ -48,7 +48,9 @@ struct ReaderOverlay: View {
 
             // Hidden find button for keyboard shortcut
             if isPaneFocused {
-                Button("", action: findInPage)
+                // Capture only the binding, never `self` (which holds webviews):
+                // SwiftUI's KeyboardShortcutBridge outlives this view.
+                Button("", action: { [isActive = $isFindInPageActive] in Self.findInPage(isActive) })
                     .keyboardShortcut("f", modifiers: .command)
                     .opacity(0)
                     .frame(width: 0, height: 0)
@@ -76,16 +78,16 @@ struct ReaderOverlay: View {
         }
     }
 
-    private func findInPage() {
+    private static func findInPage(_ isActive: Binding<Bool>) {
         #if os(macOS)
-        if isFindInPageActive {
+        if isActive.wrappedValue {
             let selector = #selector(NSResponder.selectAll(_:))
-            NSApp.sendAction(selector, to: nil, from: self)
+            NSApp.sendAction(selector, to: nil, from: nil)
         } else {
-            isFindInPageActive.toggle()
+            isActive.wrappedValue.toggle()
         }
         #else
-        isFindInPageActive.toggle()
+        isActive.wrappedValue.toggle()
         #endif
     }
 }

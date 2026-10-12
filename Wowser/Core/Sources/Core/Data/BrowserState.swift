@@ -541,10 +541,17 @@ public class BrowserStore: DataStore<BrowserState> {
         let wv = liveWebContents[id]?.wkWebview
         liveWebContents.removeValue(forKey: id) // the cleaner (removeWebContentNotInIds) handles this for tabs that were removed, but not ones that were pinned (bc their tabs are still alive)
         if let wv {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak wv] in
-                if let wv {
-                    softAssert("Expected to deallocate webview: \(wv)")
-                }
+            Self.assertWillDeallocate(wv)
+        }
+    }
+
+    /// In-flight WebKit calls (e.g. the ~1-2s top-color snapshot in
+    /// `refreshMetadataNow`) legitimately hold a dropped webview for a moment,
+    /// so only complain if it outlives that.
+    private static func assertWillDeallocate(_ wv: AnyObject) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak wv] in
+            if let wv {
+                softAssert("Expected to deallocate webview: \(wv)")
             }
         }
     }
@@ -557,11 +564,7 @@ public class BrowserStore: DataStore<BrowserState> {
         for id in toRemove {
             if let wv = liveWebContents[id]?.wkWebview {
                 print("Trying to close web content '\(wv.title ?? "[no title]")'")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak wv] in
-                    if let wv {
-                        softAssert("Expected to deallocate webview: \(wv)")
-                    }
-                }
+                Self.assertWillDeallocate(wv)
             }
             liveWebContents.removeValue(forKey: id)
         }
