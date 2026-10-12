@@ -3,8 +3,9 @@ import UniformTypeIdentifiers
 
 // Native chat UI for agent tabs (NativePageKey.agent). User messages render as
 // liquid-glass capsules with iMessage-style tails; the agent's replies are
-// plain text on the background. Transcript + scroll position live in
-// AgentChatSession so they survive tab switches and view remounts.
+// plain text on the background. The transcript lives in AgentChatSession and the
+// draft in NativeRenderCache, so both survive tab switches and view remounts.
+// Only the latest few turns render; reopening lands at the bottom.
 
 struct AgentChatOverlay: View {
     var sessionKey: String
@@ -40,15 +41,22 @@ private struct AgentChatContent: View {
     @State private var viewportHeight: CGFloat = 400
     @State private var distanceFromBottom: CGFloat = 0
     @State private var lastJumpedToIndex: String?
-    @State private var didAppear = false
-    // Saved offset we still owe the scroll view: applied once the transcript has
-    // laid out enough height to honor it. Until then, don't overwrite
-    // session.savedScrollY with the clamped-to-top offset.
-    @State private var pendingScrollRestoreY: CGFloat?
-    @State private var inputText = ""
-    @State private var attachments: [URL] = []
+    /// How many of the latest turns (a user message and what follows) render.
+    @State private var visibleTurns = Self.turnsPerPage
+    @State private var inputText: String
+    @State private var attachments: [URL]
     @State private var dictating = false
     @FocusState private var inputFocused: Bool
+
+    init(session: AgentChatSession, flavor: AgentFruitFlavor, paneID: ID<WebContent>, windowID: ID<WindowState>?) {
+        _session = ObservedObject(wrappedValue: session)
+        self.flavor = flavor
+        self.paneID = paneID
+        self.windowID = windowID
+        let saved = Self.renderData(forKey: session.key)
+        _inputText = State(initialValue: saved.inputText)
+        _attachments = State(initialValue: saved.attachments)
+    }
 
     var body: some View {
         let _ = RenderStats.hit("AgentChatContent.body")
@@ -60,16 +68,10 @@ private struct AgentChatContent: View {
         .onAppear {
             session.attachIfNeeded(ownPaneID: paneID)
             lastJumpedToIndex = latestJumpTarget
-            if let saved = session.savedScrollY {
-                pendingScrollRestoreY = saved
-                scrollPos.scrollTo(y: saved)
-            } else if let target = latestJumpTarget {
-                // Reopening an existing transcript with no remembered position:
-                // land on the latest message immediately, no animation.
-                scrollPos.scrollTo(id: target, anchor: .top)
-            }
-            didAppear = true
+            scrollPos.scrollTo(edge: .bottom)
         }
+        .onChange(of: inputText) { _, text in updateRenderData { $0.inputText = text } }
+        .onChange(of: attachments) { _, files in updateRenderData { $0.attachments = files } }
         .onReceiveFocusSnap(windowID: windowID) { snap in
             if snap.target == .agentChat(paneID) {
                 inputFocused = true
@@ -77,10 +79,39 @@ private struct AgentChatContent: View {
         }
     }
 
+    // MARK: - Render data
+
+    private static func renderData(forKey key: String) -> AgentChatRenderData {
+        NativeRenderCache.shared.get(AgentChatRenderData.self, id: key) ?? .init()
+    }
+
+    private func updateRenderData(_ update: (inout AgentChatRenderData) -> Void) {
+        var data = Self.renderData(forKey: session.key)
+        update(&data)
+        NativeRenderCache.shared.set(data, id: session.key)
+    }
+
     // MARK: - Transcript
 
-    private var rows: [ChatRowItem] {
+    private static let turnsPerPage = 10
+
+    private var allRows: [ChatRowItem] {
         ChatRowBuilder.rows(fromAgentMessages: session.messages, state: BrowserStore.shared.model)
+    }
+
+    private var rows: [ChatRowItem] {
+        Self.latestTurns(allRows, count: visibleTurns)
+    }
+
+    /// The rows from the `count`th-to-last user message onward.
+    private static func latestTurns(_ rows: [ChatRowItem], count: Int) -> [ChatRowItem] {
+        var seen = 0
+        for i in rows.indices.reversed() {
+            guard case .user = rows[i] else { continue }
+            seen += 1
+            if seen == count { return Array(rows[i...]) }
+        }
+        return rows
     }
 
     /// The message whose top we auto-scroll to: the latest user or assistant
@@ -91,7 +122,14 @@ private struct AgentChatContent: View {
 
     private var transcript: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
+                if rows.count < allRows.count {
+                    Button("Show earlier messages") { visibleTurns += Self.turnsPerPage }
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
                 ForEach(rows) { row in
                     ChatRowView(item: row, compact: false, windowID: windowID, openURL: { url in
                         AgentChatTabs.openLink(url, fromAgentPane: paneID)
@@ -118,28 +156,16 @@ private struct AgentChatContent: View {
             .frame(maxWidth: .infinity)
         }
         .scrollPosition($scrollPos)
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
         .modifier(FeatherTopAndBottom(featherHeight: 30))
         .onScrollGeometryChange(for: ScrollGeometryInfo.self) { geo in
             ScrollGeometryInfo(
-                offsetY: geo.contentOffset.y,
                 viewportHeight: geo.containerSize.height,
                 distanceFromBottom: geo.contentSize.height - geo.containerSize.height - geo.contentOffset.y
             )
         } action: { _, info in
             viewportHeight = info.viewportHeight
             distanceFromBottom = info.distanceFromBottom
-            guard didAppear else { return }
-            if let pending = pendingScrollRestoreY {
-                let maxOffset = info.offsetY + info.distanceFromBottom
-                guard maxOffset > 0 else { return } // transcript hasn't laid out yet
-                pendingScrollRestoreY = nil
-                let target = min(pending, maxOffset)
-                if abs(info.offsetY - target) >= 2 {
-                    scrollPos.scrollTo(y: target)
-                    return
-                }
-            }
-            session.savedScrollY = info.offsetY
         }
         .onChange(of: latestJumpTarget) { _, newValue in
             // Only the user's own send moves the viewport: scroll to the
@@ -316,8 +342,13 @@ private struct AgentChatContent: View {
     }
 }
 
+/// Per-chat view state that outlives the view but isn't worth persisting.
+private struct AgentChatRenderData {
+    var inputText = ""
+    var attachments: [URL] = []
+}
+
 private struct ScrollGeometryInfo: Equatable {
-    var offsetY: CGFloat
     var viewportHeight: CGFloat
     var distanceFromBottom: CGFloat
 }

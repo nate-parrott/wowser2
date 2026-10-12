@@ -387,6 +387,7 @@ public final class AgentChatSession: ObservableObject {
         sessions[key]?.turnLoopTask?.cancel()
         if let token = sessions[key]?.notificationToken { NotificationCenter.default.removeObserver(token) }
         sessions[key] = nil
+        NativeRenderCache.shared.removeAll(id: key)
         ChatAgentRegistry.unregister(key: key)
     }
 
@@ -425,9 +426,6 @@ public final class AgentChatSession: ObservableObject {
     @Published public private(set) var errorText: String?
     /// Scheduled-task mode only: called once when the first turn ends.
     var onScheduledTaskFinished: ((ScheduledTaskRunResult) -> Void)?
-
-    /// Scroll offset of the transcript, preserved across view remounts.
-    public var savedScrollY: CGFloat?
 
     private var agentID: String?
     private var ownPaneID: ID<WebContent>?
