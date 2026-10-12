@@ -68,6 +68,14 @@ public struct SettingsView: View {
     
     @ViewBuilder private var main: some View {
         Form {
+            Section {
+                LabeledContent {
+                    Button("Show Welcome") { BrowserStore.shared.showOnboarding() }
+                } label: {
+                    Text("Welcome to Wowser")
+                    Text("Reopen the setup steps: import, default browser, AI, projects and tips.")
+                }
+            }
             Section("Tabs") {
                 Toggle("All windows share tabs", isOn: $allWindowsShareTabs)
                     .help("Every window lists the space's tabs from all windows. Selecting a tab that's open in another window moves it to this one")
@@ -218,6 +226,9 @@ struct ProfilesSettings: View {
                         ForEach(group, id: \.id.raw) { entry in
                             ProfileSettingsRow(entry: entry)
                         }
+                        if let first = group.first {
+                            ClearWebsiteDataRow(dataStoreUUID: first.dataStoreUUID, spaceNames: group.map(\.displayName))
+                        }
                     }
                 }
                 #if os(macOS)
@@ -231,6 +242,7 @@ struct ProfilesSettings: View {
 private struct ProfilesSettingsSnapshot: Equatable {
     struct Entry: Equatable {
         var id: ID<Profile>
+        var dataStoreUUID: UUID
         var displayName: String
         var visible: Bool
         /// False for the last visible profile: we never hide down to zero.
@@ -244,6 +256,7 @@ private struct ProfilesSettingsSnapshot: Equatable {
             group.map { profile in
                 Entry(
                     id: profile.id,
+                    dataStoreUUID: profile.dataStoreUUID,
                     displayName: (profile.emoji?.nilIfEmpty.map { "\($0) " } ?? "") + profile.displayName,
                     visible: !profile.isHidden,
                     canToggle: profile.isHidden || state.canHideProfile(profile.id)

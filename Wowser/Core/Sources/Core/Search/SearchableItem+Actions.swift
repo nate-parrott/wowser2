@@ -11,6 +11,9 @@ public enum SearchAction: Equatable, Codable {
     /// the full query. Looked up in TangAppRegistry by slug + label at
     /// perform time (the bjs itself isn't stored here).
     case webAppSearch(appSlug: String, label: String, query: String)
+    /// Reopen the onboarding (welcome) tab. Low priority: ranked below
+    /// everything else (see `isLowPriority`).
+    case showOnboarding
 
     // Predefined URL cases
     static let newNotionDoc = openURL(URL(string: "https://notion.new")!)
@@ -51,7 +54,16 @@ public enum SearchAction: Equatable, Codable {
             return "Open \(url.stripped)" // not expected
         case .webAppSearch(_, let label, _):
             return label
+        case .showOnboarding:
+            return "Welcome to Wowser"
         }
+    }
+
+    /// Ranked below every other result, but always kept in the list when it
+    /// matches (see `SearchResult.score` and `Searcher.reservingSlotsForLowPriorityActions`).
+    var isLowPriority: Bool {
+        if case .showOnboarding = self { return true }
+        return false
     }
     
     // Keywords are empty for now as requested
@@ -75,7 +87,7 @@ extension BrowserState {
             .newGoogleSlide,
             .newFigmaFile,
         ]
-        return actions.map { action in
+        let items = actions.map { action in
             let id = ID<SearchableItem>(raw: "action:\(action.title)")
             let titleStr = NormalizedSearchableString(text: action.title)
 
@@ -85,6 +97,18 @@ extension BrowserState {
                 titleMatchStrings: [titleStr]
             )
         }
+        let onboarding = SearchableItem(
+            id: ID<SearchableItem>(raw: "action:\(SearchAction.showOnboarding.title)"),
+            content: .searchAction(.showOnboarding),
+            titleMatchStrings: [
+                NormalizedSearchableString(text: SearchAction.showOnboarding.title),
+                NormalizedSearchableString(text: "Show onboarding"),
+                NormalizedSearchableString(text: "Onboarding"),
+                NormalizedSearchableString(text: "Getting started"),
+                NormalizedSearchableString(text: "Tutorial"),
+            ]
+        )
+        return items + [onboarding]
     }()
 
     /// The four native-tab actions (terminal, Claude, files, VS Code) pointed at
@@ -231,6 +255,9 @@ extension BrowserStore {
                 let args: [String: Any] = ["query": query, "windowId": windowID.raw]
                 TangAppEntryPointRunner.run(entry, appSlug: app.slug, args: args, windowID: windowID)
             }
+
+        case .showOnboarding:
+            showOnboarding(windowID: windowID)
         }
     }
     

@@ -56,7 +56,6 @@ private struct SpaceMenuItemsContent: View {
     let profileID: ID<Profile>
     let windowID: ID<WindowState>
 
-    static let iconPresets = ["📓", "💼", "🎮", "🎬", "📚", "✈️", "🏠", "💵", "🔒", "😀", "🧪", "🎨", "🛠️", "🎵", "🛒", "❤️"]
 
     var body: some View {
         Section {
@@ -82,7 +81,7 @@ private struct SpaceMenuItemsContent: View {
 
         Section {
             Menu("Icon") {
-                ForEach(Self.iconPresets, id: \.self) { emoji in
+                ForEach(SpaceMenu.iconPresets, id: \.self) { emoji in
                     Button(emoji) { setEmoji(emoji) }
                 }
                 if snapshot.emoji != nil {
@@ -173,6 +172,9 @@ private struct BackgroundImageMenu: View {
 }
 
 enum SpaceMenu {
+    /// Emoji offered in the space menu's "Icon" submenu (and onboarding's project rows).
+    static let iconPresets = ["📓", "💼", "🎮", "🎬", "📚", "✈️", "🏠", "💵", "🔒", "😀", "🧪", "🎨", "🛠️", "🎵", "🛒", "❤️"]
+
     /// Prompts for a new space title. An empty result clears the user title
     /// so the AI-generated `autoTitle` shows again.
     static func rename(profileID: ID<Profile>) {

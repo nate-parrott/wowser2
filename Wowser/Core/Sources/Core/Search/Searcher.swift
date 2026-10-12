@@ -113,7 +113,10 @@ struct SearchResult: Equatable, Identifiable {
             case .none:
                 return 0
             }
-        case .searchAction:
+        case .searchAction(let action):
+            if action.isLowPriority {
+                return matchQuality == .none ? 0 : 0.01
+            }
             // Actions get high priority scores
             switch matchQuality {
             case .prefixMatchURL:
@@ -256,7 +259,7 @@ extension CharacterSet {
             for oldItem in prevResults.dropFirst(fastPath.count) {
                 showNow.append(oldItem)
             }
-            self.results = ensuringAskAgentResult(Array(showNow.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query)
+            self.results = reservingSlotsForLowPriorityActions(ensuringAskAgentResult(Array(showNow.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query), query: query)
 
             // Now do slow path:
             Task {
@@ -265,7 +268,7 @@ extension CharacterSet {
                 if self.query != query {
                     return
                 }
-                self.results = ensuringAskAgentResult(Array(slowResults.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query)
+                self.results = reservingSlotsForLowPriorityActions(ensuringAskAgentResult(Array(slowResults.deduplicate({ $0.item.dedupeKey }).prefix(n)), query: query), query: query)
             }
         }
     }
@@ -358,7 +361,7 @@ extension CharacterSet {
         // Insert actions at their score-appropriate positions
         for actionMatch in actionMatches {
             // If we have a prefix match in title, prioritize it to the top
-            if actionMatch.matchQuality == .prefixMatchTitle {
+            if actionMatch.matchQuality == .prefixMatchTitle, !actionMatch.isLowPriorityAction {
                 results.insert(actionMatch, at: 0)
             } else if let insertBefore = results.firstIndex(where: { actionMatch.score > $0.score }) {
                 results.insert(actionMatch, at: insertBefore)
@@ -561,6 +564,20 @@ extension CharacterSet {
         return trimmed
     }
 
+    /// Low-priority actions (e.g. "Welcome to Wowser") that match `query` go at
+    /// the very bottom, but always keep a slot: they'd otherwise be crowded
+    /// out by search suggestions.
+    func reservingSlotsForLowPriorityActions(_ results: [SearchResult], query: String) -> [SearchResult] {
+        let q = NormalizedSearchableString(text: query)
+        let low = BrowserStore.shared.model.matchingActions(query: q, windowID: windowID)
+            .compactMap { $0.match(query: q) }
+            .filter(\.isLowPriorityAction)
+        guard !low.isEmpty else { return results }
+        let lowKeys = Set(low.map(\.item.dedupeKey))
+        let rest = results.filter { !lowKeys.contains($0.item.dedupeKey) }
+        return Array(rest.prefix(max(0, n - low.count))) + low
+    }
+
     /// Instachat is always reachable: every multi-word query keeps an
     /// "Ask Agent" row in the final list — at the bottom, unless the
     /// heuristics/classifier already ranked one higher.
@@ -594,6 +611,13 @@ extension CharacterSet {
                 .asArray
         }
     }    
+}
+
+extension SearchResult {
+    var isLowPriorityAction: Bool {
+        if case .searchAction(let action) = item.content { return action.isLowPriority }
+        return false
+    }
 }
 
 private extension SearchResult {

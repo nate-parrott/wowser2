@@ -31,7 +31,6 @@ public enum DefaultsKeys: String {
 //    case Chatbot // Chatbot
     
     case enableGoDirectQueries // bool (default off)
-    case lastShownWelcomePageForPageVersion // int
     case searchToolbarEnabled // bool
     case omniboxTerminalCommands // bool (default off) — omnibox offers "Run in Terminal" when the query looks like a shell command (see TerminalCommandCache), and terminal rows render monospace with a black highlight (see SearchableItem.isTerminalStyled)
 
@@ -74,6 +73,7 @@ public enum DefaultsKeys: String {
     case toolbarAtBottom // bool (default off) — web-page toolbar sits under the pane, chat-style: suggestions grow upward, typed text defaults to chatting in a side split. See PaneView / OmniboxCoordinator.
     case renderStatsLogging // bool (default off) — log per-second render/layout/cursor counters (RenderStats); diagnostics only
     case newMenuQuickAction // string — NewMenuItem raw value; the quick-action segment of the sidebar's FancyPlus. Set to the last non-tab item picked from its overflow menu.
+    case hasCompletedOnboarding // bool — set when the user finishes or skips the first-run onboarding (welcome tab); until then it opens at launch. See BrowserState+Onboarding.swift
 }
 
 public extension DefaultsKeys {

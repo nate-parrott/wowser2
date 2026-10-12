@@ -46,7 +46,7 @@ struct NativePageOverlay: View {
                     webContent: webContent
                 )
             case .welcome:
-                WelcomePage()
+                WelcomePage(webContentID: webContent.id)
             }
         }
     }
