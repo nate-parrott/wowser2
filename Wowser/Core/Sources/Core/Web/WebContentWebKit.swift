@@ -520,8 +520,8 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     func needsMetadataRefresh() {
         if _mdRefreshScheduled { return }
         _mdRefreshScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            self.refreshMetadataNow()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+            self?.refreshMetadataNow()
         }
     }
 
@@ -613,6 +613,9 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     // do not call directly; call needsMetadataRefresh
     private func refreshMetadataNow() {
         self._mdRefreshScheduled = false
+        // A closed tab's webview should be on its way out; don't start async
+        // work that would keep it alive.
+        guard !retired else { return }
 
         var info = self.info
         // Native overlay tabs (terminal / file browser) own their own title;
@@ -632,7 +635,8 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         self.info = info
         needsFocusedEditableRefresh()
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             let docReadyWithURL: URL?
             do {
                 let extracted = try await extractWebContentData()
@@ -664,8 +668,11 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
 
 //         Capture the top portion of the page to determine dominant color
-        Task {
-            guard let hsba = await webview.extractTopDominantColor() else {
+        // The snapshot routinely takes 1-2s; hold only the webview (not self)
+        // while it's in flight.
+        Task { [weak self] in
+            guard let webview = self?.webview,
+                  let hsba = await webview.extractTopDominantColor() else {
                 return
             }
             DispatchQueue.main.async { [weak self] in

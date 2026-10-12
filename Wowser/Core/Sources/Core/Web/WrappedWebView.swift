@@ -100,7 +100,12 @@ public struct WrappedWebView: View {
         // Cmd+F in a split view only fires once. Suppressed on VS Code tabs, where
         // Cmd+F belongs to the editor's own find.
         if isPaneFocused, extractedReaderContent == nil, nativePageKey?.isVSCode != true {
-            Button("", action: toggleFindInPage)
+            // Capture only the pane ID, never `self`: SwiftUI's window-level
+            // KeyboardShortcutBridge keeps shortcut actions alive after the view
+            // goes away, which would keep a closed tab's webview alive too.
+            Button("", action: { [paneID = webContent.id, isActive = isFindInPageActive] in
+                Self.toggleFindInPage(paneID: paneID, isActive: isActive)
+            })
                 .keyboardShortcut("f", modifiers: .command)
                 .opacity(0)
                 .frame(width: 0, height: 0)
@@ -108,9 +113,9 @@ public struct WrappedWebView: View {
         }
     }
 
-    private func toggleFindInPage() {
+    private static func toggleFindInPage(paneID: ID<WebContent>, isActive: Bool) {
         #if os(macOS)
-        if isFindInPageActive {
+        if isActive {
             // Already in find — re-fire makes the find field select-all.
             let selector = #selector(NSResponder.selectAll(_:))
             NSApp.sendAction(selector, to: nil, from: nil)
@@ -118,7 +123,7 @@ public struct WrappedWebView: View {
         }
         #endif
         BrowserStore.shared.modify { state in
-            state.didFocus(target: .findInPage(webContent.id))
+            state.didFocus(target: .findInPage(paneID))
         }
     }
 
