@@ -96,10 +96,16 @@ struct OnboardingScreen<C: View, Footer: View>: View {
     
     var mainMaxWidth: CGFloat = 700
     var padding: CGFloat {
-        smallViewport ? 20 : 50
+        if viewport.width < 500 || viewport.height < 500 { return 20 }
+        if viewport.width >= 1100 && viewport.height >= 700 { return 96 }
+        return 60
     }
+    private var smallViewport: Bool { padding <= 20 }
     
-    @State private var smallViewport = false
+    /// Set by `OnboardingFlow` on every step but the first.
+    @Environment(\.onboardingBack) private var back
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var viewport = CGSize(width: 800, height: 800)
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -111,22 +117,33 @@ struct OnboardingScreen<C: View, Footer: View>: View {
             }
             .modifier(FeatherTopAndBottom(featherHeight: padding * 0.8))
             
-            HStack {
+            // Buttons are left-aligned under the content column.
+            HStack(spacing: 12) {
+                if let back {
+                    Button("Back", action: back)
+                        .buttonStyle(OnboardingButtonStyle(primary: false))
+                }
                 footer()
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: mainMaxWidth)
+            .frame(maxWidth: mainMaxWidth - padding * 2, alignment: .leading)
             .frame(maxWidth: .infinity)
             .buttonStyle(OnboardingButtonStyle(primary: true))
             .padding(.horizontal, padding)
             .padding(.bottom, padding)
         }
         .controlSize(smallViewport ? .regular : .extraLarge)
-        .measureSize({ self.smallViewport = $0.width < 500 || $0.height < 500 })
+        .measureSize({ self.viewport = $0 })
         .background {
             LinearGradient(colors: [Color.accentColor.opacity(0), Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .opacity(0.05)
+                .opacity(colorScheme == .dark ? 0.05 : 0.09)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Goes back one onboarding step; nil on the first step.
+    @Entry var onboardingBack: (() -> Void)? = nil
 }
 
 extension AnyTransition {
@@ -182,6 +199,12 @@ struct OnboardingSection<Content: View>: View {
     var title: String? = nil
     @ViewBuilder var content: Content
     let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Brighter than the page behind it in both appearances.
+    private var cardFill: Color {
+        colorScheme == .dark ? Color(white: 0.2) : Color.white
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -198,7 +221,7 @@ struct OnboardingSection<Content: View>: View {
                             subviews[i]
                         }
                         if i < subviews.count - 1 {
-                            Divider()
+                            Divider().opacity(0.5)
                         }
                     }
                 }
@@ -207,7 +230,7 @@ struct OnboardingSection<Content: View>: View {
             .frame(maxWidth: 500, alignment: .leading)
             .clipShape(shape)
             .background {
-                shape.fill(.background)
+                shape.fill(cardFill)
                     .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 2)
             }
         }
@@ -379,9 +402,6 @@ private struct OnboardingDemoView: View {
                 }
             }
         }, footer: {
-            Button("Back") {}
-                .buttonStyle(OnboardingButtonStyle(primary: false))
-            Spacer()
             Button("Continue") {}
         })
     }
@@ -389,4 +409,5 @@ private struct OnboardingDemoView: View {
 
 #Preview {
     OnboardingDemoView()
+        .environment(\.onboardingBack, {})
 }

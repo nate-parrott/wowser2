@@ -22,6 +22,11 @@ public struct BuiltinSpaceBackground: Identifiable, Equatable {
         .init(id: "gradient", title: "Gradient", photographer: "Milad Fakurian", unsplashID: "E8Ufcyxz514"),
     ]
 
+    /// What a brand-new space starts on (fresh install, Reset Browser).
+    public static var defaultForNewSpace: BuiltinSpaceBackground {
+        all.filter { $0.id != "gradient" }.randomElement() ?? all[0]
+    }
+
     init(id: String, title: String, photographer: String, unsplashID: String) {
         self.id = id
         self.title = title
@@ -49,5 +54,10 @@ public extension BrowserStore {
             guard let data = try? Data(contentsOf: url) else { return }
             self.setSpaceBackgroundImage(data: data, profileID: profileID, mode: .fade, builtinID: background.id)
         }
+    }
+
+    /// Gives a brand-new space one of the bundled wallpapers.
+    func applyDefaultSpaceBackground(profileID: ID<Profile>) {
+        setBuiltinSpaceBackground(.defaultForNewSpace, profileID: profileID)
     }
 }

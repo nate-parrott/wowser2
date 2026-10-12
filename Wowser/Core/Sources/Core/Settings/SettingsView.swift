@@ -167,6 +167,10 @@ public struct SettingsView: View {
                 }
                 .help("How strongly each space's auto-generated color scheme washes over the window background")
             }
+
+            Section {
+                ResetBrowserRow()
+            }
         }
     }
 }

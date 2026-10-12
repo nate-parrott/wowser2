@@ -376,9 +376,15 @@ public class BrowserStore: DataStore<BrowserState> {
         }
     }
     var subscriptions = Set<AnyCancellable>()
+    /// Set when the store loads saved state; false on a fresh install.
+    private var loadedPersistedState = false
     
     public override func setup() {
         super.setup()
+        // Fresh install: start the initial space on a bundled wallpaper.
+        if persistenceKey != nil, !loadedPersistedState {
+            applyDefaultSpaceBackground(profileID: .defaultProfile)
+        }
         uiPublisher.throttle(for: .seconds(0.5), scheduler: DispatchQueue.main, latest: true)
 //            .map(\.validLiveWebContentIds)
 //            .removeDuplicates()
@@ -438,6 +444,7 @@ public class BrowserStore: DataStore<BrowserState> {
     }
     
     public override func processModelAfterLoad(model: inout BrowserState) {
+        loadedPersistedState = true
         model.processAfterLoad()
     }
     
