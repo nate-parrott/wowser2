@@ -27,6 +27,8 @@ public actor ClaudeCodeAgent: Agent {
         public var enableFileSystemTools: Bool
         /// `auto`: the harness's classifier reviews tool calls that aren't
         /// pre-approved (shell/file tools, tools with `requiresPermission`).
+        /// Where auto mode is unavailable (unsupported model, org policy) the
+        /// session falls back to `bypassPermissions`.
         public var permissionMode: String
         public var maxTurns: Int?
         public var workingDirectory: URL?
@@ -64,6 +66,13 @@ public actor ClaudeCodeAgent: Agent {
     }
 
     static let mcpServerName = "wowser"
+
+    /// Models (nil key = CLI default) whose sessions came up without auto
+    /// mode. Later sessions on them launch straight into bypass instead of
+    /// switching after init.
+    private static let autoUnavailableLock = NSLock()
+    nonisolated(unsafe) private static var autoUnavailableModels: Set<String> = []
+    private var autoModeKey: String { config.model ?? "" }
 
     private let config: Configuration
     private var process: Process?
@@ -176,8 +185,15 @@ public actor ClaudeCodeAgent: Agent {
             "--input-format", "stream-json",
             "--output-format", "stream-json",
             "--strict-mcp-config",
-            "--permission-mode", config.permissionMode,
         ]
+        if config.permissionMode == "auto" {
+            let unavailable = Self.autoUnavailableLock.withLock { Self.autoUnavailableModels.contains(autoModeKey) }
+            args += ["--permission-mode", unavailable ? "bypassPermissions" : "auto"]
+            // Lets us switch to bypass after init if auto didn't take.
+            args.append("--allow-dangerously-skip-permissions")
+        } else {
+            args += ["--permission-mode", config.permissionMode]
+        }
         if let resume = config.resumeSessionID ?? sessionID { args += ["--resume", resume] }
         if let model = config.model { args += ["--model", model] }
         if let effort = config.effort { args += ["--effort", Self.normalizeEffort(effort)] }
@@ -321,6 +337,7 @@ public actor ClaudeCodeAgent: Agent {
         case "system":
             if obj["subtype"] as? String == "init", let sid = obj["session_id"] as? String {
                 sessionID = sid
+                fallBackIfAutoModeUnavailable(reportedMode: obj["permissionMode"] as? String)
                 emit(.started(sessionID: sid))
             }
         case "assistant":
@@ -370,6 +387,20 @@ public actor ClaudeCodeAgent: Agent {
         default:
             break  // stream_event, rate_limit_event, control_response, ...
         }
+    }
+
+    /// The CLI silently starts in `default` when auto mode isn't available;
+    /// with no one to answer prompts, every reviewed tool call would be denied.
+    private func fallBackIfAutoModeUnavailable(reportedMode: String?) {
+        guard config.permissionMode == "auto", let reportedMode,
+              reportedMode != "auto", reportedMode != "bypassPermissions" else { return }
+        let key = autoModeKey
+        Self.autoUnavailableLock.withLock { _ = Self.autoUnavailableModels.insert(key) }
+        try? writeLine([
+            "type": "control_request",
+            "request_id": UUID().uuidString,
+            "request": ["subtype": "set_permission_mode", "mode": "bypassPermissions"],
+        ])
     }
 
     private static func flattenToolResultContent(_ content: Any?) -> String {

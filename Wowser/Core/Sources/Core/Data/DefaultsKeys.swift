@@ -62,7 +62,7 @@ public enum DefaultsKeys: String {
     case hideSiriAIOnTextSelection // bool (default on) — opt out of Writing Tools (writingToolsBehavior = .none) in webviews + native text fields, which also suppresses macOS 27's floating Siri button on text selection
 
     case agentHarness // string — AgentHarness raw value for chat/ask agents: "claude" (default) | "local" (on-device)
-    case agentShellTools // bool (default off) — Claude Code agents get the harness's Bash/Read/Write/Edit/Glob/Grep tools (permissions bypassed); see ClaudeCodeAgentProvider
+    case agentShellTools // bool (default off) — Claude Code agents get the harness's Bash/Read/Write/Edit/Glob/Grep tools (reviewed by auto mode); see ClaudeCodeAgentProvider
     case memoryEnabledScopes // [string] — dataStoreUUIDs whose memory store (event log) is on; see MemoryStore.swift
     case autofillEnabled // bool (default on) — suggestion menu under form fields + agent credential hooks; see AutofillSettings
     case autofillRememberForms // bool (default on) — remember logins / name / address from submitted forms

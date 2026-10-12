@@ -21,6 +21,11 @@ struct MCPSettings: View {
                     .foregroundStyle(.secondary)
                 CopyableCommand(text: claudeAddCommand)
                     .padding(.top, 4)
+                Text("Optional: to let `read_browser_js` (which can only read) run without permission review, add this to `~/.claude/settings.json`:")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+                CopyableCommand(text: readOnlyAllowSnippet)
             }
 
 //            Section {
@@ -62,6 +67,10 @@ struct MCPSettings: View {
 
     private var claudeAddCommand: String {
         "claude mcp add --scope user --transport http \(isProd() ? "wowser" : "wowserdev") \(displayURL)"
+    }
+
+    private var readOnlyAllowSnippet: String {
+        #""permissions": { "allow": ["mcp__\#(isProd() ? "wowser" : "wowserdev")__read_browser_js"] }"#
     }
 
     private var mcpJSONSnippet: String {

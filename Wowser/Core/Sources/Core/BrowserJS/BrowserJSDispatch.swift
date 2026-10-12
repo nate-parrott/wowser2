@@ -36,6 +36,18 @@ enum BrowserJSDispatch {
         "profile.get",
     ]
 
+    /// Tool description for `read_browser_js` (agents and the MCP server).
+    static let readOnlyToolDescription = """
+        Read-only variant of `run_browser_js`: same environment and syntax, \
+        but only calls that read browser state are allowed (tabs.list/get, \
+        content.read/screenshot, windows/spaces/folders/splits lists, \
+        net.log/grep, fs.read/list/stat, memory reads, agent/terminal \
+        transcripts). Any call that would change the browser, a page, the \
+        network or the disk — opening/closing/navigating tabs, page.* \
+        (including eval), net.fetch, writes — throws. Runs without permission \
+        review, so prefer it for looking around.
+        """
+
     static func handle(fn: String, argsJSON: String, host: any BrowserJSHost) async throws -> String? {
         let data = argsJSON.data(using: .utf8) ?? Data()
         let raw = (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any] ?? [:]

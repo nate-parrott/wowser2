@@ -20,6 +20,7 @@ public enum MicroAIFeature: String, CaseIterable, Codable, Identifiable {
     case archiveTidy
     case dictationCleanup
     case searchAnswer
+    case agentTabTitle
 
     public var id: String { rawValue }
 
@@ -32,6 +33,7 @@ public enum MicroAIFeature: String, CaseIterable, Codable, Identifiable {
         case .archiveTidy: return "Tidy archived tab titles"
         case .dictationCleanup: return "Clean up dictation"
         case .searchAnswer: return "Search result summaries"
+        case .agentTabTitle: return "Name agent tabs"
         }
     }
 
@@ -44,6 +46,15 @@ public enum MicroAIFeature: String, CaseIterable, Codable, Identifiable {
         case .archiveTidy: return "Shortens titles and picks a category for archived tabs."
         case .dictationCleanup: return "Removes filler words from text dictated into pages."
         case .searchAnswer: return "Summarizes top search results on the search page."
+        case .agentTabTitle: return "Titles agent chat tabs from what you've asked."
+        }
+    }
+
+    /// Backends offered in Settings for this feature.
+    public var backends: [MicroAIBackend] {
+        switch self {
+        case .agentTabTitle: return [.onDevice, .agent, .off]
+        default: return [.onDevice, .openRouter, .agent]
         }
     }
 }
@@ -52,12 +63,15 @@ public enum MicroAIBackend: String, CaseIterable, Codable {
     case onDevice
     case openRouter
     case agent
+    /// Feature disabled; calls throw `unavailable`.
+    case off
 
     public var title: String {
         switch self {
         case .onDevice: return "On device"
         case .openRouter: return "OpenRouter"
         case .agent: return "Agent"
+        case .off: return "Off"
         }
     }
 }
@@ -85,7 +99,9 @@ enum MicroAI {
     // MARK: Settings
 
     static func backend(for feature: MicroAIFeature) -> MicroAIBackend {
-        storedBackends()[feature] ?? defaultBackend
+        if let stored = storedBackends()[feature], feature.backends.contains(stored) { return stored }
+        let fallback = defaultBackend
+        return feature.backends.contains(fallback) ? fallback : (feature.backends.contains(.off) ? .off : feature.backends[0])
     }
 
     static func setBackend(_ backend: MicroAIBackend, for feature: MicroAIFeature) {
@@ -121,6 +137,7 @@ enum MicroAI {
         case .onDevice: return onDeviceAvailable
         case .openRouter: return LLMs.current(json: true) != nil
         case .agent: return BrowserAgentManager.platformDefaultProvider()?.isAvailable == true
+        case .off: return false
         }
     }
 
@@ -151,6 +168,8 @@ enum MicroAI {
             case .agent:
                 let text = try await runAgent(system: prompt.instructions + "\n\n" + jsonInstructions(for: schema), input: prompt.input)
                 result = try parse(text)
+            case .off:
+                throw MicroAIError.unavailable(.off)
             }
             AIRequestLog.shared.finish(id: logID, error: nil)
             return result
@@ -185,6 +204,8 @@ enum MicroAI {
                         }
                     case .agent:
                         continuation.yield(try await runAgent(system: prompt.instructions, input: prompt.input))
+                    case .off:
+                        throw MicroAIError.unavailable(.off)
                     }
                     AIRequestLog.shared.finish(id: logID, error: nil)
                     continuation.finish()

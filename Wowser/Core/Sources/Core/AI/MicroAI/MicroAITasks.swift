@@ -328,3 +328,36 @@ enum ArchiveTidyTask {
         return (out.tidyTitle, ArchiveItem.Category(rawValue: out.category))
     }
 }
+
+// MARK: - Name an agent chat tab
+
+enum AgentTabTitleTask {
+    @Generable
+    struct Output {
+        @Guide(description: "2-5 word title for the chat, first word capitalized, no quotes or trailing period")
+        var title: String
+    }
+
+    /// The first two and last two user prompts (deduped when there are fewer
+    /// than five), each cut to 100 characters.
+    static func samplePrompts(_ prompts: [String]) -> [String] {
+        let picked = prompts.count <= 4 ? prompts : Array(prompts.prefix(2) + prompts.suffix(2))
+        return picked.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).truncateTailWithEllipsis(chars: 100) }
+    }
+
+    static func prompt(userPrompts: [String]) -> MicroAIPrompt {
+        let instructions = """
+        You title a chat between a user and an AI assistant in a browser tab. From the user's messages, write a short title (2-5 words, first word capitalized) naming what the chat is about.
+        Name the subject or task, not the act of chatting. Good titles: "Flights to Tokyo", "Fix login bug", "Compare standing desks", "Pasta recipe ideas".
+        Never use the words "chat", "conversation", "question", "help" or "user".
+        """
+        let lines = samplePrompts(userPrompts).map { "- " + $0 }
+        return MicroAIPrompt(instructions: instructions, input: "User messages:\n" + lines.joined(separator: "\n"))
+    }
+
+    static func run(userPrompts: [String], backend: MicroAIBackend? = nil) async throws -> String {
+        let out = try await MicroAI.generate(.agentTabTitle, prompt(userPrompts: userPrompts), as: Output.self, backend: backend)
+        let title = out.title.trimmingCharacters(in: .whitespacesAndNewlines.union(.init(charactersIn: "\".")))
+        return title.prefix(1).uppercased() + title.dropFirst()
+    }
+}

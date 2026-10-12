@@ -13,7 +13,7 @@ struct MicroAIFeaturesSection: View {
                     get: { MicroAI.backend(for: feature) },
                     set: { MicroAI.setBackend($0, for: feature) }
                 )) {
-                    ForEach(MicroAIBackend.allCases, id: \.self) { backend in
+                    ForEach(feature.backends, id: \.self) { backend in
                         Text(backend.title).tag(backend)
                     }
                 } label: {

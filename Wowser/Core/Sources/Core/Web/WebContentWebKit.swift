@@ -693,6 +693,14 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
     }
 
+    /// Hosts (and their subdomains) where the inverted-filter auto dark mode breaks the page.
+    private static let autoDarkModeExcludedHosts = ["figma.com"]
+
+    private static func isAutoDarkModeExcluded(_ url: URL?) -> Bool {
+        guard let host = url?.host?.lowercased() else { return false }
+        return autoDarkModeExcludedHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+
     private func refreshAutoDarkMode() {
         guard autoDarkMode else { return }
         info.inferredDarkMode = webview.underPageBackgroundColor.hsba.brightness <= 0.4
@@ -704,7 +712,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
     override func updateInjectedCode() {
         var injectedStyles = [injectedCSS]
 //        print("[AD] Autodark: \(autoDarkMode), pageDark: \(info.inferredDarkMode), markMode: \(colorScheme == .dark)")
-        let applyAutoDark = autoDarkMode && !info.inferredDarkMode && colorScheme == .dark
+        let applyAutoDark = autoDarkMode && !info.inferredDarkMode && colorScheme == .dark && !Self.isAutoDarkModeExcluded(info.url)
         if applyAutoDark != info.autoDarkModeApplied {
             info.autoDarkModeApplied = applyAutoDark
             self.needsMetadataRefresh() // If we are about to change auto-dark status, let's trigger a refresh

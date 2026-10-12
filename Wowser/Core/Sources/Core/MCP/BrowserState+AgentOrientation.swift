@@ -95,7 +95,7 @@ extension BrowserState {
             lines.append("Other windows: \(descriptions.joined(separator: "; "))")
         }
 
-        lines.append("Use `run_browser_js` with `browser.tabs.*` / `browser.spaces.*` to act on these ids; call `get_browser_context` again for a fresh view.")
+        lines.append("Use `read_browser_js` to inspect and `run_browser_js` to act on these ids (`browser.tabs.*` / `browser.spaces.*`); call `get_browser_context` again for a fresh view.")
         return lines.joined(separator: "\n")
     }
 

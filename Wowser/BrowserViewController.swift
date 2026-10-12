@@ -19,6 +19,8 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
     
     private let moveBlockingView = MoveBlockingView()
     private let swipeGestureContainer = SwipeGestureContainer()
+    /// Yellow inset border marking dev (non-prod) windows. Nil in prod.
+    private let devBorderView: DevBorderView? = isProd() ? nil : DevBorderView()
     private var escapeKeyMonitor: Any?
     private var flagsChangedMonitor: Any?
     private var tabStackCycleActive = false
@@ -31,6 +33,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         // Add swipe gesture container and set it as the parent view
         view.addSubview(moveBlockingView)
         view.addSubview(swipeGestureContainer)
+        if let devBorderView { view.addSubview(devBorderView) }
         
         // Setup window controls
         if let window = self.view.window {
@@ -252,6 +255,7 @@ class BrowserViewController: NSViewController, NSMenuItemValidation {
         super.viewWillLayout()
         RenderStats.hit("BVC.viewWillLayout")
         swipeGestureContainer.frame = view.bounds
+        devBorderView?.frame = view.bounds
         moveBlockingView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height - UIConstants.macHeaderHeight)
         rootHostingController?.view.frame = swipeGestureContainer.bounds
         if RenderStats.enabled, let hostingView = rootHostingController?.view {
@@ -347,4 +351,18 @@ private struct BrowserWindowWrapper: View {
 
 private class MoveBlockingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
+}
+
+/// Draws a yellow border just inside the window's edge. Click-through.
+private final class DevBorderView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.borderColor = NSColor.systemYellow.cgColor
+        layer?.borderWidth = 4
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

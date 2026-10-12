@@ -439,6 +439,10 @@ public final class AgentChatSession: ObservableObject {
     private var turnsCompleted = 0
 
     private var notificationToken: NSObjectProtocol?
+    /// The sampled user prompts the tab was last titled from, so a turn only
+    /// re-titles when they changed.
+    private var titledFromPrompts: [String]?
+    private var titleTask: Task<Void, Never>?
 
     /// The split sibling the agent was last told about (nil = told there is
     /// none, or never told). Compared at send time so the agent hears about a
@@ -724,6 +728,10 @@ public final class AgentChatSession: ObservableObject {
     /// focused itself nor called `done`, decide for it: surface the tab if
     /// there's something to read, otherwise clean up.
     private func turnDidEnd(result: BrowserJSAgentAwaitResult) {
+        switch mode {
+        case .ask, .chat: retitleIfNeeded()
+        case .scheduledTask, .subagent, .toolbarButton: break
+        }
         guard let ownPaneID else { return }
         let state = BrowserStore.shared.model
         guard let tabID = state.paneToTabMapping[ownPaneID],
@@ -769,6 +777,39 @@ public final class AgentChatSession: ObservableObject {
             } else {
                 // Nothing to read; treat like `done`.
                 AgentChatTabs.close(key: key)
+            }
+        }
+    }
+
+    /// Names the tab from the first two and last two user prompts (via the
+    /// `agentTabTitle` MicroAI feature), when those changed since last time.
+    /// The title goes on the pane and into the agent's saved session record.
+    private func retitleIfNeeded() {
+        guard MicroAI.isAvailable(.agentTabTitle) else { return }
+        let prompts = messages.filter { $0.role == "user" }.map(\.text).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let sampled = AgentTabTitleTask.samplePrompts(prompts)
+        guard !sampled.isEmpty, sampled != titledFromPrompts else { return }
+        titledFromPrompts = sampled
+        titleTask?.cancel()
+        titleTask = Task { [weak self] in
+            guard let title = try? await AgentTabTitleTask.run(userPrompts: prompts).nilIfEmpty,
+                  !Task.isCancelled, let self else { return }
+            self.writeTabTitle(title)
+            if let agentID = self.agentID {
+                await BrowserAgentManager.shared.rename(id: agentID, name: title)
+            }
+        }
+    }
+
+    private func writeTabTitle(_ title: String) {
+        guard let pid = BrowserStore.shared.model.agentChatPane(forKey: key) else { return }
+        // Same dance as `writeTabStatus`: the live WebContent's info wins.
+        if let wc = BrowserStore.shared.existingWebContent(forId: pid), wc.info.title != title {
+            wc.info.title = title
+        }
+        BrowserStore.shared.modify { st in
+            st.updatePaneInfo(forWebContentId: pid) { info in
+                if info.title != title { info.title = title }
             }
         }
     }

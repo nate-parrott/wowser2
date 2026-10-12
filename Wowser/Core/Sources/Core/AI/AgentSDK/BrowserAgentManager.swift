@@ -395,6 +395,18 @@ public actor BrowserAgentManager {
         entries[id]?.status
     }
 
+    /// Renames a live agent, persisting the name in its saved session record.
+    public func rename(id: String, name: String) {
+        guard var entry = entries[id] else { return }
+        entry.name = name
+        if var record = entry.record {
+            record.name = name
+            entry.record = record
+            store.save(record)
+        }
+        entries[id] = entry
+    }
+
     /// The session key of a live agent, if it has one.
     public func key(forID id: String) -> String? {
         entries[id]?.key
@@ -452,10 +464,13 @@ public actor BrowserAgentManager {
     /// Bridges an app's JS tool into the agent: the agent's call is parked
     /// here until the app picks it up via `await` and answers it.
     private func makeAppTool(_ spec: BrowserJSAgentToolSpec, agentID: String) -> AgentToolDefinition {
+        // App-defined tools can do anything the app's JS can, so they go
+        // through permission review like `run_browser_js`.
         AgentToolDefinition(
             name: spec.name,
             description: spec.description,
-            inputSchemaJSON: spec.inputSchemaJSON
+            inputSchemaJSON: spec.inputSchemaJSON,
+            requiresPermission: true
         ) { [weak self] inputJSON in
             guard let self else { return AgentToolOutput(text: "app is gone", isError: true) }
             return await self.parkToolCall(agentID: agentID, name: spec.name, inputJSON: inputJSON)
@@ -649,14 +664,7 @@ public actor BrowserAgentManager {
     /// `BrowserJSDispatch.readOnlyFns`, so it's pre-approved. The full
     /// `run_browser_js` goes through the harness's permission review.
     private func makeRunBrowserJSTool(agentID: String, agentKey: String?, readOnly: Bool) -> AgentToolDefinition {
-        let description = readOnly ? """
-            Read-only variant of `run_browser_js`: same environment and syntax, \
-            but only calls that read browser state are allowed (tabs.list/get, \
-            content.read/screenshot, windows/spaces/folders/splits lists, \
-            net.log/grep, fs.read/list/stat, memory reads, transcripts). Any \
-            call that would change the browser, a page, the network or the disk \
-            throws. Runs without permission review — prefer it for looking around.
-            """ : """
+        let description = readOnly ? BrowserJSDispatch.readOnlyToolDescription : """
             Run JS in the browser's privileged BrowserJS environment (a global \
             `browser` object; see the BrowserJS docs in your system prompt). \
             Your code is the body of an async function: use top-level `await` \

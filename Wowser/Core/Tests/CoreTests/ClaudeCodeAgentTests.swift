@@ -60,6 +60,31 @@ final class ClaudeCodeAgentTests: XCTestCase {
         XCTAssertTrue(result.text.contains("7433"), "unexpected reply: \(result.text)")
     }
 
+    /// Haiku 4.5 doesn't support auto mode, so the CLI comes up in `default`
+    /// and would deny a reviewed tool with no one to ask; the agent must fall
+    /// back to bypass so the call still runs.
+    func testReviewedToolRunsWhenAutoModeUnavailable() async throws {
+        try requireClaude()
+        let invoked = Invoked()
+        let tool = AgentToolDefinition(
+            name: "get_secret_number",
+            description: "Returns the secret number.",
+            inputSchemaJSON: #"{"type":"object","properties":{}}"#,
+            requiresPermission: true
+        ) { _ in
+            await invoked.mark()
+            return AgentToolOutput(text: "The secret number is 7433.")
+        }
+        let agent = ClaudeCodeAgent(configuration: .init(model: "claude-haiku-4-5", tools: [tool], turnTimeout: 120))
+        defer { Task { await agent.shutdown() } }
+
+        let result = try await agent.send(AgentUserMessage(text: "Use the get_secret_number tool and tell me the number."))
+        XCTAssertFalse(result.isError, "turn errored: \(result.text)")
+        let wasInvoked = await invoked.value
+        XCTAssertTrue(wasInvoked, "tool handler never ran")
+        XCTAssertTrue(result.text.contains("7433"), "unexpected reply: \(result.text)")
+    }
+
     func testImageInput() async throws {
         try requireClaude()
         let agent = makeAgent()

@@ -27,6 +27,8 @@ public actor MCPServer {
     }
 
     private let runtime: BrowserJSRuntime
+    /// Backs `read_browser_js`; refuses anything outside `readOnlyFns`.
+    private let readOnlyRuntime: BrowserJSRuntime
     private let helpers: BrowserJSHelpersProvider
     private let host: any BrowserJSHost
 
@@ -41,6 +43,7 @@ public actor MCPServer {
         self.host = host
         self.helpers = helpers
         self.runtime = BrowserJSRuntime(host: host, helpers: helpers)
+        self.readOnlyRuntime = BrowserJSRuntime(host: host, helpers: helpers, readOnly: true)
     }
 
     /// Called once at app launch. On failure, posts a toast pointing at
@@ -179,7 +182,8 @@ public actor MCPServer {
     This server controls the Wowser browser the user is working in. Start by \
     reading the orientation below (or call `get_browser_context` for a fresh \
     one) so you know which space and tabs you're next to, then call \
-    `get_browser_js_docs` before your first `run_browser_js`.
+    `get_browser_js_docs` before your first `run_browser_js`. Use \
+    `read_browser_js` (same API, reads only) when you just need to look.
     """
 
     /// The orientation text for an MCP client, built on the main thread from
@@ -248,6 +252,12 @@ public actor MCPServer {
                 "required": .array([.string("code")]),
             ])
         )
+        let readBrowserJS = MCP.Tool(
+            name: "read_browser_js",
+            description: BrowserJSDispatch.readOnlyToolDescription,
+            inputSchema: runBrowserJS.inputSchema,
+            annotations: .init(readOnlyHint: true, openWorldHint: false)
+        )
         let saveHelper = MCP.Tool(
             name: "save_browser_helper_file",
             description: "Persist a BrowserJS helper file. Helpers are prepended (alpha order) to every run_browser_js evaluation.",
@@ -310,7 +320,7 @@ public actor MCPServer {
                 "properties": .object([:]),
             ])
         )
-        return [getContext, runBrowserJS, saveHelper, readHelper, getDocs, reportBug]
+        return [getContext, runBrowserJS, readBrowserJS, saveHelper, readHelper, getDocs, reportBug]
     }
 
     // MARK: - report_bug
@@ -358,11 +368,12 @@ public actor MCPServer {
             case "get_browser_context":
                 let text = await Self.orientation(originPaneID: originPaneID.map { ID<WebContent>(raw: $0) })
                 return CallTool.Result(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
-            case "run_browser_js":
+            case "run_browser_js", "read_browser_js":
                 guard let args = arguments, case .string(let code) = args["code"] ?? .null else {
                     throw BrowserJSError.invalidArgs("code")
                 }
-                let result = await runtime.run(code: code, originPaneID: originPaneID)
+                let rt = name == "read_browser_js" ? readOnlyRuntime : runtime
+                let result = await rt.run(code: code, originPaneID: originPaneID)
                 let text = encodeRunResult(result)
                 var content: [MCP.Tool.Content] = [.text(text: text, annotations: nil, _meta: nil)]
                 for img in result.images where !img.data.isEmpty {
