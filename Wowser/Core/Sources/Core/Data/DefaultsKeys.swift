@@ -31,7 +31,6 @@ public enum DefaultsKeys: String {
 //    case Chatbot // Chatbot
     
     case enableGoDirectQueries // bool (default off)
-    case lastShownWelcomePageForPageVersion // int
     case searchToolbarEnabled // bool
     case omniboxTerminalCommands // bool (default off) — omnibox offers "Run in Terminal" when the query looks like a shell command (see TerminalCommandCache), and terminal rows render monospace with a black highlight (see SearchableItem.isTerminalStyled)
 
