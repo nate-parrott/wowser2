@@ -68,7 +68,18 @@ extension URL {
         if url?.hostWithoutWWW == "localhost" || url?.hostWithoutWWW == "127.0.0.1" {
             return URL(string: "http://" + string)
         }
+        if let url { ImpliedHTTPS.record(url) }
         return url
+    }
+
+    /// If `self` is an https URL that `withNaturalString` upgraded from a
+    /// scheme-less string, its http equivalent — for retrying when the host
+    /// doesn't serve https at all (e.g. bare `delta.com`). Consumes the record,
+    /// so each upgrade falls back at most once. URLs typed with an explicit
+    /// `https://` never fall back.
+    public func consumeImpliedHTTPSFallback() -> URL? {
+        guard scheme == "https", ImpliedHTTPS.consume(self) else { return nil }
+        return withScheme("http")
     }
 //    public static func withSearchQuery(_ searchQuery: String) -> URL {
 //        return withNaturalString(searchQuery) ?? googleSearch(searchQuery)
@@ -249,4 +260,30 @@ private func shouldDropQueryItemForHistoryKey(_ name: String, val: String?) -> B
         return true
     }
     return false
+}
+
+/// URLs `withNaturalString` gave an https scheme the user didn't type.
+private enum ImpliedHTTPS {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var keys = Set<String>()
+
+    static func record(_ url: URL) {
+        lock.withLock {
+            // Searcher calls withNaturalString per keystroke; keep this tiny.
+            if keys.count > 50 { keys.removeAll() }
+            keys.insert(key(url))
+        }
+    }
+
+    static func consume(_ url: URL) -> Bool {
+        lock.withLock { keys.remove(key(url)) != nil }
+    }
+
+    /// WebKit reports `https://delta.com` as `https://delta.com/`.
+    private static func key(_ url: URL) -> String {
+        guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url.absoluteString }
+        if comps.path.isEmpty { comps.path = "/" }
+        comps.host = comps.host?.lowercased()
+        return comps.string ?? url.absoluteString
+    }
 }

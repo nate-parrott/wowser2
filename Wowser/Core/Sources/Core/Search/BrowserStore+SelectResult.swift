@@ -141,13 +141,9 @@ extension BrowserStore {
             return
         }
         
-        if trimmed.contains(".") {
-            // May be a URL, try to load directly
-            let urlString = trimmed.hasPrefix("http") ? trimmed : "https://\(trimmed)"
-            if let url = URL(string: urlString) {
-                loadURL(url, windowID: windowID, forceNewTab: forceNewTab)
-                return
-            }
+        if let url = URL.withNaturalString(trimmed) {
+            loadURL(url, windowID: windowID, forceNewTab: forceNewTab)
+            return
         }
         
         // Fallback to search

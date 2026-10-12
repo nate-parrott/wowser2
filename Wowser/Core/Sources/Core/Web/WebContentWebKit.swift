@@ -392,6 +392,12 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
             info.oldOnscreenURL = nil
             return
         }
+        if nsError.domain == NSURLErrorDomain,
+           [NSURLErrorCannotConnectToHost, NSURLErrorSecureConnectionFailed].contains(nsError.code),
+           let httpURL = (nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL)?.consumeImpliedHTTPSFallback() {
+            webView.load(URLRequest(url: httpURL))
+            return
+        }
         if let failedURL = info.oldOnscreenURL {
             self.info.failedNavToURL = .init(url: failedURL, error: .generic("\(error)"))
         }
