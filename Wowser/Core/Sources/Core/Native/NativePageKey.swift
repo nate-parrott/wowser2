@@ -176,7 +176,7 @@ extension NativePageKey {
     }
 
     @ViewBuilder
-    func favicon(size: CGFloat = 16) -> some View {
+    func favicon(size: CGFloat = 16, highlighted: Bool = false) -> some View {
         // HACK: is it ok to drop size?
         switch self {
         case .terminal:
@@ -188,7 +188,7 @@ extension NativePageKey {
         case .agent(let key, _):
             AgentFruitIcon(flavor: .flavor(forKey: key), working: false)
         case .welcome:
-            TabIconView(icon: .sfSymbol("hand.wave"))
+            TabIconView(icon: .sfSymbol("hand.wave"), highlighted: highlighted)
         }
     }
     

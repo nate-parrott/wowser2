@@ -118,7 +118,7 @@ private struct RegularTabButton: View {
     
     @ViewBuilder private var content: some View {
         if let splitPair = snapshot.splitPair {
-            SplitPairContent(tabID: snapshot.tabID, cells: splitPair, isHovered: isHovered, windowID: windowID)
+            SplitPairContent(tabID: snapshot.tabID, cells: splitPair, isSelected: isSelected, isHovered: isHovered, windowID: windowID)
         } else {
             singleContent
         }
@@ -127,7 +127,7 @@ private struct RegularTabButton: View {
     @ViewBuilder private var singleContent: some View {
         HStack(spacing: 8) {
             // Icon based on the type in the snapshot
-            TabIconView(icon: snapshot.appearance.icon)
+            TabIconView(icon: snapshot.appearance.icon, highlighted: isSelected)
                 .opacity(snapshot.appearance.isGhost || snapshot.appearance.isUnloaded ? 0.55 : 1)
                 .modifier(TabBadgeModifier(badge: snapshot.appearance.badge))
 
@@ -181,6 +181,7 @@ private struct RegularTabButton: View {
 private struct SplitPairContent: View {
     var tabID: ID<Tab>
     var cells: [TabSnapshot.SplitCell]
+    var isSelected: Bool
     var isHovered: Bool
     var windowID: ID<WindowState>
 
@@ -197,7 +198,7 @@ private struct SplitPairContent: View {
 //                    Divider()
 //                        .padding(.vertical, 7)
                 }
-                SplitPaneCell(cell: cell, isHovered: isHovered) {
+                SplitPaneCell(cell: cell, isSelected: isSelected, isHovered: isHovered) {
                     select(paneIdx: idx)
                 }
             }
@@ -261,13 +262,14 @@ private struct SplittableDivider: View {
 
 private struct SplitPaneCell: View {
     var cell: TabSnapshot.SplitCell
+    var isSelected: Bool
     var isHovered: Bool
     var onSelect: () -> Void
 
     var body: some View {
         let dimmed = cell.appearance.isGhost || cell.appearance.isUnloaded
         HStack(spacing: 6) {
-            TabIconView(icon: cell.appearance.icon)
+            TabIconView(icon: cell.appearance.icon, highlighted: isSelected)
                 .opacity(dimmed ? 0.55 : 1)
                 .modifier(TabBadgeModifier(badge: cell.appearance.badge))
             Text(cell.appearance.title)

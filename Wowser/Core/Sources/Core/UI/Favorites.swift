@@ -153,7 +153,7 @@ struct FavoriteCell: View {
                 // Reset is available only when selected and the base URL differs from the current URL.
                 let canReset = isSelected && snapshot.urlDiffersFromBase
                 
-                TabIconView(icon: snapshot.icon)
+                TabIconView(icon: snapshot.icon, highlighted: isSelected)
                     .frame(width: 24, height: 24)
                     .overlay(alignment: .trailing) {
                         if canReset {

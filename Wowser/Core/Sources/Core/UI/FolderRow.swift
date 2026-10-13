@@ -215,7 +215,7 @@ private struct FolderPreviewRow: View {
         } main: { snapshot in
             if let snapshot {
                 HStack(spacing: 8) {
-                    TabIconView(icon: snapshot.appearance.icon)
+                    TabIconView(icon: snapshot.appearance.icon, highlighted: isSelected)
                     Text(snapshot.appearance.title)
                         .lineLimit(1)
                         .truncationMode(.tail)

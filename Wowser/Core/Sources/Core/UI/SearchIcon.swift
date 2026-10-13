@@ -12,14 +12,14 @@ struct SearchIcon: View {
             switch item.content {
             case .urlYouTyped(let url):
                 if let nativeKey = NativePageKey(url: url) {
-                    nativeKey.favicon(size: size)
+                    nativeKey.favicon(size: size, highlighted: selected)
                 } else {
                     FaviconView(faviconURL: url.inferredFaviconURL, size: size)
                 }
                 
             case .historyItem(let historyItem):
                 if let nativeKey = NativePageKey(url: historyItem.url) {
-                    nativeKey.favicon(size: size)
+                    nativeKey.favicon(size: size, highlighted: selected)
                 } else {
                     FaviconView(faviconURL: historyItem.url.inferredFaviconURL, size: size)
                 }
@@ -45,7 +45,7 @@ struct SearchIcon: View {
                 
             case .searchAction(let action):
                 if case .openURL(let url) = action, let nativeKey = NativePageKey(url: url) {
-                    nativeKey.favicon(size: size)
+                    nativeKey.favicon(size: size, highlighted: selected)
                 } else {
                     Image(systemName: "arrow.right.circle.fill")
                         .opacity(iconOpacity)
@@ -61,7 +61,7 @@ struct SearchIcon: View {
             case .tab(_, let info):
                 Group {
                     if let url = info.url, let nativeKey = NativePageKey(url: url) {
-                        nativeKey.favicon(size: size)
+                        nativeKey.favicon(size: size, highlighted: selected)
                     } else {
                         FaviconView(faviconURL: info.favicon ?? info.url?.inferredFaviconURL, size: size)
                     }

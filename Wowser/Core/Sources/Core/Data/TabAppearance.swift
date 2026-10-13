@@ -189,6 +189,10 @@ extension Tab {
 
 struct TabIconView: View {
     var icon: TabAppearance.Icon
+    /// Drawn on an accent-colored background (selected tab, selected
+    /// command-bar row): accent-colored glyphs switch to the on-accent color.
+    var highlighted: Bool = false
+    @Environment(\.onAccentColor) private var onAccentColor
 
     var body: some View {
         switch icon {
@@ -197,7 +201,7 @@ struct TabIconView: View {
 
         case .sfSymbol(let symbolName):
             Image(systemName: symbolName)
-                .foregroundColor(.accentColor)
+                .foregroundColor(highlighted ? onAccentColor : Color.accentColor)
                 .font(.system(size: 12))
                 .frame(width: 16, height: 16)
 

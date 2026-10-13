@@ -242,6 +242,9 @@ public actor ClaudeCodeAgent: Agent {
         var env = ProcessInfo.processInfo.environment
         env.removeValue(forKey: "CLAUDECODE")  // don't look like a nested session
         env["CLAUDE_CODE_ENTRYPOINT"] = "sdk-swift"
+        // Load the browser's MCP tools up front: deferred loading costs a
+        // ToolSearch round trip before the agent can touch the browser.
+        env["ENABLE_TOOL_SEARCH"] = "false"
         proc.environment = env
 
         let stdinPipe = Pipe(), stdoutPipe = Pipe(), stderrPipe = Pipe()
