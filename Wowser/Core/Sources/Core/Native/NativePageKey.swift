@@ -185,8 +185,8 @@ extension NativePageKey {
             VSCodeFavicon()
         case .fileBrowser:
             FileBrowserFavicon()
-        case .agent(let key, _):
-            AgentFruitIcon(flavor: .flavor(forKey: key), working: false)
+        case .agent:
+            AgentTabIcon(working: false, highlighted: highlighted)
         case .welcome:
             TabIconView(icon: .sfSymbol("hand.wave"), highlighted: highlighted)
         }
@@ -200,7 +200,7 @@ extension NativePageKey {
             return "Open Terminal"
         case .vscode: return "Open VS Code"
         case .fileBrowser: return "Open File Browser"
-        case .agent: return "New Chat"
+        case .agent: return "New Agent"
         case .welcome: return "Welcome"
         }
     }

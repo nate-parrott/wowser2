@@ -20,12 +20,17 @@ struct FancyPlus: View {
         case action(NewMenuItem)
         case overflowMenu
         
-        var iconAndLabel: (String, String) {
+        var image: Image {
             switch self {
-            case .action(let newMenuItem):
-                return newMenuItem.iconAndLabel
-            case .overflowMenu:
-                return ("ellipsis", "New...")
+            case .action(let newMenuItem): return newMenuItem.image
+            case .overflowMenu: return Image(systemName: "ellipsis")
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .action(let newMenuItem): return newMenuItem.iconAndLabel.1
+            case .overflowMenu: return "New..."
             }
         }
     }
@@ -55,8 +60,8 @@ struct FancyPlus: View {
                 showOverflowMenu()
             }
         }, label: {
-            Image(systemName: seg.iconAndLabel.0)
-                .help(seg.iconAndLabel.1)
+            seg.image
+                .help(seg.label)
                 .frame(width: visible ? w : 0, height: 26)
                 .contentShape(.rect)
         })

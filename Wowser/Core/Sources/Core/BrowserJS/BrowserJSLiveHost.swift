@@ -709,6 +709,12 @@ public final class BrowserJSLiveHost: BrowserJSHost, @unchecked Sendable {
 
     public func netCaptureOrigin(origin: String, enabled: Bool) async throws {
         await NetworkCaptureStore.shared.setCaptureEnabled(origin: origin, enabled: enabled)
+        #if os(macOS)
+        // Tunnels opened before this origin was allowlisted are pooled and
+        // reused by WebKit; sever them so the next request reconnects and is
+        // MITM'd.
+        if enabled { await LocalProxy.shared.closeBlindTunnelsNowCaptured() }
+        #endif
     }
 
     // MARK: - Webapps

@@ -38,6 +38,12 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
         }
     }
 
+    /// `icon` as an image; the chat button is Wowie (a custom symbol, which
+    /// `Image(systemName:)` can't load).
+    public var image: Image {
+        self == .openChat ? .wowie : Image(systemName: icon)
+    }
+
     /// When the button is *eligible* to appear (it can still be hidden).
     public var availabilityNote: String? {
         switch self {

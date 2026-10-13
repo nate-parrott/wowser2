@@ -48,8 +48,11 @@ struct TabAppearance: Equatable, Codable {
 extension Pane {
     func tabAppearance() -> TabAppearance {
         // Prefer base favicon and title if they exist
+        let pageTitle = (baseInfo?.title?.nilIfEmpty ?? info.title?.nilIfEmpty).map {
+            TabTitleTidier.tidy($0, url: baseInfo?.url ?? info.url)
+        }
         var appearance = TabAppearance(
-            title: baseInfo?.title?.nilIfEmpty ?? info.title?.nilIfEmpty ?? info.url?.hostWithoutWWW ?? "",
+            title: pageTitle ?? info.url?.hostWithoutWWW ?? "",
             icon: .empty,
             urlFieldTextSelected: info.url?.absoluteString ?? "",
             urlFieldTextDeselected: info.url?.hostWithoutWWW ?? ""
@@ -214,8 +217,8 @@ struct TabIconView: View {
             TerminalFavicon(running: running)
         case .claude:
             ClaudeFavicon()
-        case .agentFruit(let flavor, let working):
-            AgentFruitIcon(flavor: flavor, working: working)
+        case .agentFruit(_, let working):
+            AgentTabIcon(working: working, highlighted: highlighted)
         case .vscode:
             VSCodeFavicon()
         case .files:

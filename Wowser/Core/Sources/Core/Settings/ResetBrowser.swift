@@ -5,8 +5,9 @@ import SwiftUI
 // Erased: every space, tab (including favorites/pinned tabs), sidebar folder,
 // project and window (BrowserState), toolbar customization, space background
 // images, cookies/site data (logins) and browsing history for every space,
-// space chat threads, and Old Tabs / bookmarks (ArchiveStore). Onboarding is
-// marked incomplete and reopened.
+// space chat threads, Old Tabs / bookmarks (ArchiveStore), per-site tweaks
+// (`browser.inject` CSS/JS and clean-mode settings, CleanModeStore) and the
+// new-tab menu's quick action. Onboarding is marked incomplete and reopened.
 //
 // Kept: settings, saved passwords and autofill, AI agent chat sessions,
 // memory index files, scheduled tasks, extensions and MCP setup.
@@ -62,6 +63,8 @@ extension BrowserStore {
 
         ChatThreadStore.shared.modify { $0 = ChatThreadsState() }
         ArchiveStore.shared.modify { $0 = ArchiveState() }
+        CleanModeStore.shared.resetToDefault()
+        DefaultsKeys.newMenuQuickAction.setString("")
         let dataStores = leftovers.dataStoreUUIDs
         Queue.historyQueue.run {
             for uuid in dataStores {
@@ -107,7 +110,7 @@ struct ResetBrowserRow: View {
             Button("Reset Browser", role: .destructive, action: reset)
         } message: {
             Text("""
-            This erases all spaces, tabs, favorites, folders and windows, space backgrounds, browsing history, Old Tabs and bookmarks, space chats, and cookies and site data (you'll be logged out of every site). This can't be undone.
+            This erases all spaces, tabs, favorites, folders and windows, space backgrounds, browsing history, Old Tabs and bookmarks, space chats, site tweaks, and cookies and site data (you'll be logged out of every site). This can't be undone.
 
             Kept: your settings, saved passwords and autofill, agent chats, memory, scheduled tasks and extensions.
             """)

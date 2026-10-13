@@ -5,7 +5,6 @@ import SwiftUI
 /// OnboardingKit.swift.
 enum OnboardingStep: Int, CaseIterable {
     case welcome
-    case background
     case importData
     case defaultBrowser
     case ai
@@ -40,11 +39,14 @@ final class OnboardingModel {
     }
 }
 
-/// The whole onboarding flow, shown in the welcome tab. Finishing (or
-/// skipping) marks onboarding complete and closes the tab.
+/// The whole onboarding flow, shown in the welcome tab. Finishing marks
+/// onboarding complete and moves on to a new tab (the welcome tab stays; the
+/// user can close it like any other).
 struct OnboardingFlow: View {
-    /// The welcome tab's pane, closed when the user finishes.
+    /// The welcome tab's pane.
     var webContentID: ID<WebContent>?
+
+    @Environment(\.windowID) private var windowID
 
     @State private var model: OnboardingModel
 
@@ -61,14 +63,6 @@ struct OnboardingFlow: View {
                 .environment(\.onboardingBack, model.step == .welcome ? nil : goBack)
         }
         .clipped()
-        .overlay(alignment: .topTrailing) {
-            if model.step != .tricks {
-                Button("Skip setup", action: finish)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .padding(16)
-            }
-        }
     }
 
     @ViewBuilder
@@ -76,7 +70,6 @@ struct OnboardingFlow: View {
         @Bindable var model = model
         switch step {
         case .welcome: OnboardingWelcomeScreen(next: advance)
-        case .background: OnboardingBackgroundScreen(next: advance)
         case .importData: OnboardingImportScreen(state: $model.importState, next: advance)
         case .defaultBrowser: OnboardingDefaultBrowserScreen(next: advance)
         case .ai: OnboardingAIScreen(state: $model.ai, next: advance)
@@ -109,10 +102,8 @@ struct OnboardingFlow: View {
 
     private func finish() {
         DefaultsKeys.hasCompletedOnboarding.setBool(true)
-        if let webContentID {
-            NativeRenderCache.shared.removeAll(id: webContentID.raw)
-            BrowserStore.shared.close(webContentId: webContentID, removeIfPinned: false)
-        }
+        let windowID = self.windowID
+        BrowserStore.shared.modify { $0.openOrSelectNewTab(windowID: windowID) }
     }
 }
 

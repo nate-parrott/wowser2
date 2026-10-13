@@ -143,8 +143,7 @@ struct ToolbarTrailingRegion: View {
             BookmarkToolbarButton(webContentID: webContentID, url: snapshot.url)
         case .openChat:
             Button(action: openChatSplit) {
-                Image(systemName: "bubble.left")
-                    .imageScale(.medium)
+                ToolbarWowieIcon()
             }
             .buttonStyle(ToolbarButtonStyle())
             .help("Open chat in split view")
@@ -168,7 +167,7 @@ struct ToolbarTrailingRegion: View {
     /// Stand-in glyph for an ineligible built-in while customizing.
     private func placeholder(_ item: ToolbarTrailingItem) -> some View {
         Button(action: {}) {
-            Image(systemName: item.icon).imageScale(.medium)
+            item.image.imageScale(.medium)
         }
         .buttonStyle(ToolbarButtonStyle())
         .help(item.title)
@@ -195,6 +194,17 @@ struct ToolbarTrailingRegion: View {
 }
 
 // MARK: - Buttons
+
+/// The chat button's Wowie, which bounces while hovered.
+private struct ToolbarWowieIcon: View {
+    @State private var hovered = false
+
+    var body: some View {
+        WowieAvatar(animation: hovered ? .bouncing : nil, weight: 0.55)
+            .frame(width: 17, height: 17)
+            .onHover { hovered = $0 }
+    }
+}
 
 private struct BookmarkToolbarButton: View {
     var webContentID: ID<WebContent>?

@@ -449,39 +449,35 @@ final class ImportTests: XCTestCase {
 
     // MARK: - Top sites → favorites
 
-    private func historyWith(_ visits: [(String, Int)], now: Date = Date()) -> HistoryState {
-        var state = HistoryState()
-        _ = state.mergeImported(visits.map { url, count in
-            ImportedHistoryEntry(url: URL(string: url)!, title: nil, visits: (0..<count).map { now.addingTimeInterval(-Double($0) * 3600) })
-        }, now: now)
-        return state
-    }
-
-    func testTopSiteRootsGroupsByHost() {
-        let history = historyWith([
-            ("https://www.a.example/x", 3), ("https://a.example/y", 3),
-            ("https://b.example/deep/page?q=1", 4),
-            ("https://c.example/", 1),
-        ])
-        let top = history.topSiteRoots(limit: 2)
-        XCTAssertEqual(top.map(\.host), ["a.example", "b.example"])
-        XCTAssertEqual(top[1].url.absoluteString, "https://b.example/")
-        XCTAssertEqual(top[0].url.path, "/")
-    }
-
     func testFavoritesFromTopSitesOnlyWhenEmpty() {
         var state = BrowserState.defaultState
         let profile = ID<Profile>.defaultProfile
-        state.profiles[profile]?.removedFavoriteDomains = ["c.example"]
-        let history = historyWith([("https://a.example/", 5), ("https://b.example/", 4), ("https://c.example/", 3), ("https://d.example/", 2)])
+        state.profiles[profile]?.removedFavoriteDomains = ["reddit.com"]
+        // Months-old visits: ranking is relative to the import's latest visit.
+        let then = Date().addingTimeInterval(-200 * 86400)
+        let entries = [
+            ("https://mail.google.com/", 6), ("https://random.example/", 5), ("https://www.youtube.com/", 4),
+            ("https://reddit.com/", 3), ("https://news.ycombinator.com/", 2), ("https://notion.so/", 1),
+        ].map { url, count in
+            ImportedHistoryEntry(url: URL(string: url)!, title: nil, visits: (0..<count).map { then.addingTimeInterval(-Double($0) * 3600) })
+        }
+        let topSites = ImportedHistoryEntry.topSiteRoots(entries)
 
-        let added = state.addFavoritesFromTopSitesIfEmpty(profile: profile, history: history, limit: 3)
-        XCTAssertEqual(added, 2, "removed domains are skipped from the limited list")
+        let added = state.addFavoritesFromTopSitesIfEmpty(profile: profile, topSites: topSites, limit: 3)
+        XCTAssertEqual(added, 3, "only curated sites; removed domains skipped before limiting")
         let favs = state.profiles[profile]!.manualFavorites.compactMap { state.tabs[$0]?.panes.first?.info.url?.host }
-        XCTAssertEqual(favs, ["a.example", "b.example"])
+        XCTAssertEqual(favs, ["mail.google.com", "www.youtube.com", "news.ycombinator.com"])
 
-        XCTAssertEqual(state.addFavoritesFromTopSitesIfEmpty(profile: profile, history: history, limit: 3), 0, "already has favorites")
-        XCTAssertEqual(state.addFavoritesFromTopSitesIfEmpty(profile: ID(raw: "missing"), history: history, limit: 3), 0)
+        XCTAssertEqual(state.addFavoritesFromTopSitesIfEmpty(profile: profile, topSites: topSites, limit: 3), 0, "already has favorites")
+        XCTAssertEqual(state.addFavoritesFromTopSitesIfEmpty(profile: ID(raw: "missing"), topSites: topSites, limit: 3), 0)
+    }
+
+    func testCuratedFavoriteSites() {
+        XCTAssertTrue(CuratedFavoriteSites.contains(host: "mail.google.com"))
+        XCTAssertTrue(CuratedFavoriteSites.contains(host: "www.youtube.com"))
+        XCTAssertTrue(CuratedFavoriteSites.contains(host: "old.reddit.com"))
+        XCTAssertFalse(CuratedFavoriteSites.contains(host: "google.com"))
+        XCTAssertFalse(CuratedFavoriteSites.contains(host: "notreddit.com"))
     }
 
     // MARK: - Autofill merges

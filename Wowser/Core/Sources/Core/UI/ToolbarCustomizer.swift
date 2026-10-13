@@ -105,7 +105,7 @@ private struct ToolbarItemRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: icon)
+            iconImage
                 .frame(width: 22)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
@@ -137,10 +137,10 @@ private struct ToolbarItemRow: View {
         .frame(minHeight: 34)
     }
 
-    private var icon: String {
+    private var iconImage: Image {
         switch ref {
-        case .builtin(let item): return item.icon
-        case .custom(let id): return config.customButton(id: id)?.icon ?? "questionmark"
+        case .builtin(let item): return item.image
+        case .custom(let id): return Image(systemName: config.customButton(id: id)?.icon ?? "questionmark")
         }
     }
 

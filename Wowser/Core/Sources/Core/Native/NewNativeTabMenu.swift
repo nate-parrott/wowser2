@@ -29,10 +29,22 @@ enum NewMenuItem: String, Equatable, Codable, CaseIterable {
         case .claude:
             return ("sparkles", "New Claude")
         case .chat:
-            return ("bubble.left", "New Chat")
+            return ("bubble.left", "New Agent")
         case .folder:
             return ("square.stack", "New Folder…")
         }
+    }
+
+    /// The icon to show. The agent chat is Wowie (a custom symbol, which
+    /// `Image(systemName:)` can't load); the rest use `iconAndLabel`'s symbol.
+    var image: Image {
+        self == .chat ? .wowie : Image(systemName: iconAndLabel.0)
+    }
+
+    var menuImage: NSImage? {
+        self == .chat
+            ? NSImage(symbolName: "custom.wowie", bundle: .module, variableValue: 1)
+            : NSImage(systemSymbolName: iconAndLabel.0, accessibilityDescription: nil)
     }
 
     /// The quick action shown in `FancyPlus`, persisted in `DefaultsKeys.newMenuQuickAction`.
@@ -117,12 +129,12 @@ enum NewMenuItem: String, Equatable, Codable, CaseIterable {
     static func buildMenu(windowID: ID<WindowState>, didChoose: ((NewMenuItem) -> Void)? = nil) -> NSMenu {
         let menu = NSMenu()
         func add(_ item: NewMenuItem) {
-            let (symbol, label) = item.iconAndLabel
+            let label = item.iconAndLabel.1
             let menuItem = CallbackMenuItem(title: label) {
                 didChoose?(item)
                 item.perform(windowID: windowID)
             }
-            menuItem.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            menuItem.image = item.menuImage
             menu.addItem(menuItem)
         }
         tabKinds.forEach(add)

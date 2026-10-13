@@ -148,7 +148,11 @@ public class WebContent: NSObject, ObservableObject {
         }
     }
 
-    public static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_8) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+    /// Claims the installed Safari's version (see `SafariVersion`) so sites
+    /// gate their WebKit workarounds on the engine we actually run.
+    public static var desktopUserAgent: String {
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_8) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(SafariVersion.current) Safari/605.1.15"
+    }
     public static let mobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
 
     /// The user agent this webview sends when `usesMobileUserAgent` is off.

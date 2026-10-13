@@ -34,6 +34,25 @@ public actor LocalProxy {
     private let portBox = ProxyPortBox()
     public nonisolated var syncBoundPort: Int? { portBox.get() }
 
+    /// Live blind (uncaptured) CONNECT tunnels, so enabling capture for an
+    /// origin can sever them: WebKit pools HTTP/2 connections, so a tunnel
+    /// opened before the origin was allowlisted would otherwise keep serving
+    /// it uncaptured indefinitely.
+    private let tunnels = BlindTunnelRegistry()
+
+    /// Close every blind tunnel whose `https://host:port` the capture store
+    /// now allowlists. WebKit reconnects, and the fresh CONNECT gets MITM'd.
+    /// Returns how many tunnels were closed.
+    @discardableResult
+    public func closeBlindTunnelsNowCaptured() async -> Int {
+        var closed = 0
+        for t in tunnels.all() where await captureStore.isCaptureEnabled(forURL: "https://\(t.host):\(t.port)") {
+            t.channel.close(promise: nil)
+            closed += 1
+        }
+        return closed
+    }
+
     public init(captureStore: NetworkCaptureStore, ca: LocalCA = .shared) {
         self.captureStore = captureStore
         self.ca = ca
@@ -48,12 +67,13 @@ public actor LocalProxy {
         self.group = group
         let store = self.captureStore
         let ca = self.ca
+        let tunnels = self.tunnels
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 32)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
                 channel.pipeline.configureHTTPServerPipeline().flatMap {
-                    channel.pipeline.addHandler(LocalProxyHTTPHandler(captureStore: store, ca: ca, mitmHost: nil))
+                    channel.pipeline.addHandler(LocalProxyHTTPHandler(captureStore: store, ca: ca, tunnels: tunnels, mitmHost: nil))
                 }
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -75,6 +95,25 @@ public actor LocalProxy {
     }
 }
 
+/// Lock-protected set of open blind tunnels (client-side channels), keyed by
+/// channel identity. Entries remove themselves when the channel closes.
+final class BlindTunnelRegistry: @unchecked Sendable {
+    struct Tunnel { var host: String; var port: Int; var channel: Channel }
+    private let lock = NSLock()
+    private var tunnels: [ObjectIdentifier: Tunnel] = [:]
+
+    func add(_ t: Tunnel) {
+        let key = ObjectIdentifier(t.channel)
+        lock.lock(); tunnels[key] = t; lock.unlock()
+        t.channel.closeFuture.whenComplete { [weak self] _ in
+            guard let self else { return }
+            self.lock.lock(); self.tunnels[key] = nil; self.lock.unlock()
+        }
+    }
+
+    func all() -> [Tunnel] { lock.lock(); defer { lock.unlock() }; return Array(tunnels.values) }
+}
+
 /// Lock-protected `Int?` so the proxy's bound port can be read synchronously
 /// from outside the actor (see `LocalProxy.syncBoundPort`).
 private final class ProxyPortBox: @unchecked Sendable {
@@ -90,6 +129,7 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
 
     private let captureStore: NetworkCaptureStore
     private let ca: LocalCA
+    private let tunnels: BlindTunnelRegistry
     /// When non-nil, all requests received on this pipeline are HTTPS — we've
     /// already MITM-terminated TLS at the channel level and now we forward
     /// upstream over real TLS using the recorded host:port.
@@ -97,9 +137,10 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
     private struct State { var head: HTTPRequestHead; var body: ByteBuffer }
     private var state: State?
 
-    init(captureStore: NetworkCaptureStore, ca: LocalCA, mitmHost: (host: String, port: Int)?) {
+    init(captureStore: NetworkCaptureStore, ca: LocalCA, tunnels: BlindTunnelRegistry, mitmHost: (host: String, port: Int)?) {
         self.captureStore = captureStore
         self.ca = ca
+        self.tunnels = tunnels
         self.mitmHost = mitmHost
     }
 
@@ -264,7 +305,10 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
     /// completion — on the event loop, before any further client bytes are
     /// read, so the client's TLS ClientHello can never reach the HTTP decoder.
     private func respondConnectOK(context: ChannelHandlerContext, version: HTTPVersion, then swap: @escaping () -> Void) {
-        let head = HTTPResponseHead(version: version, status: .ok)
+        // Explicit zero length: without it NIO's encoder frames the response
+        // as chunked, and the `0\r\n\r\n` terminator written by `.end` lands in
+        // the tunnel ahead of the TLS handshake ("bad protocol version").
+        let head = HTTPResponseHead(version: version, status: .ok, headers: ["Content-Length": "0"])
         context.write(wrapOutboundOut(.head(head)), promise: nil)
         let okPromise = context.eventLoop.makePromise(of: Void.self)
         context.writeAndFlush(wrapOutboundOut(.end(nil)), promise: okPromise)
@@ -300,6 +344,7 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
         let serverHandler = NIOSSLServerHandler(context: serverContext)
         let captureStore = self.captureStore
         let ca = self.ca
+        let tunnels = self.tunnels
 
         // Swap the pipeline synchronously, still inside the 200's write
         // completion (see `respondConnectOK`): no client bytes can be read
@@ -312,7 +357,7 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
             // Re-install HTTP server pipeline *after* NIOSSL so it
             // operates on the decrypted bytes.
             try sync.configureHTTPServerPipeline()
-            try sync.addHandler(LocalProxyHTTPHandler(captureStore: captureStore, ca: ca, mitmHost: (host: host, port: port)))
+            try sync.addHandler(LocalProxyHTTPHandler(captureStore: captureStore, ca: ca, tunnels: tunnels, mitmHost: (host: host, port: port)))
             FileHandle.standardError.write(Data("LocalProxy MITM swap done for \(host):\(port)\n".utf8))
         } catch {
             FileHandle.standardError.write(Data("LocalProxy MITM setup failed: \(error)\n".utf8))
@@ -340,6 +385,7 @@ private final class LocalProxyHTTPHandler: ChannelInboundHandler, RemovableChann
                         try self.removeHTTPServerHandlers(sync)
                         try sync.addHandler(TunnelHandler(peer: upstream))
                         try upstream.pipeline.syncOperations.addHandler(TunnelHandler(peer: clientChannel))
+                        self.tunnels.add(.init(host: host, port: port, channel: clientChannel))
                     } catch {
                         FileHandle.standardError.write(Data("LocalProxy blind tunnel setup failed: \(error)\n".utf8))
                         clientChannel.close(promise: nil)

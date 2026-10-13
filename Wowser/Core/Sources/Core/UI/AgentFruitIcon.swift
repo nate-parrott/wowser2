@@ -37,143 +37,32 @@ public enum AgentFruitFlavor: String, Codable, CaseIterable, Equatable {
     }
 }
 
-/// A cute 16×16 fruit-with-eyes tab icon for agent tabs. While the agent works
-/// its eyes are open and glance around (with the odd blink); when the agent is
-/// idle, waiting on the user, the fruit dozes with closed eyes.
+/// The agent's tab/chat icon: Wowie, tinted with the agent's flavor color.
+/// While the agent works it plays a looping animation; when idle it sits still.
 struct AgentFruitIcon: View {
     var flavor: AgentFruitFlavor
     var working: Bool
     var size: CGFloat = 16
 
     var body: some View {
-        ZStack {
-            if working {
-                TimelineView(.periodic(from: .now, by: 0.7)) { context in
-                    fruit(eyes: eyePhase(at: context.date))
-                }
-                WorkingSpinnerRing(color: flavor.bottomColor)
-            } else {
-                fruit(eyes: .closed)
-            }
-        }
-        .frame(width: size, height: size)
-    }
-
-    private enum EyePhase: Equatable {
-        case open(glance: CGFloat) // -1…1 pupil offset
-        case blink
-        case closed
-    }
-
-    private func eyePhase(at date: Date) -> EyePhase {
-        // Deterministic from wall clock so every row's fruit stays in sync
-        // without any stored state.
-        let tick = Int(date.timeIntervalSinceReferenceDate / 0.7)
-        if tick % 6 == 5 { return .blink }
-        switch tick % 3 {
-        case 0: return .open(glance: -1)
-        case 1: return .open(glance: 1)
-        default: return .open(glance: 0)
-        }
-    }
-
-    @ViewBuilder
-    private func fruit(eyes: EyePhase) -> some View {
-        let bodySize = size * 0.82
-        ZStack {
-            // Leaf
-            Ellipse()
-                .fill(Color(hex: 0x4E9F3D))
-                .frame(width: size * 0.32, height: size * 0.18)
-                .rotationEffect(.degrees(-32))
-                .offset(x: size * 0.14, y: -bodySize * 0.5)
-
-            // Body
-            Circle()
-                .fill(LinearGradient(
-                    colors: [flavor.topColor, flavor.bottomColor],
-                    startPoint: .top, endPoint: .bottom
-                ))
-                .frame(width: bodySize, height: bodySize)
-                .overlay {
-                    // Soft top-left sheen
-                    Circle()
-                        .fill(Color.white.opacity(0.35))
-                        .frame(width: bodySize * 0.3, height: bodySize * 0.22)
-                        .blur(radius: 1)
-                        .offset(x: -bodySize * 0.2, y: -bodySize * 0.26)
-                }
-                .overlay {
-                    Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5)
-                }
-
-            // Face
-            face(eyes: eyes)
-                .offset(y: size * 0.05)
-        }
-        .frame(width: size, height: size)
-        .offset(y: size * 0.04)
-    }
-
-    @ViewBuilder
-    private func face(eyes: EyePhase) -> some View {
-        let eyeSpacing = size * 0.16
-        HStack(spacing: eyeSpacing) {
-            eye(phase: eyes)
-            eye(phase: eyes)
-        }
-    }
-
-    @ViewBuilder
-    private func eye(phase: EyePhase) -> some View {
-        let eyeW = size * 0.14
-        switch phase {
-        case .open(let glance):
-            ZStack {
-                Circle()
-                    .fill(Color.black.opacity(0.82))
-                    .frame(width: eyeW, height: eyeW)
-                Circle()
-                    .fill(Color.white.opacity(0.9))
-                    .frame(width: eyeW * 0.36, height: eyeW * 0.36)
-                    .offset(x: -eyeW * 0.16, y: -eyeW * 0.16)
-            }
-            .offset(x: glance * eyeW * 0.3)
-        case .blink, .closed:
-            ClosedEyeShape()
-                .stroke(Color.black.opacity(0.75), style: StrokeStyle(lineWidth: max(1, size * 0.07), lineCap: .round))
-                .frame(width: eyeW, height: eyeW * 0.6)
-        }
+        WowieAvatar(animation: working ? .typing : nil, weight: 0.6)
+            .foregroundStyle(flavor.bottomColor)
+            .frame(width: size, height: size)
     }
 }
 
-/// A spinning partial ring around the fruit while the agent works — reads as
-/// a loading indicator at tab-icon size.
-private struct WorkingSpinnerRing: View {
-    var color: Color
-    @State private var spinning = false
+/// An agent tab's icon: Wowie in the same accent color as the other glyph tab
+/// icons (`TabIconView`'s SF Symbols), switching to the on-accent color on a
+/// highlighted row. Animates while the agent works.
+struct AgentTabIcon: View {
+    var working: Bool
+    var highlighted = false
+    @Environment(\.onAccentColor) private var onAccentColor
 
     var body: some View {
-        Circle()
-            .trim(from: 0, to: 0.68)
-            .stroke(color.opacity(0.85), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
-            .rotationEffect(.degrees(spinning ? 360 : 0))
-            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spinning)
-            .onAppear { spinning = true }
-            .onDisappear { spinning = false }
-    }
-}
-
-/// A gentle downward arc — a happily closed eye.
-private struct ClosedEyeShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        p.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.midY),
-            control: CGPoint(x: rect.midX, y: rect.maxY)
-        )
-        return p
+        WowieAvatar(animation: working ? .typing : nil, weight: 0.5)
+            .foregroundStyle(highlighted ? onAccentColor : Color.accentColor)
+            .frame(width: 16, height: 16)
     }
 }
 

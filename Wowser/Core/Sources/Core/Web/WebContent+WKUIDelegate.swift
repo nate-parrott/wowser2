@@ -72,6 +72,15 @@ extension WebContentWebKit: WKUIDelegate {
         let response = await openPanel.beginSheetModal(for: window)
         return response == .OK ? openPanel.urls : nil
     }
+
+    /// Private WKUIDelegate hook behind `window.outerWidth/outerHeight/screenX/screenY`.
+    /// Without it WebKit reports all four as 0, which breaks sites that infer
+    /// page zoom from `outerWidth / innerWidth`. Like Chrome, this is the whole
+    /// window (sidebar, splits and all), in Cocoa screen coordinates.
+    @objc(_webView:getWindowFrameWithCompletionHandler:)
+    func _webView(_ webView: WKWebView, getWindowFrameWithCompletionHandler completionHandler: @escaping (CGRect) -> Void) {
+        completionHandler(webView.window?.frame ?? CGRect(origin: .zero, size: webView.bounds.size))
+    }
     #endif
     
     public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping @MainActor (WKPermissionDecision) -> Void) {

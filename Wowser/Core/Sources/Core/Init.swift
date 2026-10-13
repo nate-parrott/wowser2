@@ -5,6 +5,7 @@ public enum Preheat {
     public static func preheat() {
         _ = ArchiveStore.shared // Force initial load on main
         OmniboxClassifierLabel.preheat()
+        SafariVersion.refreshInBackground()
         #if os(macOS)
         TerminalCommandCache.shared.refreshIfNeeded()
         #endif

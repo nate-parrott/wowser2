@@ -37,27 +37,33 @@ private struct ProfilePagingDotsContent: View {
     let snapshot: ProfilePagingDotsSnapshot
     let windowID: ID<WindowState>
     
+    /// A newly added space's dot pops in (with an overshoot); so does the
+    /// whole row when the second space appears.
+    private static let pop = AnyTransition.scale(scale: 0.01).combined(with: .opacity)
+
     var body: some View {
-        // Only show paging dots if there's somewhere to page to
-        if snapshot.dots.count > 1 || snapshot.showingNewProfilePage {
-            HStack(spacing: 0) {
-                ForEach(snapshot.dots, id: \.id.raw) { dot in
-                    ProfileDotView(
-                        profileID: dot.id,
-                        isSelected: !snapshot.showingNewProfilePage && dot.id == snapshot.currentProfileID,
-                        windowID: windowID,
-                        emoji: dot.emoji
-                    )
+        ZStack {
+            // Only show paging dots if there's somewhere to page to
+            if snapshot.dots.count > 1 || snapshot.showingNewProfilePage {
+                HStack(spacing: 0) {
+                    ForEach(snapshot.dots, id: \.id.raw) { dot in
+                        ProfileDotView(
+                            profileID: dot.id,
+                            isSelected: !snapshot.showingNewProfilePage && dot.id == snapshot.currentProfileID,
+                            windowID: windowID,
+                            emoji: dot.emoji
+                        )
+                        .transition(Self.pop)
+                    }
+                    if snapshot.showingNewProfilePage {
+                        NewProfileDotView()
+                    }
                 }
-                if snapshot.showingNewProfilePage {
-                    NewProfileDotView()
-                }
+                .padding(.top, 8)
+                .transition(Self.pop)
             }
-            .padding(.top, 8)
-        } else {
-            // No need to show paging dots if there's only one profile
-            EmptyView()
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.5), value: snapshot.dots.map(\.id.raw))
     }
 }
 

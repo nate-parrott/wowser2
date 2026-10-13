@@ -21,9 +21,11 @@ public struct ImportResult: Equatable {
 /// Writes an `ImportBundle` into a profile: autofill identity and logins
 /// (passwords into the keychain), history (visits replayed into the decayed
 /// counters, then trimmed), bookmarks (into the archive), and — when the
-/// profile has no favorites yet — favorites from the imported top sites.
+/// profile has no favorites yet — favorites from the imported top sites that
+/// are well-known apps (`CuratedFavoriteSites`). Never switches the window to
+/// the destination space; callers that want that do it themselves.
 public enum ImportApplier {
-    public static let favoritesFromTopSites = 8
+    public static let favoritesFromTopSites = 3
 
     @MainActor
     public static func apply(_ bundle: ImportBundle, categories: Set<ImportCategory>, to target: ImportTarget) async -> ImportResult {
@@ -83,7 +85,7 @@ public enum ImportApplier {
 
         if categories.contains(.history), !bundle.history.isEmpty {
             let entries = bundle.history
-            let (added, history) = await withCheckedContinuation { (cont: CheckedContinuation<(Int, HistoryState), Never>) in
+            let added = await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
                 Queue.historyQueue.run {
                     let store = HistoryStore.historyStoreForStoreUUID_historyQueueOnly(dataStoreUUID)
                     var added = 0
@@ -92,29 +94,23 @@ public enum ImportApplier {
                         state.trim()
                     }
                     store.save()
-                    cont.resume(returning: (added, store.model))
+                    cont.resume(returning: added)
                 }
             }
             result.historySites = added
 
-            // A space with no favorites gets its most-visited sites.
-            if added > 0 {
-                result.favoritesAdded = await BrowserStore.shared.modifyAsync { state -> Int in
-                    state.addFavoritesFromTopSitesIfEmpty(profile: profileID, history: history, limit: favoritesFromTopSites)
-                }
+            // A space with no favorites gets its most-visited sites. Ranked
+            // from the import itself, not the merged history's decayed
+            // scores: those decay from *now*, so a browser the user hasn't
+            // opened in a few weeks would score every site as ~0.
+            let topSites = ImportedHistoryEntry.topSiteRoots(entries)
+            result.favoritesAdded = await BrowserStore.shared.modifyAsync { state -> Int in
+                state.addFavoritesFromTopSitesIfEmpty(profile: profileID, topSites: topSites, limit: favoritesFromTopSites)
             }
         }
 
         if categories.contains(.bookmarks), !bundle.bookmarks.isEmpty {
             result.bookmarks = await ArchiveStore.shared.importBookmarks(bundle.bookmarks)
-        }
-
-        if case .newProfile = target {
-            BrowserStore.shared.modify { state in
-                if let windowID = state.activeWindow?.id {
-                    state.windows[windowID]?.profile = profileID
-                }
-            }
         }
         return result
     }
@@ -252,15 +248,24 @@ extension HistoryState {
         }
         return added
     }
+}
 
-    /// Highest-scoring sites, one per host, as root URLs.
-    func topSiteRoots(limit: Int) -> [(url: URL, host: String)] {
+// MARK: - Favorites
+
+extension ImportedHistoryEntry {
+    /// Sites by recency-weighted visit count, one per host (sans "www."), as
+    /// root URLs. Recency is measured back from the import's latest visit,
+    /// not from now, so a browser that sat unused for months still ranks.
+    static func topSiteRoots(_ entries: [ImportedHistoryEntry]) -> [(url: URL, host: String)] {
+        guard let latest = entries.compactMap({ $0.visits.max() }).max() else { return [] }
+        let halfLife = TimeInterval.decayedVisitCounterHalfLife
         var scoreByHost: [String: Double] = [:]
         var sample: [String: URL] = [:]
-        for item in items.values {
-            guard let scheme = item.url.scheme?.lowercased(), scheme == "http" || scheme == "https", let host = item.url.host?.lowercased() else { continue }
-            let key = item.url.hostWithoutWWW
-            scoreByHost[key, default: 0] += item.score
+        for entry in entries {
+            guard let scheme = entry.url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+                  let host = entry.url.host?.lowercased() else { continue }
+            let key = entry.url.hostWithoutWWW
+            scoreByHost[key, default: 0] += entry.visits.reduce(0) { $0 + pow(2, -max(0, latest.timeIntervalSince($1)) / halfLife) }
             if sample[key] == nil {
                 var c = URLComponents()
                 c.scheme = scheme
@@ -270,23 +275,21 @@ extension HistoryState {
             }
         }
         return scoreByHost
-            .filter { $0.value > 0.05 }
             .sorted { $0.value > $1.value }
-            .prefix(limit)
             .compactMap { host, _ in sample[host].map { ($0, host) } }
     }
 }
 
-// MARK: - Favorites
-
 extension BrowserState {
-    /// If `profile` has no favorites, adds its top sites (by decayed visit
-    /// score) as favorites. Returns how many were added.
-    mutating func addFavoritesFromTopSitesIfEmpty(profile profileID: ID<Profile>, history: HistoryState, limit: Int) -> Int {
+    /// If `profile` has no favorites, adds the first `limit` of `topSites`
+    /// (best first) that are well-known apps. Returns how many were added.
+    mutating func addFavoritesFromTopSitesIfEmpty(profile profileID: ID<Profile>, topSites: [(url: URL, host: String)], limit: Int) -> Int {
         guard let profile = profiles[profileID] else { return 0 }
         let existing = (profile.manualFavorites + profile.autoFavorites).filter { tabs[$0] != nil }
         guard existing.isEmpty else { return 0 }
-        let sites = history.topSiteRoots(limit: limit).filter { !profile.removedFavoriteDomains.contains($0.host) }
+        let sites = topSites
+            .filter { CuratedFavoriteSites.contains(host: $0.host) && !profile.removedFavoriteDomains.contains($0.host) }
+            .prefix(limit)
         for site in sites {
             var info = WebContent.Info(url: site.url)
             info.title = site.host
@@ -294,6 +297,45 @@ extension BrowserState {
             insertTab(tab, intoProfileFavoritesAtIndex: profiles[profileID]?.manualFavorites.count ?? 0, profile: profileID)
         }
         return sites.count
+    }
+}
+
+/// Sites worth pinning as a favorite when they're among an import's top
+/// sites: the apps people keep open all day. Random frequently-visited pages
+/// (search results, news articles, intranet one-offs) don't make the cut.
+enum CuratedFavoriteSites {
+    /// Matched against a host (sans "www.") exactly or as a parent domain.
+    static let domains: Set<String> = [
+        // Google
+        "mail.google.com", "drive.google.com", "docs.google.com", "calendar.google.com",
+        "meet.google.com", "photos.google.com", "keep.google.com", "gemini.google.com",
+        // Microsoft
+        "outlook.live.com", "outlook.office.com", "outlook.office365.com", "teams.microsoft.com",
+        "teams.live.com", "onedrive.live.com", "office.com", "microsoft365.com",
+        // Other mail / calendars
+        "mail.yahoo.com", "icloud.com", "fastmail.com", "mail.proton.me", "app.hey.com",
+        // Work
+        "notion.so", "notion.com", "slack.com", "linear.app", "figma.com", "github.com",
+        "gitlab.com", "trello.com", "asana.com", "airtable.com", "dropbox.com", "canva.com",
+        "zoom.us", "monday.com", "app.clickup.com", "todoist.com",
+        // AI
+        "chatgpt.com", "claude.ai", "perplexity.ai",
+        // Social / messaging
+        "x.com", "twitter.com", "threads.net", "threads.com", "instagram.com", "facebook.com",
+        "messenger.com", "web.whatsapp.com", "linkedin.com", "discord.com", "bsky.app",
+        "reddit.com", "news.ycombinator.com", "tiktok.com", "pinterest.com",
+        // Media
+        "youtube.com", "open.spotify.com", "netflix.com", "twitch.tv", "substack.com",
+    ]
+
+    static func contains(host: String) -> Bool {
+        var h = host.lowercased()
+        if h.hasPrefix("www.") { h.removeFirst(4) }
+        while true {
+            if domains.contains(h) { return true }
+            guard let dot = h.firstIndex(of: ".") else { return false }
+            h = String(h[h.index(after: dot)...])
+        }
     }
 }
 

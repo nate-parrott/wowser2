@@ -22,7 +22,9 @@ struct DictationButton: View {
         }) { fieldFocused in
             Button(action: toggle) {
                 Image(systemName: isActiveForThisPane ? "mic.fill" : "mic")
-                    .imageScale(emptyPage ? .large : .medium)
+                    // Empty page: an explicit size, ~2pt under `.large` at the 13pt body font.
+                    .font(emptyPage ? .system(size: 15) : nil)
+                    .imageScale(.medium)
                     .foregroundStyle(iconStyle)
                     .opacity(!isActiveForThisPane && emptyPage ? 0.4 : 1)
                     .frame(width: emptyPage ? 34 : 30, height: emptyPage ? 34 : 30)

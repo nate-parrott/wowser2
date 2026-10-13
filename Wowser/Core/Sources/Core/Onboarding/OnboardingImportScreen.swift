@@ -5,14 +5,18 @@ import UniformTypeIdentifiers
 
 /// "Transfer logins and history": one row per Chromium profile found on this
 /// Mac, plus a drop target for Safari's export. Pressing Import (or dropping
-/// an export) asks what to import in a popover. Each import goes into a new
-/// space named after its source (`ImportApplier` pins the source's top sites
-/// as that space's favorites). The full `ImportSheet` stays one click away for
-/// the fiddly cases (attaching a Chrome passwords CSV, importing into an
-/// existing space).
+/// an export) asks what to import in a popover. The first import goes into
+/// the current space if it's brand new; later ones each get a new space named
+/// after their source (`ImportApplier` pins a few of the source's top sites
+/// as favorites). Either way the window stays where it is, and a toast says
+/// where the data went. The full `ImportSheet` stays one click away for the
+/// fiddly cases (attaching a Chrome passwords CSV, importing into an existing
+/// space).
 struct OnboardingImportScreen: View {
     @Binding var state: OnboardingImportState
     var next: () -> Void
+
+    @Environment(\.windowID) private var windowID
 
     @State private var showingFullImporter = false
     /// A dropped/chosen Safari export waiting for "what to import".
@@ -27,7 +31,7 @@ struct OnboardingImportScreen: View {
             VStack(alignment: .leading, spacing: 28) {
                 OnboardingHeader(
                     title: "Transfer logins and history",
-                    subtitle: "So you don't have to log in to everything again. Each browser profile becomes its own space."
+                    subtitle: "So you don't have to log in to everything again."
                 )
                 chromiumSections
                 OnboardingSection(title: "Safari") {
@@ -51,7 +55,7 @@ struct OnboardingImportScreen: View {
             }
         }, footer: {
             if anyImported {
-                Button("Done", action: next)
+                Button("Continue", action: next)
                     .keyboardShortcut(.defaultAction)
             } else {
                 Button("Skip", action: next)
@@ -60,6 +64,9 @@ struct OnboardingImportScreen: View {
         })
         .sheet(isPresented: $showingFullImporter) {
             ImportSheet()
+        }
+        .sheet(item: $state.passwordHelp) { help in
+            OnboardingChromePasswordsSheet(help: help) { state.passwordHelp = nil }
         }
         .task {
             // Detect once per onboarding run, not on every remount.
@@ -146,13 +153,7 @@ struct OnboardingImportScreen: View {
     private func importSource(_ source: ImportSource) {
         let cats = state.categories.intersection(source.available)
         guard !cats.isEmpty else { return }
-        state.statuses[source.id] = .importing
-        let state = $state
-        Task {
-            let bundle = await BrowserImporter.read(source, categories: cats)
-            let result = await ImportApplier.apply(bundle, categories: cats, to: .newProfile(title: source.title))
-            state.wrappedValue.statuses[source.id] = .done(result)
-        }
+        run(source, key: source.id, title: source.title, categories: cats)
     }
 
     /// Safari's File › Export Browsing Data to File… (.zip or folder), or a
@@ -160,12 +161,40 @@ struct OnboardingImportScreen: View {
     private func importSafari(_ source: ImportSource) {
         let cats = state.categories.intersection(source.available)
         guard !cats.isEmpty else { return }
-        state.statuses[Self.safariKey] = .importing
+        run(source, key: Self.safariKey, title: "Safari", categories: cats)
+    }
+
+    /// Picks the destination (decided up front, so two imports started
+    /// back to back can't both claim the current space), imports, toasts.
+    private func run(_ source: ImportSource, key: String, title: String, categories cats: Set<ImportCategory>) {
+        let model = BrowserStore.shared.model
+        let windowID = self.windowID ?? model.activeWindow?.id
+        let currentProfile = windowID.flatMap { model.windows[$0]?.profile }
+        let target: ImportTarget
+        if !state.claimedCurrentSpace, let currentProfile, model.isFreshSpaceForImport(currentProfile) {
+            state.claimedCurrentSpace = true
+            target = .existing(currentProfile)
+        } else {
+            target = .newProfile(title: title)
+        }
+        state.statuses[key] = .importing
         let state = $state
         Task {
             let bundle = await BrowserImporter.read(source, categories: cats)
-            let result = await ImportApplier.apply(bundle, categories: cats, to: .newProfile(title: "Safari"))
-            state.wrappedValue.statuses[Self.safariKey] = .done(result)
+            let result = await ImportApplier.apply(bundle, categories: cats, to: target)
+            state.wrappedValue.statuses[key] = .done(result)
+            // Chromium browsers encrypt passwords, so the import couldn't
+            // read them; explain how to export them instead.
+            if let browser = source.chromiumBrowser {
+                state.wrappedValue.passwordHelp = OnboardingPasswordHelp(browser: browser, profileID: result.profileID)
+            }
+            BrowserStore.shared.modify { browserState in
+                if case .existing = target, let windowID {
+                    browserState.addToast(message: "Imported \(title) into this space", icon: "square.and.arrow.down", in: windowID)
+                } else {
+                    browserState.addSpaceAddedToast(windowID: windowID)
+                }
+            }
         }
     }
 }
@@ -177,8 +206,126 @@ struct OnboardingImportState {
     var sources: [ImportSource]?
     var previews: [String: ImportPreview] = [:]
     var statuses: [String: OnboardingImportStatus] = [:]
+    /// An import has already gone into the (fresh) current space; the rest
+    /// get spaces of their own.
+    var claimedCurrentSpace = false
+    /// Shown after a Chromium import: how to bring its passwords over too.
+    var passwordHelp: OnboardingPasswordHelp?
     /// What to import; asked for when the user presses Import.
     var categories: Set<ImportCategory> = [.passwords, .autofill, .history, .bookmarks]
+}
+
+struct OnboardingPasswordHelp: Identifiable {
+    var browser: ChromiumBrowser
+    /// Where the browser's other data went; the passwords join it.
+    var profileID: ID<Profile>
+    var id: String { browser.rawValue + profileID.raw }
+}
+
+/// After a Chromium import: export the passwords from that browser as a
+/// .csv, then drop it here to import into the same space.
+private struct OnboardingChromePasswordsSheet: View {
+    var help: OnboardingPasswordHelp
+    var dismiss: () -> Void
+
+    @State private var status: OnboardingImportStatus?
+    @State private var targeted = false
+    @State private var copied = false
+
+    private var name: String { help.browser.displayName }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Bring your passwords too")
+                .font(.title2.weight(.bold))
+            Text("\(name) keeps passwords encrypted, so they weren't part of the import. Export them from \(name), then add the file here:")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 10) {
+                step(1) {
+                    if let url = help.browser.passwordSettingsURL {
+                        HStack(spacing: 8) {
+                            Text("In \(name), open **\(url)**")
+                            Button(copied ? "Copied" : "Copy Link") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(url, forType: .string)
+                                copied = true
+                            }
+                            .controlSize(.small)
+                        }
+                    } else {
+                        Text("In \(name), open Settings › Passwords")
+                    }
+                }
+                step(2) { Text("Click **Export passwords** (\(name) saves a .csv file)") }
+                step(3) { Text("Drop that file below, or choose it") }
+            }
+            OnboardingSection {
+                HStack(spacing: 12) {
+                    OnboardingCellLabel(
+                        title: "Exported passwords (.csv)",
+                        subtitle: status?.doneText ?? "Delete the file afterwards; it isn't encrypted."
+                    )
+                    Spacer(minLength: 8)
+                    if status == nil {
+                        Button("Choose File…", action: choose)
+                    } else {
+                        OnboardingImportStatusAccessory(status: status, importAction: {})
+                    }
+                }
+                .onboardingCell()
+                .background(targeted ? Color.accentColor.opacity(0.08) : Color.clear)
+                .onDrop(of: [.fileURL], isTargeted: $targeted) { providers in
+                    guard status == nil, let provider = providers.first else { return false }
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async { importCSV(url) }
+                    }
+                    return true
+                }
+            }
+            HStack {
+                Spacer()
+                Button(isDone ? "Done" : "Not Now", action: dismiss)
+                    .keyboardShortcut(isDone ? .defaultAction : .cancelAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+    }
+
+    private var isDone: Bool {
+        if case .done = status { return true }
+        return false
+    }
+
+    private func step(_ n: Int, @ViewBuilder _ content: () -> some View) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(n).").monospacedDigit().foregroundStyle(.secondary)
+            content()
+        }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Exported Passwords"
+        panel.message = "Choose the .csv file \(name) exported."
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        importCSV(url)
+    }
+
+    private func importCSV(_ url: URL) {
+        status = .importing
+        let source = BrowserImporter.csvSource(url)
+        let profileID = help.profileID
+        Task {
+            let bundle = await BrowserImporter.read(source, categories: [.passwords])
+            let result = await ImportApplier.apply(bundle, categories: [.passwords], to: .existing(profileID))
+            status = .done(result)
+        }
+    }
 }
 
 /// "What to import?" — shown in a popover when the user presses Import (or
@@ -205,7 +352,7 @@ private struct OnboardingImportOptions: View {
             }
             if source.chromiumBrowser != nil {
                 // TODO: Import cookies (logged-in sessions). Nothing reads another browser's cookies yet.
-                Text("Chrome keeps passwords encrypted, so export them from Chrome and add the file under More Import Options.")
+                Text("Chrome keeps passwords encrypted, so they can't come along directly. We'll show you how to export them after the import.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -1,31 +1,18 @@
 #if os(macOS)
 import SwiftUI
 
-/// "Pick a background": the bundled wallpapers (click to apply, or drag onto
-/// the sidebar — the same drop the sidebar accepts for any image), plus plain
-/// options: no background at all, or a flat color wash.
-struct OnboardingBackgroundScreen: View {
-    var next: () -> Void
-
+/// The welcome screen's theme picker: the bundled wallpapers (click to apply,
+/// or drag onto the sidebar — the same drop the sidebar accepts for any
+/// image), plus plain options: no background at all, or a flat color wash.
+struct OnboardingThemePicker: View {
     @Environment(\.windowID) private var windowID
 
     var body: some View {
-        OnboardingScreen(content: {
-            VStack(alignment: .leading, spacing: 28) {
-                OnboardingHeader(
-                    title: "Pick a background",
-                    subtitle: "Drag any image onto the sidebar to make it this space's background. Try it with one of these, or just click one."
-                )
-                WithSnapshotMain(store: BrowserStore.shared, snapshot: { OnboardingBackgroundSnapshot(state: $0, windowID: windowID) }) { snapshot in
-                    if let snapshot {
-                        OnboardingBackgroundPicker(snapshot: snapshot)
-                    }
-                }
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { OnboardingBackgroundSnapshot(state: $0, windowID: windowID) }) { snapshot in
+            if let snapshot {
+                OnboardingBackgroundPicker(snapshot: snapshot)
             }
-        }, footer: {
-            Button("Continue", action: next)
-                .keyboardShortcut(.defaultAction)
-        })
+        }
     }
 }
 
@@ -56,11 +43,12 @@ extension BrowserState {
 private struct OnboardingBackgroundPicker: View {
     var snapshot: OnboardingBackgroundSnapshot
 
-    private let columns = [GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 12)]
+    // Tiles are a fixed 150pt wide, so columns must be at least that.
+    private let columns = [GridItem(.adaptive(minimum: 150, maximum: 170), spacing: 16)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                 ForEach(BuiltinSpaceBackground.all) { background in
                     OnboardingBackgroundTile(
                         background: background,
@@ -70,6 +58,8 @@ private struct OnboardingBackgroundPicker: View {
                 }
             }
             .frame(maxWidth: 600, alignment: .leading)
+
+            OnboardingUnsplashHint()
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Or keep it plain")
@@ -108,15 +98,63 @@ private struct OnboardingBackgroundPicker: View {
     }
 }
 
-/// A wallpaper: click to apply, or drag it onto the sidebar.
+/// "Or just drag one from the web; Unsplash is a good place to look", with
+/// Unsplash opening in a new tab here.
+private struct OnboardingUnsplashHint: View {
+    @Environment(\.windowID) private var windowID
+
+    var body: some View {
+        Text("Or just drag one from the web; [Unsplash](https://unsplash.com) is a good place to look.")
+            .foregroundStyle(.secondary)
+            .tint(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .environment(\.openURL, OpenURLAction { url in
+                OnboardingLinks.open(url, windowID: windowID)
+                return .handled
+            })
+    }
+}
+
+enum OnboardingLinks {
+    /// Opens `url` in a new tab in `windowID` (not in the system browser).
+    static func open(_ url: URL, windowID: ID<WindowState>?) {
+        BrowserStore.shared.modify { $0.openTab(url: url, windowID: windowID) }
+    }
+}
+
+/// A wallpaper: click to apply, or drag it onto the sidebar. The selected one
+/// credits its photographer underneath (the line is reserved on every tile so
+/// selecting doesn't shift the grid).
 private struct OnboardingBackgroundTile: View {
     var background: BuiltinSpaceBackground
     var selected: Bool
     var apply: () -> Void
 
+    @Environment(\.windowID) private var windowID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            thumbnail
+            Button {
+                OnboardingLinks.open(background.photoPageURL, windowID: windowID)
+            } label: {
+                Text("by \(background.photographer)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 150, alignment: .leading)
+            .opacity(selected ? 1 : 0)
+            .disabled(!selected)
+            .help("Photo by \(background.photographer) on Unsplash")
+        }
+    }
+
     // A tap gesture rather than a Button, so it doesn't compete with the
     // thumbnail's drag.
-    var body: some View {
+    private var thumbnail: some View {
         DraggableBackgroundThumbnail(background: background, width: 150, height: 96, cornerRadius: 10)
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)

@@ -30,7 +30,7 @@ struct SearchIcon: View {
 //                    .foregroundColor(.blue)
                 
             case .chatbot:
-                Image(systemName: "questionmark.bubble")
+                Image.wowie
                     .opacity(iconOpacity)
                 
             case .searchSuggestion:
@@ -55,8 +55,9 @@ struct SearchIcon: View {
                 TerminalFavicon(running: true)
                 
             case .askAgent:
-                AgentFruitIcon(flavor: .cherry, working: false, size: size)
-                    .opacity(selected ? 1 : 0.7)
+                // Monochrome like the search rows, not a colored agent tab icon.
+                Image.wowie
+                    .opacity(iconOpacity)
 
             case .tab(_, let info):
                 Group {

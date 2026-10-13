@@ -103,6 +103,46 @@ final class HTTPSCaptureTests: XCTestCase {
         XCTAssertEqual(logged.count, 0, "captured \(logged.count) entries; expected 0 because origin wasn't allowlisted")
     }
 
+    func testConnectResponseHasNoBodyFraming() async throws {
+        // Regression: NIO framed the CONNECT 200 as chunked, so `0\r\n\r\n`
+        // leaked into the tunnel ahead of the server's TLS bytes and real
+        // clients failed with "bad protocol version" (-9836). `ProxyClient`
+        // hides this because its HTTP decoder swallows the terminator, so read
+        // the raw bytes here.
+        let caDir = FileManager.default.temporaryDirectory.appendingPathComponent("wowser-test-ca-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: caDir, withIntermediateDirectories: true)
+        let ca = LocalCA(keychainService: "com.wowser.test-ca-\(UUID().uuidString)")
+        _ = try ca.ensureRoot()
+
+        let origin = try await TestHTTPSServer.start(ca: ca, host: "127.0.0.1") { _, _, _ in
+            .init(status: 200, headers: [:], body: Data())
+        }
+        let originPort = await origin.port
+        defer { Task { await origin.stop() } }
+
+        let store = NetworkCaptureStore(directory: caDir, keychainService: nil)
+        let proxy = LocalProxy(captureStore: store, ca: ca)
+        let proxyPort = try await proxy.start(port: 0)
+        defer { Task { await proxy.stop() } }
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        defer { try? group.syncShutdownGracefully() }
+        let collector = RawCollector()
+        let channel = try await ClientBootstrap(group: group)
+            .channelInitializer { $0.pipeline.addHandler(collector) }
+            .connect(host: "127.0.0.1", port: proxyPort).get()
+        let connect = "CONNECT 127.0.0.1:\(originPort) HTTP/1.1\r\nHost: 127.0.0.1:\(originPort)\r\n\r\n"
+        try await channel.writeAndFlush(ByteBuffer(string: connect)).get()
+        // Send nothing else: anything after the head is proxy-generated junk.
+        try await Task.sleep(nanoseconds: 500_000_000)
+        try? await channel.close().get()
+
+        let raw = collector.text
+        XCTAssertTrue(raw.hasPrefix("HTTP/1.1 200"), raw)
+        XCTAssertFalse(raw.lowercased().contains("transfer-encoding"), raw)
+        XCTAssertTrue(raw.hasSuffix("\r\n\r\n"), "bytes after CONNECT response head: \(raw.debugDescription)")
+    }
+
     // MARK: - Helpers
 
     private func waitForCount(in store: NetworkCaptureStore, atLeast n: Int, timeoutSeconds: Double = 5) async throws -> [NetCaptureEntry] {
@@ -393,6 +433,17 @@ private final class TestHTTPSServerHandler: ChannelInboundHandler, @unchecked Se
             }
             context.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
         }
+    }
+}
+/// Accumulates every inbound byte as text, for asserting on raw wire output.
+private final class RawCollector: ChannelInboundHandler, @unchecked Sendable {
+    typealias InboundIn = ByteBuffer
+    private let lock = NSLock()
+    private var bytes: [UInt8] = []
+    var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: bytes, as: UTF8.self) }
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let buf = unwrapInboundIn(data)
+        lock.lock(); bytes += buf.readableBytesView; lock.unlock()
     }
 }
 #endif

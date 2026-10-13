@@ -9,7 +9,10 @@ import SwiftUI
 /*
  Flow:
  
- One place for all your work
+ Welcome to Wowser
+ The browser that'll make you say "wow, the perfect place for all my stuff!"
+ Pick a theme to get started
+ [wallpapers, with Unsplash credit under the selected one] [plain swatches]
  [Get started]
  
  -----
@@ -70,7 +73,7 @@ import SwiftUI
  
  -----
  
- Add a few projects
+ Make spaces for your projects
  
  [Icon] [Title] [Folder] // repeat once for each project added; maybe suggest some using ai from history?
  [Text field: placeholder 'Finding an apartment'] [+ Folder] [Add]
@@ -117,14 +120,14 @@ struct OnboardingScreen<C: View, Footer: View>: View {
             }
             .modifier(FeatherTopAndBottom(featherHeight: padding * 0.8))
             
-            // Buttons are left-aligned under the content column.
-            HStack(spacing: 12) {
+            // Buttons are left-aligned under the content column, wrapping
+            // rather than widening the screen past a narrow viewport.
+            OnboardingFlowLayout(spacing: 12) {
                 if let back {
                     Button("Back", action: back)
                         .buttonStyle(OnboardingButtonStyle(primary: false))
                 }
                 footer()
-                Spacer(minLength: 0)
             }
             .frame(maxWidth: mainMaxWidth - padding * 2, alignment: .leading)
             .frame(maxWidth: .infinity)
@@ -153,10 +156,70 @@ extension AnyTransition {
     static var onboardingScreen: AnyTransition { .push(from: .trailing) }
 }
 
+/// Lays out subviews left to right, wrapping onto new lines.
+struct OnboardingFlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(width maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            if needed > maxWidth, !current.indices.isEmpty {
+                rows.append(current)
+                current = Row()
+            }
+            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+            current.indices.append(index)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
+    }
+}
+
 /// Big title + optional explanation at the top of a screen.
 struct OnboardingHeader: View {
     var title: String
-    var subtitle: String? = nil
+    /// A `Text` so it can inline images (e.g. `Image.wowie`).
+    var subtitle: Text?
+
+    init(title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle.map { Text($0) }
+    }
+
+    init(title: String, subtitle: Text) {
+        self.title = title
+        self.subtitle = subtitle
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -164,7 +227,7 @@ struct OnboardingHeader: View {
                 .font(.system(size: 34, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle {
-                Text(subtitle)
+                subtitle
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

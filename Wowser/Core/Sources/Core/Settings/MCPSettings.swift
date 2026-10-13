@@ -16,16 +16,18 @@ struct MCPSettings: View {
             Section {
                 Text("Install in Claude Code")
                     .font(.headline)
-                Text("Run this once. After that, `claude` in any terminal can drive the browser.")
+                Text("Do this once. After that, `claude` in any terminal can drive the browser. Also adds our recommended permissions to `~/.claude/settings.json`, so the read-only browser tools run without asking.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                CopyableCommand(text: claudeAddCommand)
+                #if os(macOS)
+                ClaudeMCPInstallButton()
                     .padding(.top, 4)
-                Text("Optional: to let `read_browser_js` (which can only read) run without permission review, add this to `~/.claude/settings.json`:")
+                #endif
+                Text("Or run it yourself:")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.top, 8)
-                CopyableCommand(text: readOnlyAllowSnippet)
+                CopyableCommand(text: claudeAddCommand)
             }
 
 //            Section {
@@ -69,10 +71,6 @@ struct MCPSettings: View {
         "claude mcp add --scope user --transport http \(isProd() ? "wowser" : "wowserdev") \(displayURL)"
     }
 
-    private var readOnlyAllowSnippet: String {
-        #""permissions": { "allow": ["mcp__\#(isProd() ? "wowser" : "wowserdev")__read_browser_js"] }"#
-    }
-
     private var mcpJSONSnippet: String {
         """
         {
@@ -88,6 +86,46 @@ struct MCPSettings: View {
 }
 
 #if os(macOS)
+/// Runs `ClaudeMCPInstall` and reports how it went.
+private struct ClaudeMCPInstallButton: View {
+    @State private var installing = false
+    @State private var result: Result<Void, InstallError>?
+
+    private struct InstallError: Error { var message: String }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button(installing ? "Installing…" : "Install in Claude Code", action: install)
+                    .disabled(installing)
+                if installing {
+                    ProgressView().controlSize(.small)
+                } else if case .success = result {
+                    Label("Installed", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            if case .failure(let error) = result {
+                Text(error.message)
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func install() {
+        installing = true
+        result = nil
+        Task {
+            let error = await ClaudeMCPInstall.run()
+            installing = false
+            result = error.map { .failure(InstallError(message: $0)) } ?? .success(())
+            if error == nil { DefaultsKeys.hasSeenTerminalUpsell.setBool(true) }
+        }
+    }
+}
+
 /// Shown only when the server isn't running: the reason, plus a Retry button.
 private struct MCPServerStatusSection: View {
     @ObservedObject private var status = MCPServerStatus.shared

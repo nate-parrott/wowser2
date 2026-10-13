@@ -6,21 +6,29 @@ import UniformTypeIdentifiers
 
 // MARK: - Welcome
 
+/// Welcome + pick a theme (the space's background).
 struct OnboardingWelcomeScreen: View {
     var next: () -> Void
 
     var body: some View {
         OnboardingScreen(content: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Welcome to Wowser")
-                    .font(.system(size: 48, weight: .bold))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("A single place to work")
-                    .font(.title)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 96, height: 96)
+                    Text("Welcome to Wowser")
+                        .font(.system(size: 48, weight: .bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("The browser that’ll make you say “wow, the perfect place for all my stuff!”")
+                        .font(.title)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Pick a theme to get started")
+                    .font(.title3.weight(.semibold))
+                OnboardingThemePicker()
             }
-            .frame(maxWidth: .infinity, minHeight: 320, alignment: .bottomLeading)
         }, footer: {
             Button("Get started", action: next)
                 .keyboardShortcut(.defaultAction)
@@ -68,6 +76,7 @@ enum OnboardingAIChoice: Hashable {
 /// Kept in `OnboardingModel` so it survives tab switches.
 struct OnboardingAIState {
     var choice: OnboardingAIChoice? = .claude
+    var installMCP = true
     var installing = false
     var installError: String?
 }
@@ -81,13 +90,22 @@ struct OnboardingAIScreen: View {
             VStack(alignment: .leading, spacing: 28) {
                 OnboardingHeader(
                     title: "Connect your AI",
-                    subtitle: "Use your existing AI subscription from the browser, for answering quick questions or performing tasks. We'll add the Wowser MCP, which lets it do anything in the browser that you can do."
+                    subtitle: Text("Ask your agent questions from search, or on any page, using the \(Image.wowie) icon.")
                 )
                 OnboardingRadioGroup(options: [
-                    OnboardingRadioOption(value: .claude, title: "Use Claude", subtitle: "Uses Claude for agent chats and adds the Wowser MCP, so Claude can access the browser."),
+                    OnboardingRadioOption(value: .claude, title: "Use Claude", subtitle: "Uses Claude for agent chats."),
                     // TODO: Codex support (agent harness + MCP install).
                     OnboardingRadioOption(value: .codex, title: "Use Codex", subtitle: "Unavailable", disabled: true),
                 ], selection: $state.choice)
+                if state.choice == .claude {
+                    OnboardingSection {
+                        OnboardingBinaryToggleContentCell(
+                            title: "Install the Wowser MCP in Claude Code",
+                            subtitle: "Lets `claude` in any terminal do anything in the browser that you can do. Also lets its read-only browser tools run without asking.",
+                            isOn: $state.installMCP
+                        )
+                    }
+                }
                 if let installError = state.installError {
                     VStack(alignment: .leading, spacing: 4) {
                         Label("Couldn't add the Wowser MCP", systemImage: "exclamationmark.triangle.fill")
@@ -124,6 +142,7 @@ struct OnboardingAIScreen: View {
         switch state.choice {
         case .claude:
             DefaultsKeys.agentHarness.setString(AgentHarness.claude.rawValue)
+            guard state.installMCP else { next(); return }
             state.installing = true
             let state = $state
             Task {
@@ -181,6 +200,7 @@ struct OnboardingGoodiesScreen: View {
     // Defaults match AppDelegate's registered defaults.
     @AppStorage(DefaultsKeys.adblock.rawValue) private var adblock = true
     @AppStorage(DefaultsKeys.autoDarkMode.rawValue) private var autoDarkMode = true
+    @AppStorage(DefaultsKeys.autoArchiveTabs.rawValue) private var autoArchiveTabs = false
 
     var body: some View {
         OnboardingScreen(content: {
@@ -190,6 +210,10 @@ struct OnboardingGoodiesScreen: View {
                     OnboardingBinaryToggleContentCell(title: "Ad blocker", isOn: $adblock)
                     OnboardingBinaryToggleContentCell(title: "Auto dark mode on websites", subtitle: "Darkens sites that don't have a dark mode of their own", isOn: $autoDarkMode)
                     OnboardingMemoryToggleCell()
+                    OnboardingBinaryToggleContentCell(title: "Clean up tabs each night", subtitle: "Moves tabs you haven't used in a while to Old Tabs", isOn: $autoArchiveTabs)
+                }
+                OnboardingSection(title: "Truly experimental") {
+                    OnboardingHTTPSCaptureCell()
                 }
             }
         }, footer: {
@@ -222,6 +246,49 @@ private struct OnboardingMemoryToggleCell: View {
     }
 }
 
+/// Network capture through the local proxy, plus trusting its certificate so
+/// HTTPS is captured too (macOS asks for the user's password). Off again just
+/// bypasses the proxy; the certificate stays (Settings › MCP removes it).
+private struct OnboardingHTTPSCaptureCell: View {
+    @AppStorage(DefaultsKeys.disableNetworkProxy.rawValue) private var proxyDisabled = true
+    @State private var working = false
+    @State private var error: String?
+
+    var body: some View {
+        OnboardingBinaryToggleContentCell(
+            title: "HTTPS capture",
+            subtitle: error ?? "Lets the agent read your API traffic and speak directly to APIs on your behalf. VERY experimental.",
+            isOn: Binding(get: { !proxyDisabled }, set: setEnabled)
+        ) {
+            if working {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .disabled(working)
+    }
+
+    private func setEnabled(_ on: Bool) {
+        error = nil
+        proxyDisabled = !on
+        guard on else { return }
+        working = true
+        Task.detached {
+            let failure: String? = {
+                guard !LocalCA.shared.isRootTrusted(forceRefresh: true) else { return nil }
+                do { try LocalCA.shared.installRootAsTrusted() } catch { return "Couldn't trust the certificate: \(error.localizedDescription)" }
+                return nil
+            }()
+            await MainActor.run {
+                working = false
+                if let failure {
+                    error = failure
+                    proxyDisabled = true
+                }
+            }
+        }
+    }
+}
+
 private struct OnboardingMemoryScopesSnapshot: Equatable {
     var scopeIDs: Set<UUID>
 
@@ -234,7 +301,6 @@ private struct OnboardingMemoryScopesSnapshot: Equatable {
 
 /// Kept in `OnboardingModel` so it survives tab switches.
 struct OnboardingProjectsState {
-    var added: [ID<Profile>] = []
     /// Suggestion chips already turned into projects.
     var usedSuggestions: Set<String> = []
     var editingCustom = false
@@ -252,14 +318,14 @@ struct OnboardingProjectsScreen: View {
     var body: some View {
         OnboardingScreen(content: {
             VStack(alignment: .leading, spacing: 28) {
-                OnboardingHeader(title: "Add a few projects", subtitle: "Each project gets its own space, with its own tabs.")
+                OnboardingHeader(title: "Make spaces for your projects", subtitle: "Each project gets its own space, with its own tabs.")
                 OnboardingFlowLayout(spacing: 8) {
                     ForEach(Self.suggestions, id: \.self) { title in
                         OnboardingChip(title: title, systemImage: nil, selected: state.usedSuggestions.contains(title)) {
                             addSuggestion(title)
                         }
                     }
-                    OnboardingChip(title: "Coding project", systemImage: "folder", selected: false, action: addFolderProject)
+                    OnboardingChip(title: "Coding project…", systemImage: "folder", selected: false, action: addFolderProject)
                         .help("Attach a folder: the space gets VS Code, a terminal and a file browser for it.")
                     OnboardingChip(title: "Custom…", systemImage: "pencil", selected: state.editingCustom) {
                         state.editingCustom = true
@@ -271,16 +337,10 @@ struct OnboardingProjectsScreen: View {
                         OnboardingCustomProjectRow(title: $state.customTitle, add: addCustom)
                     }
                 }
-                if !state.added.isEmpty {
-                    OnboardingSection(title: "Your projects") {
-                        ForEach(state.added, id: \.raw) { id in
-                            OnboardingProjectRow(profileID: id)
-                        }
-                    }
-                }
+                OnboardingSpacesList()
             }
         }, footer: {
-            Button(state.added.isEmpty ? "Skip" : "Continue", action: next)
+            Button("Continue", action: next)
                 .keyboardShortcut(.defaultAction)
         })
     }
@@ -300,24 +360,23 @@ struct OnboardingProjectsScreen: View {
     }
 
     private func addFolderProject() {
-        let state = $state
         let windowID = self.windowID
         FolderPicker.pick(prompt: "Add Project", message: "Choose a folder for the new project") { path in
-            Self.create(title: "", folder: path, windowID: windowID, state: state)
+            Self.create(title: "", folder: path, windowID: windowID)
         }
     }
 
     private func create(title: String, folder: String?) {
-        Self.create(title: title, folder: folder, windowID: windowID, state: $state)
+        Self.create(title: title, folder: folder, windowID: windowID)
     }
 
-    private static func create(title: String, folder: String?, windowID: ID<WindowState>?, state: Binding<OnboardingProjectsState>) {
+    private static func create(title: String, folder: String?, windowID: ID<WindowState>?) {
         var id: ID<Profile>?
         BrowserStore.shared.modify { browserState in
             id = browserState.createOnboardingProject(title: title, folderPath: folder, windowID: windowID)
         }
         guard let id else { return }
-        state.wrappedValue.added.append(id)
+        BrowserStore.shared.modify { $0.addSpaceAddedToast(windowID: windowID) }
         // Emoji + color theme from the title (AI).
         Task { await BrowserStore.shared.regenerateSpaceTheme(profileID: id) }
     }
@@ -353,52 +412,19 @@ private struct OnboardingChip: View {
     }
 }
 
-/// Lays out subviews left to right, wrapping onto new lines.
-struct OnboardingFlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
-        let width = rows.map(\.width).max() ?? 0
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for row in arrange(width: bounds.width, subviews: subviews) {
-            var x = bounds.minX
-            for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
-                x += size.width + spacing
+/// "Your projects": every visible space, including ones made before (or
+/// outside) this screen.
+private struct OnboardingSpacesList: View {
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared) { state in
+            state.visibleProfiles.map(\.id)
+        } main: { ids in
+            OnboardingSection(title: "Your projects") {
+                ForEach(ids, id: \.raw) { id in
+                    OnboardingProjectRow(profileID: id)
+                }
             }
-            y += row.height + spacing
         }
-    }
-
-    private struct Row {
-        var indices: [Int] = []
-        var width: CGFloat = 0
-        var height: CGFloat = 0
-    }
-
-    private func arrange(width maxWidth: CGFloat, subviews: Subviews) -> [Row] {
-        var rows: [Row] = []
-        var current = Row()
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
-            if needed > maxWidth, !current.indices.isEmpty {
-                rows.append(current)
-                current = Row()
-            }
-            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
-            current.height = max(current.height, size.height)
-            current.indices.append(index)
-        }
-        if !current.indices.isEmpty { rows.append(current) }
-        return rows
     }
 }
 
@@ -443,10 +469,6 @@ private struct OnboardingProjectRow: View {
                         Label((folder as NSString).lastPathComponent, systemImage: "folder")
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                    } else {
-                        Button("Add Folder…") {
-                            SpaceMenu.pickFolder(profileID: profileID, currentPath: nil)
-                        }
                     }
                 }
                 .onboardingCell()
@@ -488,7 +510,11 @@ private struct OnboardingCustomProjectRow: View {
 /// tick off. Kept in `OnboardingModel` so they survive tab switches.
 struct OnboardingTricksState {
     var optionClick = false
-    var askPage = false
+    var chatIcon = false
+    var askCommandBar = false
+    var customize = false
+    var terminal = false
+    var vscode = false
     var recentTabs = false
     var dragImage = false
 }
@@ -504,11 +530,23 @@ struct OnboardingTricksScreen: View {
             VStack(alignment: .leading, spacing: 28) {
                 OnboardingHeader(title: "Learn some neat tricks")
                 OnboardingSection {
-                    OnboardingBinaryToggleContentCell(title: "Option-click a link to open it in a split", isOn: $state.optionClick) {
-                        Button("Try it") { openTab(URL(string: "http://example.com")!) }
+                    OnboardingBinaryToggleContentCell(title: "Option-click a link to open it in a split", subtitle: "Option-click “Try it”", isOn: $state.optionClick) {
+                        Button("Try it", action: tryOptionClick)
                     }
-                    OnboardingBinaryToggleContentCell(title: "Click in the top bar (⌘L) and ask a question about this page", isOn: $state.askPage) {
-                        Button("Try it") { openTab(URL(string: "https://en.wikipedia.org/wiki/Web_browser")!, openCommandBar: true) }
+                    OnboardingTrickCell(isOn: $state.chatIcon, title: Text("Click \(Image.wowie) in the toolbar to ask questions about a page")) {
+                        Button("Try it") { openTab(Self.wikipediaURL) }
+                    }
+                    OnboardingBinaryToggleContentCell(title: "Ask the agent a question in the command bar, just like doing a web search", isOn: $state.askCommandBar) {
+                        Button("Try it") { perform(.tab) }
+                    }
+                    OnboardingBinaryToggleContentCell(title: "Ask the agent to customize a page’s appearance or behavior", isOn: $state.customize) {
+                        Button("Try it", action: tryCustomize)
+                    }
+                    OnboardingBinaryToggleContentCell(title: "Use your terminal in the browser", subtitle: "⌘T → New Terminal", isOn: $state.terminal) {
+                        Button("Try it") { perform(.terminal) }
+                    }
+                    OnboardingBinaryToggleContentCell(title: "Use VS Code in the browser", subtitle: "⌘T → New VS Code", isOn: $state.vscode) {
+                        Button("Try it") { perform(.vscode) }
                     }
                     OnboardingBinaryToggleContentCell(title: "Swipe down with three fingers to cycle through recent tabs (or press ⌘E)", subtitle: "Try it!", isOn: $state.recentTabs)
                     OnboardingBinaryToggleContentCell(title: "Drag an image into the sidebar to set it as a space background", subtitle: "Try it with one of these", isOn: $state.dragImage) {
@@ -526,20 +564,57 @@ struct OnboardingTricksScreen: View {
         })
     }
 
-    private func openTab(_ url: URL, openCommandBar: Bool = false) {
-        let windowID = self.windowID
-        BrowserStore.shared.modify { state in
-            let tab = state.openTab(url: url, windowID: windowID)
-            if openCommandBar, let win = windowID ?? state.windowContaining(tabID: tab.id) {
-                state.windows[win]?.searchOverlayActive = true
-            }
+    private static let exampleURL = URL(string: "https://example.com")!
+    private static let wikipediaURL = URL(string: "https://en.wikipedia.org/wiki/Web_browser")!
+
+    private var resolvedWindowID: ID<WindowState>? {
+        windowID ?? BrowserStore.shared.model.activeWindow?.id
+    }
+
+    private func openTab(_ url: URL) {
+        OnboardingLinks.open(url, windowID: windowID)
+    }
+
+    private func perform(_ item: NewMenuItem) {
+        guard let windowID = resolvedWindowID else { return }
+        item.perform(windowID: windowID)
+    }
+
+    /// The point is to option-click, so a plain click only explains.
+    private func tryOptionClick() {
+        guard let windowID = resolvedWindowID else { return }
+        if isOpenInSplitViewModifierKeyPressed() {
+            BrowserStore.shared.createTab(withURL: Self.exampleURL, in: windowID, activate: true, inCurrentSplit: true)
+            state.optionClick = true
+        } else {
+            BrowserStore.shared.modify { $0.addToast(message: "Hold ⌥ Option while you click “Try it”", icon: "option", in: windowID) }
         }
+    }
+
+    private func tryCustomize() {
+        guard let windowID = resolvedWindowID else { return }
+        openTab(Self.exampleURL)
+        AgentChatTabs.askInSplit(query: "Make example.com look super cute (but quickly, this is a demo).", windowID: windowID)
     }
 }
 
-private extension BrowserState {
-    func windowContaining(tabID: ID<Tab>) -> ID<WindowState>? {
-        windows.values.first { $0.tabs.contains(tabID) }?.id
+/// Like `OnboardingBinaryToggleContentCell`, but with a `Text` title (so it
+/// can inline an image).
+private struct OnboardingTrickCell<Accessory: View>: View {
+    @Binding var isOn: Bool
+    var title: Text
+    @ViewBuilder var accessory: Accessory
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle(isOn: $isOn) {
+                title.padding(.leading, 4)
+            }
+            .toggleStyle(.checkbox)
+            Spacer(minLength: 0)
+            accessory
+        }
+        .onboardingCell()
     }
 }
 
@@ -595,42 +670,4 @@ struct DraggableBackgroundThumbnail: View {
     }
 }
 
-// MARK: - Claude MCP install
-
-/// Registers the Wowser MCP server with Claude Code (`claude mcp add`), the
-/// same command Settings › MCP shows for copying.
-enum ClaudeMCPInstall {
-    static var serverName: String { isProd() ? "wowser" : "wowserdev" }
-
-    /// Returns nil on success, else a message for the user.
-    static func run() async -> String? {
-        let url = DefaultsKeys.mcpServerURL.stringValue()
-        guard !url.isEmpty else { return "The Wowser MCP server isn't running." }
-        let name = serverName
-        return await Task.detached(priority: .userInitiated) { () -> String? in
-            guard let claude = ClaudeCodeAgent.discoverClaudeBinary() else {
-                return "Couldn't find the claude command. Install Claude Code, then try again."
-            }
-            // The URL carries an auth key; replace any stale registration.
-            _ = runProcess(claude, ["mcp", "remove", "--scope", "user", name])
-            let (status, output) = runProcess(claude, ["mcp", "add", "--scope", "user", "--transport", "http", name, url])
-            if status == 0 { return nil }
-            return output.nilIfEmpty ?? "claude mcp add failed (exit code \(status))."
-        }.value
-    }
-
-    private static func runProcess(_ path: String, _ args: [String]) -> (Int32, String) {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: path)
-        proc.arguments = args
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = pipe
-        do { try proc.run() } catch { return (-1, error.localizedDescription) }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        proc.waitUntilExit()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return (proc.terminationStatus, output)
-    }
-}
 #endif

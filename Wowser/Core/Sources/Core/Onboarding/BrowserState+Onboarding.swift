@@ -2,7 +2,7 @@ import Foundation
 
 // Onboarding lives in the `NativePageKey.welcome` tab (rendered by
 // `WelcomePage` → `OnboardingFlow`). It opens automatically until
-// `DefaultsKeys.hasCompletedOnboarding` is set (finishing or skipping the flow
+// `DefaultsKeys.hasCompletedOnboarding` is set (finishing the flow
 // sets it), and can be reopened from the command bar or Settings.
 
 extension BrowserState {
@@ -26,7 +26,7 @@ extension BrowserState {
         return win.id
     }
 
-    /// Onboarding's "Add a few projects": a new space titled `title` (and
+    /// Onboarding's "Make spaces for your projects": a new space titled `title` (and
     /// attached to `folderPath`, if given) that shares logins with the space
     /// the window is showing, so the user doesn't have to log in again.
     public mutating func createOnboardingProject(title: String, folderPath: String?, windowID: ID<WindowState>?) -> ID<Profile> {
@@ -37,6 +37,41 @@ extension BrowserState {
             attachFolder(path: folderPath, toProfile: id)
         }
         return id
+    }
+
+    /// Whether onboarding's first import should land in `profileID` rather
+    /// than a new space: the space is untitled, has no favorites, and has
+    /// barely been browsed in.
+    func isFreshSpaceForImport(_ profileID: ID<Profile>) -> Bool {
+        guard let profile = profiles[profileID] else { return false }
+        let favorites = (profile.manualFavorites + profile.autoFavorites).filter { tabs[$0] != nil }
+        return profile.title?.nilIfEmpty == nil
+            && profile.folderPath?.nilIfEmpty == nil
+            && favorites.isEmpty
+            && (profile.recentDomains?.count ?? 0) < 5
+    }
+
+    /// "Space added" toast for spaces made from onboarding (projects, imports).
+    mutating func addSpaceAddedToast(windowID: ID<WindowState>?) {
+        guard let windowID = windowID ?? activeWindow?.id else { return }
+        addToast(message: "Space added — swipe on the sidebar to view it", icon: "square.stack", in: windowID)
+    }
+
+    /// Selects the window's existing empty new tab, else opens one. Onboarding
+    /// ends here (its own tab stays open).
+    mutating func openOrSelectNewTab(windowID: ID<WindowState>?) {
+        let win = windowID.flatMap { windows[$0] } ?? getOrCreateActiveWindow()
+        let empty = win.tabs.first { tabID in
+            guard let tab = tabs[tabID], tab.panes.count == 1 else { return false }
+            return tab.panes.elements.first?.info.url == nil
+        }
+        if let empty {
+            activate(tabId: empty, in: win.id)
+        } else {
+            let tab = Tab.newTabWithURL(nil)
+            insertTab(tab, location: insertionIndex(window: win.id, spawningTabId: win.currentTab), inWindow: win.id)
+            activate(tabId: tab.id, in: win.id)
+        }
     }
 }
 

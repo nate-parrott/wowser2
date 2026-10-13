@@ -408,6 +408,7 @@ struct GroupedTabsView: View {
                         .padding(4)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 20)
+                        .padding(.bottom, 30)
 //                    NewTabCell(windowID: windowID)
                 }
                 .padding(isMobile() ? 12 : 0)
@@ -415,6 +416,7 @@ struct GroupedTabsView: View {
                 .animation(.niceDefault(duration: 0.12), value: tabGroups)
             }
             .scrollBounceBehavior(.basedOnSize)
+            .scrollEdgeDividers()
             // Background drop target for the entire area
             .sidebarDropTarget { point, bounds in
                 // Drop at the end of the window's regular tabs

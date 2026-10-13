@@ -583,11 +583,17 @@ private struct FirstTerminalUpsell: View {
 
     /// Runs the install command in a new terminal tab so the user sees it happen.
     private func install() {
-        let url = NativePageKey.terminal(cwd: nil, runCommand: installCommand).url
-        BrowserStore.shared.modify { state in
-            state.openTab(url: url, windowID: windowID)
-        }
         onDismiss()
+        let command = installCommand
+        let windowID = windowID
+        Task {
+            guard await ClaudeMCPInstall.run() != nil else { return }
+            // Failed: run the command in a terminal so the user sees why.
+            let url = NativePageKey.terminal(cwd: nil, runCommand: command).url
+            BrowserStore.shared.modify { state in
+                state.openTab(url: url, windowID: windowID)
+            }
+        }
     }
 }
 

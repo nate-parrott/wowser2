@@ -427,6 +427,13 @@ struct ImportSheet: View {
             bundle.merge(await BrowserImporter.read(csv, categories: [.passwords]))
         }
         let result = await ImportApplier.apply(bundle, categories: cats, to: target)
+        if case .newProfile = target {
+            BrowserStore.shared.modify { state in
+                if let windowID = state.activeWindow?.id {
+                    state.windows[windowID]?.profile = result.profileID
+                }
+            }
+        }
         phase = .done(result)
     }
 }

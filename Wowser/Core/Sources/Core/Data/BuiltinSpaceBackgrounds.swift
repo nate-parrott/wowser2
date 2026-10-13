@@ -24,7 +24,7 @@ public struct BuiltinSpaceBackground: Identifiable, Equatable {
 
     /// What a brand-new space starts on (fresh install, Reset Browser).
     public static var defaultForNewSpace: BuiltinSpaceBackground {
-        all.filter { $0.id != "gradient" }.randomElement() ?? all[0]
+        all.first { $0.id == "forest" } ?? all[0]
     }
 
     init(id: String, title: String, photographer: String, unsplashID: String) {

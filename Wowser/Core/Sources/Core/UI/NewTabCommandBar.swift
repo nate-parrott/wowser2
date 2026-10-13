@@ -45,6 +45,7 @@ struct NewTabCommandBar: View {
             WithSnapshotMain(store: BrowserStore.shared, snapshot: { !$0.toolbarConfig.hidden.contains(.builtin(.dictation)) }) { dictationShown in
                 if dictationShown {
                     DictationButton(paneID: paneID, emptyPage: true)
+                        .padding(.trailing, 8)
                 }
             }
             #endif
