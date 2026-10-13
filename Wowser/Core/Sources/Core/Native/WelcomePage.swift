@@ -5,6 +5,7 @@ import SwiftUI
 struct WelcomePage: View {
     /// The tab's pane; closed when onboarding finishes.
     var webContentID: ID<WebContent>?
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -16,7 +17,21 @@ struct WelcomePage: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             #endif
         }
-        .background(Color("Background", bundle: .module))
+        .background { background }
+    }
+
+    /// Dark: the usual page background. Light: a slightly translucent
+    /// off-white washed with the window's tint, rather than pure white.
+    @ViewBuilder
+    private var background: some View {
+        if colorScheme == .dark {
+            Color("Background", bundle: .module)
+        } else {
+            ZStack {
+                Color(white: 0.965).opacity(0.88)
+                Color.accentColor.opacity(0.05)
+            }
+        }
     }
 }
 

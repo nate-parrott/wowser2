@@ -11,12 +11,17 @@ struct OnboardingWelcomeScreen: View {
 
     var body: some View {
         OnboardingScreen(content: {
-            Text("One place for all your work")
-                .font(.system(size: 48, weight: .bold))
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, minHeight: 320, alignment: .bottomLeading)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Welcome to Wowser")
+                    .font(.system(size: 48, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("A single place to work")
+                    .font(.title)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 320, alignment: .bottomLeading)
         }, footer: {
-            Spacer()
             Button("Get started", action: next)
                 .keyboardShortcut(.defaultAction)
         })
@@ -37,16 +42,15 @@ struct OnboardingDefaultBrowserScreen: View {
                 subtitle: isDefault ? "Wowser is already your default browser." : "Links you open in other apps will open in Wowser."
             )
         }, footer: {
-            if !isDefault {
-                Button("Not yet", action: next)
-                    .buttonStyle(OnboardingButtonStyle(primary: false))
-            }
-            Spacer()
             Button(isDefault ? "Continue" : "Set as Default") {
                 if !isDefault { DefaultBrowser.makeDefault() }
                 next()
             }
             .keyboardShortcut(.defaultAction)
+            if !isDefault {
+                Button("Not yet", action: next)
+                    .buttonStyle(OnboardingButtonStyle(primary: false))
+            }
         })
         .task {
             isDefault = await Task.detached { DefaultBrowser.isDefault() }.value
@@ -56,17 +60,21 @@ struct OnboardingDefaultBrowserScreen: View {
 
 // MARK: - AI
 
-private enum OnboardingAIChoice: Hashable {
+enum OnboardingAIChoice: Hashable {
     case claude
     case codex
 }
 
-struct OnboardingAIScreen: View {
-    var next: () -> Void
+/// Kept in `OnboardingModel` so it survives tab switches.
+struct OnboardingAIState {
+    var choice: OnboardingAIChoice? = .claude
+    var installing = false
+    var installError: String?
+}
 
-    @State private var choice: OnboardingAIChoice? = .claude
-    @State private var installing = false
-    @State private var installError: String?
+struct OnboardingAIScreen: View {
+    @Binding var state: OnboardingAIState
+    var next: () -> Void
 
     var body: some View {
         OnboardingScreen(content: {
@@ -79,8 +87,8 @@ struct OnboardingAIScreen: View {
                     OnboardingRadioOption(value: .claude, title: "Use Claude", subtitle: "Uses Claude for agent chats and adds the Wowser MCP, so Claude can access the browser."),
                     // TODO: Codex support (agent harness + MCP install).
                     OnboardingRadioOption(value: .codex, title: "Use Codex", subtitle: "Unavailable", disabled: true),
-                ], selection: $choice)
-                if let installError {
+                ], selection: $state.choice)
+                if let installError = state.installError {
                     VStack(alignment: .leading, spacing: 4) {
                         Label("Couldn't add the Wowser MCP", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
@@ -97,32 +105,32 @@ struct OnboardingAIScreen: View {
                 }
             }
         }, footer: {
+            Button(state.installError == nil ? "Continue" : "Continue Anyway", action: connect)
+                .keyboardShortcut(.defaultAction)
+                .disabled(state.choice == nil || state.installing)
             Button("Skip for now", action: next)
                 .buttonStyle(OnboardingButtonStyle(primary: false))
-            Spacer()
-            if installing {
+            if state.installing {
                 ProgressView().controlSize(.small)
             }
-            Button(installError == nil ? "Continue" : "Continue Anyway", action: connect)
-                .keyboardShortcut(.defaultAction)
-                .disabled(choice == nil || installing)
         })
     }
 
     private func connect() {
-        if installError != nil {
+        if state.installError != nil {
             next()
             return
         }
-        switch choice {
+        switch state.choice {
         case .claude:
             DefaultsKeys.agentHarness.setString(AgentHarness.claude.rawValue)
-            installing = true
+            state.installing = true
+            let state = $state
             Task {
                 let error = await ClaudeMCPInstall.run()
-                installing = false
+                state.wrappedValue.installing = false
                 if let error {
-                    installError = error
+                    state.wrappedValue.installError = error
                 } else {
                     // The terminal's "Install in Claude Code" upsell is now moot.
                     DefaultsKeys.hasSeenTerminalUpsell.setBool(true)
@@ -159,7 +167,6 @@ struct OnboardingLimitationsScreen: View {
                 }
             }
         }, footer: {
-            Spacer()
             Button("I understand", action: next)
                 .keyboardShortcut(.defaultAction)
         })
@@ -186,7 +193,6 @@ struct OnboardingGoodiesScreen: View {
                 }
             }
         }, footer: {
-            Spacer()
             Button("Continue", action: next)
                 .keyboardShortcut(.defaultAction)
         })
@@ -226,63 +232,173 @@ private struct OnboardingMemoryScopesSnapshot: Equatable {
 
 // MARK: - Projects
 
+/// Kept in `OnboardingModel` so it survives tab switches.
+struct OnboardingProjectsState {
+    var added: [ID<Profile>] = []
+    /// Suggestion chips already turned into projects.
+    var usedSuggestions: Set<String> = []
+    var editingCustom = false
+    var customTitle = ""
+}
+
 struct OnboardingProjectsScreen: View {
+    @Binding var state: OnboardingProjectsState
     var next: () -> Void
 
     @Environment(\.windowID) private var windowID
-    @State private var added: [ID<Profile>] = []
-    @State private var draftTitle = ""
-    @State private var draftFolder: String?
+
+    static let suggestions = ["Home", "Work", "Taxes", "Hobby", "Travel", "Medical", "Career"]
 
     var body: some View {
         OnboardingScreen(content: {
             VStack(alignment: .leading, spacing: 28) {
                 OnboardingHeader(title: "Add a few projects", subtitle: "Each project gets its own space, with its own tabs.")
-                // TODO: Suggest projects from browsing history with AI.
-                OnboardingSection {
-                    ForEach(added, id: \.raw) { id in
-                        OnboardingProjectRow(profileID: id)
+                OnboardingFlowLayout(spacing: 8) {
+                    ForEach(Self.suggestions, id: \.self) { title in
+                        OnboardingChip(title: title, systemImage: nil, selected: state.usedSuggestions.contains(title)) {
+                            addSuggestion(title)
+                        }
                     }
-                    OnboardingNewProjectRow(title: $draftTitle, folder: $draftFolder, add: addDraft)
+                    OnboardingChip(title: "Coding project", systemImage: "folder", selected: false, action: addFolderProject)
+                        .help("Attach a folder: the space gets VS Code, a terminal and a file browser for it.")
+                    OnboardingChip(title: "Custom…", systemImage: "pencil", selected: state.editingCustom) {
+                        state.editingCustom = true
+                    }
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    Button("Add Folder…", action: addFolderProject)
-                    Text("Good for coding projects: the space gets VS Code, a terminal and a file browser for the folder.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                .frame(maxWidth: 500, alignment: .leading)
+                if state.editingCustom {
+                    OnboardingSection {
+                        OnboardingCustomProjectRow(title: $state.customTitle, add: addCustom)
+                    }
+                }
+                if !state.added.isEmpty {
+                    OnboardingSection(title: "Your projects") {
+                        ForEach(state.added, id: \.raw) { id in
+                            OnboardingProjectRow(profileID: id)
+                        }
+                    }
                 }
             }
         }, footer: {
-            Spacer()
-            Button(added.isEmpty ? "Skip" : "Continue", action: next)
+            Button(state.added.isEmpty ? "Skip" : "Continue", action: next)
                 .keyboardShortcut(.defaultAction)
         })
     }
 
-    private func addDraft() {
-        let title = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty || draftFolder != nil else { return }
-        create(title: title, folder: draftFolder)
-        draftTitle = ""
-        draftFolder = nil
+    private func addSuggestion(_ title: String) {
+        guard !state.usedSuggestions.contains(title) else { return }
+        state.usedSuggestions.insert(title)
+        create(title: title, folder: nil)
+    }
+
+    private func addCustom() {
+        let title = state.customTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        create(title: title, folder: nil)
+        state.customTitle = ""
+        state.editingCustom = false
     }
 
     private func addFolderProject() {
+        let state = $state
+        let windowID = self.windowID
         FolderPicker.pick(prompt: "Add Project", message: "Choose a folder for the new project") { path in
-            create(title: "", folder: path)
+            Self.create(title: "", folder: path, windowID: windowID, state: state)
         }
     }
 
     private func create(title: String, folder: String?) {
+        Self.create(title: title, folder: folder, windowID: windowID, state: $state)
+    }
+
+    private static func create(title: String, folder: String?, windowID: ID<WindowState>?, state: Binding<OnboardingProjectsState>) {
         var id: ID<Profile>?
-        let windowID = self.windowID
-        BrowserStore.shared.modify { state in
-            id = state.createOnboardingProject(title: title, folderPath: folder, windowID: windowID)
+        BrowserStore.shared.modify { browserState in
+            id = browserState.createOnboardingProject(title: title, folderPath: folder, windowID: windowID)
         }
         guard let id else { return }
-        added.append(id)
+        state.wrappedValue.added.append(id)
         // Emoji + color theme from the title (AI).
         Task { await BrowserStore.shared.regenerateSpaceTheme(profileID: id) }
+    }
+}
+
+/// A capsule suggestion button on the projects screen.
+private struct OnboardingChip: View {
+    var title: String
+    var systemImage: String?
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if selected {
+                    Image(systemName: "checkmark")
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                }
+                Text(title)
+            }
+            .font(.body.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .background {
+                Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.07))
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Lays out subviews left to right, wrapping onto new lines.
+struct OnboardingFlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(width maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            if needed > maxWidth, !current.indices.isEmpty {
+                rows.append(current)
+                current = Row()
+            }
+            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+            current.indices.append(index)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
     }
 }
 
@@ -345,61 +461,57 @@ private struct OnboardingProjectRow: View {
     }
 }
 
-private struct OnboardingNewProjectRow: View {
+private struct OnboardingCustomProjectRow: View {
     @Binding var title: String
-    @Binding var folder: String?
     var add: () -> Void
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "plus")
+            Image(systemName: "pencil")
                 .foregroundStyle(.secondary)
             TextField("Finding an apartment", text: $title)
                 .textFieldStyle(.plain)
+                .focused($focused)
                 .onSubmit(add)
-            Button {
-                FolderPicker.pick(prompt: "Choose", message: "Choose a folder for this project", initialPath: folder) { path in
-                    folder = path
-                }
-            } label: {
-                if let folder {
-                    Label((folder as NSString).lastPathComponent, systemImage: "folder")
-                } else {
-                    Label("Folder", systemImage: "plus")
-                }
-            }
             Button("Add", action: add)
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty && folder == nil)
+                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .onboardingCell()
+        .onAppear { focused = true }
     }
 }
 
 // MARK: - Tricks
 
-/// Not tracked: the checkboxes are just for the user to tick off.
+/// Not tracked beyond this flow: the checkboxes are just for the user to
+/// tick off. Kept in `OnboardingModel` so they survive tab switches.
+struct OnboardingTricksState {
+    var optionClick = false
+    var askPage = false
+    var recentTabs = false
+    var dragImage = false
+}
+
 struct OnboardingTricksScreen: View {
+    @Binding var state: OnboardingTricksState
     var done: () -> Void
 
     @Environment(\.windowID) private var windowID
-    @State private var optionClick = false
-    @State private var askPage = false
-    @State private var recentTabs = false
-    @State private var dragImage = false
 
     var body: some View {
         OnboardingScreen(content: {
             VStack(alignment: .leading, spacing: 28) {
                 OnboardingHeader(title: "Learn some neat tricks")
                 OnboardingSection {
-                    OnboardingBinaryToggleContentCell(title: "Option-click a link to open it in a split", isOn: $optionClick) {
+                    OnboardingBinaryToggleContentCell(title: "Option-click a link to open it in a split", isOn: $state.optionClick) {
                         Button("Try it") { openTab(URL(string: "http://example.com")!) }
                     }
-                    OnboardingBinaryToggleContentCell(title: "Click in the top bar (⌘L) and ask a question about this page", isOn: $askPage) {
+                    OnboardingBinaryToggleContentCell(title: "Click in the top bar (⌘L) and ask a question about this page", isOn: $state.askPage) {
                         Button("Try it") { openTab(URL(string: "https://en.wikipedia.org/wiki/Web_browser")!, openCommandBar: true) }
                     }
-                    OnboardingBinaryToggleContentCell(title: "Swipe down with three fingers to cycle through recent tabs (or press ⌘E)", subtitle: "Try it!", isOn: $recentTabs)
-                    OnboardingBinaryToggleContentCell(title: "Drag an image into the sidebar to set it as a space background", subtitle: "Try it with one of these", isOn: $dragImage) {
+                    OnboardingBinaryToggleContentCell(title: "Swipe down with three fingers to cycle through recent tabs (or press ⌘E)", subtitle: "Try it!", isOn: $state.recentTabs)
+                    OnboardingBinaryToggleContentCell(title: "Drag an image into the sidebar to set it as a space background", subtitle: "Try it with one of these", isOn: $state.dragImage) {
                         HStack(spacing: 6) {
                             ForEach(BuiltinSpaceBackground.all.prefix(3)) { background in
                                 DraggableBackgroundThumbnail(background: background)
@@ -409,7 +521,6 @@ struct OnboardingTricksScreen: View {
                 }
             }
         }, footer: {
-            Spacer()
             Button("Done", action: done)
                 .keyboardShortcut(.defaultAction)
         })
@@ -434,8 +545,11 @@ private extension BrowserState {
 
 /// A bundled background image that drags as image data (not a file URL — the
 /// sidebar turns file drops into file tabs, image drops into backgrounds).
-private struct DraggableBackgroundThumbnail: View {
+struct DraggableBackgroundThumbnail: View {
     var background: BuiltinSpaceBackground
+    var width: CGFloat = 48
+    var height: CGFloat = 32
+    var cornerRadius: CGFloat = 6
     @State private var thumbnail: CGImage?
 
     var body: some View {
@@ -448,13 +562,14 @@ private struct DraggableBackgroundThumbnail: View {
                 Color.secondary.opacity(0.2)
             }
         }
-        .frame(width: 48, height: 32)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .help(background.title)
         .onDrag { itemProvider() }
         .task(id: background.id) {
             let url = background.resourceURL
-            thumbnail = await Task.detached { url.flatMap { Self.makeThumbnail(url: $0) } }.value
+            let maxPixels = Int(max(width, height) * 2)
+            thumbnail = await Task.detached { url.flatMap { Self.makeThumbnail(url: $0, maxPixels: maxPixels) } }.value
         }
     }
 
@@ -470,11 +585,11 @@ private struct DraggableBackgroundThumbnail: View {
         return provider
     }
 
-    nonisolated private static func makeThumbnail(url: URL) -> CGImage? {
+    nonisolated private static func makeThumbnail(url: URL, maxPixels: Int) -> CGImage? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: 160,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixels,
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
