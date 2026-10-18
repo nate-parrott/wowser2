@@ -172,6 +172,11 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     /// Click the button programmatically, as if from the toolbar of `tabId` (default: the calling tab).
     func toolbarClickButton(id: String, tabId: String?) async throws
 
+    // Dev-mode pinpoint notes on a tab (Pane.pinpoints). See Data/Pinpoints.swift.
+    func pinpointsList(tabId: String) async throws -> [BrowserJSPinpoint]
+    func pinpointsImage(tabId: String, id: String) async throws -> BrowserJSImage
+    func pinpointsResolve(tabId: String, id: String, note: String?) async throws
+
     // Durable per-host CSS/JS injection (CleanModeStore).
     func injectGet(host: String) async throws -> BrowserJSInjection
     func injectSet(host: String, css: String?, js: String?) async throws -> BrowserJSInjection
@@ -436,6 +441,9 @@ public extension BrowserJSHost {
     func toolbarUpdateButton(id: String, label: String?, icon: String?, bjs: String?, clearBJS: Bool, instructions: String?) async throws -> CustomToolbarButton { throw BrowserJSError.notImplemented("toolbar.update") }
     func toolbarRemoveButton(id: String) async throws { throw BrowserJSError.notImplemented("toolbar.remove") }
     func toolbarClickButton(id: String, tabId: String?) async throws { throw BrowserJSError.notImplemented("toolbar.click") }
+    func pinpointsList(tabId: String) async throws -> [BrowserJSPinpoint] { throw BrowserJSError.notImplemented("pinpoints.list") }
+    func pinpointsImage(tabId: String, id: String) async throws -> BrowserJSImage { throw BrowserJSError.notImplemented("pinpoints.image") }
+    func pinpointsResolve(tabId: String, id: String, note: String?) async throws { throw BrowserJSError.notImplemented("pinpoints.resolve") }
     func injectGet(host: String) async throws -> BrowserJSInjection { throw BrowserJSError.notImplemented("inject.get") }
     func injectSet(host: String, css: String?, js: String?) async throws -> BrowserJSInjection { throw BrowserJSError.notImplemented("inject.set") }
     func injectClear(host: String) async throws { throw BrowserJSError.notImplemented("inject.clear") }
@@ -605,6 +613,16 @@ public struct BrowserJSFolderInfo: Codable, Equatable, Sendable {
         self.id = id; self.spaceId = spaceId; self.windowId = windowId; self.index = index; self.name = name
         self.tabIds = tabIds; self.openTabIds = openTabIds; self.splitIds = splitIds
     }
+}
+
+/// A pinpoint note as BrowserJS sees it. `imagePath` is a PNG of the page with
+/// the user's pen marks (also fetchable with `pinpoints.image`).
+public struct BrowserJSPinpoint: Codable, Equatable, Sendable {
+    public var id: String
+    public var text: String
+    public var imagePath: String?
+    public var resolved: Bool
+    public var resolution: String?
 }
 
 /// An image captured by the browser (e.g. from `content.screenshot`). Round-trips

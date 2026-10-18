@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 struct HistoryItem: Equatable, Codable, Identifiable {
     var key: String // URL.historyKey
@@ -79,7 +80,11 @@ class HistoryStore: DataStore<HistoryState> {
         model.trim()
     }
     
+    /// Fires after any visit is recorded or updated (any store). Sync listens.
+    static let didChange = PassthroughSubject<Void, Never>()
+
     func trackVisitDebounced(url: URL, title: String?) {
+        defer { Self.didChange.send() }
         modify { state in
             state.modify(url: url) { item in
                 item.url = url // b/c multiple history keys may resolve to different urls
@@ -93,6 +98,7 @@ class HistoryStore: DataStore<HistoryState> {
     }
     
     func updatePageInfo(url: URL, title: String?) {
+        defer { Self.didChange.send() }
         modify { state in
             state.modify(url: url) { item in
                 item.url = url

@@ -196,6 +196,11 @@ struct PaneView: View {
                             .overlay {
                                 elementPicker
                             }
+                            #if os(macOS)
+                            .overlay {
+                                PinpointDrawingOverlay(paneID: webContentId, windowID: windowID)
+                            }
+                            #endif
                     }
                 } else {
                     Color.clear

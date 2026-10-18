@@ -1189,6 +1189,40 @@ extension BrowserJSLiveHost {
     }
 }
 
+// MARK: - Pinpoints
+
+extension BrowserJSLiveHost {
+    public func pinpointsList(tabId: String) async throws -> [BrowserJSPinpoint] {
+        let list: PinpointList = try await main {
+            let state = BrowserStore.shared.model
+            let paneID = ID<WebContent>(raw: tabId)
+            guard state.pane(forId: paneID) != nil else { throw BrowserJSError.tabNotFound(tabId) }
+            return state.pinpoints(paneID: paneID)
+        }
+        return list.items.reversed().map {
+            BrowserJSPinpoint(id: $0.id, text: $0.text, imagePath: $0.imagePath, resolved: $0.isResolved, resolution: $0.resolution)
+        }
+    }
+
+    public func pinpointsImage(tabId: String, id: String) async throws -> BrowserJSImage {
+        let item = try await pinpointsList(tabId: tabId).first(where: { $0.id == id })
+        guard let item else { throw BrowserJSError.underlying("pinpoint not found: \(id)") }
+        guard let path = item.imagePath else { throw BrowserJSError.underlying("pinpoint \(id) has no drawing") }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        return BrowserJSImage(mime: "image/png", data: data.base64EncodedString())
+    }
+
+    public func pinpointsResolve(tabId: String, id: String, note: String?) async throws {
+        try await main {
+            let paneID = ID<WebContent>(raw: tabId)
+            guard BrowserStore.shared.model.pinpoints(paneID: paneID).items.contains(where: { $0.id == id }) else {
+                throw BrowserJSError.underlying("pinpoint not found: \(id)")
+            }
+            BrowserStore.shared.modify { $0.setPinpointResolved(paneID: paneID, itemID: id, true, resolution: note) }
+        }
+    }
+}
+
 // MARK: - Memory
 
 extension BrowserJSLiveHost {

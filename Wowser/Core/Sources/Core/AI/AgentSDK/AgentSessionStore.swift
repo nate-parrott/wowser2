@@ -64,7 +64,7 @@ public final class AgentSessionStore: AgentSessionStoring, @unchecked Sendable {
         if let dir {
             self.dir = dir
         } else {
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let appSupport = AppPaths.applicationSupport
             self.dir = appSupport
                 .appendingPathComponent("Wowser", isDirectory: true)
                 .appendingPathComponent("agents", isDirectory: true)

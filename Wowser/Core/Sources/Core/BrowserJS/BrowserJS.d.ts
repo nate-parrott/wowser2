@@ -564,6 +564,22 @@ declare global {
     };
 
     /**
+     * Pinpoints: a to-do list the user attaches to a tab (in dev mode) of
+     * changes they want an agent to make to that page — usually their own
+     * web app on localhost. A note may carry a drawing: a screenshot of the
+     * page with the user's red pen marks showing what they mean. `list`
+     * returns notes oldest first; look at a drawing with
+     * `browser.viewImage(await browser.pinpoints.image(tabId, id))` (or read
+     * `imagePath`). When you've made a change, `resolve` checks the note off
+     * in the user's list, with `note` as a one-line summary of what you did.
+     */
+    pinpoints: {
+      list(tabId: TabId): Promise<{ id: string; text: string; imagePath?: string; resolved: boolean; resolution?: string }[]>;
+      image(tabId: TabId, id: string): Promise<Image>;
+      resolve(tabId: TabId, id: string, note?: string): Promise<void>;
+    };
+
+    /**
      * Durable per-site customization: CSS and JS that Wowser injects into
      * every page on `host` (a hostname like "x.com" or any URL; www. is
      * stripped; subdomains are separate hosts), now and on every future

@@ -56,17 +56,14 @@ struct FolderSection: View {
     }
 }
 
-/// The folder's own row: icon, name, member count. Hovering shows the member
-/// list in a popover off the trailing edge; the popover stays while the
-/// pointer is inside it.
+/// The folder's own row: icon, name, member count. Clicking shows the member
+/// list in a popover off the trailing edge.
 private struct FolderRow: View {
     let folder: FolderSnapshot
     let windowID: ID<WindowState>
 
     @State private var isHovered = false
-    @State private var previewHovered = false
     @State private var showPreview = false
-    @State private var pendingHoverChange: DispatchWorkItem?
     @State private var lastClickAt: Date?
 
     var body: some View {
@@ -94,32 +91,23 @@ private struct FolderRow: View {
         .frame(height: isMobile() ? 44 : UIConstants.macTabHeight)
         .contentShape(Rectangle())
         .modifier(TabStyleButtonModifier(isSelected: false, pressed: {
-            // Double-click renames; single click shows the preview (and
-            // keeps it up if it's already showing).
+            // Double-click renames; single click toggles the preview.
             let now = Date()
             if let last = lastClickAt, now.timeIntervalSince(last) < 0.5 {
                 lastClickAt = nil
                 renameFolder(folderID: folder.id)
             } else {
                 lastClickAt = now
-                pendingHoverChange?.cancel()
-                showPreview = true
+                showPreview.toggle()
             }
         }))
-        .onHover { hovering in
-            isHovered = hovering
-            scheduleHoverChange()
-        }
+        .onHover { isHovered = $0 }
         .onDrag {
             // The folder is a tab-strip item: drag it to reorder
             NSItemProvider.tabDrag(tabID: folder.id, fileURL: nil)
         }
         .popover(isPresented: $showPreview, arrowEdge: .trailing) {
             FolderPreview(folderID: folder.id, windowID: windowID, onSelect: { showPreview = false })
-                .onHover { hovering in
-                    previewHovered = hovering
-                    scheduleHoverChange()
-                }
         }
         .contextMenu {
             Button("Rename Folder…") { renameFolder(folderID: folder.id) }
@@ -133,21 +121,6 @@ private struct FolderRow: View {
             }
         }
         .help(folder.tabIDs.isEmpty ? "Drag tabs here to add them to this folder" : folder.name)
-    }
-
-    /// Show after a short dwell on the row; hide a moment after the pointer
-    /// leaves both the row and the popover (so it can cross the gap between them).
-    private func scheduleHoverChange() {
-        pendingHoverChange?.cancel()
-        let wantShown = isHovered || previewHovered
-        guard wantShown != showPreview else { return }
-        let work = DispatchWorkItem {
-            if (isHovered || previewHovered) == wantShown, showPreview != wantShown {
-                showPreview = wantShown
-            }
-        }
-        pendingHoverChange = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (wantShown ? 0.3 : 0.4), execute: work)
     }
 }
 

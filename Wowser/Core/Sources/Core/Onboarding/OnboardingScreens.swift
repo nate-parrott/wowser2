@@ -301,8 +301,8 @@ private struct OnboardingMemoryScopesSnapshot: Equatable {
 
 /// Kept in `OnboardingModel` so it survives tab switches.
 struct OnboardingProjectsState {
-    /// Suggestion chips already turned into projects.
-    var usedSuggestions: Set<String> = []
+    /// Suggestion chips already turned into projects, and the space each made.
+    var usedSuggestions: [String: ID<Profile>] = [:]
     var editingCustom = false
     var customTitle = ""
 }
@@ -321,8 +321,8 @@ struct OnboardingProjectsScreen: View {
                 OnboardingHeader(title: "Make spaces for your projects", subtitle: "Each project gets its own space, with its own tabs.")
                 OnboardingFlowLayout(spacing: 8) {
                     ForEach(Self.suggestions, id: \.self) { title in
-                        OnboardingChip(title: title, systemImage: nil, selected: state.usedSuggestions.contains(title)) {
-                            addSuggestion(title)
+                        OnboardingChip(title: title, systemImage: "plus", selected: state.usedSuggestions[title] != nil) {
+                            toggleSuggestion(title)
                         }
                     }
                     OnboardingChip(title: "Coding project…", systemImage: "folder", selected: false, action: addFolderProject)
@@ -345,10 +345,13 @@ struct OnboardingProjectsScreen: View {
         })
     }
 
-    private func addSuggestion(_ title: String) {
-        guard !state.usedSuggestions.contains(title) else { return }
-        state.usedSuggestions.insert(title)
-        create(title: title, folder: nil)
+    /// Adds the suggestion's space, or deletes it if it was already added.
+    private func toggleSuggestion(_ title: String) {
+        if let id = state.usedSuggestions.removeValue(forKey: title) {
+            BrowserStore.shared.modify { $0.deleteProfile(id) }
+        } else if let id = Self.create(title: title, folder: nil, windowID: windowID) {
+            state.usedSuggestions[title] = id
+        }
     }
 
     private func addCustom() {
@@ -370,15 +373,17 @@ struct OnboardingProjectsScreen: View {
         Self.create(title: title, folder: folder, windowID: windowID)
     }
 
-    private static func create(title: String, folder: String?, windowID: ID<WindowState>?) {
+    @discardableResult
+    private static func create(title: String, folder: String?, windowID: ID<WindowState>?) -> ID<Profile>? {
         var id: ID<Profile>?
         BrowserStore.shared.modify { browserState in
             id = browserState.createOnboardingProject(title: title, folderPath: folder, windowID: windowID)
+            browserState.addSpaceAddedToast(windowID: windowID)
         }
-        guard let id else { return }
-        BrowserStore.shared.modify { $0.addSpaceAddedToast(windowID: windowID) }
+        guard let id else { return nil }
         // Emoji + color theme from the title (AI).
         Task { await BrowserStore.shared.regenerateSpaceTheme(profileID: id) }
+        return id
     }
 }
 
@@ -430,13 +435,16 @@ private struct OnboardingSpacesList: View {
 
 private struct OnboardingProjectSnapshot: Equatable {
     var emoji: String?
+    /// The space's own title; `displayName` is the placeholder when it's empty.
     var title: String
+    var displayName: String
     var folderPath: String?
 
     init?(state: BrowserState, profileID: ID<Profile>) {
         guard let profile = state.profiles[profileID] else { return nil }
         emoji = profile.emoji?.nilIfEmpty
-        title = profile.displayName
+        title = profile.title ?? ""
+        displayName = profile.displayName
         folderPath = profile.folderPath?.nilIfEmpty
     }
 }
@@ -462,9 +470,7 @@ private struct OnboardingProjectRow: View {
                     .menuStyle(.button)
                     .buttonStyle(.plain)
                     .fixedSize()
-                    Text(snapshot.title)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
+                    OnboardingProjectTitleField(profileID: profileID, title: snapshot.title, placeholder: snapshot.displayName)
                     if let folder = snapshot.folderPath {
                         Label((folder as NSString).lastPathComponent, systemImage: "folder")
                             .foregroundStyle(.secondary)
@@ -479,6 +485,40 @@ private struct OnboardingProjectRow: View {
     private func setEmoji(_ emoji: String) {
         BrowserStore.shared.modify { state in
             state.profiles[profileID]?.emoji = emoji
+        }
+    }
+}
+
+/// Click to rename a space inline; commits on Return or when focus leaves.
+private struct OnboardingProjectTitleField: View {
+    var profileID: ID<Profile>
+    var title: String
+    var placeholder: String
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .textFieldStyle(.plain)
+            .lineLimit(1)
+            .focused($focused)
+            .onSubmit(commit)
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            .onAppear { draft = title }
+            .onChange(of: title) { _, newTitle in
+                if !focused { draft = newTitle }
+            }
+    }
+
+    private func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = trimmed
+        guard trimmed != title else { return }
+        BrowserStore.shared.modify { state in
+            state.profiles[profileID]?.title = trimmed.nilIfEmpty
         }
     }
 }

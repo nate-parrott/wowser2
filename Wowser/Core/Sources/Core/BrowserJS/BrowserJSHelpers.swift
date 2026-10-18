@@ -21,7 +21,7 @@ public final class BrowserJSHelpers: BrowserJSHelpersProvider, @unchecked Sendab
         if let dir {
             self.dir = dir
         } else {
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let appSupport = AppPaths.applicationSupport
             self.dir = appSupport
                 .appendingPathComponent("Wowser", isDirectory: true)
                 .appendingPathComponent("browserjs", isDirectory: true)

@@ -37,7 +37,7 @@ extension MemoryStore {
             record(scope: scope, event)
             resetBaseline(key: "screen:" + paneID.raw)
         } else if info.title != previous?.title || info.pageDescription != previous?.pageDescription {
-            updateVisitMeta(scope: scope, paneID: paneID.raw, url: url, title: info.title, description: info.pageDescription)
+            updateVisitMeta(scope: scope, paneID: paneID.raw, title: info.title, description: info.pageDescription)
         }
     }
 

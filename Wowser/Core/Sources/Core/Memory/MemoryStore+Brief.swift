@@ -48,21 +48,7 @@ extension MemoryStore {
         let overview: String = (try? await perform(scope: scope) { db in
             (try db.scalar("SELECT value FROM meta WHERE key = 'overview'")) as? String ?? ""
         }) ?? ""
-        // Top domains over the last 30 days, merged across every enabled scope.
-        let since = Date().addingTimeInterval(-30 * 24 * 3600).timeIntervalSince1970
-        var domainCounts: [String: Int] = [:]
-        for s in enabledScopeIDs {
-            let rows = (try? await performRead(scope: s, sql: """
-                SELECT domain, COUNT(*) AS n FROM events
-                WHERE kind = 'visit' AND domain IS NOT NULL AND ts > ?
-                GROUP BY domain ORDER BY n DESC LIMIT ?
-                """, params: [since, maxDomains * 2], limit: maxDomains * 2)) ?? []
-            for r in rows {
-                guard let d = r["domain"] as? String, let n = r["n"] as? Int64 else { continue }
-                domainCounts[d, default: 0] += Int(n)
-            }
-        }
-        let topDomains = domainCounts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(maxDomains)
+        let topDomains = await topDomains(limit: maxDomains)
 
         var out: [String] = ["[Memory brief — scope \(scope.uuidString), space \(spaceID)]"]
         if let head = Self.overviewHead(overview, maxChars: 600) {
@@ -95,7 +81,7 @@ extension MemoryStore {
             }
         }
         if !topDomains.isEmpty {
-            out.append("Top sites, all spaces, last 30 days: " + topDomains.map { "\($0.key) (\($0.value))" }.joined(separator: ", "))
+            out.append("Top sites, all spaces, last 30 days: " + topDomains.map { "\($0.domain) (\($0.visits))" }.joined(separator: ", "))
         }
         if pageRows.isEmpty && eventRows.isEmpty {
             out.append("(No events recorded for this space yet.)")
@@ -105,6 +91,28 @@ extension MemoryStore {
         [End of memory brief]
         """)
         return out.joined(separator: "\n")
+    }
+
+    /// Most-visited domains over the last 30 days, merged across every
+    /// enabled scope (all spaces).
+    func topDomains(limit: Int) async -> [(domain: String, visits: Int)] {
+        let since = Date().addingTimeInterval(-30 * 24 * 3600).timeIntervalSince1970
+        var domainCounts: [String: Int] = [:]
+        for s in enabledScopeIDs {
+            let rows = (try? await performRead(scope: s, sql: """
+                SELECT domain, COUNT(*) AS n FROM events
+                WHERE kind = 'visit' AND domain IS NOT NULL AND ts > ?
+                GROUP BY domain ORDER BY n DESC LIMIT ?
+                """, params: [since, limit * 2], limit: limit * 2)) ?? []
+            for r in rows {
+                guard let d = r["domain"] as? String, let n = r["n"] as? Int64 else { continue }
+                domainCounts[d, default: 0] += Int(n)
+            }
+        }
+        return domainCounts
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .prefix(limit)
+            .map { ($0.key, $0.value) }
     }
 
     static func overviewHead(_ text: String, maxChars: Int) -> String? {

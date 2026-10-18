@@ -30,6 +30,7 @@ enum BrowserJSDispatch {
         "terminal.read",
         "tasks.list",
         "toolbar.list", "toolbar.get",
+        "pinpoints.list", "pinpoints.image",
         "inject.get",
         "memory.scopes", "memory.schema", "memory.query", "memory.overview",
         "credentials.lookup", "credentials.hasPassword",
@@ -442,6 +443,17 @@ enum BrowserJSDispatch {
             try await host.toolbarClickButton(id: id, tabId: optStr("tabId"))
             return nil
 
+        case "pinpoints.list":
+            guard let tabId = str("tabId") else { throw BrowserJSError.invalidArgs("tabId") }
+            return try encodeValue(try await host.pinpointsList(tabId: tabId))
+        case "pinpoints.image":
+            guard let tabId = str("tabId"), let id = str("id") else { throw BrowserJSError.invalidArgs("tabId, id") }
+            return try encodeValue(try await host.pinpointsImage(tabId: tabId, id: id))
+        case "pinpoints.resolve":
+            guard let tabId = str("tabId"), let id = str("id") else { throw BrowserJSError.invalidArgs("tabId, id") }
+            try await host.pinpointsResolve(tabId: tabId, id: id, note: optStr("note"))
+            return nil
+
         case "inject.get":
             guard let h = str("host") else { throw BrowserJSError.invalidArgs("host") }
             return try encodeValue(try await host.injectGet(host: h))
@@ -572,6 +584,11 @@ enum BrowserJSBridgeSource {
             update: function(id, opts) { opts = opts || {}; return __browserCall('toolbar.update', { id: id, label: opts.label, icon: opts.icon, bjs: opts.bjs, instructions: opts.instructions }); },
             remove: function(id) { return __browserCall('toolbar.remove', { id: id }); },
             click:  function(id, opts) { opts = opts || {}; return __browserCall('toolbar.click', { id: id, tabId: opts.tabId }); },
+        },
+        pinpoints: {
+            list:    function(tabId) { return __browserCall('pinpoints.list', { tabId: tabId }); },
+            image:   function(tabId, id) { return __browserCall('pinpoints.image', { tabId: tabId, id: id }); },
+            resolve: function(tabId, id, note) { return __browserCall('pinpoints.resolve', { tabId: tabId, id: id, note: note }); },
         },
         inject: {
             get:   function(host) { return __browserCall('inject.get', { host: host }); },

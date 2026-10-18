@@ -54,6 +54,8 @@ Use WithSnapshotMain (which does not make the snapshot optional) for main-thread
 
 (Define snapshot creation as an extension function on `BrowserState`; make snapshots equatable)
 
+Snapshots must be deterministic: a fallback like `pane.foo ?? Foo()` whose default contains `UUID()`/`Date()` never compares equal to itself, so `WithSnapshotMain` re-renders in an infinite loop that freezes the main thread.
+
 ```
 public struct DownloadsSidebar: View {
     let windowID: ID<WindowState>
@@ -290,3 +292,12 @@ plus a searchable replacement for `<select>` popups. Key pieces:
   identity (never passwords) is appended to agent system prompts by
   `AutofillStore.agentIdentitySection()`. All of it is switchable in
   Settings → Autofill (`AutofillSettings`).
+
+# Sync (Core/Sync)
+
+Spaces, tabs, top history and autofill (not passwords) sync through a shared
+folder via a per-field LWW CRDT over per-device append-only logs. Read
+`sync.md` before touching it. When you add persisted fields to `Profile`,
+`Tab`, `Pane` etc., decide whether they sync and update the mapping in
+`Sync/Browser/BrowserState+Sync.swift` and the table in `sync.md`.
+Two syncing instances for manual testing: `scripts/sync_test/run_two.sh`.

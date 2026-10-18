@@ -12,6 +12,10 @@ public enum Preheat {
         Task {
             _ = await ThumbnailCache.shared
         }
+        // Sync: once windows exist (it reads the primary window's tabs).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            SyncController.shared.startIfEnabled()
+        }
         // Memory store: late, and a no-op unless the user turned it on.
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
             MemoryStore.shared.startLate()

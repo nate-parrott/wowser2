@@ -146,7 +146,7 @@ public final class MemoryStore: ObservableObject {
 
     static var directory: URL {
         let appDir = "WowserDataStores-\(isProd() ? "prod" : "dev")"
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = AppPaths.applicationSupport
             .appendingPathComponent(appDir)
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "Unknown")
             .appendingPathComponent("Memory", isDirectory: true)
@@ -266,14 +266,14 @@ public final class MemoryStore: ObservableObject {
 
     /// Fill in title/description on the most recent visit row for this pane+url
     /// as they arrive after navigation.
-    func updateVisitMeta(scope: UUID, paneID: String, url: URL, title: String?, description: String?) {
+    func updateVisitMeta(scope: UUID, paneID: String, title: String?, description: String?) {
         guard isEnabled(scope), title?.nilIfEmpty != nil || description?.nilIfEmpty != nil else { return }
         queue.async {
             guard let db = self.db(for: scope) else { return }
             try? db.run("""
             UPDATE events SET title = COALESCE(?, title), description = COALESCE(?, description)
-            WHERE id = (SELECT id FROM events WHERE kind = 'visit' AND pane_id = ? AND url = ? ORDER BY id DESC LIMIT 1)
-            """, [title?.nilIfEmpty, description?.nilIfEmpty, paneID, url.absoluteString])
+            WHERE id = (SELECT id FROM events WHERE kind = 'visit' AND pane_id = ? ORDER BY id DESC LIMIT 1)
+            """, [title?.nilIfEmpty, description?.nilIfEmpty, paneID])
         }
     }
 

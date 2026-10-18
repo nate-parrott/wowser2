@@ -114,7 +114,7 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
 //            config.preferences.setValue(false, forKey: "processSwapOnCrossSiteNavigationEnabled")
         }
         if #available(macOS 14.0, *) {
-            let dataStore = WKWebsiteDataStore(forIdentifier: datastoreUUID)
+            let dataStore = WebContentWebKit.websiteDataStore(forIdentifier: datastoreUUID)
             #if os(macOS)
             // Route traffic through the local capturing proxy so the agent can
             // introspect requests via `browser.net.*`. HTTPS is only MITM'd for
@@ -776,5 +776,19 @@ private extension WKNavigationResponse {
         guard let http = response as? HTTPURLResponse,
               let disposition = http.value(forHTTPHeaderField: "Content-Disposition") else { return false }
         return disposition.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("attachment")
+    }
+}
+
+extension WebContentWebKit {
+    /// In-memory stores per space when `AppPaths.ephemeralWebsiteData` (test
+    /// instances), so they don't write into the real per-space stores.
+    private static var ephemeralStores = [UUID: WKWebsiteDataStore]()
+
+    static func websiteDataStore(forIdentifier uuid: UUID) -> WKWebsiteDataStore {
+        guard AppPaths.ephemeralWebsiteData else { return WKWebsiteDataStore(forIdentifier: uuid) }
+        if let existing = ephemeralStores[uuid] { return existing }
+        let store = WKWebsiteDataStore.nonPersistent()
+        ephemeralStores[uuid] = store
+        return store
     }
 }

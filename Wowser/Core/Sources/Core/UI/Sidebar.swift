@@ -340,7 +340,7 @@ private enum TabListCell: Equatable, Identifiable {
         }
     }
     
-    static func cellsFrom(groups: [TabGroup]) -> [TabListCell] {
+    static func cellsFrom(groups: [TabGroup], expandedFolders: Set<ID<Tab>> = []) -> [TabListCell] {
         var cells = [TabListCell]()
         var isFirst = true
         for group in groups {
@@ -353,7 +353,14 @@ private enum TabListCell: Equatable, Identifiable {
             cells += group.tabIDs.map { TabListCell.tabID($0) }
             isFirst = false
         }
-        return cells
+        // An expanded folder's box already separates it from its neighbors
+        return cells.enumerated().filter { idx, cell in
+            guard case .header(_, nil, _) = cell else { return true }
+            return !expandedFolders.contains { folderID in
+                (idx > 0 && cells[idx - 1] == .tabID(folderID))
+                    || (idx + 1 < cells.count && cells[idx + 1] == .tabID(folderID))
+            }
+        }.map(\.element)
     }
 }
 
@@ -367,7 +374,7 @@ struct GroupedTabsView: View {
     let profileID: ID<Profile>
     
     var body: some View {
-        let cells: [TabListCell] = TabListCell.cellsFrom(groups: tabGroups)
+        let cells: [TabListCell] = TabListCell.cellsFrom(groups: tabGroups, expandedFolders: Set(folders.values.filter { !$0.openTabIDs.isEmpty }.map(\.id)))
         ScrollViewReader { scrollProxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: isMobile() ? 4 : 0) {
@@ -425,7 +432,7 @@ struct GroupedTabsView: View {
             .onChange(of: currentTabID) { newTabID in
                 if let newTabID = newTabID {
                     withAnimation(.niceDefault) {
-                        scrollProxy.scrollTo(newTabID, anchor: nil)
+                        scrollProxy.scrollTo(newTabID.raw, anchor: nil)
                     }
                 }
             }
@@ -433,7 +440,7 @@ struct GroupedTabsView: View {
                 if let currentTabID {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         withAnimation {
-                            scrollProxy.scrollTo(currentTabID, anchor: nil)
+                            scrollProxy.scrollTo(currentTabID.raw, anchor: nil)
                         }
                     }
                 }

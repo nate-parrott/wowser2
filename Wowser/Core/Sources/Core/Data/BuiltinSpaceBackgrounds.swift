@@ -44,15 +44,15 @@ public struct BuiltinSpaceBackground: Identifiable, Equatable {
 }
 
 public extension BrowserStore {
-    /// Sets a bundled image as the space background, in fade mode.
-    func setBuiltinSpaceBackground(_ background: BuiltinSpaceBackground, profileID: ID<Profile>) {
+    /// Sets a bundled image as the space background (fade mode by default).
+    func setBuiltinSpaceBackground(_ background: BuiltinSpaceBackground, profileID: ID<Profile>, mode: SpaceBackgroundMode = .fade) {
         guard let url = background.resourceURL else {
             print("[SpaceBG] Missing bundled background \(background.id)")
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
             guard let data = try? Data(contentsOf: url) else { return }
-            self.setSpaceBackgroundImage(data: data, profileID: profileID, mode: .fade, builtinID: background.id)
+            self.setSpaceBackgroundImage(data: data, profileID: profileID, mode: mode, builtinID: background.id)
         }
     }
 

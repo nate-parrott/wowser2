@@ -21,10 +21,7 @@ struct DictationButton: View {
             return pane.info.focusedEditable != nil && !pane.info.isEmptyPage
         }) { fieldFocused in
             Button(action: toggle) {
-                Image(systemName: isActiveForThisPane ? "mic.fill" : "mic")
-                    // Empty page: an explicit size, ~2pt under `.large` at the 13pt body font.
-                    .font(emptyPage ? .system(size: 15) : nil)
-                    .imageScale(.medium)
+                icon
                     .foregroundStyle(iconStyle)
                     .opacity(!isActiveForThisPane && emptyPage ? 0.4 : 1)
                     .frame(width: emptyPage ? 34 : 30, height: emptyPage ? 34 : 30)
@@ -35,6 +32,17 @@ struct DictationButton: View {
                 controller.setHoverPreview(paneID: paneID, windowID: windowID, hovering: hovering)
             }
             .offset(x: emptyPage ? 10 : 0)
+        }
+    }
+
+    /// Empty page: an explicit size, ~2pt under `.large` at the 13pt body font.
+    /// Toolbar: inherit the toolbar's font (`.font(nil)` would reset it).
+    @ViewBuilder private var icon: some View {
+        let image = Image(systemName: isActiveForThisPane ? "mic.fill" : "mic")
+        if emptyPage {
+            image.font(.system(size: 15)).imageScale(.medium)
+        } else {
+            image.imageScale(.medium)
         }
     }
 

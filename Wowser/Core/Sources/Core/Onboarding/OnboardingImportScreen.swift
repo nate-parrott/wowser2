@@ -429,6 +429,7 @@ private struct OnboardingImportStatusAccessory: View {
         switch status {
         case .none:
             Button("Import", action: importAction)
+                .buttonStyle(.borderedProminent)
         case .importing:
             ProgressView().controlSize(.small)
         case .done:

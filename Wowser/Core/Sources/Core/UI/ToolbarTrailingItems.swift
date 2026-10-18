@@ -7,6 +7,7 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
     case dictation
     case cleanMode
     case mobileViewport
+    case pinpoint
     case bookmark
     case openChat
     case closePane
@@ -17,6 +18,7 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
         case .dictation: return "Dictation"
         case .cleanMode: return "Clean Mode"
         case .mobileViewport: return "Mobile Viewport"
+        case .pinpoint: return "Pinpoint"
         case .bookmark: return "Bookmark"
         case .closePane: return "Close Pane"
         case .newSplitPane: return "New Split Pane"
@@ -31,6 +33,7 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
         case .dictation: return "mic"
         case .cleanMode: return "book"
         case .mobileViewport: return "iphone.gen3"
+        case .pinpoint: return "checklist"
         case .bookmark: return "bookmark"
         case .closePane: return "xmark"
         case .newSplitPane: return "plus"
@@ -49,6 +52,7 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
         switch self {
         case .dictation, .cleanMode, .bookmark: return nil
         case .mobileViewport: return "Only in dev mode"
+        case .pinpoint: return "Only in dev mode and Tang apps"
         case .openChat: return "Only on pages without a chat"
         case .closePane: return "Only in split view"
         case .newSplitPane: return "Only on the last pane"

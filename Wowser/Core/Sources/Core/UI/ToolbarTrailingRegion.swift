@@ -80,6 +80,8 @@ struct ToolbarTrailingRegion: View {
             case .dictation: return true
             case .cleanMode: return snapshot.nativeKey == nil
             case .mobileViewport: return devModeDomain.map { devModeStore.isEnabled(for: $0) } ?? false
+            case .pinpoint:
+                return snapshot.nativeKey == nil && (snapshot.url?.scheme == TangSchemeHandler.scheme || devModeStore.isEnabled(for: devModeDomain))
             case .bookmark: return true
             case .openChat: return snapshot.canOpenChat
             case .closePane: return snapshot.hasMultiplePanes
@@ -139,6 +141,16 @@ struct ToolbarTrailingRegion: View {
             } else {
                 placeholder(item)
             }
+        case .pinpoint:
+            #if os(macOS)
+            if let webContentID, let windowID {
+                PinpointToolbarButton(paneID: webContentID, windowID: windowID)
+            } else {
+                placeholder(item)
+            }
+            #else
+            placeholder(item)
+            #endif
         case .bookmark:
             BookmarkToolbarButton(webContentID: webContentID, url: snapshot.url)
         case .openChat:

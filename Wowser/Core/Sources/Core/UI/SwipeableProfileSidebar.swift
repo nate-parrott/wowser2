@@ -283,12 +283,14 @@ private struct NewProfileSnapshot: Equatable {
     /// See `BrowserState.loginGroups`.
     var loginGroups: [[Entry]]
     var lastProfileID: ID<Profile>?
+    var hiddenProfileCount: Int
 
     init(state: BrowserState) {
         loginGroups = state.loginGroups.map { group in
             group.map { Entry(id: $0.id, displayName: $0.displayName) }
         }
         lastProfileID = state.visibleProfiles.last?.id
+        hiddenProfileCount = state.hiddenProfiles.count
     }
 
     func contains(_ id: ID<Profile>) -> Bool { loginGroup(for: id) != nil }
@@ -359,8 +361,17 @@ private struct NewProfileContent: View {
                     .padding(4)
             }
             .buttonStyle(GhostButtonStyle())
-
             #endif
+
+            if snapshot.hiddenProfileCount > 0 {
+                Button(action: { SettingsTab.profiles.open() }) {
+                    Text(snapshot.hiddenProfileCount == 1 ? "1 hidden profile" : "\(snapshot.hiddenProfileCount) hidden profiles")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(4)
+                }
+                .buttonStyle(GhostButtonStyle())
+            }
         }
         .padding()
     }

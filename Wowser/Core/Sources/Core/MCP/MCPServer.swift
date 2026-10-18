@@ -23,7 +23,9 @@ public actor MCPServer {
     /// Different per build flavor so dev and prod can run side-by-side without
     /// one of them landing on a random port (which strands the installed URL).
     public static var preferredPort: Int {
-        isProd() ? 48197 : 48198
+        // Side-by-side test instances (scripts/sync_test) each get their own.
+        if let p = ProcessInfo.processInfo.environment["WOWSER_MCP_PORT"].flatMap(Int.init) { return p }
+        return isProd() ? 48197 : 48198
     }
 
     private let runtime: BrowserJSRuntime

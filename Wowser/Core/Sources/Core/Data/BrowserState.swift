@@ -17,6 +17,9 @@ public struct BrowserState: Equatable, Codable {
     /// Trailing toolbar buttons: order, hidden set, user-created buttons.
     /// See BrowserState+Toolbar.swift. Optional so old persisted state decodes.
     public var toolbar: ToolbarConfig?
+    /// This device's sync bookkeeping (which window syncs, login-group ids).
+    /// See BrowserState+Sync.swift. Nil until sync is turned on.
+    public var sync: BrowserSyncLocalState?
     
     // Lookup table
     public fileprivate(set) var paneToTabMapping = [ID<WebContent>: Tab.ID]()
@@ -158,6 +161,13 @@ public struct Pane: Equatable, Identifiable, Codable {
     /// True while the external-link classifier is deciding which space this
     /// pane belongs in; the sidebar shows a subtitle. See BrowserStore+ExternalLinkSpaces.
     public var pickingSpace: Bool?
+    /// Dev-mode to-do notes for an agent about this page. See Pinpoints.swift.
+    public var pinpoints: PinpointList?
+    /// A navigation another device made while this pane had a live page.
+    /// We don't yank the page out from under the user: it's loaded when the
+    /// tab is next reopened, and dropped if the user navigates here first.
+    /// See BrowserState+Sync.swift.
+    public var syncPendingNav: SyncPendingNavigation?
 }
 
 public struct Toast: Equatable, Codable, Identifiable {
@@ -275,6 +285,11 @@ public struct WindowState: Equatable, Codable {
     /// `focusState` toward `.findInPage`. Cleared by closing the bar or
     /// switching focus targets — never set in two places at once.
     public var findInPageActiveInPaneId: ID<WebContent>?
+    /// Pane whose pinpoint popover is open (see Pinpoints.swift). Hidden, not
+    /// cleared, while `pinpointDrawing` is set so it comes back afterwards.
+    public var pinpointPopoverPaneID: ID<WebContent>?
+    /// While set, that pane shows the pinpoint drawing canvas.
+    public var pinpointDrawing: PinpointDrawTarget?
     /// Profile whose editable space-title field currently holds focus (if any).
     /// Drives `focusState` toward `.spaceTitle`. Set/cleared only via
     /// `didFocus`/`didLoseFocus` — never in two places at once.
@@ -495,7 +510,7 @@ public class BrowserStore: DataStore<BrowserState> {
         }
         // Need to create new webcontent:
         guard let tabId = model.paneToTabMapping[id],
-                let pane = model.tabs[tabId]?.panes[id],
+                var pane = model.tabs[tabId]?.panes[id],
 //              let win = model.windowContaining(tabId: tabId),
               let win = model.windows[windowID],
               // The tab's own space (it may not be the one the window shows).
@@ -504,6 +519,13 @@ public class BrowserStore: DataStore<BrowserState> {
             return nil
         }
         print("CREATING WC FOR TAB \(tabId)")
+
+        // Another device navigated this tab while it was open here; it's
+        // being reopened now, so load where they went.
+        if pane.syncPendingNav != nil {
+            modify { _ = $0.adoptSyncPendingNavigations(tabID: tabId) }
+            pane = self.model.tabs[tabId]?.panes[id] ?? pane
+        }
 
         // Engine is decided once per pane (first WebContent creation) and then
         // sticks, so a Chromium tab stays Chromium across unload/reload even if
@@ -533,7 +555,7 @@ public class BrowserStore: DataStore<BrowserState> {
         if let url = pane.info.url {
             wc.load(url: url)
         }
-        if let tabId = model.paneToTabMapping[id], let pane = model.tabs[tabId]?.panes[id], let url = pane.info.url {
+        if let url = pane.info.url {
             wc.populateWithInitialURL(url)
         }
         setupBindings(webContent: wc)
@@ -723,6 +745,7 @@ extension BrowserStore: WebContentDelegate {
             state.updatePaneInfo(forWebContentId: webContent.id) { $0 = info }
             if let url = info.url, url.historyKey != previous?.url?.historyKey {
                 state.noteVisitedDomain(url: url, forWebContentId: webContent.id)
+                state.dropSyncPendingNav(paneID: webContent.id)
             }
         }
         MemoryStore.shared.noteInfoChange(webContent: webContent, info: info, previous: previous)

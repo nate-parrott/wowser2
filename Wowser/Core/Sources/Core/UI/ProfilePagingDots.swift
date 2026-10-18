@@ -121,9 +121,11 @@ private struct ProfileDotView: View {
                         .scaleEffect(scale)
                 }
             }
+            // Inside the label: a plain-style button only hit-tests its label's
+            // drawn pixels, so without this only the 6pt dot itself is clickable.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
         .onHover(perform: { self.hovered = $0 })
         .overlay {
             if dropTargeted {

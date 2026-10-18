@@ -171,11 +171,14 @@ public enum AgentChatTabs {
 
     /// Bottom-toolbar chat: ask `query` in a chat split beside the window's
     /// current pane, which the agent sees as context. If the split already
-    /// has a chat, the query goes to it as a follow-up.
-    public static func askInSplit(query: String, windowID: ID<WindowState>) {
+    /// has a chat, the query goes to it as a follow-up — unless
+    /// `fileSystemTools` is requested, which needs a fresh agent (in
+    /// `workingDirectory`, default the space's folder). `attachments` are sent
+    /// with the first message.
+    public static func askInSplit(query: String, windowID: ID<WindowState>, attachments: [URL] = [], fileSystemTools: Bool = false, workingDirectory: String? = nil) {
         installToolsIfNeeded()
         let state = BrowserStore.shared.model
-        if let tabID = state.windows[windowID]?.currentTab, let tab = state.tabs[tabID],
+        if !fileSystemTools, let tabID = state.windows[windowID]?.currentTab, let tab = state.tabs[tabID],
            let idx = tab.panes.elements.firstIndex(where: { $0.info.url.flatMap(NativePageKey.init)?.isAgent == true }),
            let chatPane = tab.panes[idx],
            let key = chatPane.info.url.flatMap(NativePageKey.init)?.agentKey,
@@ -183,7 +186,7 @@ public enum AgentChatTabs {
             BrowserStore.shared.modify { st in
                 st.modifyTab(id: tabID) { $0.focusedPaneIdx = idx }
             }
-            AgentChatSession.session(forKey: key).send(text: query)
+            AgentChatSession.session(forKey: key).send(text: query, attachments: attachments)
             return
         }
 
@@ -208,7 +211,10 @@ public enum AgentChatTabs {
             ownPaneID: paneID,
             sourcePaneID: tookOverSource ? nil : sourcePane?.id,
             ownTabIsFocused: true,
-            mode: .chat
+            mode: .chat,
+            attachments: attachments,
+            fileSystemTools: fileSystemTools,
+            workingDirectory: workingDirectory
         )
     }
 
@@ -467,7 +473,7 @@ public final class AgentChatSession: ObservableObject {
     }
 
     /// Spin up a fresh agent for a new "ask" — context capture, create, send.
-    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, mode: Mode) {
+    func begin(query: String, ownPaneID: ID<WebContent>, sourcePaneID: ID<WebContent>?, ownTabIsFocused: Bool, mode: Mode, attachments: [URL] = [], fileSystemTools: Bool = false, workingDirectory: String? = nil) {
         guard !didBegin else { return }
         didBegin = true
         self.mode = mode
@@ -532,6 +538,8 @@ public final class AgentChatSession: ObservableObject {
                 case .ask, .chat: options.harness = AgentHarness.current.createOptionsValue
                 case .scheduledTask, .subagent, .toolbarButton: break
                 }
+                if fileSystemTools { options.fileSystemTools = true }
+                if let workingDirectory { options.workingDirectory = workingDirectory }
                 if case .subagent(let spec) = mode {
                     options.name = spec.name
                     options.model = spec.model
@@ -541,7 +549,8 @@ public final class AgentChatSession: ObservableObject {
                 }
                 let id = try await BrowserAgentManager.shared.create(options: options)
                 self.agentID = id
-                try await BrowserAgentManager.shared.send(id: id, text: query, images: [])
+                let images = attachments.isEmpty ? [] : await Task.detached { Self.loadAttachments(attachments).images }.value
+                try await BrowserAgentManager.shared.send(id: id, text: query, images: images)
                 self.runTurnLoop()
             } catch {
                 self.errorText = error.localizedDescription

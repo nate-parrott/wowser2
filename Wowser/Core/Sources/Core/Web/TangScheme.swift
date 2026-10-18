@@ -30,7 +30,7 @@ public final class TangAppStore: @unchecked Sendable {
         if let dir {
             self.dir = dir
         } else {
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let appSupport = AppPaths.applicationSupport
             let base = appSupport.appendingPathComponent("Wowser", isDirectory: true)
             self.dir = base.appendingPathComponent("Apps", isDirectory: true)
             // One-time migration from the pre-rename folder.

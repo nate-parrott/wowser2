@@ -47,7 +47,7 @@ public extension SpaceImageInfo {
     /// `ingest` creates it on demand before writing.
     static let storageDirectory: URL = {
         let appDir = "WowserDataStores-\(isProd() ? "prod" : "dev")"
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return AppPaths.applicationSupport
             .appendingPathComponent(appDir)
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "Unknown")
             .appendingPathComponent("SpaceBackgrounds")

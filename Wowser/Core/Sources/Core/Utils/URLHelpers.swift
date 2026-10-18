@@ -117,7 +117,11 @@ extension URL {
         }
         comps.host = hostParts.joined(separator: ".")
 
-        comps.queryItems = comps.queryItems?.filter({ !shouldDropQueryItemForHistoryKey($0.name, val: $0.value) })
+        if dropsAllQueryItemsForHistoryKey(host: comps.host ?? "") {
+            comps.queryItems = nil
+        } else {
+            comps.queryItems = comps.queryItems?.filter({ !shouldDropQueryItemForHistoryKey($0.name, val: $0.value) })
+        }
         var str = comps.url?.absoluteString ?? absoluteString
         if str.hasSuffix("/") {
             str.removeLast()
@@ -250,6 +254,13 @@ extension URL {
         let backslashQuery = "%5C" + encodedQuery
         return URL(string: "https://duckduckgo.com/?q=\(backslashQuery)")
     }
+}
+
+/// Editor-style apps that rewrite the query string with view state (selection,
+/// zoom, current page) as you work. The path already identifies the document,
+/// so each rewrite would otherwise count as a fresh visit in History and Memory.
+private func dropsAllQueryItemsForHistoryKey(host: String) -> Bool {
+    host == "figma.com" || host.hasSuffix(".figma.com")
 }
 
 private func shouldDropQueryItemForHistoryKey(_ name: String, val: String?) -> Bool {

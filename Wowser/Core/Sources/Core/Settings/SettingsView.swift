@@ -76,6 +76,7 @@ public struct SettingsView: View {
                     Text("Reopen the setup steps: import, default browser, AI, projects and tips.")
                 }
             }
+            SyncSettingsSection()
             Section("Tabs") {
                 Toggle("All windows share tabs", isOn: $allWindowsShareTabs)
                     .help("Every window lists the space's tabs from all windows. Selecting a tab that's open in another window moves it to this one")

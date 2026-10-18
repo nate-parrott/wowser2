@@ -47,7 +47,7 @@ public struct NetCaptureEntry: Codable, Sendable, Equatable {
 /// the proxy or synthetic fetch records bodies.
 public actor NetworkCaptureStore {
     public static let shared: NetworkCaptureStore = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = AppPaths.applicationSupport
             .appendingPathComponent("Wowser", isDirectory: true)
             .appendingPathComponent("network", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

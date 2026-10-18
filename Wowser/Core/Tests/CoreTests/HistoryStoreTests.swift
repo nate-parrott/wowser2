@@ -95,4 +95,16 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertEqual(model.items.count, 1)
         XCTAssertEqual(model.items[httpURL.historyKey]?.title, "WWW Version")
     }
+
+    func testFigmaViewStateDoesNotChangeHistoryKey() {
+        let a = URL(string: "https://www.figma.com/design/AbC123/PROJECTS?node-id=12-345&t=xyz-0")!
+        let b = URL(string: "https://www.figma.com/design/AbC123/PROJECTS?node-id=0-1&p=f&t=abc-0")!
+        let other = URL(string: "https://www.figma.com/design/ZzZ999/Other")!
+        XCTAssertEqual(a.historyKey, b.historyKey)
+        XCTAssertEqual(a.historyKey, "http://figma.com/design/abc123/projects")
+        XCTAssertNotEqual(a.historyKey, other.historyKey)
+        // Other sites keep their query.
+        XCTAssertNotEqual(URL(string: "https://youtube.com/watch?v=a")!.historyKey,
+                          URL(string: "https://youtube.com/watch?v=b")!.historyKey)
+    }
 }
