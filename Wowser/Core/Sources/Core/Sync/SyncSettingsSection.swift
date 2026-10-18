@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 #if os(macOS)
 import AppKit
 #endif
@@ -71,6 +72,7 @@ struct SyncSettingsSection: View {
 
 private struct SyncFolderRow: View {
     @ObservedObject var controller: SyncController
+    @State private var pickingFolder = false
 
     var body: some View {
         LabeledContent("Folder") {
@@ -82,20 +84,33 @@ private struct SyncFolderRow: View {
                 if !controller.isControlledByEnvironment {
                     #if os(macOS)
                     Button("Choose…") { chooseFolder() }
+                    #else
+                    Button("Choose…") { pickingFolder = true }
                     #endif
+                    #if os(macOS)
                     if !controller.usesDefaultFolder {
                         Button("Use iCloud Drive") { controller.setFolder(nil) }
                     }
+                    #endif
                 }
             }
         }
+        #if os(iOS)
+        .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { controller.setFolder(url) }
+        }
+        #endif
     }
 
     private func displayPath(_ url: URL) -> String {
         if let root = SyncController.iCloudDriveRoot, url.path.hasPrefix(root.path) {
             return "iCloud Drive" + url.path.dropFirst(root.path.count)
         }
+        #if os(macOS)
         return (url.path as NSString).abbreviatingWithTildeInPath
+        #else
+        return url.lastPathComponent
+        #endif
     }
 
     #if os(macOS)

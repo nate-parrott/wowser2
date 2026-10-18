@@ -327,7 +327,6 @@ extension CharacterSet {
         
         results.append(.searchYouTyped(query))
 
-        #if os(macOS)
         // "Ask agent" (instachat) — explicit ">" prefix, question/task
         // heuristics, or the ML classifier saying the query needs an AI
         // answer (which upranks it above the plain search row). Ranked by
@@ -349,8 +348,6 @@ extension CharacterSet {
                 results.append(agentResult)
             }
         }
-        
-        #endif
 
         // Add matching actions
         let model = BrowserStore.shared.model
@@ -582,7 +579,6 @@ extension CharacterSet {
     /// "Ask Agent" row in the final list — at the bottom, unless the
     /// heuristics/classifier already ranked one higher.
     func ensuringAskAgentResult(_ results: [SearchResult], query: String) -> [SearchResult] {
-        #if os(macOS)
         guard let fallbackQuery = Searcher.askAgentFallbackQuery(query) else { return results }
         let hasAgentRow = results.contains(where: {
             if case .askAgent = $0.item.content { return true }
@@ -597,9 +593,6 @@ extension CharacterSet {
             results.append(fallback)
         }
         return results
-        #else
-        return results
-        #endif
     }
 
     private func historyMatches(query: NormalizedSearchableString, limit: Int) async -> [SearchResult] {

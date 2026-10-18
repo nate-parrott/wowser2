@@ -1,16 +1,24 @@
 import Combine
 import SwiftUI
 
+// Phone browser: the page fills the safe area as a rounded card over the
+// space's colored backdrop. A draggable tangerine puck floats over it — tap it
+// for the command bar; drag it up to lift the card and reveal the tray (its
+// height drives the tray directly); drag sideways to park it left, center or
+// right. Puck x and lift are MomentumValues: they track the finger exactly,
+// then spring per-frame with the release velocity, and any new touch
+// interrupts them.
+
 public struct MobileContentView: View {
     public var windowID: ID<WindowState>
-        
+
     public init(windowID: ID<WindowState>) {
         self.windowID = windowID
     }
-    
+
     public var body: some View {
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { MobileContentSnapshot(state: $0, windowID: windowID) }) { snapshot in
-            _MobileContentView(snapshot: snapshot)
+            _MobileContentView(snapshot: snapshot, windowID: windowID)
                 .environment(\.profileID, snapshot.profileID)
         }
         .environment(\.windowID, windowID)
@@ -24,309 +32,357 @@ public struct MobileContentView: View {
     }
 }
 
+private struct MobileContentSnapshot: Equatable {
+    var profileID: ID<Profile> = .defaultProfile
+    var theme: SpaceTheme?
+    var imageInfo: SpaceImageInfo?
+    var searchActive = false
+    var currentPane: ID<WebContent>?
+    var currentTabID: ID<Tab>?
+    var isEmptyPage = true
+    var isAgentPage = false
+
+    init(state: BrowserState, windowID: ID<WindowState>) {
+        guard let window = state.windows[windowID] else { return }
+        profileID = window.profile
+        let profile = state.profiles[window.profile]
+        theme = profile?.theme
+        imageInfo = profile?.imageInfo
+        searchActive = window.searchOverlayActive
+        currentTabID = window.currentTab
+        let pane = state.currentPane(forWindow: windowID)
+        currentPane = pane?.id
+        isEmptyPage = pane?.info.isEmptyPage ?? true
+        isAgentPage = pane?.info.url.flatMap(NativePageKey.init)?.isAgent == true
+    }
+}
+
 private struct _MobileContentView: View {
     var snapshot: MobileContentSnapshot
-    @Environment(\.profileID) private var profileID
-    @Environment(\.windowID) private var windowID
-    @StateObject private var orbUnitX = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
-    @StateObject private var orbUnitY = MomentumValue(initialValue: 0, scale: 300, params: .interactiveGrab)
-    @State private var size = CGSize(width: 100, height: 100)
-    @StateObject private var topSitesFetcher = TopSitesFetcher()
-    @State private var settingsPresented = false
-    
-    var body: some View {
-        ZStack {
-            webContent
+    var windowID: ID<WindowState>
 
-            SearchOrb(xPos: orbUnitX, yPos: orbUnitY)
-                .edgesIgnoringSafeArea(.all)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-            
-            MobileSidebarOverlay(viewSize: size, orbYPos: orbUnitY)
-                .edgesIgnoringSafeArea(.all)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-            
-            searchOverlay
-//            if snapshot.searchActive {
-//                 
-//            }
-        }
-        .background {
-            Color.clear
-                .measureSize({ self.size = $0 })
-                .edgesIgnoringSafeArea(.all)
-        }
-        .background {
-            Group {
-                snapshot.windowBgColor?.color
+    @StateObject private var puckX = MomentumValue(initialValue: 0, scale: 1, params: .mobilePuck)
+    @StateObject private var lift = MomentumValue(initialValue: 0, scale: 1, params: .mobilePuck)
+    @State private var layout = MobileLayout(size: CGSize(width: 390, height: 844), safeArea: EdgeInsets())
+    @State private var settingsPresented = false
+    @StateObject private var keyboard = MobileKeyboardObserver()
+
+    var body: some View {
+        GeometryReader { geo in
+            let layout = MobileLayout(
+                size: CGSize(width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
+                             height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom),
+                safeArea: geo.safeAreaInsets
+            )
+            ZStack(alignment: .topLeading) {
+                MobileSpaceBackdrop(theme: snapshot.theme, imageInfo: snapshot.imageInfo)
+                    .animation(.easeInOut(duration: 0.35), value: snapshot.profileID)
+
+                MobileTrayLayer(windowID: windowID, layout: layout, lift: lift, accent: accent.accent, openSettings: { settingsPresented = true })
+
+                card
+                    .modifier(CardLiftModifier(layout: layout, lift: lift))
+
+                MobileBackToChatPill(windowID: windowID, currentTabID: snapshot.currentTabID, layout: layout, puckX: puckX, lift: lift, hidden: snapshot.searchActive)
+
+                MobilePuck(layout: layout, x: puckX, lift: lift, hidden: snapshot.searchActive || keyboard.height > 0) {
+                    BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = true }
+                }
+
+                MobileCommandBar(windowID: windowID, presented: snapshot.searchActive, layout: layout, accent: accent.accent, onAccent: accent.onAccent)
+
+                if !snapshot.isEmptyPage, !snapshot.isAgentPage {
+                    loader
+                        .padding(.top, layout.safeArea.top + 4)
+                        .padding(.horizontal, 24)
+                }
             }
+            .frame(width: layout.size.width, height: layout.size.height)
             .ignoresSafeArea()
+            .onAppearOrChange(of: layout) { self.layout = $0 }
         }
-        .onAppear {
-            setupOrbPos()
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .environment(\.colorScheme, .dark)
+        .tint(accent.accent)
+        .onAppearOrChange(of: layout) { configureMomentum(for: $0) }
+        #if DEBUG
+        .onAppear(perform: applyDebugLaunchState)
+        #endif
+        .onChange(of: snapshot.currentTabID) { _, tabID in
+            MobileChatReturn.shared.forgetIfLeft(windowID: windowID, currentTabID: tabID)
         }
-        .onReceive(profileDataStoreID, perform: { id in
-            topSitesFetcher.profileDataStoreID = id
-        })
         #if os(iOS)
         .modifier(DeviceShakeViewModifier(action: { settingsPresented = true }))
         #endif
         .sheet(isPresented: $settingsPresented) {
             SettingsView()
+                .environment(\.colorScheme, .dark)
         }
     }
-    
-    var profileDataStoreID: AnyPublisher<UUID?, Never> {
-        guard let profileID else {
-            return Just(nil).eraseToAnyPublisher()
-        }
-        return BrowserStore.shared.uiPublisher.map { state in
-            state.profiles[profileID]?.dataStoreUUID ?? nil
-        }
-        .removeDuplicates()
-        .eraseToAnyPublisher()
+
+    private var accent: SpaceAccent {
+        SpaceAccent.forSpace(theme: snapshot.theme, imageInfo: snapshot.imageInfo) ?? .system
     }
-    
-    @ViewBuilder private var searchOverlay: some View {
-        GeometryReader { geo in
-            ManualTransitionView(models: snapshot.searchActive ? [ID<String>(raw: "x")] : []) { (model, phase) in
-                MobileSearchOverlay(topSites: topSitesFetcher.topSites, transitionOut: phase != .inserted)
-                    .animation(.spring(duration: 0.25, bounce: 0.15, blendDuration: 0.1), value: phase)
+
+    // MARK: - Card
+
+    @ViewBuilder private var card: some View {
+        let shape = RoundedRectangle(cornerRadius: MobileLayout.cardCornerRadius, style: .continuous)
+        Group {
+            if let paneID = snapshot.currentPane,
+               let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
+                #if os(iOS)
+                DragToGoBackView(webContent: webContent) {
+                    WrappedWebView(webContent: webContent, shrunk: snapshot.isEmptyPage)
+                }
+                #endif
+            } else {
+                Color.white.opacity(0.05)
             }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // somehow both are necessary to prevent keyboard from pushing the UI up
-            // honestly i have no idea how this safe area shit works...
-                .edgesIgnoringSafeArea(.all)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-    }
-    
-    @ViewBuilder private var webContent: some View {
-        if let paneID = snapshot.currentPane, let windowID, let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
-            #if os(iOS)
-            DragToGoBackView(webContent: webContent) {
-                WrappedWebView(webContent: webContent, shrunk: snapshot.isEmptyPage)
-                    .edgesIgnoringSafeArea(.bottom)
+        .environment(\.colorScheme, snapshot.isAgentPage ? .dark : systemColorScheme)
+        .background {
+            if snapshot.isAgentPage {
+                shape.fill(Color.white.opacity(0.05))
             }
-            .edgesIgnoringSafeArea(.all)
-            .overlay(alignment: .top) {
-                loader.padding(6)
-            }
-            #else
-            EmptyView()
-            #endif
-        } else {
-            Color.clear
         }
+        .clipShape(shape)
+        .overlay { shape.strokeBorder(Color.white.opacity(snapshot.isAgentPage ? 0.14 : 0.08), lineWidth: 0.5) }
+        .shadow(color: .black.opacity(snapshot.isAgentPage ? 0 : 0.3), radius: 16, y: 12)
+        .frame(width: layout.cardRect.width, height: cardHeight)
+        .frame(height: layout.cardRect.height, alignment: .top)
+        .offset(x: layout.cardRect.minX, y: layout.cardRect.minY)
+        .animation(.spring(response: 0.3, dampingFraction: 0.92), value: cardHeight)
     }
-        
+
+    /// Chats keep their input above the keyboard; web pages handle it themselves.
+    private var cardHeight: CGFloat {
+        guard snapshot.isAgentPage, !snapshot.searchActive, keyboard.height > 0 else { return layout.cardRect.height }
+        return layout.cardRect.height - max(0, keyboard.height - layout.safeArea.bottom) - 8
+    }
+
+    /// Pages keep the user's own appearance; only our chrome is forced dark.
+    @Environment(\.colorScheme) private var systemColorScheme
+
     @ViewBuilder private var loader: some View {
-        if let webContentId = snapshot.currentPane, !snapshot.isEmptyPage {
+        if let webContentId = snapshot.currentPane {
             WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.loadingProgress(webContentId: webContentId) }) { prog in
                 LoadingIndicator(progress: prog == 1 ? nil : prog)
             }
         }
     }
-    
-    func setupOrbPos() {
-        orbUnitX.minimum = 0
-        orbUnitY.minimum = 0
-        orbUnitX.maximum = 1
-        orbUnitY.maximum = 1
-        orbUnitX.value = 1
-        orbUnitY.value = 1
+
+    #if DEBUG
+    /// Screenshot hooks (simctl can't tap): `WOWSER_MOBILE_URL=<url>` opens a
+    /// page, `WOWSER_MOBILE_ASK=<query>` opens a chat, `WOWSER_MOBILE_TRAY=open`
+    /// starts with the tray up, `WOWSER_MOBILE_CMD=<query>` opens the command
+    /// bar with a query typed.
+    private func applyDebugLaunchState() {
+        // After the app's launch-time "open the command bar" scene-phase hook.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: _applyDebugLaunchState)
+    }
+
+    private func _applyDebugLaunchState() {
+        let env = ProcessInfo.processInfo.environment
+        if let url = env["WOWSER_MOBILE_URL"].flatMap(URL.init(string:)) {
+            BrowserStore.shared.modify { state in
+                state.openTab(url: url, activate: true, windowID: windowID)
+                state.windows[windowID]?.searchOverlayActive = false
+            }
+        }
+        if let ask = env["WOWSER_MOBILE_ASK"] {
+            AgentChatTabs.openChatTab(query: ask, windowID: windowID)
+            BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = false }
+        }
+        if env["WOWSER_MOBILE_TRAY"] == "open" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                lift.animate(toValue: layout.puckTravel, velocity: 0)
+            }
+        }
+        if env["WOWSER_MOBILE_CMD"] != nil {
+            BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = true }
+        }
+    }
+    #endif
+
+    private func configureMomentum(for layout: MobileLayout) {
+        let wasOpen = lift.value > self.layout.puckTravel / 2
+        puckX.minimum = layout.puckSnapXs.first
+        puckX.maximum = layout.puckSnapXs.last
+        lift.minimum = 0
+        lift.maximum = layout.puckTravel
+        if puckX.value == 0 || !layout.puckSnapXs.contains(puckX.value) && !puckX.animating {
+            puckX.value = layout.puckSnapXs.last ?? 0
+        }
+        if !lift.animating {
+            lift.value = wasOpen ? layout.puckTravel : 0
+        }
     }
 }
 
-private struct MobileSidebarOverlay: View {
-    var viewSize: CGSize
-    @ObservedObject var orbYPos: MomentumValue // controls presentation of sidebar
-    
-    @Environment(\.windowID) private var windowID
-    @Environment(\.profileID) private var profileID
-    
+/// Lifts the card with the tray. A ViewModifier so per-frame lift changes
+/// don't re-evaluate the web view.
+private struct CardLiftModifier: ViewModifier {
+    var layout: MobileLayout
+    @ObservedObject var lift: MomentumValue
+
+    func body(content: Content) -> some View {
+        let progress = lift.rubberBandedValue / max(1, layout.puckTravel)
+        content
+            .offset(y: -progress * layout.cardTravel)
+            .overlay {
+                // While the tray is up, tapping the peeking page closes it.
+                if lift.value > 1 {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(width: layout.cardRect.width, height: layout.cardRect.height)
+                        .offset(x: layout.cardRect.minX, y: layout.cardRect.minY - progress * layout.cardTravel)
+                        .onTapGesture { lift.animate(toValue: 0, velocity: 0) }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            }
+    }
+}
+
+// MARK: - Tray layer
+
+private struct MobileTrayLayer: View {
+    var windowID: ID<WindowState>
+    var layout: MobileLayout
+    @ObservedObject var lift: MomentumValue
+    var accent: Color
+    var openSettings: () -> Void
+
+    @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
+
     var body: some View {
-        // sidebar dismisser
-        Color.black.opacity(remapClamped(x: orbYPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 0, rangeEnd: 0.5))
-            .onTapGesture {
-                orbYPos.animate(toValue: 1, velocity: 0)
-            }
-            .edgesIgnoringSafeArea(.all)
-        
-        Group {
-            #if os(iOS)
-            OverscrollCatcher(options: .init(vertical: true, horizontal: false), stateDidChange: stateDidChange, didReleaseDrag: didReleaseDrag(_:)) { state in
-                MobileDrawer()
-                    .environment(\.windowID, windowID)
-                    .environment(\.profileID, profileID)
-//                    .overlay {
-//                        if case .overscrolled(let values) = state, values.isDragging {
-//                            Color.clear.onChange(of: values.realOffset.y) { yOffset in
-//                                print("[d] Value changed")
-//                                orbYPos.value = values.realOffset.y / offsetRange
-//                            }
-//                        }
-//                    }
-            }
-            #else
-            EmptyView()
-            #endif
+        let progress = lift.rubberBandedValue / max(1, layout.puckTravel)
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.mobileTraySnapshot(windowID: windowID, shareTabsAcrossWindows: allWindowsShareTabs) }) { snapshot in
+            MobileTray(snapshot: snapshot, accent: accent, didPick: { lift.animate(toValue: 0, velocity: 0) }, openSettings: openSettings)
         }
-        .withMobileDrawerContainer()
-        .offset(y: orbYPos.rubberBandedValue * viewSize.height)
-//        .offset(y: remap(x: orbYPos.rubberBandedValue, domainStart: 0, domainEnd: 1, rangeStart: 70, rangeEnd: viewSize.height + 50))
-        .padding(.top, 120)
-    }
-    
-    private var offsetRange: CGFloat {
-        viewSize.height
-    }
-    
-    func stateDidChange(_ state: OverscrollState) {
-        if case .overscrolled(let values) = state, values.isDragging {
-            orbYPos.value = values.realOffset.y / offsetRange
-        }
-    }
-    
-    func didReleaseDrag(_ state: OverscrollState) {
-        if case .overscrolled(let values) = state {
-            let dismissRatio = values.realOffset.y / offsetRange
-            if abs(orbYPos.velocity) > 1 {
-                orbYPos.animate(toValue: orbYPos.velocity < 0 ? 0 : 1, velocity: orbYPos.velocity)
-            } else {
-                orbYPos.animate(toValue: dismissRatio > 0.5 ? 1 : 0, velocity: orbYPos.velocity)
-            }
-        }
+        .frame(width: layout.size.width, height: layout.trayHeight)
+        .offset(y: layout.trayTop + (1 - progress) * 600)
+        .opacity(min(1, max(0, progress * 1.6)))
+        .allowsHitTesting(lift.value > layout.puckTravel / 2)
     }
 }
 
-private struct MobileContentSnapshot: Equatable {
-    var searchActive = false
-    var currentPane: ID<WebContent>?
-    var isEmptyPage: Bool = true
-    var profileID: ID<Profile>
-    var windowBgColor: HSBA?
-//    var windowSnapshot: WindowSnapshot
-    
-    init(state: BrowserState, windowID: ID<WindowState>) {
-        guard let window = state.windows[windowID] else {
-            self.profileID = .defaultProfile
+// MARK: - Puck
+
+private struct MobilePuck: View {
+    var layout: MobileLayout
+    @ObservedObject var x: MomentumValue
+    @ObservedObject var lift: MomentumValue
+    var hidden: Bool
+    var onTap: () -> Void
+
+    @State private var dragStart: (x: Double, lift: Double)?
+    @State private var dragIsTap = false
+
+    var body: some View {
+        DraggableFruit(dragVector: dragVector, distFromFloor: lift.rubberBandedValue, grabbed: dragStart != nil)
+            .frame(width: MobileLayout.puckSize, height: MobileLayout.puckSize)
+            .contentShape(Circle().inset(by: 10))
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged(dragged)
+                    .onEnded(ended)
+            )
+            .position(x: x.rubberBandedValue, y: layout.puckRestY - lift.rubberBandedValue)
+            .opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .animation(.spring(response: 0.26, dampingFraction: 0.9), value: hidden)
+            .accessibilityElement()
+            .accessibilityLabel("New tab")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onTap() }
+    }
+
+    /// Velocity in screens per second, ×1.3, clamped — what DraggableFruit
+    /// tilts and swings its leaves by.
+    private var dragVector: CGPoint {
+        CGPoint(
+            x: (x.velocity / max(1, layout.size.width) * 1.3).clamp(minVal: -1, maxVal: 1),
+            y: (-lift.velocity / max(1, layout.puckTravel) * 1.3).clamp(minVal: -1, maxVal: 1)
+        )
+    }
+
+    private func dragged(_ value: DragGesture.Value) {
+        if dragStart == nil {
+            // Setting `.value` stops any running spring: the touch takes over.
+            dragStart = (x.value, lift.value)
+            dragIsTap = true
+        }
+        guard let start = dragStart else { return }
+        if hypot(value.translation.width, value.translation.height) > 10 {
+            dragIsTap = false
+        }
+        x.value = start.x + Double(value.translation.width)
+        lift.value = start.lift - Double(value.translation.height)
+    }
+
+    private func ended(_ value: DragGesture.Value) {
+        dragStart = nil
+        // Spring from where the puck is drawn, not from the raw (un-rubber-
+        // banded) finger position past the ends.
+        if x.rubberBandedValue != x.value { x.value = x.rubberBandedValue }
+        if lift.rubberBandedValue != lift.value { lift.value = lift.rubberBandedValue }
+        let v = value.velocity
+        let projectedX = CGFloat(x.value) + v.width * 0.12
+        let snapX = layout.puckSnapXs.min(by: { abs($0 - projectedX) < abs($1 - projectedX) }) ?? CGFloat(x.value)
+        x.animate(toValue: snapX, velocity: dragIsTap ? 0 : v.width)
+        if dragIsTap {
+            lift.animate(toValue: lift.value > layout.puckTravel / 2 ? layout.puckTravel : 0, velocity: 0)
+            onTap()
             return
         }
-        self.profileID = window.profile
-        let paneData = state.currentPane(forWindow: windowID)
-        self.currentPane = paneData?.id
-        searchActive = window.searchOverlayActive
-        self.isEmptyPage = paneData?.info.isEmptyPage ?? false
-        self.windowBgColor = paneData?.info.underPageBackgroundColor
+        let projectedLift = CGFloat(lift.value) - v.height * 0.15
+        lift.animate(toValue: projectedLift > layout.puckTravel / 2 ? layout.puckTravel : 0, velocity: -v.height)
     }
 }
 
-struct SearchOrb: View {
-    @ObservedObject var xPos: MomentumValue
-    @ObservedObject var yPos: MomentumValue
-    @Environment(\.windowID) private var windowID
-    
-    var orbSize: CGFloat = 100
-    @State private var size = CGSize(width: 100, height: 100)
-    @State private var unitPosAtStartOfDrag: UnitPoint?
-    @State private var dragCanBeTap = false
-    
-    var body: some View {
-        let dragging = unitPosAtStartOfDrag != nil
-        Color.clear.overlay {
-//            SearchOrbInner(dragInProgress: unitPosAtStartOfDrag != nil)
-            DraggableFruit(dragVector: dragVector, distFromFloor: (1 - yPos.rubberBandedValue) * size.height, grabbed: dragging)
-                .frame(both: orbSize)
-                .opacity(remapClamped(x: yPos.rubberBandedValue, domainStart: 0.5, domainEnd: 0, rangeStart: 1, rangeEnd: 0)) // fade out as it gets super high
-                .gesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onChanged(dragged(_:))
-                    .onEnded(endedGesture(_:))
-                )
-                .position(unitToRealPosition(posRubberBanded))
-        }
-        .measureSize({ self.size = $0 })
-    }
-    
-    var dragVector: CGPoint {
-        CGPoint(
-            x: (xPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1),
-            y: (yPos.velocity * 1.3).clamp(minVal: -1, maxVal: 1)
-        )
-    }
-    
-    var pos: UnitPoint {
-        UnitPoint(x: xPos.value, y: yPos.value)
-    }
-    
-    var posRubberBanded: UnitPoint {
-        UnitPoint(x: xPos.rubberBandedValue, y: yPos.rubberBandedValue)
-    }
-    
-    func dragged(_ val: DragGesture.Value) {
-        if unitPosAtStartOfDrag == nil {
-            unitPosAtStartOfDrag = pos
-            dragCanBeTap = true
-        }
-        let dist = sqrt(pow(val.translation.width, 2) + pow(val.translation.height, 2))
-        if dist > 10 {
-            dragCanBeTap = false
-        }
-        
-        let realStartPos = unitToRealPosition(unitPosAtStartOfDrag ?? pos)
-        let newPos = realPositionToUnit(CGPoint(x: realStartPos.x + val.translation.width, y: realStartPos.y + val.translation.height))
-        xPos.value = newPos.x
-        yPos.value = newPos.y
-    }
-    
-    func endedGesture(_ val: DragGesture.Value) {
-        if dragCanBeTap, let windowID {
-            // show search
-            BrowserStore.shared.modify { state in
-                state.windows[windowID]?.searchOverlayActive = true
-            }
-        }
-        
-        let velocity = CGPoint(x: val.velocity.width / max(1, dragBounds.width), y: val.velocity.height / max(1, dragBounds.height))
-        let stopPosX = xPos.expectedLandingPosition(velocity: velocity.x).roundToNearest([0, 0.5, 1])
-        let stopPosY = yPos.expectedLandingPosition(velocity: velocity.y).roundToNearest([0, 1])
-//        xPos.decelerate(velocity: velocity.x, completion: nil)
-//        yPos.decelerate(velocity: velocity.y, completion: nil)
-        xPos.animate(toValue: stopPosX, velocity: velocity.x)
-        yPos.animate(toValue: stopPosY, velocity: velocity.y)
-        
-        unitPosAtStartOfDrag = nil
-    }
-    
-    func realPositionToUnit(_ pos: CGPoint) -> UnitPoint {
-        UnitPoint(
-            x: (pos.x - dragBounds.minX) / max(1, dragBounds.width),
-            y: (pos.y - dragBounds.minY) / max(1, dragBounds.height)
-        )
-    }
-    
-    func unitToRealPosition(_ pos: UnitPoint) -> CGPoint {
-        CGPoint(x: pos.x * dragBounds.width + dragBounds.minX, y: pos.y * dragBounds.height + dragBounds.minY)
-    }
-    
-    var dragBounds: CGRect {
-        CGRect(x: 0, y: 0, width: size.width, height: size.height)
-            .insetBy(dx: orbSize / 2 + 20, dy: orbSize / 2 + 20)
-    }
-}
+// MARK: - Back to chat
 
-private struct SearchOrbInner: View {
-    var dragInProgress = false
-    
+private struct MobileBackToChatPill: View {
+    var windowID: ID<WindowState>
+    var currentTabID: ID<Tab>?
+    var layout: MobileLayout
+    @ObservedObject var puckX: MomentumValue
+    @ObservedObject var lift: MomentumValue
+    var hidden: Bool
+    @ObservedObject private var chatReturn = MobileChatReturn.shared
+
+    private static let size = CGSize(width: 124, height: 36)
+
     var body: some View {
-        Circle().fill(.thinMaterial)
-            .overlay {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16))
-                    .opacity(0.5)
+        let visible = !hidden && lift.value < 1 && chatReturn.entry(windowID: windowID, currentTabID: currentTabID) != nil
+        Button { chatReturn.returnToChat(windowID: windowID) } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 12, weight: .bold))
+                Text("Back to chat")
+                    .font(.system(size: 14, weight: .semibold))
             }
-            .scaleEffect(dragInProgress ? 1.1 : 1)
-            .opacity(dragInProgress ? 0.8 : 1)
+            .padding(.leading, 10)
+            .padding(.trailing, 14)
+            .frame(height: Self.size.height)
+            .glassEffect(.regular, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .position(target)
+        // Trails the puck on a looser, critically damped spring.
+        .animation(.spring(response: 0.45, dampingFraction: 1), value: target)
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
+        .animation(.spring(response: 0.26, dampingFraction: 0.9), value: visible)
+    }
+
+    /// Beside the puck, on its inner side, vertically centered on it.
+    private var target: CGPoint {
+        let px = puckX.rubberBandedValue
+        let py = layout.puckRestY - lift.rubberBandedValue
+        let gap: CGFloat = 30 + 12 + Self.size.width / 2
+        return CGPoint(x: px > layout.size.width / 2 + 1 ? px - gap : px + gap, y: py)
     }
 }

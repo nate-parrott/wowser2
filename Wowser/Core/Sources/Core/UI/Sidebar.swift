@@ -76,7 +76,7 @@ private struct SidebarFramePublisher: ViewModifier {
 struct TabGroup: Equatable, Identifiable {
     var id: String
     var name: String?
-    var tabIDs: [ID<Tab>]
+    var tabIDs: [Core.ID<Tab>]
 }
 
 // Define a minimal snapshot struct for sidebar data

@@ -78,6 +78,42 @@ public enum AgentChatTabs {
         )
     }
 
+    /// Phone command bar "Ask Wowie": open a full, focused chat tab for
+    /// `query` (taking over the current tab if it's an empty page).
+    public static func openChatTab(query: String, windowID: ID<WindowState>) {
+        installToolsIfNeeded()
+        let key = keyPrefix + String(UUID().uuidString.lowercased().prefix(8))
+        let url = NativePageKey.agent(key: key, query: query).url
+        let currentPane = BrowserStore.shared.model.currentPane(forWindow: windowID)
+        var paneID: ID<WebContent>?
+        BrowserStore.shared.modify { st in
+            if let currentPane, currentPane.info.isEmptyPage {
+                paneID = currentPane.id
+                st.modifyPaneAndTab(forWebContentId: currentPane.id) { pane, _ in
+                    var info = WebContent.Info(url: url)
+                    info.agentIsWorking = true
+                    pane.info = info
+                }
+            } else {
+                let tab = st.openTab(url: url, activate: true, windowID: windowID)
+                paneID = tab.panes.first?.id
+                if let paneID { st.modifyPaneAndTab(forWebContentId: paneID) { pane, _ in pane.info.agentIsWorking = true } }
+            }
+        }
+        guard let paneID else { return }
+        if let wc = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: windowID) {
+            if wc.info.url != url { wc.load(url: url) }
+            wc.info.agentIsWorking = true
+        }
+        AgentChatSession.session(forKey: key).begin(
+            query: query,
+            ownPaneID: paneID,
+            sourcePaneID: nil,
+            ownTabIsFocused: true,
+            mode: .chat
+        )
+    }
+
     /// Runs a scheduled task in a real (non-activated) background tab of
     /// `windowID`. The tab stays open after the run so the user can inspect
     /// it; the scheduler closes it when the task next runs. Returns the

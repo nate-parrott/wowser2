@@ -63,8 +63,16 @@ private struct AgentChatContent: View {
         VStack(spacing: 0) {
             transcript
             inputBar
+                #if os(iOS)
+                // Room for the floating puck, which rests at the trailing edge.
+                .padding(.trailing, 72)
+                .padding(.bottom, 8)
+                #endif
         }
+        .environment(\.chatHostPaneID, paneID)
+        #if os(macOS)
         .background(Color("Background", bundle: .module))
+        #endif
         .onAppear {
             session.attachIfNeeded(ownPaneID: paneID)
             lastJumpedToIndex = latestJumpTarget
@@ -72,11 +80,14 @@ private struct AgentChatContent: View {
         }
         .onChange(of: inputText) { _, text in updateRenderData { $0.inputText = text } }
         .onChange(of: attachments) { _, files in updateRenderData { $0.attachments = files } }
+        #if os(macOS)
+        // On the phone the keyboard would cover the reply; the user taps the field.
         .onReceiveFocusSnap(windowID: windowID) { snap in
             if snap.target == .agentChat(paneID) {
                 inputFocused = true
             }
         }
+        #endif
     }
 
     // MARK: - Render data

@@ -2,6 +2,8 @@ import Foundation
 import Combine
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 /// App-level owner of sync: reads the settings, builds the engine with the
@@ -22,6 +24,8 @@ public final class SyncController: ObservableObject {
     private var engine: SyncEngine?
     private var statusSub: AnyCancellable?
     private var terminateObserver: Any?
+    /// iOS: the picked folder, while we hold its security scope.
+    private var scopedFolder: URL?
     private lazy var browserSnapshot = StoreSnapshot(BrowserStore.shared)
 
     private static let env = ProcessInfo.processInfo.environment
@@ -57,13 +61,40 @@ public final class SyncController: ObservableObject {
 
     public var folder: URL? {
         if let env = Self.environmentFolder { return env }
+        #if os(iOS)
+        // A sandboxed app can't reach iCloud Drive by path: the user picks the
+        // folder once and we keep a bookmark to it.
+        return Self.bookmarkedFolder
+        #else
         let custom = DefaultsKeys.syncFolderPath.stringValue()
         return custom.isEmpty ? Self.defaultFolder : URL(fileURLWithPath: custom, isDirectory: true)
+        #endif
     }
 
     public var usesDefaultFolder: Bool {
-        !isControlledByEnvironment && DefaultsKeys.syncFolderPath.stringValue().isEmpty
+        #if os(iOS)
+        return false
+        #else
+        return !isControlledByEnvironment && DefaultsKeys.syncFolderPath.stringValue().isEmpty
+        #endif
     }
+
+    #if os(iOS)
+    private static var bookmarkedFolder: URL? {
+        guard let data = Data(base64Encoded: DefaultsKeys.syncFolderBookmark.stringValue()) else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale) else { return nil }
+        if stale { saveBookmark(for: url) }
+        return url
+    }
+
+    private static func saveBookmark(for url: URL) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let data = try? url.bookmarkData()
+        DefaultsKeys.syncFolderBookmark.setString(data?.base64EncodedString() ?? "")
+    }
+    #endif
 
     static var deviceName: String {
         if let name = env["WOWSER_SYNC_DEVICE_NAME"], !name.isEmpty { return name }
@@ -103,7 +134,11 @@ public final class SyncController: ObservableObject {
 
     /// nil = back to the default iCloud Drive folder.
     public func setFolder(_ url: URL?) {
+        #if os(iOS)
+        if let url { Self.saveBookmark(for: url) } else { DefaultsKeys.syncFolderBookmark.setString("") }
+        #else
         DefaultsKeys.syncFolderPath.setString(url?.path ?? "")
+        #endif
         if isRunning || isEnabled { stop(); start() }
     }
 
@@ -128,13 +163,23 @@ public final class SyncController: ObservableObject {
     private func start() {
         guard engine == nil else { return }
         guard let folder else {
+            #if os(iOS)
+            problem = "Choose the sync folder your Mac uses (\"Wowser Sync\" in iCloud Drive)."
+            #else
             problem = "iCloud Drive isn't available. Turn it on in System Settings, or choose a folder."
+            #endif
             return
         }
+        #if os(iOS)
+        // Held for the engine's lifetime: the transport reads and writes the
+        // folder on every poll.
+        if folder.startAccessingSecurityScopedResource() { scopedFolder = folder }
+        #endif
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {
             problem = "Can't use \(folder.path): \(error.localizedDescription)"
+            releaseScopedFolder()
             return
         }
         problem = nil
@@ -170,6 +215,11 @@ public final class SyncController: ObservableObject {
         terminateObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { [weak engine] _ in
             engine?.flush()
         }
+        #else
+        // iOS apps are usually killed in the background, never terminated.
+        terminateObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { [weak engine] _ in
+            engine?.flush()
+        }
         #endif
         if !Self.startedThisLaunch, !DefaultsKeys.preserveWindowsAcrossRestarts.boolValue() {
             // Windows (and the tab lists in them) were thrown away at launch.
@@ -193,5 +243,11 @@ public final class SyncController: ObservableObject {
         BrowserSyncSource.isActive = false
         isRunning = false
         status = SyncStatus()
+        releaseScopedFolder()
+    }
+
+    private func releaseScopedFolder() {
+        scopedFolder?.stopAccessingSecurityScopedResource()
+        scopedFolder = nil
     }
 }

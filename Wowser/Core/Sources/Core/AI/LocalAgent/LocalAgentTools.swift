@@ -27,7 +27,7 @@ struct NavigateTool: FoundationModels.Tool {
             do {
                 if let pane = await LocalAgentContext.targetPaneID(key: key) {
                     try await host.tabsNavigate(id: pane.raw, url: url.absoluteString)
-                } else {
+                } else if await !LocalAgentContext.openTabFromChat(key: key, url: url) {
                     _ = try await host.tabsOpen(url: url.absoluteString, background: false, windowId: nil)
                 }
                 output = "Opened \(url.absoluteString)"
@@ -214,6 +214,26 @@ enum LocalAgentContext {
             return current
         }
         return nil
+    }
+
+    /// Phone: open `url` in a new tab of the chat's window and offer the
+    /// "Back to chat" pill. False if the chat's pane can't be found (or on Mac,
+    /// where the chat sits in a split and the generic open is right).
+    static func openTabFromChat(key: String, url: URL) -> Bool {
+        #if os(iOS)
+        let state = BrowserStore.shared.model
+        guard let own = state.agentChatPane(forKey: key), let window = state.windowContaining(webContentId: own) else { return false }
+        var tabID: ID<Tab>?
+        BrowserStore.shared.modify { st in
+            tabID = st.openTab(url: url, activate: true, windowID: window.id).id
+        }
+        if let tabID {
+            MobileChatReturn.shared.noteOpenedFromChat(chatPaneID: own, openedTabID: tabID, windowID: window.id)
+        }
+        return true
+        #else
+        return false
+        #endif
     }
 
     private static func isWebPage(_ pane: Pane) -> Bool {

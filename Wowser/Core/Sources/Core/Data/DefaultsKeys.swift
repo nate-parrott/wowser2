@@ -76,6 +76,7 @@ public enum DefaultsKeys: String {
     case hasCompletedOnboarding // bool — set when the user finishes or skips the first-run onboarding (welcome tab); until then it opens at launch. See BrowserState+Onboarding.swift
     case syncEnabled // bool (default off) — sync spaces, tabs, top history and autofill (not passwords) through a shared folder; see sync.md / SyncController
     case syncFolderPath // string — sync folder; empty = the default iCloud Drive folder ("Wowser Sync")
+    case syncFolderBookmark // string — iOS: base64 bookmark of the user-picked sync folder (sandboxed apps can't keep a path); see SyncController
     case installedSafariVersion // string — CFBundleShortVersionString of the system Safari, cached so the user agent can claim it without disk I/O; see SafariVersion
 }
 

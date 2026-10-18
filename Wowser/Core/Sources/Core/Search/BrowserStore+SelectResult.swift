@@ -64,6 +64,10 @@ extension BrowserStore {
             Task { @MainActor in
                 AgentChatTabs.ask(query: query, windowID: windowID)
             }
+            #else
+            Task { @MainActor in
+                AgentChatTabs.openChatTab(query: query, windowID: windowID)
+            }
             #endif
         }
     }

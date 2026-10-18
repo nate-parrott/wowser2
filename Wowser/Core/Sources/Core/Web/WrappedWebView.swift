@@ -36,6 +36,10 @@ public struct WrappedWebView: View {
                 webContent.silenced = reader
             })
             .id(webContent)
+            #if os(iOS)
+            // The phone shows agent chats on the space backdrop, not over a blank page.
+            .opacity(nativePageKey?.isAgent == true ? 0 : 1)
+            #endif
             .overlay(alignment: .topTrailing) {
                 findInPageContent
             }

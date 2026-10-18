@@ -396,6 +396,7 @@ struct ChatTabCard: View {
     var note: String?
     var windowID: ID<WindowState>?
     var hideIfClosed = false
+    @Environment(\.chatHostPaneID) private var chatHostPaneID
 
     var body: some View {
         if let tabID, let windowID {
@@ -407,6 +408,13 @@ struct ChatTabCard: View {
                     card {
                         RegularTabRow(tabID: tabID, isSelected: isSelected, windowID: windowID)
                             .overlay { if !isSelected { unselectedBorder } }
+                            #if os(iOS)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                if let chatHostPaneID {
+                                    MobileChatReturn.shared.noteOpenedFromChat(chatPaneID: chatHostPaneID, openedTabID: tabID, windowID: windowID)
+                                }
+                            })
+                            #endif
                     }
                 } else if !hideIfClosed {
                     card { ClosedTabStub(url: url, title: title, windowID: windowID).overlay { unselectedBorder } }
