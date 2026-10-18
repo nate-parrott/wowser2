@@ -4,6 +4,12 @@ extension EnvironmentValues {
     /// The agent chat pane a view is rendered inside (set by AgentChatOverlay),
     /// so a tab card tapped in the transcript knows which chat to return to.
     @Entry var chatHostPaneID: ID<WebContent>?
+    /// Where the phone's puck is parked, so the chat input can leave room for it.
+    @Entry var mobilePuckSide: MobilePuckSide = .trailing
+}
+
+enum MobilePuckSide: Equatable {
+    case leading, center, trailing
 }
 
 /// Phone "Back to chat" pill: when a tab is opened from a chat's tab card, the

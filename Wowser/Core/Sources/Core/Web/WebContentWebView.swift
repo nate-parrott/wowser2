@@ -83,7 +83,18 @@ public class WebContentWebView: WKWebView {
     public override var canBecomeFirstResponder: Bool {
         return true
     }
-    
+
+    /// The phone's page card already sits inside the safe area. Left to
+    /// itself WebKit re-insets the page (scroll insets and CSS
+    /// `env(safe-area-inset-*)`) every frame the card slides under the
+    /// status bar, which janks the lift animation.
+    public override var safeAreaInsets: UIEdgeInsets { .zero }
+
+    public override func didMoveToWindow() {
+        super.didMoveToWindow()
+        scrollView.contentInsetAdjustmentBehavior = .never
+    }
+
     public override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
         if result {

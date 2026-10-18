@@ -64,12 +64,13 @@ public enum ToolbarTrailingItem: String, CaseIterable, Codable {
 
 /// Tabs in the Settings window that can be targeted from elsewhere in the app.
 public enum SettingsTab: String, Hashable, CaseIterable, Codable {
-    case general, profiles, autofill, ai, tasks, memory, mcp, experimental, credits
+    case general, profiles, sync, autofill, ai, tasks, memory, mcp, experimental, credits
 
     public var title: String {
         switch self {
         case .general: return "General"
         case .profiles: return "Profiles"
+        case .sync: return "Sync"
         case .autofill: return "Autofill"
         case .ai: return "AI"
         case .tasks: return "Tasks"
@@ -85,6 +86,7 @@ public enum SettingsTab: String, Hashable, CaseIterable, Codable {
         switch self {
         case .general: return "gearshape"
         case .profiles: return "person.2"
+        case .sync: return "arrow.triangle.2.circlepath"
         case .autofill: return "person.text.rectangle"
         case .ai: return "sparkles"
         case .tasks: return "checklist"

@@ -47,6 +47,7 @@ private struct AgentChatContent: View {
     @State private var attachments: [URL]
     @State private var dictating = false
     @FocusState private var inputFocused: Bool
+    @Environment(\.mobilePuckSide) private var puckSide
 
     init(session: AgentChatSession, flavor: AgentFruitFlavor, paneID: ID<WebContent>, windowID: ID<WindowState>?) {
         _session = ObservedObject(wrappedValue: session)
@@ -64,9 +65,7 @@ private struct AgentChatContent: View {
             transcript
             inputBar
                 #if os(iOS)
-                // Room for the floating puck, which rests at the trailing edge.
-                .padding(.trailing, 72)
-                .padding(.bottom, 8)
+                .padding(puckClearance)
                 #endif
         }
         .environment(\.chatHostPaneID, paneID)
@@ -88,6 +87,16 @@ private struct AgentChatContent: View {
             }
         }
         #endif
+    }
+
+    /// Room for the phone's floating puck beside the input (or above it when
+    /// the puck is parked in the middle).
+    private var puckClearance: EdgeInsets {
+        switch puckSide {
+        case .leading: EdgeInsets(top: 0, leading: 72, bottom: 8, trailing: 0)
+        case .center: EdgeInsets(top: 0, leading: 0, bottom: 92, trailing: 0)
+        case .trailing: EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 72)
+        }
     }
 
     // MARK: - Render data

@@ -171,7 +171,7 @@ struct MobileTray: View {
                         .fill(selected ? accent : Color.white.opacity(0.4))
                         .frame(width: 7, height: 7)
                         .frame(width: 34, height: 34)
-                        .glassEffect(selected ? .regular : .identity, in: Circle())
+                        .mobileGlass(.capsule, enabled: selected)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -269,7 +269,7 @@ private struct MobileTrayToolbar: View {
         }
         .padding(.horizontal, 2)
         .frame(height: 46)
-        .glassEffect(.regular, in: Capsule())
+        .mobileGlass(.capsule)
     }
 
     private var webContent: WebContent? {
@@ -358,16 +358,6 @@ private struct MobileSpacePage: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.72))
                 .lineLimit(1)
-            Spacer(minLength: 8)
-            Button(action: openSettings) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.7))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
             Menu {
                 Button("Rename Space", systemImage: "pencil") {
                     newName = snapshot.name
@@ -379,12 +369,22 @@ private struct MobileSpacePage: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Space options")
+            Spacer(minLength: 8)
+            Button(action: openSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Space options")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
         .padding(.leading, 20)
         .padding(.trailing, 6)
@@ -444,7 +444,7 @@ private struct MobileFavoritesGrid: View {
                                 .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                        .glassEffect(tab.id == currentTabID ? .regular.tint(accent.opacity(0.5)) : .regular, in: Capsule())
+                        .mobileGlass(.capsule, tint: tab.id == currentTabID ? accent.opacity(0.5) : nil)
                         .accessibilityLabel(tab.appearance.title)
                     }
                 }
@@ -485,7 +485,7 @@ private struct MobileTabRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .glassEffect(selected ? .regular.tint(accent.opacity(0.45)) : .identity, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .mobileGlass(.rounded(14), tint: accent.opacity(0.45), enabled: selected)
         .contextMenu {
             Button("Close Tab", systemImage: "xmark", role: .destructive) { closeTab(tabID: tab.id) }
         }

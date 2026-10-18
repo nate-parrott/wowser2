@@ -65,6 +65,7 @@ private struct _MobileContentView: View {
     @StateObject private var lift = MomentumValue(initialValue: 0, scale: 1, params: .mobilePuck)
     @State private var layout = MobileLayout(size: CGSize(width: 390, height: 844), safeArea: EdgeInsets())
     @State private var settingsPresented = false
+    @State private var puckSide: MobilePuckSide = .trailing
     @StateObject private var keyboard = MobileKeyboardObserver()
 
     var body: some View {
@@ -78,20 +79,25 @@ private struct _MobileContentView: View {
                 MobileSpaceBackdrop(theme: snapshot.theme, imageInfo: snapshot.imageInfo)
                     .animation(.easeInOut(duration: 0.35), value: snapshot.profileID)
 
-                MobileTrayLayer(windowID: windowID, layout: layout, lift: lift, accent: accent.accent, openSettings: { settingsPresented = true })
+                Group {
+                    MobileTrayLayer(windowID: windowID, layout: layout, lift: lift, accent: accent.accent, openSettings: { settingsPresented = true })
 
-                card
-                    .modifier(CardLiftModifier(layout: layout, lift: lift))
+                    card
+                        .modifier(CardLiftModifier(layout: layout, lift: lift))
 
-                MobileBackToChatPill(windowID: windowID, currentTabID: snapshot.currentTabID, layout: layout, puckX: puckX, lift: lift, hidden: snapshot.searchActive)
+                    MobileBackToChatPill(windowID: windowID, currentTabID: snapshot.currentTabID, layout: layout, puckX: puckX, lift: lift, hidden: snapshot.searchActive)
+                }
+                // The command bar fades everything behind it toward the backdrop.
+                .opacity(snapshot.searchActive ? 0.3 : 1)
+                .animation(.spring(response: 0.26, dampingFraction: 0.9), value: snapshot.searchActive)
 
-                MobilePuck(layout: layout, x: puckX, lift: lift, hidden: snapshot.searchActive || keyboard.height > 0) {
+                MobilePuck(layout: layout, x: puckX, lift: lift, hidden: snapshot.searchActive || keyboard.height > 0, onPark: parkPuck) {
                     BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = true }
                 }
 
                 MobileCommandBar(windowID: windowID, presented: snapshot.searchActive, layout: layout, accent: accent.accent, onAccent: accent.onAccent)
 
-                if !snapshot.isEmptyPage, !snapshot.isAgentPage {
+                if !snapshot.isEmptyPage, !snapshot.isAgentPage, !snapshot.searchActive {
                     loader
                         .padding(.top, layout.safeArea.top + 4)
                         .padding(.horizontal, 24)
@@ -141,6 +147,7 @@ private struct _MobileContentView: View {
             }
         }
         .environment(\.colorScheme, snapshot.isAgentPage ? .dark : systemColorScheme)
+        .environment(\.mobilePuckSide, puckSide)
         .background {
             if snapshot.isAgentPage {
                 shape.fill(Color.white.opacity(0.05))
@@ -205,6 +212,11 @@ private struct _MobileContentView: View {
     }
     #endif
 
+    private func parkPuck(at x: CGFloat) {
+        let snaps = layout.puckSnapXs
+        puckSide = x == snaps.first ? .leading : x == snaps.last ? .trailing : .center
+    }
+
     private func configureMomentum(for layout: MobileLayout) {
         let wasOpen = lift.value > self.layout.puckTravel / 2
         puckX.minimum = layout.puckSnapXs.first
@@ -238,6 +250,7 @@ private struct CardLiftModifier: ViewModifier {
                         .frame(width: layout.cardRect.width, height: layout.cardRect.height)
                         .offset(x: layout.cardRect.minX, y: layout.cardRect.minY - progress * layout.cardTravel)
                         .onTapGesture { lift.animate(toValue: 0, velocity: 0) }
+                        .mobileTrayDrag(lift: lift, travel: layout.puckTravel)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
@@ -261,9 +274,11 @@ private struct MobileTrayLayer: View {
             MobileTray(snapshot: snapshot, accent: accent, didPick: { lift.animate(toValue: 0, velocity: 0) }, openSettings: openSettings)
         }
         .frame(width: layout.size.width, height: layout.trayHeight)
+        .contentShape(Rectangle())
+        .mobileTrayDrag(lift: lift, travel: layout.puckTravel)
         .offset(y: layout.trayTop + (1 - progress) * 600)
         .opacity(min(1, max(0, progress * 1.6)))
-        .allowsHitTesting(lift.value > layout.puckTravel / 2)
+        .allowsHitTesting(lift.value > 1)
     }
 }
 
@@ -274,6 +289,8 @@ private struct MobilePuck: View {
     @ObservedObject var x: MomentumValue
     @ObservedObject var lift: MomentumValue
     var hidden: Bool
+    /// The snap x the puck is heading for after a drag.
+    var onPark: (CGFloat) -> Void
     var onTap: () -> Void
 
     @State private var dragStart: (x: Double, lift: Double)?
@@ -331,6 +348,7 @@ private struct MobilePuck: View {
         let projectedX = CGFloat(x.value) + v.width * 0.12
         let snapX = layout.puckSnapXs.min(by: { abs($0 - projectedX) < abs($1 - projectedX) }) ?? CGFloat(x.value)
         x.animate(toValue: snapX, velocity: dragIsTap ? 0 : v.width)
+        onPark(snapX)
         if dragIsTap {
             lift.animate(toValue: lift.value > layout.puckTravel / 2 ? layout.puckTravel : 0, velocity: 0)
             onTap()
@@ -366,7 +384,7 @@ private struct MobileBackToChatPill: View {
             .padding(.leading, 10)
             .padding(.trailing, 14)
             .frame(height: Self.size.height)
-            .glassEffect(.regular, in: Capsule())
+            .mobileGlass(.capsule)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

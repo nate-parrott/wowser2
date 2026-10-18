@@ -3,8 +3,9 @@ import SwiftUI
 
 /// The phone command bar, opened by tapping the puck: a card floating near the
 /// top (input on top, results below) over a dimmed screen. Empty query shows
-/// top sites; typing puts "Ask Wowie" first. Picking a result opens it in a new
-/// tab.
+/// top sites (common sites until there's history); typing puts "Ask Wowie"
+/// first. Picking a result opens it in a new tab. The page behind fades rather
+/// than darkening (see MobileContentView).
 struct MobileCommandBar: View {
     var windowID: ID<WindowState>
     var presented: Bool
@@ -14,13 +15,13 @@ struct MobileCommandBar: View {
 
     @Environment(\.profileID) private var profileID
     @StateObject private var searcher = Searcher()
+    @StateObject private var topSitesFetcher = TopSitesFetcher()
     @State private var query = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(presented ? 0.45 : 0)
-                .ignoresSafeArea()
+            Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: dismiss)
                 .allowsHitTesting(presented)
@@ -39,7 +40,13 @@ struct MobileCommandBar: View {
             searcher.preferChat = true
             searcher.windowID = windowID
         }
-        .onReceive(profileDataStoreID) { searcher.datastoreProfileID = $0 }
+        .onReceive(profileDataStoreID) { id in
+            searcher.datastoreProfileID = id
+            topSitesFetcher.profileDataStoreID = id
+        }
+        .onReceive(topSitesFetcher.$topSites) { sites in
+            searcher.topSites = sites.isEmpty ? Self.commonSites : sites
+        }
         .onChange(of: query) { _, q in searcher.query = q }
         .onAppearOrChange(of: presented) { presented in
             if presented {
@@ -81,19 +88,23 @@ struct MobileCommandBar: View {
                 VStack(spacing: 0) {
                     ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                         Button { pick(result) } label: {
-                            Text(title(for: result))
-                                .font(.system(size: 16))
-                                .lineLimit(1)
-                                .foregroundStyle(index == 0 ? onAccent : Color.white)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12)
-                                .frame(height: 46)
-                                .background {
-                                    if index == 0 {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous).fill(accent)
-                                    }
+                            HStack(spacing: 12) {
+                                SearchIcon(item: result.item, size: 20, selected: index == 0)
+                                    .frame(width: 20, height: 20)
+                                Text(title(for: result))
+                                    .font(.system(size: 16))
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(index == 0 ? onAccent : Color.white)
+                            .padding(.horizontal, 12)
+                            .frame(height: 46)
+                            .background {
+                                if index == 0 {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(accent)
                                 }
-                                .contentShape(Rectangle())
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -102,9 +113,17 @@ struct MobileCommandBar: View {
             }
         }
         .foregroundStyle(.white)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .mobileGlass(.rounded(26))
         .shadow(color: .black.opacity(0.45), radius: 20, y: 14)
     }
+
+    /// Shown before the history store has anything to offer.
+    private static let commonSites: [TopSiteItem] = [
+        ("Google", "https://www.google.com"),
+        ("YouTube", "https://www.youtube.com"),
+        ("Wikipedia", "https://en.wikipedia.org"),
+        ("Reddit", "https://www.reddit.com"),
+    ].compactMap { title, url in URL(string: url).map { TopSiteItem(title: title, url: $0) } }
 
     private var results: [SearchResult] {
         Array(searcher.results.prefix(4))
