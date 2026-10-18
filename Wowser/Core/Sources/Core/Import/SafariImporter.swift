@@ -12,7 +12,7 @@ import Foundation
 /// Safari keeps contact autofill in the Contacts "My Card", not in files.
 enum SafariImporter {
     static var safariDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Safari")
+        URL.homeDirectory.appendingPathComponent("Library/Safari")
     }
 
     /// Opens System Settings › Privacy & Security › Full Disk Access.

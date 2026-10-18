@@ -188,7 +188,9 @@ private struct NewToolbarButtonRow: View {
                     committed = true
                     commit(label)
                 }
+                #if os(macOS)
                 .onExitCommand(perform: cancel)
+                #endif
             Button(action: cancel) {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
             }

@@ -47,7 +47,7 @@ public enum ChromiumBrowser: String, CaseIterable, Codable, Sendable {
     }
 
     var baseDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        URL.homeDirectory
             .appendingPathComponent("Library/Application Support")
             .appendingPathComponent(supportPath)
     }

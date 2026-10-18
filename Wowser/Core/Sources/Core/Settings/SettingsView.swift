@@ -32,6 +32,21 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
+        #if os(iOS)
+        NavigationStack {
+            List(SettingsTab.allCases, id: \.self) { tab in
+                NavigationLink(value: tab) {
+                    Label(tab.title, systemImage: tab.systemImage)
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationDestination(for: SettingsTab.self) { tab in
+                detail(for: tab)
+                    .navigationTitle(tab.title)
+            }
+        }
+        .formStyle(.grouped)
+        #else
         NavigationSplitView {
             List(SettingsTab.allCases, id: \.self, selection: $selectedTab) { tab in
                 Label(tab.title, systemImage: tab.systemImage)
@@ -49,6 +64,7 @@ public struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: isDesktop() ? 640 : nil, minHeight: isDesktop() ? 400 : nil)
+        #endif
     }
 
     @ViewBuilder private func detail(for tab: SettingsTab) -> some View {

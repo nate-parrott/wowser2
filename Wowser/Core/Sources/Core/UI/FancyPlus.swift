@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if os(macOS)
+
 struct FancyPlus: View {
     var windowID: ID<WindowState>
     @State private var hoveredOnSegment: Int?
@@ -289,3 +291,4 @@ public struct FancyPlus_Previews: PreviewProvider {
             )
     }
 }
+#endif

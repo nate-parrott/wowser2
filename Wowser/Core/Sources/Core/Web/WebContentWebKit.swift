@@ -135,7 +135,9 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
         webview = .init(frame: .zero, configuration: config)
         webview.allowsBackForwardNavigationGestures = true
+        #if os(macOS)
         webview.allowsMagnification = true
+        #endif
 //        if #available(iOS 16.4, macOS 13.3, *) {
 //            webview.isInspectable = true
 //        }

@@ -56,6 +56,7 @@ private struct SpaceNameButton: View {
                 .frame(height: 20)
                 .contentShape(Rectangle())
                 .help("Rename Space")
+                #if os(macOS)
                 .onHover(perform: { hovered in
                     if hovered {
                         NSCursor.iBeam.push()
@@ -63,6 +64,7 @@ private struct SpaceNameButton: View {
                         NSCursor.iBeam.pop()
                     }
                 })
+                #endif
                 .onTapGesture {
                     SpaceMenu.rename(profileID: profileID)
                 }

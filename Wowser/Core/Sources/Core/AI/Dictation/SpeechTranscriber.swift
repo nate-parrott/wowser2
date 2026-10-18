@@ -1,5 +1,5 @@
-#if os(macOS)
 import Foundation
+#if os(macOS)
 import AVFoundation
 import Speech
 

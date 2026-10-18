@@ -10,7 +10,8 @@ struct WowserMobileApp: App {
             DefaultsKeys.autoDarkMode.rawValue: true,
             DefaultsKeys.animateNewTabs.rawValue: true,
             DefaultsKeys.searchEngine.rawValue: SearchEngine.clean.rawValue,
-            DefaultsKeys.Chatbot.rawValue: Chatbot.claude.rawValue,
+            // No Claude Code on iPhone: chats run on the on-device model.
+            DefaultsKeys.agentHarness.rawValue: AgentHarness.local.rawValue,
             DefaultsKeys.preserveWindowsAcrossRestarts.rawValue: true,
             DefaultsKeys.cleanModeForRecipes.rawValue: true,
             DefaultsKeys.autoOrganizeTabs.rawValue: true,

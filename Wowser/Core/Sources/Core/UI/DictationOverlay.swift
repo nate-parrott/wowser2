@@ -1,5 +1,5 @@
-#if os(macOS)
 import SwiftUI
+#if os(macOS)
 
 // MARK: - Page overlay
 

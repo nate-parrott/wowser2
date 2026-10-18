@@ -411,11 +411,13 @@ struct GroupedTabsView: View {
                             }
                         }
                     }
+                    #if os(macOS)
                     FancyPlus(windowID: windowID)
                         .padding(4)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 20)
                         .padding(.bottom, 30)
+                    #endif
 //                    NewTabCell(windowID: windowID)
                 }
                 .padding(isMobile() ? 12 : 0)
