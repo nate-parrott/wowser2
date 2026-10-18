@@ -89,4 +89,8 @@ Sync state and debug info: Settings → General → Sync (in either window).
 Ctrl-C to quit both.
 EOF
 
-wait
+# Poll rather than `wait`: a stray signal can interrupt `wait`, and the EXIT
+# trap would then kill both apps. Exit once either app quits.
+while kill -0 "${PIDS[0]}" 2>/dev/null && kill -0 "${PIDS[1]}" 2>/dev/null; do
+    sleep 1
+done
