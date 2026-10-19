@@ -54,6 +54,8 @@ actor LocalAgent: Agent {
     private var session: LanguageModelSession?
     /// What earlier (compacted) parts of the conversation said.
     private var summary: String?
+    /// The time and the user's current tab when the session was created, for its instructions.
+    private var sessionContext: (now: String, tab: String?) = ("", nil)
     private var subscribers: [UUID: AsyncStream<AgentEvent>.Continuation] = [:]
     private var tail: Task<Void, Never>?
     private var turns: [UUID: Task<AgentTurnResult, Error>] = [:]
@@ -115,6 +117,9 @@ actor LocalAgent: Agent {
             emit(.started(sessionID: sessionID))
         }
         let ambient = await LocalAgentContext.ambient(key: key)
+        if session == nil {
+            sessionContext = await (LocalAgentContext.now(), LocalAgentContext.currentTab(key: key))
+        }
         var text = message.text
         if !message.images.isEmpty { text += "\n[\(message.images.count) image(s) omitted — you can't see images]" }
         let prompt = ambient + "\n" + text
@@ -165,7 +170,9 @@ actor LocalAgent: Agent {
         ]
         var instructions = """
         You are the assistant built into the user's web browser, running on their device. \
-        Be brief and direct. Each user message starts with [context]: the date and the page the user is looking at. \
+        Be brief and direct. It is now \(sessionContext.now). \
+        \(sessionContext.tab.map { "The user's current tab is \($0); it may or may not be relevant to what they ask. " } ?? "")\
+        Each user message starts with [context]: the time and the user's current tab, which may have changed. \
         Use ask_page for questions about that page, web_research for facts you don't know or that may have changed, \
         and navigate to open a site. Otherwise answer directly.
         """

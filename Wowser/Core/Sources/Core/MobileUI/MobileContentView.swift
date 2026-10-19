@@ -147,7 +147,7 @@ private struct _MobileContentView: View {
             }
         }
         .environment(\.colorScheme, snapshot.isAgentPage ? .dark : systemColorScheme)
-        .environment(\.mobilePuckSide, puckSide)
+        .environment(\.mobilePuckSide, keyboard.height > 0 ? .hidden : puckSide)
         .background {
             if snapshot.isAgentPage {
                 shape.fill(Color.white.opacity(0.05))
@@ -155,7 +155,13 @@ private struct _MobileContentView: View {
         }
         .clipShape(shape)
         .overlay { shape.strokeBorder(Color.white.opacity(snapshot.isAgentPage ? 0.14 : 0.08), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(snapshot.isAgentPage ? 0 : 0.3), radius: 16, y: 12)
+        // A shadow cast by a plain shape, not by the web view's layer (which
+        // would be re-rendered offscreen every frame the card moves).
+        .background {
+            if !snapshot.isAgentPage {
+                shape.fill(Color.black).shadow(color: .black.opacity(0.3), radius: 16, y: 12)
+            }
+        }
         .frame(width: layout.cardRect.width, height: cardHeight)
         .frame(height: layout.cardRect.height, alignment: .top)
         .offset(x: layout.cardRect.minX, y: layout.cardRect.minY)
@@ -239,7 +245,8 @@ private struct CardLiftModifier: ViewModifier {
     @ObservedObject var lift: MomentumValue
 
     func body(content: Content) -> some View {
-        let progress = lift.rubberBandedValue / max(1, layout.puckTravel)
+        // Pushing the puck down past rest doesn't drag the page down.
+        let progress = max(0, lift.rubberBandedValue) / max(1, layout.puckTravel)
         content
             .offset(y: -progress * layout.cardTravel)
             .overlay {
@@ -262,23 +269,35 @@ private struct CardLiftModifier: ViewModifier {
 private struct MobileTrayLayer: View {
     var windowID: ID<WindowState>
     var layout: MobileLayout
-    @ObservedObject var lift: MomentumValue
+    var lift: MomentumValue
     var accent: Color
     var openSettings: () -> Void
 
     @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
 
     var body: some View {
-        let progress = lift.rubberBandedValue / max(1, layout.puckTravel)
         WithSnapshotMain(store: BrowserStore.shared, snapshot: { $0.mobileTraySnapshot(windowID: windowID, shareTabsAcrossWindows: allWindowsShareTabs) }) { snapshot in
             MobileTray(snapshot: snapshot, accent: accent, didPick: { lift.animate(toValue: 0, velocity: 0) }, openSettings: openSettings)
         }
         .frame(width: layout.size.width, height: layout.trayHeight)
         .contentShape(Rectangle())
         .mobileTrayDrag(lift: lift, travel: layout.puckTravel)
-        .offset(y: layout.trayTop + (1 - progress) * 600)
-        .opacity(min(1, max(0, progress * 1.6)))
-        .allowsHitTesting(lift.value > 1)
+        .modifier(TrayLiftModifier(layout: layout, lift: lift))
+    }
+}
+
+/// Slides and fades the tray with the lift. A ViewModifier (like
+/// CardLiftModifier) so per-frame lift changes don't re-render the tray.
+private struct TrayLiftModifier: ViewModifier {
+    var layout: MobileLayout
+    @ObservedObject var lift: MomentumValue
+
+    func body(content: Content) -> some View {
+        let progress = max(0, lift.rubberBandedValue) / max(1, layout.puckTravel)
+        content
+            .offset(y: layout.trayTop + (1 - progress) * 600)
+            .opacity(min(1, progress * 1.6))
+            .allowsHitTesting(lift.value > 1)
     }
 }
 

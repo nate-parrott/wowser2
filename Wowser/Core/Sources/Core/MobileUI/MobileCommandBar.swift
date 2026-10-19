@@ -27,17 +27,17 @@ struct MobileCommandBar: View {
                 .allowsHitTesting(presented)
 
             card
-                .frame(width: layout.size.width - 20)
+                .frame(width: layout.size.width - 32)
                 .scaleEffect(x: presented ? 1 : 0.94, y: presented ? 1 : 0.84, anchor: .center)
                 .opacity(presented ? 1 : 0)
                 .offset(y: layout.commandBarTop)
                 .allowsHitTesting(presented)
         }
         .animation(.spring(response: 0.26, dampingFraction: 0.82), value: presented)
+        .sensoryFeedback(.impact(weight: .light), trigger: presented) { _, presented in presented }
         .onAppear {
             searcher.n = 4
             searcher.topSitesEnabled = true
-            searcher.preferChat = true
             searcher.windowID = windowID
         }
         .onReceive(profileDataStoreID) { id in
@@ -81,10 +81,6 @@ struct MobileCommandBar: View {
             .frame(height: 56)
 
             if !results.isEmpty {
-                Rectangle()
-                    .fill(Color.white.opacity(0.14))
-                    .frame(height: 0.5)
-                    .padding(.horizontal, 14)
                 VStack(spacing: 0) {
                     ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                         Button { pick(result) } label: {
@@ -133,7 +129,9 @@ struct MobileCommandBar: View {
         switch result.item.content {
         case .askAgent(let q, _): return "Ask Wowie: \u{201C}\(q)\u{201D}"
         case .historyItem(let item) where query.isEmpty: return item.url.hostWithoutWWW
-        default: return result.item.title.nilIfEmpty ?? result.item.subtitle ?? ""
+        default:
+            let (title, subtitle) = result.item.displayTitleSubtitle
+            return title ?? subtitle ?? ""
         }
     }
 

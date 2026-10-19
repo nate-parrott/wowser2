@@ -29,24 +29,36 @@ private struct MobileGlassView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
         let view = UIVisualEffectView()
         view.overrideUserInterfaceStyle = .dark
-        apply(to: view)
+        apply(to: view, coordinator: context.coordinator)
         return view
     }
 
     func updateUIView(_ view: UIVisualEffectView, context: Context) {
-        apply(to: view)
+        apply(to: view, coordinator: context.coordinator)
     }
 
-    private func apply(to view: UIVisualEffectView) {
-        let tintColor = tint.map(UIColor.init)
-        if (view.effect as? UIGlassEffect)?.tintColor != tintColor || view.effect == nil {
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    /// What's been applied, so re-renders that change nothing don't touch
+    /// the effect (rebuilding glass is expensive).
+    final class Coordinator {
+        var shape: MobileGlassShape?
+        var tint: Color??
+    }
+
+    private func apply(to view: UIVisualEffectView, coordinator: Coordinator) {
+        if coordinator.tint != .some(tint) {
+            coordinator.tint = .some(tint)
             let effect = UIGlassEffect(style: .regular)
-            effect.tintColor = tintColor
+            effect.tintColor = tint.map(UIColor.init)
             view.effect = effect
         }
-        switch shape {
-        case .capsule: view.cornerConfiguration = .capsule()
-        case .rounded(let radius): view.cornerConfiguration = .corners(radius: .fixed(radius))
+        if coordinator.shape != shape {
+            coordinator.shape = shape
+            switch shape {
+            case .capsule: view.cornerConfiguration = .capsule()
+            case .rounded(let radius): view.cornerConfiguration = .corners(radius: .fixed(radius))
+            }
         }
     }
 }

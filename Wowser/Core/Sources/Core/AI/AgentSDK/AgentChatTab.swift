@@ -108,7 +108,8 @@ public enum AgentChatTabs {
         AgentChatSession.session(forKey: key).begin(
             query: query,
             ownPaneID: paneID,
-            sourcePaneID: nil,
+            // The page the user asked from is context the agent may use.
+            sourcePaneID: currentPane.flatMap { $0.id != paneID && !$0.info.isEmptyPage ? $0.id : nil },
             ownTabIsFocused: true,
             mode: .chat
         )

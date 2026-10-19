@@ -7,7 +7,7 @@ struct MobileLayout: Equatable {
     var size: CGSize
     var safeArea: EdgeInsets
 
-    static let cardInset: CGFloat = 6
+    static let cardInset: CGFloat = 0
     static let cardCornerRadius: CGFloat = 30
     static let puckSize: CGFloat = 84
     /// Gap between the lifted card's bottom edge and the tray.

@@ -96,6 +96,7 @@ private struct AgentChatContent: View {
         case .leading: EdgeInsets(top: 0, leading: 72, bottom: 8, trailing: 0)
         case .center: EdgeInsets(top: 0, leading: 0, bottom: 92, trailing: 0)
         case .trailing: EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 72)
+        case .hidden: EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
         }
     }
 
@@ -282,7 +283,20 @@ private struct AgentChatContent: View {
             textField
         }
         #else
-        textField
+        HStack(alignment: .bottom, spacing: 6) {
+            textField
+            if inputFocused {
+                Button { inputFocused = false } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Hide keyboard")
+            }
+        }
         #endif
     }
 

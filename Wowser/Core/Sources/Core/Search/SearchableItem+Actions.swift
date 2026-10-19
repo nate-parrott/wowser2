@@ -367,7 +367,15 @@ extension SearchableItem {
         default: return false
         }
     }
-    
+
+    /// What an omnibox row shows: the title and subtitle, or the subtitle
+    /// promoted to title when the title is blank.
+    var displayTitleSubtitle: (title: String?, subtitle: String?) {
+        let title = self.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let subtitle = self.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        return title == nil ? (subtitle, nil) : (title, subtitle)
+    }
+
     /// Gets the user-friendly subtitle for display in search results
     public var subtitle: String? {
         if let representsNativeKey {

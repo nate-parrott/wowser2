@@ -60,6 +60,27 @@ extension WebContentWebKit: WKUIDelegate {
         )
     }
     
+    #if os(iOS)
+    /// Long-pressing a link: our own short menu instead of WebKit's.
+    public func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping @MainActor (UIContextMenuConfiguration?) -> Void) {
+        guard let url = elementInfo.linkURL else { return completionHandler(nil) }
+        let paneID = id
+        completionHandler(UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+            UIMenu(children: [
+                UIAction(title: "Open in New Tab", image: UIImage(systemName: "plus.square.on.square")) { _ in
+                    BrowserStore.shared.modify { state in
+                        guard let windowID = state.windowContaining(webContentId: paneID)?.id else { return }
+                        _ = state.openTab(url: url, activate: false, windowID: windowID)
+                    }
+                },
+                UIAction(title: "Copy Link", image: UIImage(systemName: "link")) { _ in
+                    UIPasteboard.general.url = url
+                },
+            ])
+        })
+    }
+    #endif
+
     #if os(macOS)
     public func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo) async -> [URL]? {
         let openPanel = NSOpenPanel()

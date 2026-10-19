@@ -10,6 +10,8 @@ extension EnvironmentValues {
 
 enum MobilePuckSide: Equatable {
     case leading, center, trailing
+    /// Hidden while the keyboard is up.
+    case hidden
 }
 
 /// Phone "Back to chat" pill: when a tab is opened from a chat's tab card, the

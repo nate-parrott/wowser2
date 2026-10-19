@@ -480,11 +480,23 @@ private struct MobileTabRow: View {
                     .opacity(tab.appearance.isUnloaded || tab.appearance.isGhost ? 0.65 : 1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
+            .padding(.leading, 14)
+            .padding(.trailing, 44)
             .frame(height: 48)
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .trailing) {
+            Button { closeTab(tabID: tab.id) } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.5))
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close Tab")
+        }
         .mobileGlass(.rounded(14), tint: accent.opacity(0.45), enabled: selected)
         .contextMenu {
             Button("Close Tab", systemImage: "xmark", role: .destructive) { closeTab(tabID: tab.id) }

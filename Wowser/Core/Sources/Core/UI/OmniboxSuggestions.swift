@@ -53,7 +53,7 @@ private struct SearchResultRow: View {
     @AppStorage(DefaultsKeys.omniboxTerminalCommands.rawValue) private var terminalStylingEnabled = false
 
     var body: some View {
-        let (title, subtitle) = titleSubtitle
+        let (title, subtitle) = result.item.displayTitleSubtitle
         let terminalStyled = terminalStylingEnabled && result.item.isTerminalStyled
         
         Button(action: onSelect) {
@@ -86,14 +86,5 @@ private struct SearchResultRow: View {
     private var isDirectToSite: Bool {
         if case .imFeelingLucky = result.item.content { return true }
         return false
-    }
-    
-    private var titleSubtitle: (String?, String?) {
-        let title = result.item.title
-        let subtitle = result.item.subtitle
-        if title == "" {
-            return (subtitle, nil)
-        }
-        return (title, subtitle)
     }
 }

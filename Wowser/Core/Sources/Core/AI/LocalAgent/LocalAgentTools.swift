@@ -242,16 +242,20 @@ enum LocalAgentContext {
     }
 
     /// One line prefixed to each user message, e.g.
-    /// `[Sat, Sep 26, 2026 at 2:03 PM | User's page: "Title" (example.com)]`.
+    /// `[Sat, Sep 26, 2026 at 2:03 PM | User's current tab: "Title" (example.com)]`.
     static func ambient(key: String) -> String {
-        var parts = [Date().formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year().hour().minute())]
-        if let pane = targetPane(key: key), let url = pane.info.url {
-            let title = String((pane.info.title ?? "").prefix(80))
-            parts.append("User's page: \"\(title)\" (\(url.host ?? url.absoluteString))")
-        } else {
-            parts.append("No page open")
-        }
-        return "[" + parts.joined(separator: " | ") + "]"
+        "[" + now() + " | " + (currentTab(key: key).map { "User's current tab: " + $0 } ?? "No page open") + "]"
+    }
+
+    static func now() -> String {
+        Date().formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year().hour().minute())
+    }
+
+    /// `"Title" (example.com)` for the page the agent acts on, if any.
+    static func currentTab(key: String) -> String? {
+        guard let pane = targetPane(key: key), let url = pane.info.url else { return nil }
+        let title = String((pane.info.title ?? "").prefix(80))
+        return "\"\(title)\" (\(url.host ?? url.absoluteString))"
     }
 }
 

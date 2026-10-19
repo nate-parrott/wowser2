@@ -475,6 +475,17 @@ extension BrowserState {
 
     func insertionIndex(window: ID<WindowState>, spawningTabId: ID<Tab>?) -> SidebarLocation {
         guard let win = windows[window] else { return .ordinaryTabs(0) }
+        #if os(iOS)
+        // On the phone new tabs go just above the current tab.
+        if let anchor = spawningTabId ?? win.currentTab, let loc = location(ofTabId: anchor, inWindowId: window) {
+            switch loc {
+            case .ordinaryTabs(let idx): return .ordinaryTabs(idx)
+            case .project(let id, let idx): return .project(id, idx)
+            case .favorites: return .ordinaryTabs(0) // the list starts right under the favorites
+            case .attachedAgent, .folder: break
+            }
+        }
+        #endif
         if let spawningTabId, let loc = location(ofTabId: spawningTabId, inWindowId: window) {
             switch loc {
             case .favorites:
