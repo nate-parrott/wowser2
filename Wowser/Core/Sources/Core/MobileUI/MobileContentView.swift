@@ -95,7 +95,7 @@ private struct _MobileContentView: View {
                     BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = true }
                 }
 
-                MobileCommandBar(windowID: windowID, presented: snapshot.searchActive, layout: layout, accent: accent.accent, onAccent: accent.onAccent)
+                MobileCommandBar(windowID: windowID, presented: snapshot.searchActive, layout: layout, accent: accent.accent, onAccent: accent.onAccent, didOpen: { lift.animate(toValue: 0, velocity: 0) })
 
                 if !snapshot.isEmptyPage, !snapshot.isAgentPage, !snapshot.searchActive {
                     loader
@@ -188,7 +188,7 @@ private struct _MobileContentView: View {
     #if DEBUG
     /// Screenshot hooks (simctl can't tap): `WOWSER_MOBILE_URL=<url>` opens a
     /// page, `WOWSER_MOBILE_ASK=<query>` opens a chat, `WOWSER_MOBILE_TRAY=open`
-    /// starts with the tray up, `WOWSER_MOBILE_CMD=<query>` opens the command
+    /// starts with the tray up (`=<points>` holds it part-way), `WOWSER_MOBILE_CMD=<query>` opens the command
     /// bar with a query typed.
     private func applyDebugLaunchState() {
         // After the app's launch-time "open the command bar" scene-phase hook.
@@ -211,6 +211,9 @@ private struct _MobileContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 lift.animate(toValue: layout.puckTravel, velocity: 0)
             }
+        } else if let points = env["WOWSER_MOBILE_TRAY"].flatMap(Double.init) {
+            // Hold the tray part-way, as if mid-drag.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { lift.value = points }
         }
         if env["WOWSER_MOBILE_CMD"] != nil {
             BrowserStore.shared.modify { $0.windows[windowID]?.searchOverlayActive = true }
@@ -316,14 +319,15 @@ private struct MobilePuck: View {
     @State private var dragIsTap = false
 
     var body: some View {
-        DraggableFruit(dragVector: dragVector, distFromFloor: lift.rubberBandedValue, grabbed: dragStart != nil)
+        let pressed = dragStart != nil
+        DraggableFruit(dragVector: dragVector, distFromFloor: lift.rubberBandedValue, grabbed: pressed)
             .frame(width: MobileLayout.puckSize, height: MobileLayout.puckSize)
+            // Pressed look: on at touch-down instantly, springs back on release.
+            .scaleEffect(pressed ? 1.08 : 1)
+            .opacity(pressed ? 0.7 : 1)
+            .animation(pressed ? nil : .spring(response: 0.26, dampingFraction: 0.9), value: pressed)
             .contentShape(Circle().inset(by: 10))
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onChanged(dragged)
-                    .onEnded(ended)
-            )
+            .mobilePuckGesture(handle)
             .position(x: x.rubberBandedValue, y: layout.puckRestY - lift.rubberBandedValue)
             .opacity(hidden ? 0 : 1)
             .allowsHitTesting(!hidden)
@@ -343,34 +347,42 @@ private struct MobilePuck: View {
         )
     }
 
-    private func dragged(_ value: DragGesture.Value) {
-        if dragStart == nil {
+    private func handle(_ touch: MobilePuckTouch) {
+        switch touch {
+        case .down:
             // Setting `.value` stops any running spring: the touch takes over.
+            x.value = x.rubberBandedValue
+            lift.value = lift.rubberBandedValue
             dragStart = (x.value, lift.value)
             dragIsTap = true
+        case .moved(let translation):
+            guard let start = dragStart else { return }
+            if hypot(translation.width, translation.height) > 10 {
+                dragIsTap = false
+            }
+            x.value = start.x + Double(translation.width)
+            lift.value = start.lift - Double(translation.height)
+        case .up(_, let velocity):
+            released(velocity: velocity)
+        case .cancelled:
+            released(velocity: .zero, cancelled: true)
         }
-        guard let start = dragStart else { return }
-        if hypot(value.translation.width, value.translation.height) > 10 {
-            dragIsTap = false
-        }
-        x.value = start.x + Double(value.translation.width)
-        lift.value = start.lift - Double(value.translation.height)
     }
 
-    private func ended(_ value: DragGesture.Value) {
+    private func released(velocity v: CGSize, cancelled: Bool = false) {
         dragStart = nil
         // Spring from where the puck is drawn, not from the raw (un-rubber-
         // banded) finger position past the ends.
         if x.rubberBandedValue != x.value { x.value = x.rubberBandedValue }
         if lift.rubberBandedValue != lift.value { lift.value = lift.rubberBandedValue }
-        let v = value.velocity
+        let isTap = dragIsTap && !cancelled
         let projectedX = CGFloat(x.value) + v.width * 0.12
         let snapX = layout.puckSnapXs.min(by: { abs($0 - projectedX) < abs($1 - projectedX) }) ?? CGFloat(x.value)
-        x.animate(toValue: snapX, velocity: dragIsTap ? 0 : v.width)
+        x.animate(toValue: snapX, velocity: isTap ? 0 : v.width)
         onPark(snapX)
-        if dragIsTap {
+        if isTap || cancelled {
             lift.animate(toValue: lift.value > layout.puckTravel / 2 ? layout.puckTravel : 0, velocity: 0)
-            onTap()
+            if isTap { onTap() }
             return
         }
         let projectedLift = CGFloat(lift.value) - v.height * 0.15

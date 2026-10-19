@@ -148,12 +148,14 @@ public class MomentumValue: ObservableObject {
     }
     private var state = State.stationary {
         didSet {
+            // Assign only on change: @Published notifies even for equal
+            // values, and every external `value` set lands here.
+            let isAnimating: Bool
             switch state {
-            case .stationary:
-                animating = false
-            case .animating, .decelerating:
-                animating = true
+            case .stationary: isAnimating = false
+            case .animating, .decelerating: isAnimating = true
             }
+            if animating != isAnimating { animating = isAnimating }
         }
     }
 

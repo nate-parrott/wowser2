@@ -47,7 +47,6 @@ struct DraggableFruit: View {
                     .position(x: k * 0.7, y: k * 0.26)
             }
             .rotationEffect(mainRotation)
-            .scaleEffect(grabbed ? 1.1 : 1)
 //            .opacity(grabbed ? 0.7 : 1)
         }
         .animation(.interactiveSpring, value: dragVector)

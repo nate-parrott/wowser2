@@ -80,6 +80,10 @@ class OverscrollCatcherViewController<T: View>: UIViewController, UIScrollViewDe
     
     init(view: T, options: OverscrollCatcherOptions = .init()) {
         self.hostVC = UIHostingController(rootView: view)
+        // The page card is already inside the safe area. Left on, the host
+        // re-insets its content every frame the card slides under the status
+        // bar while the tray opens.
+        self.hostVC.safeAreaRegions = []
         self.scrollView = UIScrollView()
         super.init(nibName: nil, bundle: nil)
         addChild(self.hostVC)

@@ -12,6 +12,8 @@ struct MobileCommandBar: View {
     var layout: MobileLayout
     var accent: Color
     var onAccent: Color
+    /// After a result opens: the tray closes so the page is in view.
+    var didOpen: () -> Void
 
     @Environment(\.profileID) private var profileID
     @StateObject private var searcher = Searcher()
@@ -128,7 +130,9 @@ struct MobileCommandBar: View {
     private func title(for result: SearchResult) -> String {
         switch result.item.content {
         case .askAgent(let q, _): return "Ask Wowie: \u{201C}\(q)\u{201D}"
-        case .historyItem(let item) where query.isEmpty: return item.url.hostWithoutWWW
+        case .historyItem(let item) where query.isEmpty && !item.url.hostWithoutWWW.isEmpty && NativePageKey(url: item.url) == nil:
+            // Top sites read as domains; pages without one use their title.
+            return item.url.hostWithoutWWW
         default:
             let (title, subtitle) = result.item.displayTitleSubtitle
             return title ?? subtitle ?? ""
@@ -138,6 +142,16 @@ struct MobileCommandBar: View {
     private func pick(_ result: SearchResult) {
         BrowserStore.shared.select(result: result, windowID: windowID, forceNewTab: true)
         dismiss()
+        didOpen()
+        // `select` installs the page on the next runloop turn; focus it after.
+        let windowID = windowID
+        DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                if let paneID = BrowserStore.shared.model.currentPane(forWindow: windowID)?.id {
+                    BrowserStore.shared.existingWebContent(forId: paneID)?.focus()
+                }
+            }
+        }
     }
 
     private func dismiss() {
