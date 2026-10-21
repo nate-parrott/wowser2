@@ -9,7 +9,7 @@ struct MobileLayout: Equatable {
 
     static let cardInset: CGFloat = 0
     static let cardCornerRadius: CGFloat = 30
-    static let puckSize: CGFloat = 84
+    static let puckSize: CGFloat = 60
     /// Gap between the lifted card's bottom edge and the tray.
     static let trayGap: CGFloat = 14
 

@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 
 // Phone browser: the page fills the safe area as a rounded card over the
-// space's colored backdrop. A draggable tangerine puck floats over it — tap it
+// space's colored backdrop. A draggable liquid-glass Wowie puck floats over it — tap it
 // for the command bar; drag it up to lift the card and reveal the tray (its
 // height drives the tray directly); drag sideways to park it left, center or
 // right. Puck x and lift are MomentumValues: they track the finger exactly,
@@ -320,13 +320,18 @@ private struct MobilePuck: View {
 
     var body: some View {
         let pressed = dragStart != nil
-        DraggableFruit(dragVector: dragVector, distFromFloor: lift.rubberBandedValue, grabbed: pressed)
+        Image.wowie
+            .resizable()
+            .scaledToFit()
+            .frame(width: 30, height: 30)
+            .foregroundStyle(.primary)
             .frame(width: MobileLayout.puckSize, height: MobileLayout.puckSize)
+            .glassEffect(.regular, in: Circle())
             // Pressed look: on at touch-down instantly, springs back on release.
             .scaleEffect(pressed ? 1.08 : 1)
             .opacity(pressed ? 0.7 : 1)
             .animation(pressed ? nil : .spring(response: 0.26, dampingFraction: 0.9), value: pressed)
-            .contentShape(Circle().inset(by: 10))
+            .contentShape(Circle())
             .mobilePuckGesture(handle)
             .position(x: x.rubberBandedValue, y: layout.puckRestY - lift.rubberBandedValue)
             .opacity(hidden ? 0 : 1)
@@ -336,15 +341,6 @@ private struct MobilePuck: View {
             .accessibilityLabel("New tab")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
-    }
-
-    /// Velocity in screens per second, ×1.3, clamped — what DraggableFruit
-    /// tilts and swings its leaves by.
-    private var dragVector: CGPoint {
-        CGPoint(
-            x: (x.velocity / max(1, layout.size.width) * 1.3).clamp(minVal: -1, maxVal: 1),
-            y: (-lift.velocity / max(1, layout.puckTravel) * 1.3).clamp(minVal: -1, maxVal: 1)
-        )
     }
 
     private func handle(_ touch: MobilePuckTouch) {
@@ -431,7 +427,7 @@ private struct MobileBackToChatPill: View {
     private var target: CGPoint {
         let px = puckX.rubberBandedValue
         let py = layout.puckRestY - lift.rubberBandedValue
-        let gap: CGFloat = 30 + 12 + Self.size.width / 2
+        let gap: CGFloat = MobileLayout.puckSize / 2 + 12 + Self.size.width / 2
         return CGPoint(x: px > layout.size.width / 2 + 1 ? px - gap : px + gap, y: py)
     }
 }

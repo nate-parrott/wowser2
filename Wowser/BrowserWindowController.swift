@@ -11,6 +11,7 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
         super.windowDidLoad()
 
         self.window?.isMovableByWindowBackground = true
+        applyDefaultFrameIfNeeded()
         // Self is registered as window delegate so windowDidBecomeKey fires;
         // becoming-key bumps a state field that drives pane refocus.
         self.window?.delegate = self
@@ -48,6 +49,24 @@ class BrowserWindowController: NSWindowController, NSWindowDelegate {
         isFullscreen = windowControlsHacker?.isFullscreen ?? false
     }
     
+    /// On first launch there's no autosaved frame, so the window takes the
+    /// storyboard content VC's tiny size. Give it a real browser-sized frame
+    /// instead, and do the same if the restored frame is degenerate.
+    private func applyDefaultFrameIfNeeded() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        let hasSavedFrame = UserDefaults.standard.string(forKey: "NSWindow Frame \(window.frameAutosaveName)") != nil
+        let frameIsUsable = window.frame.width >= 600 && window.frame.height >= 400 && visible.intersects(window.frame)
+        if hasSavedFrame && frameIsUsable { return }
+
+        let size = CGSize(
+            width: min(visible.width, max(1000, (visible.width * 0.8).rounded())),
+            height: min(visible.height, max(700, (visible.height * 0.85).rounded()))
+        )
+        let origin = CGPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2)
+        window.setFrame(CGRect(origin: origin, size: size), display: false)
+    }
+
     private(set) var isFullscreen: Bool = false {
         didSet {
             browserViewController?.rootHostingController?.rootView.isFullscreen = isFullscreen
