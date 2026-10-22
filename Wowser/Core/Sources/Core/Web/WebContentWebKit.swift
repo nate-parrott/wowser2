@@ -223,7 +223,6 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         }
         #endif
         MemoryFormBridge.install(on: webview.configuration, isFreshConfig: isFreshConfig, webContent: self)
-        PasskeyNotice.install(on: webview.configuration, isFreshConfig: isFreshConfig, paneID: self.id)
         webview.onUserInteraction = { [weak self] in
             self?.needsFocusedEditableRefresh()
         }
@@ -425,9 +424,6 @@ public class WebContentWebKit: WebContent, WKNavigationDelegate {
         info.failedNavToURL = nil
         needsMetadataRefresh()
         _ = performLoadAfterCommitIfNeeded(for: navigation)
-        if PasskeyNotice.isPasskeyChallenge(webView.url) {
-            PasskeyNotice.show(forPane: id)
-        }
         #if os(macOS)
         MainActor.assumeIsolated { autofillSession.pageDidNavigate(to: webView.url) }
         #endif

@@ -169,7 +169,6 @@ struct OnboardingLimitationsScreen: View {
 
     private let items: [(icon: String, text: String)] = [
         ("flask", "Very experimental"),
-        ("person.badge.key", "No passkeys"),
         ("exclamationmark.triangle", "Some sites don't work"),
         ("lock.open", "Not security-tested"),
     ]

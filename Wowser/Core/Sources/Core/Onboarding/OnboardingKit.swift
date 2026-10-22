@@ -57,7 +57,6 @@ import SwiftUI
  Limitations:
  
  - Very experimental
- - No passkeys
  - Some sites don't work
  - Not security-tested
  
