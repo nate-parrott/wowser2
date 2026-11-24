@@ -7,7 +7,7 @@ import { TabStrip } from "../kit/TabStrip";
 import { Toolbar } from "../kit/Toolbar";
 import { IconButton } from "../kit/IconButton";
 import { SuggestionList } from "../kit/SuggestionList";
-import { CommandBar, CommandBarScrim } from "../kit/CommandBar";
+import { CommandBarScrim } from "../kit/CommandBar";
 import { Toasts } from "../kit/Toasts";
 import { useCommandBar } from "../kit/commandBar";
 
@@ -72,35 +72,35 @@ export default function Chrome() {
   // The strip is the title bar: traffic lights are drawn inside it.
   useEffect(() => window.configure({ trafficLights: "custom" }), []);
   return (
-    <Column style={{ flex: 1, align: "stretch" }}>
-      <Stack>
-        <WindowBackground style={{ flex: 1 }} />
+    <Stack style={{ flex: 1 }}>
+      {/* The backdrop shows through the tab strip; everything below it is opaque. */}
+      <WindowBackground style={{ flex: 1 }} />
+      <Column style={{ flex: 1, align: "stretch" }}>
         <TabStrip />
-      </Stack>
-      <Toolbar bar={bar}>
-        <SpaceMenu />
-        <IconButton icon="sidebar.right" tooltip="Bookmark This Tab" testID="pin-current" onPress={() => bar.pane && tabs.pin(bar.pane.tabId)} />
-      </Toolbar>
-      <BookmarksBar />
-      <Stack style={{ flex: 1, background: "background" }}>
-        <Content toolbar="hidden" style={{ flex: 1 }} />
-        {bar.open && !empty ? <CommandBarScrim bar={bar} /> : null}
-        {bar.open ? (
-          <SuggestionList
-            bar={bar}
-            style={{
-              alignSelf: "top",
-              width: 640,
-              maxWidth: "fill",
-              background: "background",
-              cornerRadius: { bottomLeft: 12, bottomRight: 12 },
-              shadow: { color: "#000/0.15", radius: 12, y: 4 },
-            }}
-          />
-        ) : null}
-        <Toasts style={{ alignSelf: "bottomTrailing" }} />
-      </Stack>
-    </Column>
+        <Toolbar bar={bar}>
+          <SpaceMenu />
+          <IconButton icon="star" tooltip="Bookmark This Tab" testID="pin-current" onPress={() => bar.pane && tabs.pin(bar.pane.tabId)} />
+        </Toolbar>
+        <BookmarksBar />
+        <Stack style={{ flex: 1, background: "background" }}>
+          <Content toolbar="hidden" style={{ flex: 1 }} />
+          {bar.open && !empty ? <CommandBarScrim bar={bar} /> : null}
+          {bar.open ? (
+            <SuggestionList
+              bar={bar}
+              style={{
+                alignSelf: "top",
+                width: 640,
+                maxWidth: "fill",
+                background: "background",
+                cornerRadius: { bottomLeft: 12, bottomRight: 12 },
+                shadow: { color: "#000/0.15", radius: 12, y: 4 },
+              }}
+            />
+          ) : null}
+          <Toasts style={{ alignSelf: "bottomTrailing" }} />
+        </Stack>
+      </Column>
+    </Stack>
   );
 }
-void CommandBar;

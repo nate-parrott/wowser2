@@ -20,6 +20,9 @@ function makeHost(o) {
   const logs = [];
   const errors = [];
   const commands = [];
+  // The runtime replaces the global console / timers in its context; when
+  // host and runtime share a global (the simulator page) use the originals.
+  const out = o.console || console;
 
   const sliceJSON = (key) => {
     const v = o.fake.slice(key);
@@ -45,11 +48,11 @@ function makeHost(o) {
     branch: o.branch || "test",
     log(level, message) {
       logs.push({ level, message });
-      if (o.echo) console.log("[shell:" + level + "]", message);
+      if (o.echo) out.log("[shell:" + level + "]", message);
     },
     reportError(json) {
       errors.push(JSON.parse(json));
-      if (o.echo) console.error("[shell:error]", json);
+      if (o.echo) out.error("[shell:error]", json);
     },
     readBuiltin(name) {
       return o.builtins[name] == null ? null : o.builtins[name];

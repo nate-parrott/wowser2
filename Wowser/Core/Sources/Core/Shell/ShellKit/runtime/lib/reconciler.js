@@ -837,7 +837,9 @@ function dispatch(nodeId, name, payload) {
     const fn = inst.el.props[name];
     if (typeof fn === "function") {
       try {
-        result = fn(payload);
+        // Events with more than one argument arrive as { __args: [...] }.
+        if (payload && typeof payload === "object" && Array.isArray(payload.__args)) result = fn.apply(null, payload.__args);
+        else result = fn(payload);
       } catch (e) {
         reportError(e, inst, false);
       }
