@@ -1,0 +1,16 @@
+<!-- Suggestion rows for a command bar: the selected row wears the accent.
+     Props: bar (from useCommandBar), style? -->
+<view>
+  <Column if="{bar.suggestions.length}" padding="10" align="stretch" style="{style}">
+    <Pressable for="(s, i) in bar.suggestions" key="{s.id}" testID="suggestion-{i}"
+               gap="12" padding="8" align="center" cornerRadius="8"
+               background="{i === bar.selected ? 'accent' : 'clear'}"
+               color="{i === bar.selected ? 'onAccent' : 'primary'}"
+               hover:background="{i === bar.selected ? 'accent' : 'accent/0.1'}"
+               onPress="bar.choose(s, { newTab: event.modifiers.cmd })">
+      <SuggestionIcon suggestion="{s}"/>
+      <Text fontSize="14" lineLimit="1" layoutPriority="2">{s.title}</Text>
+      <Text if="{s.subtitle}" fontSize="12" lineLimit="1" opacity="0.5" flex="1">{s.subtitle}</Text>
+    </Pressable>
+  </Column>
+</view>

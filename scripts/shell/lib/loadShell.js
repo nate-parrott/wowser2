@@ -26,7 +26,7 @@ function readBranch(dir) {
       if (e.name.startsWith(".")) continue;
       const rel = prefix ? prefix + "/" + e.name : e.name;
       if (e.isDirectory()) walk(path.join(d, e.name), rel);
-      else if (/\.(tsx?|jsx?|json|html|css|md|svg)$/.test(e.name)) out[rel] = fs.readFileSync(path.join(d, e.name), "utf8");
+      else if (/\.(xml|tsx?|jsx?|json|html|css|md|svg)$/.test(e.name)) out[rel] = fs.readFileSync(path.join(d, e.name), "utf8");
     }
   };
   walk(dir, "");

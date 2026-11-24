@@ -1,0 +1,14 @@
+<!-- Back / forward / reload for one pane. Props: paneId -->
+<view>
+  <Row>
+    <IconButton testID="back" icon="chevron.backward" tooltip="Back"
+                disabled="{!$paneById(paneId)?.canGoBack}" onPress="panes.back(paneId)"/>
+    <IconButton testID="forward" icon="chevron.forward" tooltip="Forward"
+                disabled="{!$paneById(paneId)?.canGoForward}" onPress="panes.forward(paneId)"/>
+    <IconButton testID="reload"
+                icon="{$paneById(paneId)?.isLoading ? 'xmark' : 'arrow.clockwise'}"
+                tooltip="{$paneById(paneId)?.isLoading ? 'Stop' : 'Reload'}"
+                disabled="{!$paneById(paneId) || $paneById(paneId).isEmpty}"
+                onPress="$paneById(paneId).isLoading ? panes.stop(paneId) : panes.reload(paneId)"/>
+  </Row>
+</view>

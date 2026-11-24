@@ -1,0 +1,17 @@
+<!-- The URL display in a toolbar. Idle: the site name; click to edit. While
+     the command bar is open it is the text field. Pair it with
+     <SuggestionList bar="{bar}"/> placed wherever results should appear.
+     Props: bar (from useCommandBar), fontSize?, style? -->
+<view>
+  <Row if="{bar.open}" flex="1" gap="6" align="center" padding.horizontal="8" style="{style}">
+    <Icon name="magnifyingglass" size="{fontSize ?? 12}" weight="medium" opacity="0.5"/>
+    <TextInput testID="address-input" autoFocus selectAllOnFocus flex="1" fontSize="{fontSize ?? 12}"
+               value="{bar.query}" placeholder="Search or enter address"
+               onChangeText="{bar.setQuery}" onKey="{bar.onKey}" onSubmit="{bar.submit}" onBlur="commandBar.close()"/>
+  </Row>
+  <Pressable else testID="address" flex="1" gap="6" align="center" padding.horizontal="8" cursor="text" style="{style}"
+             tooltip="{bar.pane?.url ?? undefined}" onPress="commandBar.open({ prefillURL: true })">
+    <Icon if="{bar.pane?.url}" name="{bar.pane.isSecure ? 'lock.fill' : 'lock.open.fill'}" size="{(fontSize ?? 12) - 2}" opacity="0.33"/>
+    <Text fontSize="{fontSize ?? 12}" lineLimit="1" truncate="middle">{bar.pane?.displayURL ?? ""}</Text>
+  </Pressable>
+</view>

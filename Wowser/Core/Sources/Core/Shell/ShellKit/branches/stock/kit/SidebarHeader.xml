@@ -1,0 +1,17 @@
+<!-- Top row of the sidebar: window controls, the space's name, the toggle.
+     Dragging it moves the window. -->
+<view>
+  <import name="theme" from="./theme"/>
+  <Row padding="6" gap="4" align="center" windowDrag>
+    <WindowControls/>
+    <Row if="{$space}" flex="1" gap="5" align="center">
+      <Text fontSize="12">{$space.emoji ?? ""}</Text>
+      <Text fontSize="11" fontWeight="semibold" color="secondary" lineLimit="1">{$space.name}</Text>
+    </Row>
+    <Spacer else/>
+    <Pressable testID="toggle-sidebar" tooltip="Toggle Sidebar" style="{{ ...theme.ghostButton, width: 26, height: 26 }}"
+               onPress="window.toggleSidebar()">
+      <Icon name="sidebar.left" size="12" weight="medium"/>
+    </Pressable>
+  </Row>
+</view>

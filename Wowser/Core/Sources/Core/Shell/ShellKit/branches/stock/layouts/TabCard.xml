@@ -1,0 +1,12 @@
+<!-- A tab as a large touch row (phone tab sheet). Props: tab, onPick -->
+<view>
+  <Pressable testID="tab-{tab.id}" height="52" gap="12" align="center" padding.horizontal="14" cornerRadius="14"
+             background="{tab.isCurrent ? 'accent/0.18' : 'primary/0.05'}" pressed:scale="0.98" animate="snappy"
+             onPress="tabs.select(tab.id); onPick()">
+    <TabIcon tabId="{tab.id}" size="20"/>
+    <Text flex="1" fontSize="16" lineLimit="1">{tab.title}</Text>
+    <Pressable testID="close-{tab.id}" width="32" height="32" align="center" justify="center" onPress="tabs.close(tab.id)">
+      <Icon name="xmark" size="12" weight="bold" opacity="0.5"/>
+    </Pressable>
+  </Pressable>
+</view>

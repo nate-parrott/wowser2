@@ -1,0 +1,15 @@
+<!-- The grid of pinned tabs: up to `columns` capsules per row, padded with
+     empty drop targets. Props: spaceId?, columns? -->
+<view>
+  <Column gap="8" padding.horizontal="8" padding.top="5" padding.bottom="10" align="stretch">
+    <Row for="(row, r) in rows" key="{r}" gap="8">
+      <Fragment for="(tab, c) in row" key="{tab ? tab.id : 'empty' + c}">
+        <FavoriteCell if="{tab}" tab="{tab}"/>
+        <Row else tooltip="Drag your favorite tabs here"
+             flex="1" height="40" cornerRadius="20" background.material="glass"
+             dropTarget:border.color="accent" dropTarget:border.width="2"
+             dropTypes="{['tab']}" onDrop="tabs.pin(event.id)"/>
+      </Fragment>
+    </Row>
+  </Column>
+</view>

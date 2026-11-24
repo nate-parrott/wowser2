@@ -332,7 +332,9 @@ struct ShellStyledView<Content: View>: View {
         let interactive = node.handles("onPress") || node.handles("onDoublePress") || node.handles("onHover") || node.handles("onPan")
             || node.props["dropTypes"] != nil || node.props["contextMenu"] != nil || node.bool("windowDrag") || declared.contains(.hover)
 
-        style.sizeLayout(axis: axis, stretch: stretch, anchor: isBox ? ShellAlign.contentAnchor(type: node.type, style: style) : .center) {
+        let box = style.sizeLayout(axis: axis, stretch: stretch, anchor: isBox ? ShellAlign.contentAnchor(type: node.type, style: style) : .center)
+
+        box {
             content
                 .foregroundStyle(palette.color(style.color) ?? .primary, when: style.color != nil)
                 .padding(style.padding)

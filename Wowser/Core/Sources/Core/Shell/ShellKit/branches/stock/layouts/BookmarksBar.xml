@@ -1,0 +1,12 @@
+<!-- Pinned tabs, drawn as a bookmarks bar. -->
+<view>
+  <Row if="{$tabs.pinned.length}" height="28" gap="2" align="center" padding.horizontal="8" background="background">
+    <Pressable for="tab in $tabs.pinned" key="{tab.id}" testID="bookmark-{tab.id}" tooltip="{tab.url ?? tab.title}"
+               height="22" gap="5" align="center" padding.horizontal="6" cornerRadius="6" maxWidth="140"
+               background="{tab.isCurrent ? 'primary/0.08' : 'clear'}" hover:background="primary/0.07"
+               onPress="tabs.select(tab.id)">
+      <TabIcon tabId="{tab.id}" size="14"/>
+      <Text fontSize="11" lineLimit="1">{tab.title}</Text>
+    </Pressable>
+  </Row>
+</view>

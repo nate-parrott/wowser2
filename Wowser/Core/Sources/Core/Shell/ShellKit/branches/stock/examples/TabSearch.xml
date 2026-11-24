@@ -1,0 +1,28 @@
+<!-- A quick switcher: ⌘⇧A opens a palette listing every tab; type to filter,
+     arrows to move, Enter to switch. Place it as the last child of the
+     window's root Stack so it floats above everything. Props: hotkey? -->
+<view>
+  <Stack if="{open}" testID="tab-search" flex="1" align="top" padding.top="90" transition="opacity">
+    <Stack testID="tab-search-scrim" flex="1" background="#000/0.2" onPress="close()"/>
+    <Column width="520" align="stretch" cornerRadius="14" clip background.material="regular"
+            shadow.color="#000/0.25" shadow.radius="24" shadow.y="8">
+      <Row height="44" gap="8" align="center" padding.horizontal="14">
+        <Icon name="magnifyingglass" size="14" opacity="0.5"/>
+        <TextInput testID="tab-search-input" autoFocus flex="1" fontSize="15"
+                   value="{query}" placeholder="Search {total} tabs"
+                   onChangeText="{setQuery}" onKey="{onKey}" onSubmit="pick(matches[selected])" onBlur="close()"/>
+      </Row>
+      <Column align="stretch" padding="6" maxHeight="360">
+        <Pressable for="(tab, i) in matches.slice(0, 9)" key="{tab.id}" testID="tab-search-row-{i}"
+                   height="32" gap="10" align="center" padding.horizontal="8" cornerRadius="8"
+                   background="{i === selected ? 'accent' : 'clear'}" color="{i === selected ? 'onAccent' : 'primary'}"
+                   onPress="pick(tab)">
+          <TabIcon tabId="{tab.id}" size="16"/>
+          <Text flex="1" fontSize="13" lineLimit="1">{tab.title}</Text>
+          <Text if="{tab.isCurrent}" fontSize="11" opacity="0.6">current</Text>
+        </Pressable>
+        <Text if="{matches.length === 0}" padding="12" fontSize="12" color="secondary">No tabs match “{query}”</Text>
+      </Column>
+    </Column>
+  </Stack>
+</view>

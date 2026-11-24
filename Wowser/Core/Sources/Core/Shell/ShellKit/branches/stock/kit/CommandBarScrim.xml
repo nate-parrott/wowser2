@@ -1,0 +1,5 @@
+<!-- Catches clicks behind an open command bar and closes it.
+     Props: bar (from useCommandBar) -->
+<view>
+  <Stack if="{bar.open}" testID="scrim" flex="1" background="#000/0.001" onPress="bar.close()"/>
+</view>

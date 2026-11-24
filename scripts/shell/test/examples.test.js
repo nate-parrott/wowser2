@@ -134,7 +134,7 @@ describe("examples: each idea works with the primitives as they are", () => {
   });
 
   test("WebPanels: a remote island beside the page, phone-sized", async () => {
-    bootWith(`import { WebPanels } from "../examples/WebPanel"; export default function T() { return <WebPanels />; }`);
+    bootWith(`import { WebPanels } from "../examples/WebPanels"; export default function T() { return <WebPanels />; }`);
     expect(s.tree.find((n) => n.type === "webisland")).toBeNull();
     s.press(s.tree.byTestId("panel-translate"));
     await s.settle();

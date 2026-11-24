@@ -1,0 +1,29 @@
+<!-- One horizontal tab. Shares free width with its siblings up to 220pt;
+     `compact` draws just the icon (pinned tabs). Props: tab, compact? -->
+<view>
+  <import name="menus" from="./tabMenu"/>
+  <Pressable testID="tab-{tab.id}" group role="tab" label="{tab.title}" tooltip="{tab.title}"
+             flex="{compact ? undefined : 1}" minWidth="{compact ? undefined : 44}" maxWidth="{compact ? undefined : 220}"
+             width="{compact ? 36 : undefined}" height="30" gap="7" align="center"
+             justify="{compact ? 'center' : 'start'}"
+             padding.left="{compact ? 0 : 9}" padding.right="{compact ? 0 : 5}"
+             cornerRadius.topLeft="9" cornerRadius.topRight="9"
+             background="{tab.isCurrent ? 'background' : 'clear'}"
+             animate.type="ease" animate.duration="0.12"
+             hover:background="{tab.isCurrent ? 'background' : 'primary/0.07'}"
+             dropTarget:border.color="accent" dropTarget:border.width="2"
+             onPress="tabs.select(tab.id, { modifiers: event.modifiers })"
+             draggable="{{ type: 'tab', id: tab.id }}"
+             dropTypes="{['tab', 'url']}" onDrop="{drop}">
+    <contextMenu items="{menus.tabMenu(tab, $spaces)}"/>
+    <TabIcon tabId="{tab.id}" size="16" opacity="{tab.isUnloaded ? 0.55 : 1}"/>
+    <Text if="{!compact}" flex="1" fontSize="12" lineLimit="1" opacity="{tab.isCurrent ? 1 : 0.8}">{tab.title}</Text>
+    <Pressable if="{!compact}" testID="close-{tab.id}" tooltip="Close Tab"
+               width="18" height="18" align="center" justify="center" cornerRadius="9"
+               opacity="{tab.isCurrent ? 0.7 : 0}" groupHover:opacity="0.7"
+               hover:background="primary/0.12" hover:opacity="1"
+               onPress="tabs.close(tab.id)">
+      <Icon name="xmark" size="8" weight="heavy"/>
+    </Pressable>
+  </Pressable>
+</view>

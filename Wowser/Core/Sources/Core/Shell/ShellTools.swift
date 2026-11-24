@@ -359,6 +359,7 @@ enum ShellScreenshot {
         return png1x(image, pointSize: size)?.base64EncodedString()
     }
 
+    @MainActor
     private static func captureWithScreenCaptureKit(window: NSWindow) async -> CGImage? {
         guard let content = try? await SCShareableContent.current,
               let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) })

@@ -1,0 +1,13 @@
+<!-- The vertical tab list of a space, with AI group headers. Put it inside
+     a ScrollView. Props: spaceId? -->
+<view>
+  <Column align="stretch" animate.type="ease" animate.duration="0.12"
+          dropTypes="{['tab']}" onDrop="tabs.move(event.id, { to: 'tabs' })">
+    <Column for="(group, i) in groups" key="{(group.name ?? '') + ':' + group.tabs[0].id}" align="stretch">
+      <Text if="{group.name}" fontSize="11" fontWeight="medium" color="secondary"
+            padding.top="12" padding.bottom="4" padding.left="12">{group.name}</Text>
+      <Divider else-if="{i > 0}" margin="6 14"/>
+      <TabRow for="tab in group.tabs" key="{tab.id}" tab="{tab}"/>
+    </Column>
+  </Column>
+</view>

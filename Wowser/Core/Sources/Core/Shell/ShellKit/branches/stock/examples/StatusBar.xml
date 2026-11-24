@@ -1,0 +1,20 @@
+<!-- A status bar for the bottom of the window: the page's address, load
+     progress, zoom buttons and a tab count. It reads the focused pane, so
+     it re-renders as the page loads — which is why it is its own view.
+     No logic file. -->
+<view>
+  <Stack testID="status-bar" height="24" background="background">
+    <Stack alignSelf="top" width="fill" height="1" background="primary/0.1"/>
+    <Row flex="1" gap="8" align="center" padding.horizontal="10" fontSize="11" color="secondary">
+      <Text lineLimit="1" truncate="middle" maxWidth="480">{$pane?.isLoading ? `Loading ${$pane.displayURL}… ${Math.round($pane.progress * 100)}%` : ($pane?.url ?? "")}</Text>
+      <Spacer/>
+      <Text monospacedDigits>{$tabs.tabs.length + $tabs.pinned.length} tabs</Text>
+      <Row>
+        <IconButton icon="minus.magnifyingglass" size="10" tooltip="Zoom Out" style="{{ width: 22, height: 20 }}"
+                    disabled="{!$pane}" onPress="panes.zoomOut($pane.id)"/>
+        <IconButton icon="plus.magnifyingglass" size="10" tooltip="Zoom In" style="{{ width: 22, height: 20 }}"
+                    disabled="{!$pane}" onPress="panes.zoomIn($pane.id)"/>
+      </Row>
+    </Row>
+  </Stack>
+</view>

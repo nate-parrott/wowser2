@@ -1,0 +1,46 @@
+<!-- The same layout as Classic.xml, with every piece of chrome drawn by the
+     kit (primitives) instead of native composites. Only the web content and
+     the window backdrop are native. This is the one to fork when you want to
+     change how tabs, the toolbar or the command bar look or behave. -->
+<view>
+  <Stack flex="1">
+    <native:WindowBackground flex="1"/>
+    <Row flex="1">
+      <ErrorBoundary if="{$window.sidebarVisible}">
+        <Text slot="fallback" padding="12" fontSize="11" color="red">The sidebar failed to render.</Text>
+        <Sidebar/>
+      </ErrorBoundary>
+      <Divider if="{$window.sidebarVisible}"/>
+
+      <Stack flex="1" clip cornerStyle="circular"
+             margin="{$window.sidebarVisible ? 0 : 8}"
+             cornerRadius="{$window.sidebarVisible ? 0 : 10}"
+             shadow="{$window.sidebarVisible ? undefined : { color: '#000/0.1', radius: 3, y: 1 }}">
+        <ErrorBoundary>
+          <Text slot="fallback" padding="12" fontSize="11" color="red">The content area failed to render.</Text>
+          <Column flex="1" align="stretch">
+            <Toolbar if="{!empty}" bar="{bar}"/>
+            <Stack flex="1">
+              <native:Content toolbar="hidden" flex="1"/>
+              <!-- An empty tab is just the command bar, centred. -->
+              <Stack if="{empty}" flex="1" align="top" padding.top="120" padding.horizontal="50">
+                <CommandBar bar="{bar}"/>
+              </Stack>
+              <Fragment else-if="{bar.open}">
+                <CommandBarScrim bar="{bar}"/>
+                <SuggestionList bar="{bar}"
+                                style="{{ alignSelf: 'top', width: 'fill', background: 'background',
+                                          cornerRadius: { bottomLeft: 8, bottomRight: 8 },
+                                          shadow: { color: '#000/0.12', radius: 8, x: 2, y: 3 } }}"/>
+              </Fragment>
+              <Toasts style.alignSelf="topTrailing"/>
+            </Stack>
+          </Column>
+        </ErrorBoundary>
+      </Stack>
+    </Row>
+    <FloatingSidebar if="{!$window.sidebarVisible}" width="{sidebarWidth}" card>
+      <Sidebar/>
+    </FloatingSidebar>
+  </Stack>
+</view>

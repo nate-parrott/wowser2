@@ -1,0 +1,27 @@
+<!-- Web panels, Vivaldi-style: a strip of icons; clicking one opens that
+     site in a narrow column beside the page, as a phone-sized view. The site
+     is a plain web view — it gets no access to the browser. Which panel is
+     open is remembered. No logic file. Props: width? -->
+<view state="{ panels: [
+    { id: 'notes', icon: 'note.text', title: 'Notes', url: 'https://keep.google.com/' },
+    { id: 'translate', icon: 'character.bubble', title: 'Translate', url: 'https://translate.google.com/' },
+    { id: 'music', icon: 'music.note', title: 'Music', url: 'https://music.youtube.com/' } ] }">
+  <Row testID="web-panels" height="fill" align="stretch">
+    <Fragment for="panel in panels" key="{panel.id}">
+      <Column if="{$storage('webPanel', null) === panel.id}" width="{width ?? 360}" align="stretch" background="background">
+        <Row height="30" gap="6" align="center" padding.horizontal="10">
+          <Text flex="1" fontSize="11" fontWeight="semibold" color="secondary">{panel.title}</Text>
+        </Row>
+        <WebIsland src="{panel.url}" mobile flex="1"/>
+      </Column>
+    </Fragment>
+    <Column width="38" gap="4" padding.vertical="8" align="center" background="primary/0.03">
+      <Pressable for="panel in panels" key="{panel.id}" testID="panel-{panel.id}" tooltip="{panel.title}"
+                 width="28" height="28" align="center" justify="center" cornerRadius="7"
+                 background="{$storage('webPanel', null) === panel.id ? 'accent/0.2' : 'clear'}" hover:background="primary/0.08"
+                 onPress="storage.set('webPanel', $storage('webPanel', null) === panel.id ? null : panel.id)">
+        <Icon name="{panel.icon}" size="13" weight="medium"/>
+      </Pressable>
+    </Column>
+  </Row>
+</view>

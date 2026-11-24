@@ -1,0 +1,28 @@
+<!-- A tab list grouped by site, with collapsible groups and a per-group
+     "close all". A drop-in replacement for kit/TabList: same rows, different
+     grouping. Which groups are collapsed is remembered per branch. -->
+<view>
+  <Column testID="domain-groups" align="stretch" animate.type="ease" animate.duration="0.15">
+    <Fragment for="group in groups" key="{group.domain}">
+      <TabRow if="{group.tabs.length === 1}" tab="{group.tabs[0]}"/>
+      <Column else align="stretch">
+        <Pressable group testID="group-{group.domain}" height="26" gap="6" align="center"
+                   margin.top="6" margin.horizontal="6" padding.horizontal="8" cornerRadius="6"
+                   hover:background="primary/0.05" onPress="toggle(group.domain)">
+          <Icon name="chevron.forward" size="8" weight="bold" rotate="{group.closed ? 0 : 90}" opacity="0.5" animate="snappy"/>
+          <Favicon url="{group.tabs[0].url}" size="12"/>
+          <Text flex="1" fontSize="11" fontWeight="semibold" color="secondary" lineLimit="1">{group.domain}</Text>
+          <Text fontSize="10" color="secondary" monospacedDigits groupHover:opacity="0">{group.tabs.length}</Text>
+          <Pressable testID="close-group-{group.domain}" tooltip="Close {group.tabs.length} tabs"
+                     padding="4" cornerRadius="99" opacity="0" groupHover:opacity="1" hover:background="primary/0.1"
+                     onPress="group.tabs.forEach((t) => tabs.close(t.id))">
+            <Icon name="xmark" size="8" weight="heavy"/>
+          </Pressable>
+        </Pressable>
+        <Fragment if="{!group.closed}">
+          <TabRow for="tab in group.tabs" key="{tab.id}" tab="{tab}"/>
+        </Fragment>
+      </Column>
+    </Fragment>
+  </Column>
+</view>

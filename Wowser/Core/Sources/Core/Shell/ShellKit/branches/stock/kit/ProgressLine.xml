@@ -1,0 +1,9 @@
+<!-- A thin page-load progress line for the bottom edge of a toolbar.
+     Its own view so that only this line re-renders as the page loads.
+     Props: paneId -->
+<view>
+  <Stack alignSelf="bottom" height="2" width="fill" background="accent" anchor="leading"
+         scaleX="{$paneById(paneId)?.isLoading ? Math.max(0.05, $paneById(paneId).progress) : 1}"
+         opacity="{$paneById(paneId)?.isLoading ? 1 : 0}"
+         animate.type="ease" animate.duration="0.2"/>
+</view>

@@ -3,7 +3,7 @@
   "description": "Tabs across the top, toolbar and bookmarks bar underneath. An example of a different arrangement built from the same kit.",
   "seedBase": "stock",
   "entry": {
-    "mac": "mac/index.tsx",
-    "ios": "ios/index.tsx"
+    "mac": "mac/index.xml",
+    "ios": "ios/index.xml"
   }
 }

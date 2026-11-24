@@ -3,7 +3,8 @@
 // and the in-page DOM simulator both use it.
 "use strict";
 
-const EXTENSIONS = ["", ".tsx", ".ts", ".jsx", ".js", ".json", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"];
+// A view's template wins over its logic file: `import X from "./X"` is the view.
+const EXTENSIONS = ["", ".xml", ".tsx", ".ts", ".jsx", ".js", ".json", "/index.xml", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"];
 
 /**
  * @param o.builtins   { [name]: code } — ShellKit/runtime/lib/*.js
@@ -64,7 +65,7 @@ function makeHost(o) {
     loadModule(path) {
       const src = o.files[path];
       if (src == null) throw new Error("No such file: " + path);
-      if (path.endsWith(".json")) return src;
+      if (path.endsWith(".json") || path.endsWith(".xml")) return src;
       try {
         return o.transpile(src, path, true);
       } catch (e) {
@@ -90,6 +91,7 @@ function makeHost(o) {
       try {
         const args = argsJSON ? JSON.parse(argsJSON) : undefined;
         if (name === "shell.readFile") return JSON.stringify(o.files[args.path] ?? null);
+        if (name === "shell.files") return JSON.stringify(Object.keys(o.files));
         const out = o.fake.call(name, args);
         // Mirror the app: state changes reach subscribers after the call
         // returns, coalesced.

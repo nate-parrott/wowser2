@@ -1,0 +1,27 @@
+<!-- Toast cards for this window, newest on top. Props: style? -->
+<view>
+  <Column padding="16" gap="8" align="end" animate.type="spring" animate.duration="0.2" animate.bounce="0.4" style="{style}">
+    <Row for="toast in $toasts.slice(0, 3)" key="{toast.id}" testID="toast-{toast.id}"
+         width="320" padding="10" gap="10" align="center" cornerRadius="16" background.material="glass"
+         transition.type="move" transition.edge="top">
+      <Stack width="26" height="26" align="center" cornerRadius="8" background="accent" color="white">
+        <Icon name="{toast.icon}" size="13" weight="semibold"/>
+      </Stack>
+      <Column flex="1" align="start" gap="2">
+        <Text if="{toast.title}" fontSize="11" fontWeight="semibold" color="secondary">{toast.title}</Text>
+        <Text fontSize="13" lineLimit="3">{toast.message}</Text>
+        <Row if="{toast.actions.length}" gap="6" padding.top="4">
+          <Pressable for="(title, i) in toast.actions" key="{i}" padding="4 10" cornerRadius="99" fontSize="12" fontWeight="semibold"
+                     background="{i === 0 ? 'accent' : 'primary/0.12'}" color="{i === 0 ? 'white' : 'primary'}"
+                     hover:opacity="0.9" onPress="toasts.performAction(toast.id, i)">
+            <Text>{title}</Text>
+          </Pressable>
+        </Row>
+      </Column>
+      <Pressable testID="dismiss-{toast.id}" width="26" height="26" align="center" justify="center" cornerRadius="13"
+                 background="primary/0.2" hover:background="primary/0.35" onPress="toasts.dismiss(toast.id)">
+        <Icon name="xmark" size="10" weight="bold"/>
+      </Pressable>
+    </Row>
+  </Column>
+</view>

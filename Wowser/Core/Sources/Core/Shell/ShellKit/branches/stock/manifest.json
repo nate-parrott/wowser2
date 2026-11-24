@@ -2,7 +2,7 @@
   "name": "Stock",
   "description": "The built-in Wowser look, assembled from native parts. Fork it to start customising.",
   "entry": {
-    "mac": "mac/index.tsx",
-    "ios": "ios/index.tsx"
+    "mac": "mac/index.xml",
+    "ios": "ios/index.xml"
   }
 }

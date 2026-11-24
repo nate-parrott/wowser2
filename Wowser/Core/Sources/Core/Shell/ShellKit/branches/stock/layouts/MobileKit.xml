@@ -1,0 +1,24 @@
+<!-- A phone layout from primitives: page on top, a bottom bar with the
+     address and a tabs button, and a sheet of tabs. Same state and actions
+     as desktop; only the arrangement differs. -->
+<view state="{ sheet: false }">
+  <Stack flex="1" animate.type="spring" animate.duration="0.35" animate.bounce="0.15">
+    <native:WindowBackground flex="1"/>
+    <Column flex="1" align="stretch">
+      <Stack flex="1" margin.horizontal="6" margin.top="6" cornerRadius="22" clip>
+        <native:Content toolbar="hidden" flex="1"/>
+      </Stack>
+      <SuggestionList if="{bar.open}" bar="{bar}" style="{{ padding: { horizontal: 10, vertical: 4 } }}"/>
+      <Row height="56" gap="6" align="center" padding.horizontal="10">
+        <NavButtons if="{!bar.open}" paneId="{$window.focusedPaneId}"/>
+        <AddressField bar="{bar}" fontSize="16" style="{{ height: 40, cornerRadius: 20, background: { material: 'glass' } }}"/>
+        <Pressable if="{!bar.open}" testID="tabs-button" width="40" height="40" align="center" justify="center" cornerRadius="20"
+                   background.material="glass" background.interactive onPress="sheet = true">
+          <Text fontSize="13" fontWeight="bold" monospacedDigits>{$tabs.tabs.length}</Text>
+        </Pressable>
+      </Row>
+    </Column>
+    <Stack if="{sheet}" testID="sheet-scrim" flex="1" background="#000/0.25" transition="opacity" onPress="sheet = false"/>
+    <TabSheet if="{sheet}" onClose="sheet = false"/>
+  </Stack>
+</view>

@@ -1,0 +1,16 @@
+<!-- A floating command bar card (the look of an empty tab, or a
+     Spotlight-style palette): input row on top, suggestions underneath.
+     Centre it in a Stack. Props: bar (from useCommandBar), width? -->
+<view>
+  <Column if="{bar.open}" testID="command-bar" width="{width ?? 560}" maxWidth="fill" align="stretch" cornerRadius="10"
+          background.material="glass" shadow.color="#000/0.1" shadow.radius="12"
+          transition.type="scale" transition.scale="0.97">
+    <Row height="42" align="center" gap="4" padding.left="12" padding.right="12" background="background" cornerRadius="10">
+      <Icon name="magnifyingglass" size="14" weight="medium" opacity="0.5"/>
+      <TextInput testID="command-input" autoFocus selectAllOnFocus flex="1" fontSize="14"
+                 value="{bar.query}" placeholder="Search or enter address"
+                 onChangeText="{bar.setQuery}" onKey="{bar.onKey}" onSubmit="{bar.submit}"/>
+    </Row>
+    <SuggestionList bar="{bar}"/>
+  </Column>
+</view>

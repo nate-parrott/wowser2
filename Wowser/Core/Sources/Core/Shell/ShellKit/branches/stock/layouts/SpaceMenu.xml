@@ -1,0 +1,14 @@
+<!-- Spaces as a profile-style menu button. -->
+<view>
+  <Menu tooltip="Spaces" height="26" padding.horizontal="8" gap="4" align="center" cornerRadius="13"
+        background="accent/0.15" hover:background="accent/0.25">
+    <items>
+      <item for="space in $spaces" title="{(space.emoji ? space.emoji + ' ' : '') + space.name}"
+            checked="{space.isCurrent}" onSelect="spaces.activate(space.id)"/>
+      <separator/>
+      <item title="New Space" icon="plus" onSelect="spaces.create()"/>
+    </items>
+    <Text fontSize="11" fontWeight="medium">{($space?.emoji ? $space.emoji + " " : "") + ($space?.name ?? "")}</Text>
+    <Icon name="chevron.down" size="8" weight="bold" opacity="0.6"/>
+  </Menu>
+</view>

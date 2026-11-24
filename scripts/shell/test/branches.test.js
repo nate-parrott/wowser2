@@ -30,7 +30,7 @@ describe("stock layouts", () => {
 
   test("every file in the stock branch transpiles and loads", () => {
     s = loadShell({ branch: "stock" });
-    const files = Object.keys(s.files).filter((f) => /\.(tsx?|jsx?)$/.test(f));
+    const files = Object.keys(s.files).filter((f) => /\.(xml|tsx?|jsx?)$/.test(f));
     expect(files.length).toBeGreaterThan(15);
     for (const f of files) {
       const out = JSON.parse(s.shell.evaluate(`__shell.require(${JSON.stringify(f)}); 1`));
@@ -140,7 +140,7 @@ describe("stock layouts", () => {
 
 test("the chrome seed is stock plus an overlay", () => {
   const chrome = readBranch(path.join(BRANCHES, "chrome"));
-  expect(Object.keys(chrome).sort()).toEqual(["mac/index.tsx", "manifest.json"]);
+  expect(Object.keys(chrome).sort()).toEqual(["mac/index.xml", "manifest.json"]);
   const files = Object.assign(readBranch(path.join(BRANCHES, "stock")), chrome);
   s = loadShell({ files });
   s.mount();

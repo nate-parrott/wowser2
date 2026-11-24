@@ -1,0 +1,26 @@
+<!-- A conventional top-tabs browser: tab strip in the title bar, toolbar
+     underneath, bookmarks bar, full-bleed page. Same browser model,
+     different arrangement — nothing here is special-cased natively. -->
+<view>
+  <Stack flex="1">
+    <!-- The backdrop shows through the tab strip; everything below is opaque. -->
+    <native:WindowBackground flex="1"/>
+    <Column flex="1" align="stretch">
+      <TabStrip/>
+      <Toolbar bar="{bar}">
+        <SpaceMenu/>
+        <IconButton icon="star" tooltip="Bookmark This Tab" testID="pin-current" onPress="tabs.pin(bar.pane.tabId)"/>
+      </Toolbar>
+      <BookmarksBar/>
+      <Stack flex="1" background="background">
+        <native:Content toolbar="hidden" flex="1"/>
+        <CommandBarScrim if="{!empty}" bar="{bar}"/>
+        <SuggestionList if="{bar.open}" bar="{bar}"
+                        style="{{ alignSelf: 'top', width: 640, maxWidth: 'fill', background: 'background',
+                                  cornerRadius: { bottomLeft: 12, bottomRight: 12 },
+                                  shadow: { color: '#000/0.15', radius: 12, y: 4 } }}"/>
+        <Toasts style.alignSelf="bottomTrailing"/>
+      </Stack>
+    </Column>
+  </Stack>
+</view>

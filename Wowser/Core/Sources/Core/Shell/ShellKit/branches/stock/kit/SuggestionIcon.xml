@@ -1,0 +1,9 @@
+<!-- The icon for a command-bar suggestion. Props: suggestion, size? -->
+<view>
+  <Favicon if="{suggestion.icon.kind === 'favicon'}" url="{suggestion.icon.url}" src="{suggestion.icon.src}"
+           size="{(size ?? 20) - 4}" width="{size ?? 20}" height="{size ?? 20}"/>
+  <Text else-if="{suggestion.icon.kind === 'emoji'}" fontSize="{(size ?? 20) - 6}" width="{size ?? 20}" textAlign="center">{suggestion.icon.value}</Text>
+  <Stack else width="{size ?? 20}" height="{size ?? 20}" align="center">
+    <Icon name="{suggestion.icon.kind === 'symbol' ? suggestion.icon.name : 'globe'}" size="{(size ?? 20) - 7}" weight="medium"/>
+  </Stack>
+</view>

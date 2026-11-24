@@ -1,0 +1,4 @@
+<!-- The stock iOS layout: the built-in page card, puck, tray and command bar. -->
+<view>
+  <native:MobileBrowser flex="1"/>
+</view>

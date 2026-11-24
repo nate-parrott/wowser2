@@ -1,0 +1,24 @@
+<!-- "Read later": drop a tab or a link on it to save the page; click to
+     open, × to remove. Kept in this branch's storage, so it survives
+     restarts. -->
+<view>
+  <Column testID="reading-list" align="stretch" margin="6" padding="6" gap="2" cornerRadius="10" background="primary/0.04" animate
+          dropTarget:background="accent/0.15" dropTarget:border.color="accent" dropTarget:border.width="2"
+          dropTypes="{['tab', 'url']}" onDrop="{drop}">
+    <Row gap="6" align="center" padding="2 4">
+      <Icon name="bookmark" size="10" weight="semibold" color="secondary"/>
+      <Text flex="1" fontSize="11" fontWeight="semibold" color="secondary">Read Later</Text>
+    </Row>
+    <Text if="{items.length === 0}" fontSize="11" color="tertiary" padding="4">Drop tabs or links here</Text>
+    <Pressable for="item in items" key="{item.url}" group testID="saved-{item.url}"
+               height="26" gap="8" align="center" padding.horizontal="4" cornerRadius="6" hover:background="primary/0.06"
+               onPress="tabs.create({ url: item.url })">
+      <Favicon url="{item.url}" size="14"/>
+      <Text flex="1" fontSize="12" lineLimit="1">{item.title}</Text>
+      <Pressable testID="unsave-{item.url}" padding="4" cornerRadius="99" opacity="0" groupHover:opacity="1"
+                 hover:background="primary/0.1" onPress="remove(item.url)">
+        <Icon name="xmark" size="8" weight="heavy"/>
+      </Pressable>
+    </Pressable>
+  </Column>
+</view>

@@ -141,10 +141,14 @@
     const module = { exports: {} };
     userCache.set(path, module);
     try {
-      // The host returns CommonJS: JSON as-is, everything else transpiled.
+      // The host returns CommonJS, except JSON and XML templates, which
+      // come back as written.
       const code = host.loadModule(path);
       if (path.endsWith(".json")) {
         module.exports = JSON.parse(code);
+      } else if (path.endsWith(".xml")) {
+        // A view template; its logic file (same name, .ts / .js) rides along.
+        module.exports = requireBuiltin("template").loadView(path, code, (spec) => requireFrom(path, spec));
       } else {
         const fn = evalModule(code, path);
         fn(module.exports, (spec) => requireFrom(path, spec), module, path);

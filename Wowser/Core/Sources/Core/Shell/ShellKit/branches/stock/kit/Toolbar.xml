@@ -1,0 +1,20 @@
+<!-- A toolbar from primitives: nav buttons, the address field, then whatever
+     you put inside <Toolbar>…</Toolbar> (your own buttons). Children with
+     slot="leading" go before the nav buttons — e.g. <WindowControls/>.
+     Props: bar (from useCommandBar), style? -->
+<view>
+  <Stack height="42" background="background" style="{style}">
+    <Row flex="1" gap="4" align="center" padding.horizontal="8">
+      <slot name="leading"/>
+      <NavButtons paneId="{bar.pane?.id ?? null}"/>
+      <AddressField bar="{bar}"
+                    style="{{ height: 28, cornerRadius: 8, background: 'primary/0.06',
+                              hover: { background: 'primary/0.09' },
+                              focused: { background: 'primary/0.04', border: { color: 'accent/0.6', width: 1.5 } } }}"/>
+      <children/>
+      <IconButton testID="new-split" icon="rectangle.split.2x1" tooltip="New Split Pane" onPress="tabs.create({ inSplit: true })"/>
+    </Row>
+    <Stack alignSelf="bottom" height="1" width="fill" background="primary/0.1"/>
+    <ProgressLine paneId="{bar.pane?.id ?? null}"/>
+  </Stack>
+</view>

@@ -1,0 +1,15 @@
+<!-- A horizontal tab strip that doubles as the window's title bar: window
+     controls, pinned tabs as compact icons, tabs, then "+". Empty space
+     drags the window. Props: windowControls? (default true) -->
+<view>
+  <Row testID="tab-strip" windowDrag height="38" align="end" padding.left="6" padding.right="8" gap="1"
+       dropTypes="{['tab', 'url']}"
+       onDrop="event.type === 'tab' ? tabs.move(event.id, { to: 'tabs' }) : tabs.create({ url: event.url })">
+    <WindowControls if="{windowControls !== false}" margin.bottom="2" margin.right="6"/>
+    <StripTab for="tab in $tabs.pinned" key="{tab.id}" tab="{tab}" compact/>
+    <StripTab for="tab in $tabs.tabs" key="{tab.id}" tab="{tab}"/>
+    <IconButton testID="new-tab" icon="plus" size="11" tooltip="New Tab"
+                style="{{ width: 26, height: 26, margin: { bottom: 2, left: 3 } }}" onPress="tabs.create()"/>
+    <Spacer minWidth="40"/>
+  </Row>
+</view>

@@ -1,0 +1,13 @@
+<!-- With the sidebar hidden, it slides in from the left edge on hover.
+     The hover zone is a 4pt strip until the sidebar is showing.
+     Children are the sidebar to float. Props: width, card? -->
+<view state="{ shown: false }">
+  <Stack alignSelf="leading" align="leading" height="fill" width="{shown ? width + 18 : 4}" onHover="shown = event">
+    <Stack width="{width}" height="fill"
+           offset.x="{shown ? 0 : -width - 20}"
+           animate.type="spring" animate.duration="0.16" animate.bounce="0.2"
+           style="{card ? { cornerRadius: 8, background: { material: 'ultraThick' }, border: { color: 'primary/0.1', width: 0.5 }, shadow: { color: '#000/0.12', radius: 8 } } : null}">
+      <children/>
+    </Stack>
+  </Stack>
+</view>

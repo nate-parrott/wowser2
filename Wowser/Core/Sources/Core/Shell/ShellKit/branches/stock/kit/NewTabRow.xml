@@ -1,0 +1,8 @@
+<!-- "New Tab", styled like a tab row. -->
+<view>
+  <Pressable testID="new-tab" height="34" margin="2 6" padding.left="8" gap="8" align="center" cornerRadius="8"
+             color="secondary" hover:background="primary/0.07" onPress="tabs.create()">
+    <Icon name="plus" size="12" weight="medium"/>
+    <Text fontSize="13">New Tab</Text>
+  </Pressable>
+</view>

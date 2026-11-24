@@ -1,0 +1,10 @@
+<!-- Entry point for macOS: draws the whole window. Swap the tag to try
+     another layout:
+       <Classic/>     the stock look, native parts (default)
+       <ClassicKit/>  the same look, every part editable
+       <Chrome/>      tabs on top
+     Behaviour with no UI (hotkeys, navigation rules) goes in mac/index.ts
+     as `export function setup()`. -->
+<view>
+  <Classic/>
+</view>

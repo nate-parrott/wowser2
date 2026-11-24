@@ -1,0 +1,13 @@
+<!-- A canvas animation living in the chrome. The drawing happens in a
+     transparent web view (widgets/orb.html) at 60fps without touching the UI
+     code; this view just feeds it props — the accent colour and whether the
+     page is loading — and counts the clicks it posts back. No logic file.
+     Props: size? -->
+<view state="{ taps: 0 }">
+  <Stack testID="orb" width="{size ?? 44}" height="{size ?? 44}" tooltip="A WebIsland">
+    <WebIsland src="examples/widgets/orb.html" flex="1"
+               props="{{ color: $theme.accent, busy: $pane?.isLoading ?? false }}"
+               onMessage="event && event.type === 'tap' ? (taps = taps + 1) : null"/>
+    <Text if="{taps > 0}" alignSelf="bottomTrailing" fontSize="9" fontWeight="bold" color="secondary" monospacedDigits>{taps}</Text>
+  </Stack>
+</view>

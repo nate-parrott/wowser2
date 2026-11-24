@@ -1,0 +1,27 @@
+<!-- The stock Mac layout: the built-in window, taken apart one level.
+
+     Every piece here is the real native view (native:…), so this looks and
+     behaves like the browser you already have. What the template owns is the
+     arrangement: where the sidebar sits, what happens when it is hidden,
+     what surrounds the content. To go further, swap a native piece for its
+     kit twin — see ClassicKit.xml, where all of them are swapped. -->
+<view>
+  <Stack flex="1">
+    <native:WindowBackground flex="1"/>
+    <Row flex="1">
+      <native:Sidebar if="{$window.sidebarVisible}"/>
+      <Divider if="{$window.sidebarVisible}"/>
+      <!-- Sidebar hidden → the page becomes an inset rounded card. -->
+      <Stack flex="1" clip cornerStyle="circular"
+             margin="{$window.sidebarVisible ? 0 : 8}"
+             cornerRadius="{$window.sidebarVisible ? 0 : 10}"
+             shadow="{$window.sidebarVisible ? undefined : { color: '#000/0.1', radius: 3, y: 1 }}">
+        <native:Content flex="1"/>
+        <native:Toasts alignSelf="topTrailing"/>
+      </Stack>
+    </Row>
+    <FloatingSidebar if="{!$window.sidebarVisible}" width="{sidebarWidth}">
+      <native:Sidebar floating/>
+    </FloatingSidebar>
+  </Stack>
+</view>

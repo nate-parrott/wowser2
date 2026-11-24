@@ -1,0 +1,43 @@
+<!-- Everything in examples/ at once, on top of the kit layout. Not a serious
+     UI — a place to see the pieces working together. To try it:
+       mac/index.xml:  <view><Playground/></view>
+       mac/index.ts:   export { setup } from "../layouts/Playground.ts"; -->
+<view>
+  <Stack flex="1">
+    <native:WindowBackground flex="1"/>
+    <Row flex="1">
+      <Sidebar if="{$window.sidebarVisible}">
+        <ReadingList/>
+        <Row align="center" padding.right="10">
+          <Clock/>
+          <Stack flex="1"/>
+          <Orb/>
+        </Row>
+      </Sidebar>
+      <Divider if="{$window.sidebarVisible}"/>
+      <Column flex="1" align="stretch">
+        <ZenMode>
+          <Column slot="chrome" align="stretch">
+            <TabStrip if="{!$window.sidebarVisible}"/>
+            <Toolbar if="{!empty}" bar="{bar}"/>
+          </Column>
+          <native:Content toolbar="hidden" flex="1"/>
+          <Column if="{empty}" flex="1" align="center" justify="center" gap="10">
+            <CommandBar bar="{bar}"/>
+            <SpeedDial/>
+          </Column>
+          <Fragment else-if="{bar.open}">
+            <CommandBarScrim bar="{bar}"/>
+            <SuggestionList bar="{bar}"
+                            style="{{ alignSelf: 'top', width: 'fill', background: 'background', shadow: { color: '#000/0.12', radius: 8, y: 3 } }}"/>
+          </Fragment>
+          <Toasts style.alignSelf="topTrailing"/>
+        </ZenMode>
+        <StatusBar/>
+      </Column>
+      <Divider/>
+      <WebPanels/>
+    </Row>
+    <TabSearch/>
+  </Stack>
+</view>

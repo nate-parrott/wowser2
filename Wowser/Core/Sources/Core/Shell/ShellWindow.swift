@@ -417,6 +417,7 @@ struct ShellFailureBanner: View {
 enum ShellFixIt {
     /// Hand a branch error to the in-browser agent, with enough context to
     /// find and fix it.
+    @MainActor
     static func askAgent(engine: ShellEngine, failure: ShellErrorInfo) {
         let dir = ShellBranchStore.shared.directory(for: engine.branch).path
         let prompt = """

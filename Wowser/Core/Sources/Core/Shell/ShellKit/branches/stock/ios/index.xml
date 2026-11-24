@@ -1,0 +1,5 @@
+<!-- Entry point for iOS. Swap for <MobileKit/> to draw the phone UI from
+     primitives. -->
+<view>
+  <Mobile/>
+</view>

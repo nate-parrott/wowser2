@@ -95,4 +95,9 @@ function useSlice(name, arg, selector) {
   return selected;
 }
 
-module.exports = { read, useSlice, keyFor, _push, _entries: entries };
+/** Current value by full key (see `keyFor`). */
+function readKey(key) {
+  return entryFor(key).value;
+}
+
+module.exports = { read, readKey, listen, useSlice, keyFor, _push, _entries: entries };

@@ -1,0 +1,16 @@
+<!-- One pinned tab in the favorites grid: a glass capsule with the tab's
+     icon. Clicking the current one goes back to its pinned URL.
+     Props: tab (TabInfo) -->
+<view>
+  <import name="menus" from="./tabMenu"/>
+  <Pressable testID="fav-{tab.id}" tooltip="{tab.title}" label="{tab.title}"
+             flex="1" height="40" align="center" justify="center" cornerRadius="20"
+             background="{{ material: 'glass', tint: tab.isCurrent ? 'accent/0.5' : undefined, interactive: true }}"
+             dropTarget:border.color="accent" dropTarget:border.width="2"
+             onPress="tab.isCurrent ? tabs.resetToPinnedURL(tab.id) : tabs.select(tab.id, { modifiers: event.modifiers })"
+             draggable="{{ type: 'tab', id: tab.id }}"
+             dropTypes="{['tab']}" onDrop="tabs.pin(event.id, tab.id)">
+    <contextMenu items="{menus.tabMenu(tab, $spaces)}"/>
+    <TabIcon tabId="{tab.id}" size="16"/>
+  </Pressable>
+</view>

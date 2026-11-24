@@ -1,0 +1,16 @@
+<!-- A bottom sheet listing every tab (phone). Props: onClose -->
+<view>
+  <Column testID="tab-sheet" alignSelf="bottom" width="fill" maxHeight="520" align="stretch"
+          cornerRadius.topLeft="24" cornerRadius.topRight="24" background.material="regular"
+          transition.type="move" transition.edge="bottom">
+    <Row padding="14 18" align="center">
+      <Text flex="1" fontSize="20" fontWeight="bold">{$tabs.tabs.length + $tabs.pinned.length} Tabs</Text>
+      <Pressable testID="sheet-new" padding="8" onPress="tabs.create(); onClose()">
+        <Icon name="plus" size="18" weight="semibold"/>
+      </Pressable>
+    </Row>
+    <ScrollView contentStyle.gap="8" contentStyle.padding.horizontal="12" contentStyle.padding.bottom="24" contentStyle.align="stretch">
+      <TabCard for="tab in [...$tabs.pinned, ...$tabs.tabs]" key="{tab.id}" tab="{tab}" onPick="{onClose}"/>
+    </ScrollView>
+  </Column>
+</view>

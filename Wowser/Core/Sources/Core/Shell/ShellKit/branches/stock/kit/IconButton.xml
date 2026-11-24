@@ -1,0 +1,9 @@
+<!-- A square icon button in the toolbar style.
+     Props: icon, onPress, disabled, tooltip, size, style, testID -->
+<view>
+  <import name="theme" from="./theme"/>
+  <Pressable style="{{ ...theme.toolbarButton, ...style }}"
+             onPress="{onPress}" disabled="{disabled}" tooltip="{tooltip}" label="{tooltip}" testID="{testID}">
+    <Icon name="{icon}" size="{size ?? 13}" weight="medium"/>
+  </Pressable>
+</view>

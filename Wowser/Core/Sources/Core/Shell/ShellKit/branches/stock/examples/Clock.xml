@@ -1,0 +1,8 @@
+<!-- A small clock for the sidebar. Re-renders once a second — just this
+     view, nothing around it. -->
+<view>
+  <Column testID="clock" padding="8 12" align="start" gap="1">
+    <Text fontSize="22" fontWeight="semibold" fontDesign="rounded" monospacedDigits>{time}</Text>
+    <Text fontSize="11" color="secondary">{date}</Text>
+  </Column>
+</view>

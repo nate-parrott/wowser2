@@ -1,0 +1,21 @@
+<!-- A vertical sidebar built from primitives: header, favorites, tabs, space
+     dots. Whatever you put inside <Sidebar>…</Sidebar> goes between the tab
+     list and the dots — the spot for your own widgets.
+     Props: header? (default true) -->
+<view state="{ dragStart: 0 }">
+  <Stack width="{width}" height="fill">
+    <Column flex="1" align="stretch">
+      <SidebarHeader if="{header !== false}"/>
+      <Favorites/>
+      <ScrollView flex="1" scrollTo="{$tabs.currentTabId}" contentStyle.align="stretch">
+        <TabList/>
+        <NewTabRow/>
+      </ScrollView>
+      <children/>
+      <SpaceDots/>
+    </Column>
+    <!-- Drag strip on the trailing edge. -->
+    <Stack alignSelf="trailing" width="6" height="fill" cursor="resizeLeftRight" pressed:background="primary/0.15"
+           onPan="event.phase === 'began' ? (dragStart = width) : setWidth(dragStart + event.dx)"/>
+  </Stack>
+</view>

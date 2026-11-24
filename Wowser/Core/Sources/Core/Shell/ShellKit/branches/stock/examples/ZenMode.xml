@@ -1,0 +1,25 @@
+<!-- Wrap a layout's chrome and its content: in zen mode the chrome leaves
+     the layout and the page takes the whole window; moving the pointer to
+     the top edge brings the chrome back while it is there. ⌘⇧. toggles.
+
+       <ZenMode>
+         <Column slot="chrome" align="stretch"> …tab strip, toolbar… </Column>
+         <native:Content toolbar="hidden" flex="1"/>
+       </ZenMode>
+-->
+<view state="{ peek: false }">
+  <Stack testID="zen" flex="1">
+    <Column flex="1" align="stretch">
+      <!-- Out of zen the chrome takes its space; in zen it floats over the page. -->
+      <slot if="{!zen}" name="chrome"/>
+      <Stack flex="1"><children/></Stack>
+    </Column>
+    <Column if="{zen}" testID="zen-peek" alignSelf="top" width="fill" align="stretch" minHeight="6" onHover="peek = event">
+      <Column align="stretch" background.material="bar" shadow.color="#000/0.15" shadow.radius="10" shadow.y="3"
+              opacity="{peek ? 1 : 0}" offset.y="{peek ? 0 : -12}"
+              animate.type="spring" animate.duration="0.25" animate.bounce="0.1">
+        <slot if="{peek}" name="chrome"/>
+      </Column>
+    </Column>
+  </Stack>
+</view>

@@ -1,0 +1,17 @@
+<!-- A grid of the space's top sites, for empty tabs. Show it where your
+     layout draws an empty tab. Props: columns?, count? -->
+<view>
+  <Column testID="speed-dial" gap="14" padding="20">
+    <Row for="(row, r) in rows" key="{r}" gap="14">
+      <Pressable for="site in row" key="{site.id}" layout="column" testID="dial-{site.id}" tooltip="{site.url ?? site.title}"
+                 width="96" gap="8" padding="14 6" align="center" cornerRadius="16" animate="snappy"
+                 hover:background="primary/0.06" pressed:scale="0.96"
+                 onPress="search.open(site, { newTab: event.modifiers.cmd })">
+        <Column width="48" height="48" align="center" justify="center" cornerRadius="12" background.material="glass">
+          <Favicon url="{site.url ?? null}" src="{site.icon.kind === 'favicon' ? site.icon.src : null}" size="24"/>
+        </Column>
+        <Text fontSize="11" lineLimit="1" color="secondary">{site.title}</Text>
+      </Pressable>
+    </Row>
+  </Column>
+</view>
