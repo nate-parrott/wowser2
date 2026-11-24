@@ -1,0 +1,13 @@
+{
+  "name": "wowser-shell-dev",
+  "private": true,
+  "description": "Dev tooling for the JS shell: tests, the DOM simulator, and the vendored transpiler build.",
+  "scripts": {
+    "test": "bun test",
+    "build:transpiler": "bun run build_transpiler.js",
+    "sim": "bun run sim/build.js"
+  },
+  "devDependencies": {
+    "sucrase": "3.35.0"
+  }
+}
