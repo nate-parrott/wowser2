@@ -385,10 +385,11 @@ module.exports = Object.assign(
     clipboard: api.clipboard,
     commands: api.commands,
     menus: api.menus,
-    browser: api.browser,
     shell: api.shell,
     haptics: api.haptics,
     call: api.call,
     callAsync: api.callAsync,
   }
 );
+// Resolved on first use: building it evaluates the BrowserJS bridge source.
+Object.defineProperty(module.exports, "browser", { enumerable: true, get: () => api.browser });

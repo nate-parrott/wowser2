@@ -490,6 +490,14 @@ enum BrowserJSDispatch {
         case "profile.get":
             return try encodeValue(try await host.profileGet(spaceId: optStr("spaceId")))
 
+        case "shell.run":
+            guard let action = str("action") else { throw BrowserJSError.invalidArgs("action") }
+            let args = raw["args"] ?? [String: Any]()
+            let argsJSON = JSONSerialization.isValidJSONObject(args)
+                ? (String(data: try JSONSerialization.data(withJSONObject: args), encoding: .utf8) ?? "{}")
+                : "{}"
+            return try await host.shellRun(action: action, argsJSON: argsJSON)
+
         case "content.write":
             throw BrowserJSError.notImplemented(fn)
         default:
@@ -677,6 +685,7 @@ enum BrowserJSBridgeSource {
         profile: {
             get: function(opts) { opts = opts || {}; return __browserCall('profile.get', { spaceId: opts.spaceId }); },
         },
+        shell: function(action, args) { return __browserCall('shell.run', { action: String(action), args: args || {} }); },
         sleep: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
         log:   function() {
             var parts = [];

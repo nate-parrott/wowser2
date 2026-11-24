@@ -12,6 +12,8 @@ public enum Preheat {
         Task {
             _ = await ThumbnailCache.shared
         }
+        // Scripted UI: install the bundled branches (off the main thread).
+        ShellRouter.shared.bootstrap()
         // Sync: once windows exist (it reads the primary window's tabs).
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             SyncController.shared.startIfEnabled()

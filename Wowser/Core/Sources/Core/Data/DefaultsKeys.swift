@@ -77,6 +77,8 @@ public enum DefaultsKeys: String {
     case syncEnabled // bool (default off) — sync spaces, tabs, top history and autofill (not passwords) through a shared folder; see sync.md / SyncController
     case syncFolderPath // string — sync folder; empty = the default iCloud Drive folder ("Wowser Sync")
     case syncFolderBookmark // string — iOS: base64 bookmark of the user-picked sync folder (sandboxed apps can't keep a path); see SyncController
+    case shellBranch // string — name of the UI branch (Core/Shell) that draws browser windows; empty = the built-in UI. See ShellRouter
+    case shellStartingBranch // string — set while a UI branch is loading and cleared once it's up; non-empty at launch means the last load hung or crashed, so that branch is turned off
     case installedSafariVersion // string — CFBundleShortVersionString of the system Safari, cached so the user agent can claim it without disk I/O; see SafariVersion
 }
 

@@ -18,6 +18,9 @@ struct PaneView: View {
 //    @AppStorage(DefaultsKeys.topbarLocked.rawValue) private var topbarLocked = false
     @AppStorage(DefaultsKeys.toolbarAtBottom.rawValue) private var toolbarAtBottomSetting = false
     @State private var size: CGSize = .zero
+    /// Set when a scripted UI (Core/Shell) draws the toolbar and command bar
+    /// itself: this pane then shows only the page.
+    @Environment(\.shellOwnsToolbar) private var shellOwnsToolbar
     
     /// Assumed max height of the empty-page search UI (input box + fully
     /// populated results list). We vertically center a box of this height and
@@ -39,15 +42,17 @@ struct PaneView: View {
     @ViewBuilder private var fullBody: some View {
         let emptyPageSearchPadding: CGFloat = snapshot.emptyPage ? (size.width > 700 && size.height > 600 ? 120 : 50) : 0
         let emptyPageTopPadding: CGFloat = snapshot.emptyPage ? max(emptyPageSearchPadding, (size.height - Self.emptySearchUIMaxHeight) / 2) : 0
-        let topbarLocked = snapshot.topbarLocked
+        let topbarLocked = snapshot.topbarLocked && !shellOwnsToolbar
         let atBottom = toolbarAtBottom
+        let toolbarHidden = self.toolbarHidden || shellOwnsToolbar
+        let searchActive = snapshot.searchActive && !shellOwnsToolbar
 
         ZStack(alignment: .top) {
             content
                 .padding(atBottom ? .bottom : .top, topbarLocked ? UIConstants.macHeaderHeight : 0)
-                .scaleEffect(y: !topbarLocked && topbarVisible ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: atBottom ? .top : .bottom)
+                .scaleEffect(y: !topbarLocked && topbarVisible && !shellOwnsToolbar ? (size.height - UIConstants.macHeaderHeight) / max(size.height, 1) : 1, anchor: atBottom ? .top : .bottom)
 
-            if snapshot.searchActive {
+            if searchActive {
                 // Click outside the command bar to close it.
                 Color.white.opacity(0.01)
                     .edgesIgnoringSafeArea(.all)
@@ -63,7 +68,7 @@ struct PaneView: View {
             } else if atBottom {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    if snapshot.searchActive {
+                    if searchActive {
                         OmniboxDropdown(coordinator: omnibox, growsUpward: true)
                     }
                     if !toolbarHidden {
@@ -72,7 +77,7 @@ struct PaneView: View {
                     }
                 }
             } else {
-                if snapshot.searchActive {
+                if searchActive {
                     OmniboxDropdown(coordinator: omnibox)
                         .padding(.top, UIConstants.macHeaderHeight)
                 }

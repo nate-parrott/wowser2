@@ -201,6 +201,12 @@ public protocol BrowserJSHost: AnyObject, Sendable {
     func credentialsFillPassword(tabId: String, username: String?, domain: String?) async throws -> BrowserJSFillPasswordResult
     /// The user's saved name / emails / phones / addresses.
     func profileGet(spaceId: String?) async throws -> BrowserJSProfileInfo
+
+    // MARK: - Scripted UI (Core/Shell)
+
+    /// Run a `ShellTools` action (branches, files, check, preview, inspect…).
+    /// Returns the action's result as JSON.
+    func shellRun(action: String, argsJSON: String) async throws -> String
 }
 
 public struct BrowserJSInjection: Codable, Equatable, Sendable {
@@ -452,6 +458,7 @@ public extension BrowserJSHost {
     func memoryQuery(scope: String?, sql: String, params: [Any], limit: Int) async throws -> [[String: Any]] { throw BrowserJSError.notImplemented("memory.query") }
     func memoryOverview(scope: String?) async throws -> BrowserJSMemoryOverview { throw BrowserJSError.notImplemented("memory.overview") }
     func memorySetOverview(scope: String?, text: String) async throws -> BrowserJSMemoryOverview { throw BrowserJSError.notImplemented("memory.setOverview") }
+    func shellRun(action: String, argsJSON: String) async throws -> String { throw BrowserJSError.notImplemented("shell") }
 }
 
 public struct NetLogFilter: Codable, Sendable {

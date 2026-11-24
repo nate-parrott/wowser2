@@ -16,9 +16,13 @@ public struct BrowserWindow: View {
         if !unmount {
             WithSnapshotMain(store: BrowserStore.shared, snapshot: { WindowSnapshot(state: $0, id: self.windowID) }) { snapshot in
                 ZStack(alignment: .topLeading) {
-                    WindowContent(snapshot: snapshot)
-                        .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
-                        .environment(\.isFullscreen, isFullscreen)
+                    // A scripted UI branch (Core/Shell) may draw this window
+                    // instead; otherwise this is the built-in UI.
+                    ShellWindowHost(windowID: windowID) {
+                        WindowContent(snapshot: snapshot)
+                    }
+                    .withBrowserContext(windowID: windowID, profileID: snapshot.profileID)
+                    .environment(\.isFullscreen, isFullscreen)
                 }
                 .coordinateSpace(name: "BrowserWindowRoot")
             }
@@ -114,7 +118,7 @@ extension WebContent.Info {
 }
 
 // Container that will host content and observe the correct data
-private struct WindowContent: View {
+struct WindowContent: View {
     var snapshot: WindowSnapshot
     
     @State private var topHovered = false
@@ -221,7 +225,7 @@ private struct JustWebpageScrimModifier: ViewModifier {
     }
 }
 
-private struct WindowBG: View {
+struct WindowBG: View {
     var theme: SpaceTheme?
     var imageInfo: SpaceImageInfo?
     var windowID: ID<WindowState>
@@ -258,7 +262,7 @@ private struct WindowBG: View {
 /// whose ingest decided a scheme (dark image → dark UI). Setting the NSWindow
 /// appearance (rather than just the SwiftUI environment) also covers
 /// materials and AppKit-hosted views.
-private struct SpaceUISchemeOverride: ViewModifier {
+struct SpaceUISchemeOverride: ViewModifier {
     var prefersDarkUI: Bool?
 
     #if os(macOS)

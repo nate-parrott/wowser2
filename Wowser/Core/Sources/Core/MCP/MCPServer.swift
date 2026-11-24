@@ -185,7 +185,9 @@ public actor MCPServer {
     reading the orientation below (or call `get_browser_context` for a fresh \
     one) so you know which space and tabs you're next to, then call \
     `get_browser_js_docs` before your first `run_browser_js`. Use \
-    `read_browser_js` (same API, reads only) when you just need to look.
+    `read_browser_js` (same API, reads only) when you just need to look. \
+    To change the browser's own UI (sidebar, tabs, toolbar…), read \
+    `shell_docs` and use the `shell` tool.
     """
 
     /// The orientation text for an MCP client, built on the main thread from
@@ -322,7 +324,41 @@ public actor MCPServer {
                 "properties": .object([:]),
             ])
         )
-        return [getContext, runBrowserJS, readBrowserJS, saveHelper, readHelper, getDocs, reportBug]
+        let shellDocs = MCP.Tool(
+            name: "shell_docs",
+            description: """
+            How to customise the browser's own UI (sidebar, tabs, toolbar,
+            command bar — the whole window). Returns the guide and the
+            TypeScript API for writing a UI "branch". Read this before using
+            the `shell` tool.
+            """,
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([:]),
+            ]),
+            annotations: .init(readOnlyHint: true, openWorldHint: false)
+        )
+        let shell = MCP.Tool(
+            name: "shell",
+            description: """
+            Manage and test UI branches: folders of TS/JSX that draw the whole
+            browser window. `action` is one of: \(ShellTools.actionNames.joined(separator: ", ")).
+            `args` depends on the action — see `shell_docs`. Typical loop:
+            create {name, from:"stock"} → write {branch, files, summary} (the
+            reply says whether it loads) → preview {branch} → screenshot →
+            iterate → activate {branch}. Every write is one undo step ("undo").
+            `screenshot` returns an image of the previewed window.
+            """,
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "action": .object(["type": .string("string"), "enum": .array(ShellTools.actionNames.map { .string($0) })]),
+                    "args": .object(["type": .string("object"), "description": .string("Arguments for the action; see shell_docs.")]),
+                ]),
+                "required": .array([.string("action")]),
+            ])
+        )
+        return [getContext, runBrowserJS, readBrowserJS, saveHelper, readHelper, getDocs, reportBug, shellDocs, shell]
     }
 
     // MARK: - report_bug
@@ -421,6 +457,29 @@ public actor MCPServer {
                 } else {
                     return CallTool.Result(content: [.text("report_bug is unavailable on this machine (no dev checkout found)")], isError: true)
                 }
+
+            case "shell_docs":
+                let text = ShellKit.guide + "\n\n---\n\n# API reference (wowser.d.ts)\n\n```ts\n" + ShellKit.typeDefinitions + "\n```\n"
+                return CallTool.Result(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
+
+            case "shell":
+                guard let args = arguments, case .string(let action) = args["action"] ?? .null else {
+                    throw BrowserJSError.invalidArgs("action")
+                }
+                var toolArgs: ShellJSON = [:]
+                if let value = args["args"], let data = try? JSONEncoder().encode(value), let json = String(data: data, encoding: .utf8) {
+                    toolArgs = ShellJSON.parse(json) ?? [:]
+                }
+                let output = try await ShellTools.run(action: action, args: toolArgs)
+                if let png = output.imagePNGBase64 {
+                    // The image itself is the result; don't repeat it as base64 text.
+                    let note = "{\"windowId\":\(ShellJSON.quote(output.json["windowId"]?.string ?? ""))}"
+                    return CallTool.Result(content: [
+                        .text(text: note, annotations: nil, _meta: nil),
+                        .image(data: png, mimeType: "image/png", annotations: nil, _meta: nil),
+                    ], isError: false)
+                }
+                return CallTool.Result(content: [.text(text: output.json.jsonString(), annotations: nil, _meta: nil)], isError: false)
 
             case "get_browser_js_docs":
                 let dts = BrowserJSDocs.dts

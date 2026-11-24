@@ -1114,6 +1114,11 @@ extension BrowserJSLiveHost {
         return host
     }
 
+    public func shellRun(action: String, argsJSON: String) async throws -> String {
+        let args = ShellJSON.parse(argsJSON) ?? [:]
+        return try await ShellTools.run(action: action, args: args).json.jsonString()
+    }
+
     public func injectGet(host: String) async throws -> BrowserJSInjection {
         let h = try Self.injectionHost(host)
         return try await main {

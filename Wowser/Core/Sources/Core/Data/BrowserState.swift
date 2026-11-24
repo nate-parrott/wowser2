@@ -298,6 +298,9 @@ public struct WindowState: Equatable, Codable {
     /// Drives `focusState` toward `.chatSpaceInput`. Commands (Cmd+T / Cmd+L
     /// in a chat-mode space) set it directly; blur clears it via `didLoseFocus`.
     public var chatInputActiveForProfile: ID<Profile>?
+    /// A scripted UI's text input (Core/Shell `<TextInput>`) holds keyboard
+    /// focus: its key. Drives `focusState` toward `.shellInput`. Transient.
+    public var shellFocusedInput: String?
     public var toasts = [Toast]()
     public var sidebarLocked = true
     public var swipeGestureOffset: Int?
@@ -655,6 +658,18 @@ public class BrowserStore: DataStore<BrowserState> {
 
 extension BrowserStore: WebContentDelegate {
     public func webContent(_ webContent: WebContent, decidePolicyFor navigationAction: WKNavigationAction) -> WKNavigationActionPolicy {
+        // A scripted UI (Core/Shell) may veto or redirect main-frame
+        // navigations: `on("navigate", …)`. Free when nothing listens.
+        if let url = navigationAction.request.url {
+            switch ShellRouter.shared.navigationVerdict(paneID: webContent.id, url: url, userInitiated: navigationAction.navigationType == .linkActivated) {
+            case .allow: ()
+            case .cancel:
+                return .cancel
+            case .redirect(let target):
+                DispatchQueue.main.async { webContent.load(url: target) }
+                return .cancel
+            }
+        }
         #if os(macOS)
         if NSEvent.modifierFlags.contains(.command), let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
             // open in new tab
@@ -749,6 +764,9 @@ extension BrowserStore: WebContentDelegate {
             }
         }
         MemoryStore.shared.noteInfoChange(webContent: webContent, info: info, previous: previous)
+        if previous?.isLoading == true, !info.isLoading {
+            ShellRouter.shared.didFinishLoad(paneID: webContent.id, info: info)
+        }
         
 //        let isNativeURL = info.url.flatMap(NativePageKey.init(url:)) != nil
         if let url = info.url, url.historyKey != previous?.url?.historyKey,
@@ -1043,6 +1061,7 @@ private extension WindowState {
         swipeGestureOffset = nil
         findInPageActiveInPaneId = nil
         chatInputActiveForProfile = nil
+        shellFocusedInput = nil
     }
 }
 

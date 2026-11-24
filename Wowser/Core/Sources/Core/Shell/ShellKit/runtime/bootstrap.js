@@ -90,7 +90,7 @@
   function requireBuiltin(name) {
     if (name in builtinCache) return builtinCache[name].exports;
     const code = host.readBuiltin(name);
-    if (code == null) throw new Error("Unknown built-in module lib/" + name + ".js");
+    if (!code) throw new Error("Unknown built-in module lib/" + name + ".js");
     const module = { exports: {} };
     builtinCache[name] = module;
     const fn = evalModule(code, "wowser-runtime/lib/" + name + ".js");

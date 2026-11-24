@@ -915,6 +915,29 @@ declare global {
       get(opts?: { spaceId?: SpaceId }): Promise<ProfileInfo>;
     };
 
+    /**
+     * Customise the browser's own UI. The whole window — sidebar, tabs,
+     * toolbar, command bar — can be drawn by a *branch*: a folder of TS/JSX
+     * files the user (or you) can edit. This one function manages branches:
+     * list / create / read / write files, check that a branch loads, open a
+     * preview window, screenshot and inspect it, undo, and make a branch the
+     * active UI.
+     *
+     * ALWAYS start with `await browser.shell("docs")`: it returns the guide
+     * (`guide`) and the UI API (`types`) you write against, plus the list of
+     * actions and their arguments. Typical loop:
+     *
+     *   await browser.shell("create", { name: "mine", from: "stock" });
+     *   await browser.shell("write", { branch: "mine", summary: "Add a clock",
+     *     files: { "widgets/Clock.tsx": "…" } });          // → { check: { ok, errors } }
+     *   const { windowId } = await browser.shell("preview", { branch: "mine" });
+     *   browser.viewImage(await browser.shell("screenshot", { windowId }));
+     *   await browser.shell("activate", { branch: "mine" }); // when the user is happy
+     *
+     * Never edit the "stock" branch (it's read-only); fork it.
+     */
+    shell(action: string, args?: Record<string, any>): Promise<any>;
+
     sleep(ms: number): Promise<void>;
     log(...args: any[]): void;
     /**

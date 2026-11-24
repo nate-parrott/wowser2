@@ -76,6 +76,8 @@ let package = Package(
                 .copy("ElementPicker/styleSelectors.js"),
                 .copy("BrowserJS/BrowserJS.d.ts"),
                 .copy("TangApps"),
+                // Scripted UI: JS runtime, transpiler, seed branches, docs.
+                .copy("Shell/ShellKit"),
                 .copy("BuiltinBackgrounds"),
                 .process("Assets.xcassets"),
             ]

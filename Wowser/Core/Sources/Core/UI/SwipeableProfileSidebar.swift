@@ -117,9 +117,12 @@ private struct SidebarSwipeContent: View {
 }
 
 // View for a single profile page in the swipe view
-private struct ProfilePageView: View {
+struct ProfilePageView: View {
     let windowID: ID<WindowState>
     let profileID: ID<Profile>
+    /// The scripted UI (Core/Shell) embeds the two halves separately.
+    var showFavorites = true
+    var showTabs = true
     @AppStorage(DefaultsKeys.allWindowsShareTabs.rawValue) private var allWindowsShareTabs = true
     
     var body: some View {
@@ -131,7 +134,7 @@ private struct ProfilePageView: View {
                 state: state
             )
         } main: { snapshot in
-            ProfilePageContent(snapshot: snapshot, windowID: windowID)
+            ProfilePageContent(snapshot: snapshot, windowID: windowID, showFavorites: showFavorites, showTabs: showTabs)
         }
         .environment(\.profileID, profileID)
     }
@@ -229,12 +232,14 @@ private struct ProfilePageSnapshot: Equatable {
 private struct ProfilePageContent: View {
     let snapshot: ProfilePageSnapshot
     let windowID: ID<WindowState>
+    var showFavorites = true
+    var showTabs = true
     
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 // Favorite bookmarks/tabs section
-                if snapshot.favoriteTabIDs.count > 0 || isDesktop() {
+                if showFavorites, snapshot.favoriteTabIDs.count > 0 || isDesktop() {
                     FavoriteTabsView(
                         tabIDs: snapshot.favoriteTabIDs,
                         currentTabID: snapshot.currentTabID,
@@ -245,7 +250,9 @@ private struct ProfilePageContent: View {
                 }
             }
 
-            if snapshot.chatMode {
+            if !showTabs {
+                EmptyView()
+            } else if snapshot.chatMode {
                 ChatSpaceSidebar(windowID: windowID, profileID: snapshot.profileID)
             } else {
                 // Regular tabs section with group headers

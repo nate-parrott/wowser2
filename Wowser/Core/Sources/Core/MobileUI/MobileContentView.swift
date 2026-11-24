@@ -17,9 +17,9 @@ public struct MobileContentView: View {
     }
 
     public var body: some View {
-        WithSnapshotMain(store: BrowserStore.shared, snapshot: { MobileContentSnapshot(state: $0, windowID: windowID) }) { snapshot in
-            _MobileContentView(snapshot: snapshot, windowID: windowID)
-                .environment(\.profileID, snapshot.profileID)
+        // A scripted UI branch (Core/Shell) may draw the window instead.
+        ShellWindowHost(windowID: windowID) {
+            MobileNativeContentView(windowID: windowID)
         }
         .environment(\.windowID, windowID)
         .onAppear {
@@ -28,6 +28,18 @@ public struct MobileContentView: View {
                     state.windows[windowID] = .init(id: windowID, profile: .defaultProfile)
                 }
             }
+        }
+    }
+}
+
+/// The built-in iOS UI. Also what a branch gets from `MobileBrowser`.
+struct MobileNativeContentView: View {
+    var windowID: ID<WindowState>
+
+    var body: some View {
+        WithSnapshotMain(store: BrowserStore.shared, snapshot: { MobileContentSnapshot(state: $0, windowID: windowID) }) { snapshot in
+            _MobileContentView(snapshot: snapshot, windowID: windowID)
+                .environment(\.profileID, snapshot.profileID)
         }
     }
 }

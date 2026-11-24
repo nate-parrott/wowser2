@@ -112,8 +112,6 @@ const tabs = {
   visibleOrder: () => call("tabs.visibleOrder"),
   /** Tab ids, most recently used first. */
   recent: (max) => call("tabs.recent", { max: max || 12 }),
-  /** The native tab context menu, as menu items; run one with `tabs.runMenuAction`. */
-  contextMenu: (tabId) => call("tabs.contextMenu", { tabId }),
 };
 
 const panes = {
@@ -320,18 +318,38 @@ const menus = {
 
 // The agent-facing `browser.*` API (tabs, content, page, net, fs, agent, …),
 // reachable from UI code too. Every call is async. See BrowserJS.d.ts.
-function bjsNamespace(prefix) {
+//
+// The app hands us the same source text that defines `browser` for agents
+// (`host.browserJS`); hosts without it (tests, the simulator) get a proxy
+// that forwards `browser.a.b(...args)` as-is.
+function bjsProxy(prefix) {
   return new Proxy(function () {}, {
     get(_, prop) {
       if (typeof prop !== "string" || prop === "then") return undefined;
-      return bjsNamespace(prefix ? prefix + "." + prop : prop);
+      return bjsProxy(prefix ? prefix + "." + prop : prop);
     },
     apply(_, __, args) {
       return callAsync("bjs", { fn: prefix, args });
     },
   });
 }
-const browser = bjsNamespace("");
+let browserObject = null;
+function getBrowser() {
+  if (browserObject) return browserObject;
+  const src = host.browserJS;
+  if (typeof src === "string" && src) {
+    const browserCall = (fn, args) => callAsync("bjs", { fn, args: args || {} });
+    const nativeLog = (m) => console.log(m);
+    browserObject = new Function("__browserCall", "__nativeLog", "__nativeAttachImage", src + "\nreturn browser;")(
+      browserCall,
+      nativeLog,
+      function () {}
+    );
+  } else {
+    browserObject = bjsProxy("");
+  }
+  return browserObject;
+}
 
 const shell = {
   get platform() {
@@ -368,7 +386,9 @@ module.exports = {
   clipboard,
   commands,
   menus,
-  browser,
+  get browser() {
+    return getBrowser();
+  },
   shell,
   haptics,
   _settle,

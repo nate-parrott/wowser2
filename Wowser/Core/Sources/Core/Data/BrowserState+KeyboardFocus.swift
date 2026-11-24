@@ -16,13 +16,14 @@ public enum FocusTarget: Equatable {
     case emptyWindowOmnibox(ID<WindowState>) // when no tab is selected
     case spaceTitle(profile: ID<Profile>, window: ID<WindowState>) // editable sidebar space-name field
     case chatSpaceInput(profile: ID<Profile>, window: ID<WindowState>) // chat-mode sidebar's message/omnibox field
+    case shellInput(window: ID<WindowState>, key: String) // a <TextInput> drawn by a scripted UI branch (Core/Shell)
 
     public var paneID: ID<WebContent>? {
         switch self {
         case .webContent(let id), .terminal(let id), .fileBrowser(let id),
              .agentChat(let id), .reader(let id), .findInPage(let id), .omnibox(pane: let id):
             return id
-        case .emptyWindowOmnibox, .spaceTitle, .chatSpaceInput: return nil
+        case .emptyWindowOmnibox, .spaceTitle, .chatSpaceInput, .shellInput: return nil
         }
     }
 
@@ -39,6 +40,8 @@ public enum FocusTarget: Equatable {
         case .spaceTitle(_, let winID):
             return winID
         case .chatSpaceInput(_, let winID):
+            return winID
+        case .shellInput(let winID, _):
             return winID
         }
     }
@@ -59,6 +62,15 @@ extension BrowserState {
     public mutating func didFocus(target: FocusTarget) {
         if FocusSnap.midChangeFocus { return }
         guard let windowID = target.windowID(state: self) else { return }
+
+        // A scripted UI's text field: it only records that it has the
+        // keyboard. It doesn't close the command bar (it may *be* the command
+        // bar) or touch any other mode; any other target taking focus ends it.
+        if case .shellInput(_, let key) = target {
+            windows[windowID]?.shellFocusedInput = key
+            return
+        }
+        windows[windowID]?.shellFocusedInput = nil
 
         if let paneID = target.paneID {
             modifyPaneAndTab(forWebContentId: paneID) { _, tab in
@@ -90,18 +102,19 @@ extension BrowserState {
             windows[windowID]?.findInPageActiveInPaneId = nil
             windows[windowID]?.chatInputActiveForProfile = profileID
         case .emptyWindowOmnibox: () // no op
+        case .shellInput: () // handled above
         }
 
         // Any target other than spaceTitle ends space-title editing.
         switch target {
         case .spaceTitle: ()
-        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .chatSpaceInput:
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .chatSpaceInput, .shellInput:
             windows[windowID]?.editingSpaceTitleForProfile = nil
         }
         // Any target other than chatSpaceInput ends chat-input focus.
         switch target {
         case .chatSpaceInput: ()
-        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .spaceTitle:
+        case .omnibox, .findInPage, .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox, .spaceTitle, .shellInput:
             windows[windowID]?.chatInputActiveForProfile = nil
         }
     }
@@ -127,6 +140,8 @@ extension BrowserState {
             windows[windowID]?.editingSpaceTitleForProfile = nil
         case .chatSpaceInput:
             windows[windowID]?.chatInputActiveForProfile = nil
+        case .shellInput:
+            windows[windowID]?.shellFocusedInput = nil
         case .webContent, .terminal, .fileBrowser, .agentChat, .reader, .emptyWindowOmnibox:
             () // Whatever takes focus next will reassert via didFocus.
         }
@@ -139,6 +154,13 @@ extension BrowserState {
             return .init(target: .emptyWindowOmnibox(windowID), date: windows[windowID]?.lastBecameKeyAt)
         }
         let date = window.lastBecameKeyAt
+
+        // A scripted UI's text field (Core/Shell) has the keyboard. Checked
+        // first: such a field can be the command bar itself, in which case
+        // `searchOverlayActive` is also set.
+        if let key = window.shellFocusedInput {
+            return .init(target: .shellInput(window: windowID, key: key), date: date)
+        }
 
         // Editing a space (profile) title in the sidebar. A deliberately-opened
         // omnibox still wins; otherwise the title field holds focus regardless

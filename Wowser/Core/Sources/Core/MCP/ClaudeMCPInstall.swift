@@ -17,6 +17,7 @@ enum ClaudeMCPInstall {
         "get_browser_js_docs",
         "read_browser_helper_file",
         "report_bug",
+        "shell_docs",
     ]
 
     static func allowRules(serverName: String) -> [String] {
