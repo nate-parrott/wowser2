@@ -94,7 +94,7 @@ public final class ShellEngine {
         }
     }
 
-    @ObservationIgnored private let store: ShellBranchStore
+    let store: ShellBranchStore
     @ObservationIgnored private var context: JSContext?
     @ObservationIgnored private var shell: JSValue?
     @ObservationIgnored private var timers: [Int: Timer] = [:]
@@ -237,11 +237,11 @@ public final class ShellEngine {
         observers.append(center.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.publishSlices()
         })
-        observers.append(center.addObserver(forName: .shellStorageDidChange, object: nil, queue: .main) { [weak self] note in
+        observers.append(center.addObserver(forName: .shellStorageDidChange, object: store, queue: .main) { [weak self] note in
             guard let self, note.userInfo?["branch"] as? String == self.branch else { return }
             self.publishSlices()
         })
-        observers.append(center.addObserver(forName: .shellBranchDidChange, object: nil, queue: .main) { [weak self] note in
+        observers.append(center.addObserver(forName: .shellBranchDidChange, object: store, queue: .main) { [weak self] note in
             guard let self, note.userInfo?["branch"] as? String == self.branch else { return }
             self.scheduleReload()
         })
@@ -354,7 +354,7 @@ public final class ShellEngine {
     // MARK: State → JS
 
     private func sliceContext(_ state: BrowserState) -> ShellSliceContext {
-        ShellSliceContext(state: state, windowID: windowID, branch: branch, platform: platform, isDark: isDark, isFullscreen: isFullscreen, isKey: isKey)
+        ShellSliceContext(state: state, windowID: windowID, branch: branch, store: store, platform: platform, isDark: isDark, isFullscreen: isFullscreen, isKey: isKey)
     }
 
     private func stateChanged(_ state: BrowserState) {

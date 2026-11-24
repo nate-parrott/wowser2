@@ -361,3 +361,35 @@ public struct ShellColorToken: Equatable, Sendable {
         return "#" + c(r) + c(g) + c(b) + (a < 0.999 ? c(a) : "")
     }
 }
+
+/// The arithmetic behind `ShellSizeLayout`, one axis at a time. Kept free of
+/// SwiftUI so it can be tested anywhere.
+///
+/// A box is *fixed* (`width: 30`), *filling* (`flex`, `width: "fill"`, or a
+/// stretching parent) or *hugging* (neither). `lo` / `hi` are `minWidth` /
+/// `maxWidth`.
+public enum ShellSizing {
+    static func clamp(_ value: CGFloat, _ lo: CGFloat?, _ hi: CGFloat?) -> CGFloat {
+        var v = value
+        if let hi { v = min(v, hi) }
+        if let lo { v = max(v, lo) }
+        return v
+    }
+
+    /// What the box offers its content, given what the box was offered
+    /// (`nil` = "your ideal size").
+    public static func childProposal(_ proposed: CGFloat?, fixed: CGFloat?, lo: CGFloat?, hi: CGFloat?, fill: Bool) -> CGFloat? {
+        if let fixed { return fixed }
+        guard let proposed else { return nil }
+        // A cap limits what the content is offered; a filling box passes on
+        // everything it was offered, within its limits.
+        return fill ? clamp(proposed, lo, hi) : clamp(proposed, nil, hi)
+    }
+
+    /// The box's own size, given what it was offered and what its content took.
+    public static func boxSize(_ proposed: CGFloat?, child: CGFloat, fixed: CGFloat?, lo: CGFloat?, hi: CGFloat?, fill: Bool) -> CGFloat {
+        if let fixed { return fixed }
+        if fill, let proposed { return clamp(proposed, lo, hi) }
+        return clamp(child, lo, hi)
+    }
+}

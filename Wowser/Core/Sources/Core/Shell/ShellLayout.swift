@@ -179,33 +179,10 @@ struct ShellSizeLayout: Layout {
         width == nil && height == nil && minWidth == nil && maxWidth == nil && minHeight == nil && maxHeight == nil && !fillWidth && !fillHeight
     }
 
-    private static func clamp(_ value: CGFloat, _ lo: CGFloat?, _ hi: CGFloat?) -> CGFloat {
-        var v = value
-        if let hi { v = min(v, hi) }
-        if let lo { v = max(v, lo) }
-        return v
-    }
-
-    /// What to propose to the child along one axis.
-    private static func childProposal(_ proposed: CGFloat?, fixed: CGFloat?, lo: CGFloat?, hi: CGFloat?, fill: Bool) -> CGFloat? {
-        if let fixed { return fixed }
-        guard let proposed else { return nil }
-        // A cap limits what the child is offered; a fill box passes on
-        // everything it was offered (within its limits).
-        return fill ? clamp(proposed, lo, hi) : clamp(proposed, nil, hi)
-    }
-
-    /// The box's own size along one axis.
-    private static func boxSize(_ proposed: CGFloat?, child: CGFloat, fixed: CGFloat?, lo: CGFloat?, hi: CGFloat?, fill: Bool) -> CGFloat {
-        if let fixed { return fixed }
-        if fill, let proposed { return clamp(proposed, lo, hi) }
-        return clamp(child, lo, hi)
-    }
-
     private func childProposal(_ proposal: ProposedViewSize) -> ProposedViewSize {
         ProposedViewSize(
-            width: Self.childProposal(proposal.width, fixed: width, lo: minWidth, hi: maxWidth, fill: fillWidth),
-            height: Self.childProposal(proposal.height, fixed: height, lo: minHeight, hi: maxHeight, fill: fillHeight)
+            width: ShellSizing.childProposal(proposal.width, fixed: width, lo: minWidth, hi: maxWidth, fill: fillWidth),
+            height: ShellSizing.childProposal(proposal.height, fixed: height, lo: minHeight, hi: maxHeight, fill: fillHeight)
         )
     }
 
@@ -213,8 +190,8 @@ struct ShellSizeLayout: Layout {
         guard let child = subviews.first else { return .zero }
         let size = child.sizeThatFits(childProposal(proposal))
         return CGSize(
-            width: Self.boxSize(proposal.width, child: size.width, fixed: width, lo: minWidth, hi: maxWidth, fill: fillWidth),
-            height: Self.boxSize(proposal.height, child: size.height, fixed: height, lo: minHeight, hi: maxHeight, fill: fillHeight)
+            width: ShellSizing.boxSize(proposal.width, child: size.width, fixed: width, lo: minWidth, hi: maxWidth, fill: fillWidth),
+            height: ShellSizing.boxSize(proposal.height, child: size.height, fixed: height, lo: minHeight, hi: maxHeight, fill: fillHeight)
         )
     }
 

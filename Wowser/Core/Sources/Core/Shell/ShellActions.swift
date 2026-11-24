@@ -89,7 +89,7 @@ enum ShellActions {
         switch name {
         // ---------------------------------------------------------- tabs
         case "tabs.create":
-            let url = a.string("url").map { url(forInput: $0) }
+            let url = a.string("url").map { Self.url(forInput: $0) }
             let activate = a.bool("activate") ?? true
             let id = BrowserStore.shared.createTab(withURL: url, in: w, activate: activate, inCurrentSplit: a.bool("inSplit") ?? false)
             if url == nil, activate {
@@ -507,10 +507,10 @@ enum ShellActions {
             return nil
 
         case "storage.get":
-            return ShellBranchStore.shared.storageValue(branch: engine.branch, key: try a.require("key"))
+            return engine.store.storageValue(branch: engine.branch, key: try a.require("key"))
 
         case "storage.set":
-            ShellBranchStore.shared.setStorageValue(branch: engine.branch, key: try a.require("key"), value: json["value"])
+            engine.store.setStorageValue(branch: engine.branch, key: try a.require("key"), value: json["value"])
             return nil
 
         case "clipboard.write":
@@ -572,7 +572,7 @@ enum ShellActions {
             return nil
 
         case "shell.readFile":
-            return j(ShellBranchStore.shared.read(branch: engine.branch, path: try a.require("path")))
+            return j(engine.store.read(branch: engine.branch, path: try a.require("path")))
 
         case "shell.openSettings":
             SettingsTab.shell.open()

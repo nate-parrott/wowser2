@@ -7,6 +7,7 @@ struct ShellSliceContext {
     var state: BrowserState
     var windowID: ID<WindowState>
     var branch: String
+    var store: ShellBranchStore
     var platform: String
     var isDark: Bool
     var isFullscreen: Bool
@@ -33,7 +34,7 @@ enum ShellSlices {
         case "theme": return theme(c)
         case "toasts": return toasts(c)
         case "setting": return setting(arg["key"]?.string ?? "")
-        case "storage": return ShellBranchStore.shared.storageValue(branch: c.branch, key: arg["key"]?.string ?? "") ?? .null
+        case "storage": return c.store.storageValue(branch: c.branch, key: arg["key"]?.string ?? "") ?? .null
         default: return .null
         }
     }

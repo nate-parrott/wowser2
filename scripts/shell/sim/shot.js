@@ -1,7 +1,7 @@
 // Screenshot a branch in the simulator (needs Playwright + Chromium).
 //
 //   node sim/shot.js <branch> --out out/chrome.png [--entry layouts/Chrome]
-//        [--platform ios] [--scheme dark] [--size 1200x760]
+//        [--platform ios] [--scheme dark] [--size 1200x760] [--scale 2]
 //        [--do "click:new-tab" --do "type:command-input:wiki" --do "hover:tab-t2" --do "eval:sim.mutate(s => …)"]
 //
 // --do steps run in order before the capture; targets are testIDs.
@@ -59,7 +59,7 @@ if (require.main === module) {
   const steps = [];
   args.forEach((a, i) => a === "--do" && steps.push(args[i + 1]));
   const branch = args[0] && !args[0].startsWith("--") ? args[0] : "stock";
-  shoot(branch, { entry: opt("entry"), platform: opt("platform"), scheme: opt("scheme"), size: opt("size"), out: opt("out") || path.join(__dirname, "../out/shot.png"), steps })
+  shoot(branch, { entry: opt("entry"), platform: opt("platform"), scheme: opt("scheme"), size: opt("size"), scale: opt("scale") ? Number(opt("scale")) : 1, out: opt("out") || path.join(__dirname, "../out/shot.png"), steps })
     .then((info) => {
       if (info.errors.length || info.pageErrors.length) {
         console.error(JSON.stringify(info, null, 1));
