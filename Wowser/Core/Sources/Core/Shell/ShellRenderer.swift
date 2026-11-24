@@ -33,7 +33,7 @@ struct ShellNodeView: View {
         case "spacer":
             ShellSpacerView(node: node)
         case "divider":
-            Divider().shellStyled(node)
+            ShellDividerView(node: node)
         case "scroll":
             ShellScrollView(node: node)
         case "textinput":
@@ -121,6 +121,24 @@ struct ShellBoxView: View {
         default:
             ShellChildren(node: node)
         }
+    }
+}
+
+/// A hairline across the parent's axis. `Divider` picks its direction from
+/// the stack it sits in directly, so give it one that matches the parent.
+struct ShellDividerView: View {
+    let node: ShellNode
+    @Environment(\.shellAxis) private var axis
+
+    var body: some View {
+        Group {
+            if axis == .row {
+                HStack(spacing: 0) { Divider() }
+            } else {
+                VStack(spacing: 0) { Divider() }
+            }
+        }
+        .shellStyled(node)
     }
 }
 
