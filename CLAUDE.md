@@ -301,3 +301,31 @@ folder via a per-field LWW CRDT over per-device append-only logs. Read
 `Tab`, `Pane` etc., decide whether they sync and update the mapping in
 `Sync/Browser/BrowserState+Sync.swift` and the table in `sync.md`.
 Two syncing instances for manual testing: `scripts/sync_test/run_two.sh`.
+
+# Shell: scripted browser UI (Core/Shell)
+
+The window can be drawn by a user-editable "branch" of TS/JSX instead of the
+built-in SwiftUI. Read `shell.md` before touching it. Off unless
+`DefaultsKeys.shellBranch` is set; a failing branch falls back to the
+built-in UI.
+
+- One `ShellEngine` (a JSContext running `ShellKit/runtime`) per window.
+  JS reads state through **slices** (`ShellSlices`, pure functions of
+  `BrowserState`, same no-I/O rule as snapshots) and changes it through
+  **actions** (`ShellActions`, a thin switch onto `BrowserState` /
+  `BrowserStore` operations — put behaviour in `BrowserState` extensions,
+  not in the switch).
+- `ShellKit/runtime/wowser.d.ts` is the contract. A prop, slice, action or
+  event changes in four places together: the `.d.ts`, the Swift host, the JS
+  in `ShellKit/runtime/lib`, and `scripts/shell/lib/fakeBrowser.js` (plus
+  `scripts/shell/sim/render.js` for visual props).
+- Hover / pressed / focus looks are style variants resolved in SwiftUI
+  (`ShellStyledView`). Don't add JS round-trips for them.
+- Text inputs drawn by a branch take focus as `FocusTarget.shellInput`
+  (see "Keyboard focus" above); don't add another focus path.
+- `ShellKit/branches/stock` is the seed branch. `layouts/Classic.tsx` must
+  keep using native composites only, so it stays identical to the built-in UI.
+- Agents drive it through `ShellTools` (MCP `shell` / `shell_docs`,
+  BrowserJS `browser.shell`). `ShellKit/runtime/SKILL.md` is what they read.
+- JS tests and a DOM simulator run without a Mac: `cd scripts/shell && bun test`.
+

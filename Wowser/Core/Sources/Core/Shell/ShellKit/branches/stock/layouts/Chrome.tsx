@@ -1,7 +1,7 @@
 // A conventional top-tabs browser: tab strip in the title bar, toolbar
 // underneath, bookmarks bar, full-bleed page. Same browser model, different
 // arrangement — nothing here is special-cased natively.
-import { Column, Row, Stack, Pressable, Text, Favicon, Menu, Icon, useTabs, useSpaces, useSpace, tabs, spaces, window, useEffect } from "wowser";
+import { Column, Row, Stack, Pressable, Text, TabIcon, Menu, Icon, useTabs, useSpaces, useSpace, tabs, spaces } from "wowser";
 import { Content, WindowBackground } from "wowser/native";
 import { TabStrip } from "../kit/TabStrip";
 import { Toolbar } from "../kit/Toolbar";
@@ -34,7 +34,7 @@ function BookmarksBar() {
           }}
           onPress={() => tabs.select(t.id)}
         >
-          <Favicon url={t.url} size={14} />
+          <TabIcon tabId={t.id} size={14} />
           <Text style={{ fontSize: 11, lineLimit: 1 }}>{t.title}</Text>
         </Pressable>
       ))}
@@ -69,8 +69,6 @@ function SpaceMenu() {
 export default function Chrome() {
   const bar = useCommandBar();
   const empty = !bar.pane || bar.pane.isEmpty;
-  // The strip is the title bar: traffic lights are drawn inside it.
-  useEffect(() => window.configure({ trafficLights: "custom" }), []);
   return (
     <Stack style={{ flex: 1 }}>
       {/* The backdrop shows through the tab strip; everything below it is opaque. */}

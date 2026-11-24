@@ -94,13 +94,12 @@ describe("stock layouts", () => {
     expect(s.fake.state.spaces[0].tabs.length).toBe(before - 1);
   });
 
-  test("Chrome: horizontal strip, bookmarks bar, native traffic lights replaced", async () => {
+  test("Chrome: horizontal strip with window controls, bookmarks bar", async () => {
     boot("layouts/Chrome");
     const strip = s.tree.byTestId("tab-strip");
     expect(strip.type).toBe("row");
     expect(strip.props.windowDrag).toBe(true);
     expect(strip.children[0].type).toBe("windowcontrols");
-    expect(s.fake.calls).toContainEqual(["window.configure", { trafficLights: "custom" }]);
     expect(s.tree.findAll((n) => (n.props.testID || "").startsWith("bookmark-")).length).toBe(3);
     // Dropping on the trailing half of a tab inserts after it.
     const ids = s.fake.state.spaces[0].tabs.slice();

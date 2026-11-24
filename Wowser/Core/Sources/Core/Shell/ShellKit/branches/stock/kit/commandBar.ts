@@ -6,8 +6,26 @@
 // synchronously, so the list is never a frame behind the text.
 import {
   useState, useEffect, useRef, useWindow, useCurrentPane, useSuggestions,
-  commandBar, search, tabs, panes, type KeyEvent, type Suggestion, type Modifiers, type PaneInfo,
+  commandBar, commands, search, tabs, panes, type KeyEvent, type Suggestion, type Modifiers, type PaneInfo,
 } from "wowser";
+
+/** Commands registered by this branch (`useCommand`, `commands.register`)
+ *  whose title matches what was typed, as suggestions. */
+function matchingCommands(query: string): Suggestion[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  return commands
+    .list()
+    .filter((c) => !c.id.startsWith("builtin:") && c.title && c.title.toLowerCase().includes(q))
+    .slice(0, 3)
+    .map((c) => ({
+      id: "command:" + c.id,
+      kind: "command",
+      title: c.title,
+      subtitle: c.hotkey ? "Command · " + c.hotkey : "Command",
+      icon: { kind: "symbol", name: "command" },
+    }));
+}
 
 export interface CommandBarController {
   open: boolean;
@@ -46,7 +64,9 @@ export function useCommandBar(opts: { limit?: number } = {}): CommandBarControll
 
   const showing = open && (edited || !prefill || !pane || pane.isEmpty);
   const suggestions = useSuggestions(showing ? query : "", { limit: opts.limit ?? 6, instantOnly: !showing });
-  const list = showing ? suggestions : [];
+  const own = showing ? matchingCommands(query) : [];
+  const limit = opts.limit ?? 6;
+  const list = showing ? [...suggestions.slice(0, Math.max(1, limit - own.length)), ...own] : [];
 
   const close = () => {
     // An empty tab has nowhere to return to: closing the bar closes the tab.
@@ -56,7 +76,8 @@ export function useCommandBar(opts: { limit?: number } = {}): CommandBarControll
   };
 
   const choose = (s: Suggestion, o?: { newTab?: boolean }) => {
-    search.open(s, o);
+    if (s.kind === "command") commands.run(s.id.slice("command:".length));
+    else search.open(s, o);
     commandBar.close();
   };
 

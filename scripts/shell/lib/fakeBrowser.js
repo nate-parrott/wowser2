@@ -125,7 +125,7 @@ function createFakeBrowser(seed) {
       icon: tab.emoji
         ? { kind: "emoji", value: tab.emoji }
         : url
-        ? { kind: "favicon", url }
+        ? { kind: "favicon", url, src: null }
         : { kind: "symbol", name: "plus" },
       isCurrent: !!space && space.currentTabId === tab.id,
       isPinned,
@@ -542,6 +542,9 @@ function createFakeBrowser(seed) {
       case "menus.show":
         return Promise.resolve(null);
       case "panes.eval":
+        return Promise.resolve(null);
+      case "panes.setInjection":
+        state.injections = Object.assign(state.injections || {}, { [a.host]: { css: a.css, js: a.js } });
         return Promise.resolve(null);
       case "bjs":
         return Promise.resolve({ fn: a.fn, args: a.args });

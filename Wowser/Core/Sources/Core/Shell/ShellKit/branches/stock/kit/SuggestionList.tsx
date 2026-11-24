@@ -3,7 +3,7 @@ import type { CommandBarController } from "./commandBar";
 
 export function SuggestionIcon({ s, size = 20 }: { s: Suggestion; size?: number }) {
   const icon = s.icon;
-  if (icon.kind === "favicon") return <Favicon url={icon.url} size={size - 4} style={{ width: size, height: size }} />;
+  if (icon.kind === "favicon") return <Favicon url={icon.url} src={icon.src} size={size - 4} style={{ width: size, height: size }} />;
   if (icon.kind === "emoji") return <Text style={{ fontSize: size - 6, width: size, textAlign: "center" }}>{icon.value}</Text>;
   return (
     <Stack style={{ width: size, height: size, align: "center" }}>

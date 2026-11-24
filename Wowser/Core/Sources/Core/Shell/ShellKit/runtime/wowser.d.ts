@@ -75,6 +75,19 @@ declare module "wowser" {
   export function deepEqual(a: unknown, b: unknown): boolean;
 
   // ================================================================ Style
+  //
+  // Layout works like SwiftUI stacks, which is close to — but not the same
+  // as — CSS flexbox:
+  //   - A box is as big as its content ("hugs") unless something inside it
+  //     wants to grow. Things that grow: `flex`, `width/height: "fill"`,
+  //     <Spacer/>, <ScrollView>, <WebPane>, <WebIsland>, and native views
+  //     such as Content. A box containing one of those grows too.
+  //   - `flex` children of a Row/Column share the leftover space equally
+  //     (the number is not a weight). Cap one with `maxWidth` / `maxHeight`.
+  //   - A Column's children are centred horizontally unless you set `align`;
+  //     `align: "stretch"` makes every child as wide as the column (and the
+  //     column as wide as it is allowed to be). Same for Row, vertically.
+  //   - To overlay things, use a Stack and place children with `alignSelf`.
 
   /**
    * A colour. One of:
@@ -144,8 +157,8 @@ declare module "wowser" {
     maxWidth?: Length;
     minHeight?: number;
     maxHeight?: Length;
-    /** Take a share of the free space along the parent's axis (like CSS
-     *  flex-grow with basis 0). In a Stack: fill both axes. */
+    /** Grow to take the free space along the parent's axis, shared equally
+     *  with other `flex` siblings. In a Stack: fill both axes. */
     flex?: number;
     /** Which sibling gets space first when there isn't enough. Default 0. */
     layoutPriority?: number;
@@ -253,7 +266,8 @@ declare module "wowser" {
   }
   export interface PressEvent {
     modifiers: Modifiers;
-    /** Location in the node's own coordinates. */
+    /** Location in the node's own coordinates (its centre when the exact
+     *  point isn't known). */
     x: number;
     y: number;
   }
@@ -322,7 +336,8 @@ declare module "wowser" {
     draggable?: DragItem;
     /** Accept drops of these types. */
     dropTypes?: DropType[];
-    /** Return false to reject the drop. */
+    /** A compatible item was dropped here. Called once its payload has
+     *  loaded; the return value is ignored. */
     onDrop?: (e: DropEvent) => boolean | void;
     /** Right-click / long-press menu, as data; see `useContextMenu`. */
     contextMenu?: object[];
@@ -408,8 +423,9 @@ declare module "wowser" {
     key?: Key;
   }>;
 
-  /** The favicon for a page URL. */
-  export const Favicon: Component<{ url: string | null; size?: number; style?: BaseStyle; key?: Key }>;
+  /** A site's favicon. `url` is the page; pass `src` when you know the icon
+   *  image's own URL (IconInfo and PaneInfo carry it). */
+  export const Favicon: Component<{ url: string | null; src?: string | null; size?: number; style?: BaseStyle; key?: Key }>;
 
   /** The built-in icon for a tab: favicon, emoji, terminal chip, agent
    *  avatar, attention badge — whatever the native sidebar would show. */
@@ -513,8 +529,10 @@ declare module "wowser" {
     ref?: Ref;
   }>;
 
-  /** macOS close / minimise / zoom buttons, for UIs that place them.
-   *  Renders nothing on iOS and in fullscreen. 68×28. */
+  /** The macOS close / minimise / zoom buttons. The app hides the system
+   *  ones and draws these instead, so a Mac layout should place this exactly
+   *  once (the native Sidebar and Toolbar already include it). 68×28.
+   *  Renders nothing on iOS and in fullscreen. */
   export const WindowControls: Component<{ style?: BaseStyle; key?: Key }>;
 
   /** Embed a native view by name (see "wowser/native"). */
@@ -528,7 +546,8 @@ declare module "wowser" {
   export type WindowId = string;
 
   export type IconInfo =
-    | { kind: "favicon"; url: string }
+    /** `url` is the page; `src` the icon image when known. */
+    | { kind: "favicon"; url: string; src?: string | null }
     | { kind: "symbol"; name: string }
     | { kind: "emoji"; value: string }
     /** Something only <TabIcon> can draw (terminal chip, agent avatar, …). */
@@ -701,8 +720,8 @@ declare module "wowser" {
     keywords?: string[];
     run: (e?: object) => void;
   }
-  /** Register a command while mounted: it shows in the command bar and the
-   *  Shell menu, and its hotkey works. */
+  /** Register a command while mounted. Its hotkey works while this window
+   *  is key, and kit command bars list it (see kit/commandBar.ts). */
   export function useCommand(command: Command): void;
   export function useHotkey(combo: string, run: () => void): void;
   /** `<Row {...useContextMenu([{ title: "Close", onSelect }])}>` */
@@ -713,7 +732,7 @@ declare module "wowser" {
 
   export interface Suggestion {
     id: string;
-    /** "url" | "search" | "tab" | "history" | "action" | "agent" | "suggestion" | "terminal" */
+    /** "url" | "search" | "tab" | "history" | "action" | "agent" | "suggestion" | "lucky" | "terminal" | "command" */
     kind: string;
     title: string;
     subtitle: string | null;
@@ -734,21 +753,13 @@ declare module "wowser" {
   export interface EventMap {
     /** ★ A main-frame navigation is about to start in one of this window's
      *  panes. Return `{ cancel: true }` to block it or `{ redirect: url }`. */
-    navigate: { paneId: PaneId; tabId: TabId | null; url: string; isUserInitiated: boolean; opensNewWindow: boolean };
+    navigate: { paneId: PaneId; tabId: TabId | null; url: string; isUserInitiated: boolean };
     /** A page finished loading. */
     load: { paneId: PaneId; url: string; title: string | null };
-    /** ★ A page wants to open a new tab / window. Return `{ cancel: true }`,
-     *  or `{ disposition: "background" | "split" | "current" }`. */
-    newTab: { fromPaneId: PaneId; url: string | null };
     tabCreated: { tabId: TabId };
     tabClosed: { tabId: TabId; url: string | null };
     tabActivated: { tabId: TabId | null; previousTabId: TabId | null };
     spaceActivated: { spaceId: SpaceId };
-    /** ★ A key the page did not handle and no menu item claimed. Return true
-     *  to consume it. */
-    key: KeyEvent;
-    /** A download started. */
-    download: { paneId: PaneId; url: string; filename: string };
     /** The window became / stopped being key. */
     windowKey: { isKey: boolean };
   }
@@ -845,14 +856,8 @@ declare module "wowser" {
     minimize(): void;
     zoom(): void;
     toggleFullscreen(): void;
-    /** Native window frame options (macOS). `trafficLights`: "native" keeps
-     *  the system buttons at `{ x, y }` from the top-left; "custom" hides them
-     *  so the UI can place <WindowControls/>. */
-    configure(opts: {
-      trafficLights?: "custom" | { x: number; y: number };
-      minWidth?: number;
-      minHeight?: number;
-    }): void;
+    /** Native window options (macOS). */
+    configure(opts: { minWidth: number; minHeight: number }): void;
   };
 
   export const commandBar: {
@@ -955,7 +960,9 @@ declare module "wowser/native" {
    *    (see kit/Toolbar and kit/CommandBar).
    */
   export const Content: N<{ toolbar?: "auto" | "always" | "hidden" }>;
-  /** The built-in toolbar for a pane (default: the focused one). */
+  /** The built-in toolbar for a pane (default: the focused one). Its
+   *  suggestions drop down over whatever is below it: give it
+   *  `style={{ zIndex: 1 }}` so later siblings don't cover them. */
   export const Toolbar: N<{ paneId?: PaneId }>;
   /** The built-in command bar card (input + suggestions). */
   export const CommandBar: N<{ paneId?: PaneId }>;

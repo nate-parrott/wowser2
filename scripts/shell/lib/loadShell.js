@@ -109,8 +109,24 @@ function loadShell(opts) {
       const out = shell.dispatch(node.id, name, payload === undefined ? "" : JSON.stringify(payload));
       return out ? JSON.parse(out) : null;
     },
-    press(node) {
-      return api.fire(node, "onPress", {});
+    press(node, modifiers) {
+      return api.fire(node, "onPress", { modifiers: modifiers || {}, x: 0, y: 0 });
+    },
+    /** Deliver a native event (`on("navigate")`, commands…) and return the listener's answer. */
+    emit(name, payload) {
+      const out = shell.emit(name, JSON.stringify(payload === undefined ? null : payload));
+      made.publish();
+      return out ? JSON.parse(out) : null;
+    },
+    /** Press a registered hotkey ("cmd+shift+a"). */
+    hotkey(combo) {
+      const cmd = Array.from(fake.commandsRegistered.values()).find((c) => c.hotkey === combo);
+      if (!cmd) throw new Error("no command bound to " + combo);
+      return api.emit("command", { id: cmd.id });
+    },
+    /** Run a registered command by id. */
+    command(id) {
+      return api.emit("command", { id });
     },
     /** Mutate the fake browser directly, then push changed slices. */
     mutate(fn) {
