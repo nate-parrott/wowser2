@@ -1,15 +1,23 @@
 import { useState, useTabs, useHotkey, tabs, type KeyEvent, type TabInfo } from "wowser";
 
 export default function TabSearch({ hotkey = "cmd+shift+a" }: { hotkey?: string }) {
+  const palette = useTabPalette();
+  useHotkey(hotkey, palette.toggle);
+  return palette;
+}
+
+/** The state behind a tab palette: open/closed, the query, the matches and
+ *  keyboard selection. Shared with GlobalSwitcher. */
+export function useTabPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQueryRaw] = useState("");
   const [index, setIndex] = useState(0);
   const strip = useTabs();
-  useHotkey(hotkey, () => {
+  const toggle = () => {
     setQueryRaw("");
     setIndex(0);
     setOpen((o) => !o);
-  });
+  };
 
   const all: TabInfo[] = [...strip.pinned, ...strip.tabs];
   const q = query.trim().toLowerCase();
@@ -18,6 +26,7 @@ export default function TabSearch({ hotkey = "cmd+shift+a" }: { hotkey?: string 
 
   return {
     open,
+    toggle,
     query,
     total: all.length,
     matches,

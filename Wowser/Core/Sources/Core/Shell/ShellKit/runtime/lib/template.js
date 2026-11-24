@@ -250,7 +250,7 @@ const STATE = {
   },
 };
 
-const ACTIONS = ["tabs", "panes", "spaces", "folders", "window", "commandBar", "search", "toasts", "settings", "storage", "clipboard", "commands", "menus", "shell", "haptics", "mouse", "windows", "call", "browser"];
+const ACTIONS = ["tabs", "panes", "spaces", "folders", "window", "commandBar", "search", "toasts", "settings", "storage", "clipboard", "commands", "menus", "shell", "haptics", "mouse", "call", "browser"];
 
 /** What a view instance shares across the scopes of one render. */
 function createScope(base, locals) {
@@ -366,6 +366,9 @@ function compileNode(node, view) {
   if (Object.prototype.hasOwnProperty.call(HOST_TAGS, tag)) {
     c.kind = "host";
     c.type = HOST_TAGS[tag];
+    // A window's width / height / x / y / anchor describe the native window,
+    // not a box in the layout: they stay plain props.
+    if (tag === "Window") c.styled = false;
   } else if (Object.prototype.hasOwnProperty.call(COMPONENT_TAGS, tag)) {
     c.kind = "component";
     c.type = COMPONENT_TAGS[tag];

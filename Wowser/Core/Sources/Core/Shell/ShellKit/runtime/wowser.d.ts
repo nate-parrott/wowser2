@@ -1,19 +1,34 @@
-// The Wowser shell API — everything a branch's UI code can import.
+// The Wowser shell API — everything a branch's UI code can use.
 //
-// A *branch* is a folder of TS/JS files that draws the whole browser window.
-// Its entry module (see manifest.json) default-exports a component:
+// A *branch* is a folder of views that draws the whole browser window. A view
+// is two files with the same name:
 //
-//   import { Row, useWindow } from "wowser";
-//   import { Sidebar, Content } from "wowser/native";
-//   export default function Browser() {
-//     const win = useWindow();
-//     return <Row style={{ flex: 1 }}>{win.sidebarVisible && <Sidebar />}<Content /></Row>;
-//   }
+//   Sidebar.xml   the template: what is on screen, as a tree of tags
+//   Sidebar.ts    the logic (optional): state, derived values, handlers
+//
+//   <!-- mac/index.xml: the entry named in manifest.json -->
+//   <view>
+//     <Row flex="1">
+//       <native:Sidebar if="{$window.sidebarVisible}"/>
+//       <native:Content flex="1"/>
+//     </Row>
+//   </view>
+//
+// The template renders on its own — before the logic exists, while it is
+// still being written, and if the logic fails to load. The template language
+// is described in SKILL.md ("Templates"); this file is the contract for
+// everything a template or a logic file can name: tags and their attributes
+// (the components and style keys below), `$state` (the hooks), and actions.
+//
+// Logic files are TS/JS: `export default function (props) { return { … } }`.
+// Whatever it returns is in scope in the template. Hooks work in it. A view
+// may also be a single .tsx/.jsx file that default-exports a component; the
+// two kinds import each other freely.
 //
 // The code runs in JavaScriptCore on the app's main thread, next to the
 // browser model. There is no DOM, no `window`, no `fetch`. What you render is
-// a tree of native views. Files may be .tsx / .ts / .jsx / .js; JSX needs no
-// import. Types are documentation: nothing type-checks at load time.
+// a tree of native views. Types are documentation: nothing type-checks at
+// load time.
 //
 // Mental model, three layers — reach for the highest one that fits:
 //   1. "wowser/native"  whole browser pieces (tab list, toolbar, web content),
@@ -196,6 +211,9 @@ declare module "wowser" {
     anchor?: Alignment;
     hidden?: boolean;
     cursor?: "arrow" | "pointer" | "text" | "resizeLeftRight" | "resizeUpDown" | "grab";
+    /** "none": this node and everything in it ignores the pointer — clicks,
+     *  hover and scrolling go to whatever is underneath. */
+    pointerEvents?: "auto" | "none";
     // ---- motion
     /** Animate changes to this node's style (including the state variants
      *  below) and to its child list. */
@@ -350,6 +368,16 @@ declare module "wowser" {
     onLayout?: (frame: Frame) => void;
     /** Swipe / pan. `axis` picks the direction; values are points. */
     onPan?: (e: { phase: "began" | "changed" | "ended"; dx: number; dy: number; vx: number; vy: number }) => void;
+    /** Every pointer move over this node, in its own coordinates; one last
+     *  event with `inside: false` when the pointer leaves. For looks, use the
+     *  `hover` style variant instead; for the pointer anywhere in the window,
+     *  `useMouse()`. */
+    onMouseMove?: (e: { x: number; y: number; inside: boolean }) => void;
+    /** Scroll wheel / two-finger scroll over this node. Observed, not
+     *  consumed: a ScrollView underneath still scrolls. macOS. */
+    onScrollWheel?: (e: { dx: number; dy: number; x: number; y: number; precise: boolean }) => void;
+    /** Pinch. `scale` is relative to the start of the gesture. */
+    onMagnify?: (e: { phase: "changed" | "ended"; scale: number }) => void;
     testID?: string;
   }
 
@@ -502,7 +530,91 @@ declare module "wowser" {
    *  (find bar, reader, terminal, load failures, autofill menus). Does *not*
    *  include a toolbar. For a whole tab with split panes use `Content` from
    *  "wowser/native" with `toolbar="hidden"`. */
-  export const WebPane: Component<{ paneId: PaneId; style?: BaseStyle; key?: Key }>;
+  export const WebPane: Component<{
+    paneId: PaneId;
+    /** Lay the page out at this size and scale it to fit the node — a
+     *  thumbnail or a mini player that doesn't re-flow as it resizes. Give
+     *  one side and the other follows the node's shape. */
+    viewport?: { width?: number; height?: number };
+    /** Show only this rectangle of the page's viewport (CSS px), scaled to
+     *  fit the node. */
+    crop?: { x: number; y: number; width: number; height: number };
+    /** Like `crop`, following the first element that matches this CSS
+     *  selector — "video", "canvas", "#player". Tracked natively as the page
+     *  scrolls and re-lays out; shows the whole page while nothing matches. */
+    cropTo?: string;
+    /** "fit" (default) letterboxes the cropped area; "fill" covers the node. */
+    cropFit?: "fit" | "fill";
+    /** false: display only, clicks and scrolling pass through. Default true. */
+    interactive?: boolean;
+    style?: BaseStyle;
+    key?: Key;
+  }>;
+  // A page lives in one web view, so it is on screen in one place at a time:
+  // the most recently mounted <WebPane> for a pane shows it. Pop-outs
+  // therefore show a pane that is *not* the window's current one (a
+  // background tab, or a pane you moved out of the layout).
+
+  /**
+   * Draws its children in their own native window instead of in the layout.
+   * Mount it to show the window, unmount it to close it. The children are
+   * ordinary nodes of this branch: same state, same handlers.
+   *
+   *  - kind "panel" (default): a floating, borderless panel that doesn't take
+   *    focus from the page — picture-in-picture, palettes, inspectors.
+   *    Draggable by its background.
+   *  - kind "window": a regular titled, resizable window — a pop-out.
+   *  - kind "overlay": borderless, above every app and on every desktop —
+   *    HUDs, launchers summoned by a global hotkey, cursor effects. Defaults
+   *    to the whole screen; draw only what you need and use `clickThrough`
+   *    (or a small frame) so it doesn't block what is underneath.
+   *
+   * Position with `anchor` (+ `inset`) or with `x`/`y`. Screen coordinates
+   * are points from the top-left of the primary display (see `useScreen`).
+   * After the user moves or resizes it the window stays where they put it
+   * until `x`/`y`/`width`/`height`/`anchor` change. On iOS the children are
+   * presented as a sheet. In templates the attributes of <Window> are plain
+   * props (width="320" is the window's width, not a style).
+   */
+  export const Window: Component<{
+    kind?: "panel" | "window" | "overlay";
+    title?: string;
+    width?: number;
+    height?: number;
+    /** Top-left corner in screen coordinates. Overrides `anchor`. */
+    x?: number;
+    y?: number;
+    /** Where to put it within the screen (or the browser window). Default "center". */
+    anchor?: Alignment;
+    relativeTo?: "screen" | "window";
+    /** Distance from the edges when anchored. */
+    inset?: number;
+    /** No title bar; the content is the whole window. Default true except for kind "window". */
+    chromeless?: boolean;
+    resizable?: boolean;
+    /** Drag anywhere on the background to move it. Default true for panels. */
+    movable?: boolean;
+    /** Take keyboard focus when shown (needed for a TextInput to be typed
+     *  into right away). Default false except for kind "window". */
+    activates?: boolean;
+    /** The pointer goes straight through to whatever is underneath. */
+    clickThrough?: boolean;
+    /** Stay above normal windows. Default true except for kind "window". */
+    floating?: boolean;
+    /** Show on every desktop / Space. Default true for overlays. */
+    allSpaces?: boolean;
+    shadow?: boolean;
+    /** Remember the frame the user gave it under this name, across restarts. */
+    autosave?: string;
+    /** The user closed it (close button, Esc). Unmount it in response. */
+    onClose?: () => void;
+    /** The user moved or resized it. */
+    onFrame?: (frame: Frame) => void;
+    onFocus?: () => void;
+    onBlur?: () => void;
+    testID?: string;
+    key?: Key;
+  }>;
 
   /**
    * A web view that is part of the chrome rather than a tab.
@@ -717,6 +829,10 @@ declare module "wowser" {
     icon?: string;
     /** "cmd+shift+k", "ctrl+tab", "cmd+alt+left". Active while this window is key. */
     hotkey?: string;
+    /** The hotkey works everywhere, even while another app is in front
+     *  (macOS). Pick combinations other apps are unlikely to use; one that is
+     *  already taken system-wide logs a warning and does nothing. */
+    global?: boolean;
     keywords?: string[];
     run: (e?: object) => void;
   }
@@ -724,6 +840,38 @@ declare module "wowser" {
    *  is key, and kit command bars list it (see kit/commandBar.ts). */
   export function useCommand(command: Command): void;
   export function useHotkey(combo: string, run: () => void): void;
+  /** A hotkey that works in every app — to summon an overlay or a panel. */
+  export function useGlobalHotkey(combo: string, run: () => void): void;
+
+  /** The pointer in this window's coordinates, live, including a little
+   *  beyond the window's edges (`inside` is false there) — edge reveals,
+   *  auto-hiding chrome. Only views that read it re-render as it moves. */
+  export function useMouse(): { x: number; y: number; inside: boolean };
+  export interface ScreenInfo {
+    /** Screen coordinates are points from the top-left of the primary display. */
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    /** The part not covered by the menu bar and the Dock. */
+    visible: Frame;
+  }
+  /** The screen this window is on. */
+  export function useScreen(): ScreenInfo;
+
+  /** The live JSON value of a JS expression inside a pane's page; null until
+   *  the page answers. Re-checked when the page's DOM changes, scrolls,
+   *  resizes or its media plays / pauses, and again after navigation.
+   *      const playing = useWatch(pane.id, `!!document.querySelector("video:not([paused])")`); */
+  export function useWatch<T = unknown>(paneId: PaneId | null, js: string, opts?: { throttleMs?: number }): T | null;
+  export interface ElementRect extends Frame {
+    viewportWidth: number;
+    viewportHeight: number;
+  }
+  /** Where the first element matching `selector` is in the page's viewport,
+   *  live; null while there is none. (To just *show* that element, use
+   *  `<WebPane cropTo>` — it does this natively.) */
+  export function useElementRect(paneId: PaneId | null, selector: string): ElementRect | null;
   /** `<Row {...useContextMenu([{ title: "Close", onSelect }])}>` */
   export function useContextMenu(items: MenuEntry[]): { contextMenu: object[]; onContextMenuSelect: (id: string) => void };
   export function useInterval(fn: () => void, ms: number | null): void;
@@ -762,6 +910,9 @@ declare module "wowser" {
     spaceActivated: { spaceId: SpaceId };
     /** The window became / stopped being key. */
     windowKey: { isKey: boolean };
+    /** The pointer moved, anywhere on screen, in any app (screen
+     *  coordinates; at most 60 a second, only while something listens). */
+    globalMouse: { x: number; y: number };
   }
   export function useEvent<K extends keyof EventMap>(name: K, listener: (e: EventMap[K]) => unknown): void;
   /** Like `useEvent`, outside a component (in `setup`). Returns an unsubscribe. */
@@ -824,6 +975,12 @@ declare module "wowser" {
     eval(paneId: PaneId, js: string): Promise<unknown>;
     /** Persistent CSS / JS for a host; applied on every load. */
     setInjection(host: string, opts: { css?: string; js?: string }): Promise<void>;
+    /** Watch a JS expression inside the page: `listener` gets its JSON value
+     *  when the page first answers and whenever it changes. Runs in an
+     *  isolated world; survives navigation. Returns a stop function. */
+    watch(paneId: PaneId, js: string, listener: (value: any) => void, opts?: { throttleMs?: number }): () => void;
+    /** `watch` for an element's box in the page's viewport. */
+    watchElement(paneId: PaneId, selector: string, listener: (rect: ElementRect | null) => void): () => void;
   };
 
   export const spaces: {
@@ -854,6 +1011,8 @@ declare module "wowser" {
     newWindow(): void;
     close(): void;
     minimize(): void;
+    /** Bring the browser and this window to the front. */
+    activate(): void;
     zoom(): void;
     toggleFullscreen(): void;
     /** Native window options (macOS). */
@@ -909,6 +1068,14 @@ declare module "wowser" {
     reload(): void;
     readFile(path: string): string | null;
     openSettings(): void;
+  };
+
+  export const mouse: {
+    /** Where the pointer is now. `screenX`/`screenY` are screen coordinates,
+     *  `x`/`y` are in this window; `buttons` is a bit mask (1 = left). */
+    location(): { screenX: number; screenY: number; x: number; y: number; inside: boolean; buttons: number };
+    /** The same as `on("globalMouse", …)`. Returns a stop function. */
+    onGlobalMove(listener: (e: { x: number; y: number }) => void): () => void;
   };
 
   export const haptics: { tap(kind?: "generic" | "alignment" | "levelChange"): void };

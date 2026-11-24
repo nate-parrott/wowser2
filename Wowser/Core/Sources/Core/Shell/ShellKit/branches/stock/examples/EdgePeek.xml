@@ -1,0 +1,23 @@
+<!-- Wrap the page area: with the sidebar hidden, touching the window's left
+     edge with the pointer slides the tab list out over the page; it stays
+     while the pointer is on it. No logic file — `$mouse` is the live
+     pointer position in the window.
+
+       <EdgePeek> <native:Content flex="1"/> </EdgePeek>
+-->
+<view state="{ over: false }">
+  <Stack flex="1" align="leading">
+    <children/>
+    <Column if="{!$window.sidebarVisible}" testID="edge-peek" width="250" height="fill" padding="8" align="stretch"
+            onHover="over = event"
+            offset.x="{over || ($mouse.inside &amp;&amp; $mouse.x &lt; 6) ? 0 : -251}"
+            animate.type="spring" animate.duration="0.3" animate.bounce="0.12">
+      <Column flex="1" align="stretch" cornerRadius="12" clip background.material="sidebar"
+              border.color="separator" border.width="0.5"
+              shadow.color="#000/0.2" shadow.radius="18" shadow.x="4">
+        <ScrollView flex="1"><TabList/></ScrollView>
+        <NewTabRow/>
+      </Column>
+    </Column>
+  </Stack>
+</view>

@@ -38,6 +38,8 @@ public struct ShellCommand: Equatable, Identifiable {
     public var icon: String?
     public var hotkey: String?
     public var keywords: [String]
+    /// The hotkey works system-wide, even while another app is frontmost.
+    public var global = false
 }
 
 /// Runs one branch's UI code for one window.
@@ -76,6 +78,14 @@ public final class ShellEngine {
     @ObservationIgnored public private(set) var listening = Set<String>()
     /// Per-node handlers for imperative commands (`ref.focus()`).
     @ObservationIgnored var commandHandlers: [Int: (String, ShellJSON) -> ShellJSON?] = [:]
+    /// Nodes with an `onScrollWheel` handler (see `ShellRouter`'s monitor).
+    @ObservationIgnored var scrollWheelNodes = Set<Int>()
+    /// Pointer position in the window's coordinates (top-left origin), kept
+    /// up to date even just outside the window; feeds the `mouse` slice.
+    @ObservationIgnored var mouse = CGPoint.zero
+    @ObservationIgnored var mouseInside = false
+    @ObservationIgnored private var pageWatches = Set<String>()
+    @ObservationIgnored private var globalHotkeys: [String: UInt32] = [:]
     /// A headless load to see whether the branch works (`ShellTools.check`):
     /// calls that would change the browser are skipped.
     @ObservationIgnored var isDryRun = false
@@ -220,6 +230,13 @@ public final class ShellEngine {
         subscriptions.removeAll()
         resolvedModules.removeAll()
         commandHandlers.removeAll()
+        scrollWheelNodes.removeAll()
+        pageWatches.forEach { ShellPageWatcher.shared.unwatch($0) }
+        pageWatches.removeAll()
+        #if os(macOS)
+        globalHotkeys.values.forEach { ShellGlobalHotkeys.shared.unregister($0) }
+        #endif
+        globalHotkeys.removeAll()
         listening.removeAll()
         if !commands.isEmpty {
             commands.removeAll()
@@ -354,7 +371,16 @@ public final class ShellEngine {
     // MARK: State → JS
 
     private func sliceContext(_ state: BrowserState) -> ShellSliceContext {
-        ShellSliceContext(state: state, windowID: windowID, branch: branch, store: store, platform: platform, isDark: isDark, isFullscreen: isFullscreen, isKey: isKey)
+        var context = ShellSliceContext(state: state, windowID: windowID, branch: branch, store: store, platform: platform, isDark: isDark, isFullscreen: isFullscreen, isKey: isKey)
+        context.mouse = mouse
+        context.mouseInside = mouseInside
+        #if os(macOS)
+        if let screen = hostWindow?.screen ?? NSScreen.main {
+            context.screenFrame = ShellScreen.topLeft(screen.frame)
+            context.screenVisible = ShellScreen.topLeft(screen.visibleFrame)
+        }
+        #endif
+        return context
     }
 
     private func stateChanged(_ state: BrowserState) {
@@ -584,7 +610,8 @@ public final class ShellEngine {
         ctx.setObject(host, forKeyedSubscript: "__host" as NSString)
     }
 
-    private static let moduleSuffixes = ["", ".tsx", ".ts", ".jsx", ".js", ".json", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"]
+    /// A view's template wins over its logic file: `import X from "./X"` is the view.
+    private static let moduleSuffixes = ["", ".xml", ".tsx", ".ts", ".jsx", ".js", ".json", "/index.xml", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"]
 
     private func resolveModule(_ base: String) -> String? {
         if let hit = resolvedModules[base] { return hit }
@@ -599,7 +626,8 @@ public final class ShellEngine {
         guard let source = store.read(branch: branch, path: path) else {
             throw ShellCallError("No such file: \(path)")
         }
-        if path.hasSuffix(".json") { return source }
+        // JSON and XML templates go to JS as written; the runtime compiles templates.
+        if path.hasSuffix(".json") || path.hasSuffix(".xml") { return source }
         return try ShellTranspiler.shared.transpile(source: source, path: path, dev: true)
     }
 
@@ -620,12 +648,56 @@ public final class ShellEngine {
     }
 
     func registerCommand(_ command: ShellCommand) {
+        unregisterGlobalHotkey(command.id)
         commands[command.id] = command
         commandsVersion += 1
+        #if os(macOS)
+        if command.global, !isDryRun, let combo = command.hotkey.flatMap({ ShellHotkey(string: $0) }) {
+            let id = command.id
+            if let token = ShellGlobalHotkeys.shared.register(combo, action: { [weak self] in self?.runCommand(id) }) {
+                globalHotkeys[id] = token
+            } else {
+                log("warn", "Could not register the global hotkey \(command.hotkey ?? "") for \"\(id)\" (unknown key, or already taken).")
+            }
+        }
+        #endif
     }
 
     func unregisterCommand(_ id: String) {
+        unregisterGlobalHotkey(id)
         if commands.removeValue(forKey: id) != nil { commandsVersion += 1 }
+    }
+
+    private func unregisterGlobalHotkey(_ id: String) {
+        guard let token = globalHotkeys.removeValue(forKey: id) else { return }
+        #if os(macOS)
+        ShellGlobalHotkeys.shared.unregister(token)
+        #endif
+    }
+
+    /// The pointer moved (window coordinates). Only costs anything when the
+    /// branch reads `$mouse` / `useMouse()`.
+    func mouseMoved(to point: CGPoint, inside: Bool) {
+        mouse = point
+        mouseInside = inside
+        if subscriptions["mouse"] != nil { publishSlices() }
+    }
+
+    /// Watch a JS expression in a page for the branch (`panes.watch`); the
+    /// values arrive as "pageWatch" events.
+    func watchPage(paneID: ID<WebContent>, expression: String, throttleMs: Int) -> String {
+        var id = ""
+        id = ShellPageWatcher.shared.watch(paneID: paneID, expression: expression, throttleMs: throttleMs) { [weak self] value in
+            guard let self else { return }
+            self.emit("pageWatch", ["id": .string(id), "value": value])
+        }
+        pageWatches.insert(id)
+        return id
+    }
+
+    func unwatchPage(_ id: String) {
+        guard pageWatches.remove(id) != nil else { return }
+        ShellPageWatcher.shared.unwatch(id)
     }
 }
 

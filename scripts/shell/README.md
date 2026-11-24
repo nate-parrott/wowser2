@@ -26,6 +26,10 @@ browser — no Mac needed. `bun` is JavaScriptCore, the same engine the app uses
 | `lib/tree.js` | Mirror of the native node tree (the JS twin of `ShellTree`). |
 | `sim/render.js` | Draws the node tree with DOM + CSS. An approximation of the SwiftUI renderer: it follows the same sizing rules (boxes hug unless something inside grows) but materials, fonts and SF Symbols are stand-ins. Native components are placeholders. |
 
+`<Window>` nodes are drawn as floating boxes over the simulated browser
+window (its rectangle stands in for the screen); cropped web panes are a
+labelled stand-in. The pointer feeds the `mouse` slice.
+
 The simulator is for structure and logic. What a branch really looks like is
 decided by `ShellRenderer.swift`; check there (and on a Mac) before trusting
 a pixel.

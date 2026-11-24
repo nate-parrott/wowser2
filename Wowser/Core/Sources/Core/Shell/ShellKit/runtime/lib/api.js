@@ -114,6 +114,19 @@ const tabs = {
   recent: (max) => call("tabs.recent", { max: max || 12 }),
 };
 
+const pageWatchers = new Map();
+let pageWatchListening = false;
+
+function elementRectJS(selector) {
+  return (
+    "(function(){var el=document.querySelector(" +
+    JSON.stringify(selector) +
+    ");if(!el)return null;var r=el.getBoundingClientRect();if(r.width<1||r.height<1)return null;" +
+    "return{x:Math.round(r.left),y:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height)," +
+    "viewportWidth:window.innerWidth,viewportHeight:window.innerHeight}})()"
+  );
+}
+
 const panes = {
   /** Navigate a pane. `text` may be a URL or a search query. */
   load: (paneId, text) => call("panes.load", { paneId, text }),
@@ -134,6 +147,30 @@ const panes = {
   eval: (paneId, js) => callAsync("panes.eval", { paneId, js }),
   /** Persistent per-host CSS / JS (the same store Clean Mode uses). */
   setInjection: (host_, opts) => callAsync("panes.setInjection", Object.assign({ host: host_ }, opts)),
+  /** Watch a JS expression inside the page. `fn(value)` runs with its JSON
+   *  value now and whenever it changes (the page is re-checked when its DOM
+   *  changes, it scrolls or resizes; throttled). Survives navigation.
+   *  Returns a function that stops watching. */
+  watch(paneId, js, fn, opts) {
+    if (!pageWatchListening) {
+      pageWatchListening = true;
+      on("pageWatch", (e) => {
+        const f = pageWatchers.get(e.id);
+        if (f) f(e.value);
+      });
+    }
+    const id = call("panes.watch", { paneId, js, throttleMs: (opts && opts.throttleMs) || 100 });
+    if (id == null) return () => {};
+    pageWatchers.set(id, fn);
+    return () => {
+      if (pageWatchers.delete(id)) call("panes.unwatch", { id });
+    };
+  },
+  /** Watch where an element is: `fn({x, y, width, height, viewportWidth,
+   *  viewportHeight} | null)` in page-viewport coordinates. */
+  watchElement(paneId, selector, fn, opts) {
+    return panes.watch(paneId, elementRectJS(selector), fn, opts);
+  },
   copyURL: (paneId) => call("panes.copyURL", { paneId }),
   toggleBookmark: (paneId) => call("panes.toggleBookmark", { paneId }),
 };
@@ -168,6 +205,9 @@ const win = {
   newWindow: () => call("window.new"),
   close: () => call("window.close"),
   minimize: () => call("window.minimize"),
+  /** Bring the browser and this window to the front (from a global hotkey
+   *  or a floating panel). */
+  activate: () => call("window.activate"),
   zoom: () => call("window.zoom"),
   toggleFullscreen: () => call("window.toggleFullscreen"),
   /** Configure the native window frame: where the traffic lights sit (or
@@ -229,7 +269,8 @@ let commandListening = false;
 
 const commands = {
   /** Register a command: it appears in the command bar and the app menu,
-   *  and `hotkey` ("cmd+shift+k") binds it while this window is key.
+   *  and `hotkey` ("cmd+shift+k") binds it while this window is key — or
+   *  everywhere, even with another app in front, with `global: true`.
    *  Returns an unregister function. */
   register(cmd) {
     if (!cmd || !cmd.id || typeof cmd.run !== "function") {
@@ -251,6 +292,7 @@ const commands = {
       icon: cmd.icon || null,
       hotkey: cmd.hotkey || null,
       keywords: cmd.keywords || null,
+      global: !!cmd.global,
     });
     return () => {
       if (commandTable.get(cmd.id) === cmd) {
@@ -365,6 +407,15 @@ const shell = {
   openSettings: () => call("shell.openSettings"),
 };
 
+const mouse = {
+  /** Where the pointer is right now: `{screenX, screenY, x, y, inside,
+   *  buttons}` (top-left origins; x/y are in this window). */
+  location: () => call("mouse.location"),
+  /** The pointer moving anywhere on screen, in any app: `fn({x, y})` in
+   *  screen coordinates, at most 60 times a second. Returns a stop function. */
+  onGlobalMove: (fn) => on("globalMouse", fn),
+};
+
 const haptics = {
   tap: (kind) => call("haptics.tap", { kind: kind || "generic" }),
 };
@@ -391,6 +442,7 @@ module.exports = {
   },
   shell,
   haptics,
+  mouse,
   _settle,
   _emit,
 };

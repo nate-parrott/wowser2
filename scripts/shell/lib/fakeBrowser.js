@@ -36,6 +36,9 @@ function createFakeBrowser(seed) {
     ],
     tabs: {},
     toasts: [],
+    mouse: { x: 0, y: 0, inside: false },
+    watches: {},
+    watchesEnded: 0,
     settings: { toolbarAtBottom: false, sidebarWidth: 200 },
     storage: {},
     closed: [],
@@ -244,6 +247,10 @@ function createFakeBrowser(seed) {
       }
       case "toasts":
         return state.toasts;
+      case "mouse":
+        return state.mouse || { x: 0, y: 0, inside: false };
+      case "screen":
+        return state.screen || { x: 0, y: 0, width: 1728, height: 1117, visible: { x: 0, y: 38, width: 1728, height: 1010 } };
       case "setting":
         return state.settings[arg.key] === undefined ? null : state.settings[arg.key];
       case "storage":
@@ -449,6 +456,7 @@ function createFakeBrowser(seed) {
       case "window.configure":
       case "window.toggleFullscreen":
       case "window.minimize":
+      case "window.activate":
       case "window.zoom":
       case "window.close":
       case "window.new":
@@ -526,6 +534,22 @@ function createFakeBrowser(seed) {
         if (a.on) listening.add(a.name);
         else listening.delete(a.name);
         return null;
+      case "panes.watch": {
+        // Tests answer a watch with shell.emit("pageWatch", { id, value }).
+        const id = "w" + (Object.keys(state.watches).length + 1 + state.watchesEnded);
+        state.watches[id] = { paneId: a.paneId, js: a.js, throttleMs: a.throttleMs };
+        return id;
+      }
+      case "panes.unwatch":
+        if (state.watches[a.id]) {
+          delete state.watches[a.id];
+          state.watchesEnded++;
+        }
+        return null;
+      case "mouse.location": {
+        const m = state.mouse || { x: 0, y: 0, inside: false };
+        return { screenX: m.x + 100, screenY: m.y + 100, x: m.x, y: m.y, inside: m.inside, buttons: 0 };
+      }
       case "haptics.tap":
       case "shell.reload":
       case "shell.openSettings":
@@ -536,6 +560,7 @@ function createFakeBrowser(seed) {
   }
 
   function callAsync(name, a) {
+    calls.push([name, a]);
     switch (name) {
       case "search.suggestMore":
         return Promise.resolve(suggest(a.query, a.limit || 6));

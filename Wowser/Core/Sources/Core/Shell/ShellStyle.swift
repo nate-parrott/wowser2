@@ -221,6 +221,8 @@ public struct ShellStyle: Equatable, Sendable {
     public var rotate: Double?
     public var anchor: String?
     public var hidden = false
+    /// `pointerEvents: "none"`: clicks and hovers pass through this node.
+    public var ignoresPointer = false
     public var cursor: String?
     // motion
     public var animate: ShellAnimationSpec?
@@ -292,6 +294,7 @@ public struct ShellStyle: Equatable, Sendable {
         rotate = merged["rotate"]?.double
         anchor = merged["anchor"]?.string
         hidden = flag("hidden")
+        ignoresPointer = merged["pointerEvents"]?.string == "none"
         cursor = merged["cursor"]?.string
         animate = ShellAnimationSpec(merged["animate"])
         transition = merged["transition"]

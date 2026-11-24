@@ -479,21 +479,136 @@ struct ShellWindowControlsView: View {
 
 /// The live page of one pane, with its native overlays (find bar, reader,
 /// terminal, load failures…). No toolbar.
+///
+/// Three optional props turn it into a thumbnail, a pop-out or a cut-out:
+/// - `viewport {width, height}`: the page lays out at this size and is scaled
+///   to fit the node with a visual transform (no relayout as the node resizes).
+/// - `crop {x, y, width, height}`: show only this rectangle of the page's
+///   viewport, scaled to fit the node.
+/// - `cropTo "css selector"`: like `crop`, but follows an element in the page
+///   (tracked natively by `ShellPageWatcher`, no JS round-trip per frame).
+///
+/// A page lives in one `WKWebView`, so it shows in one place at a time: the
+/// most recently mounted `<WebPane>` for a pane wins.
 struct ShellWebPaneView: View {
     let node: ShellNode
     @Environment(ShellEngine.self) private var engine
+    @State private var trackedRect: CGRect?
+    @State private var watchID: String?
 
     var body: some View {
         let paneID = ID<WebContent>(raw: node.string("paneId") ?? "")
+        let selector = node.string("cropTo")
         Group {
             // Web contents are created on demand, the same way PaneView does it.
             if !paneID.raw.isEmpty,
                let webContent = BrowserStore.shared.getOrCreateWebContent(forId: paneID, toBeActiveInWindow: engine.windowID) {
-                WrappedWebView(webContent: webContent, shrunk: false)
+                let page = WrappedWebView(webContent: webContent, shrunk: false)
+                if let framing = ShellWebFraming(node: node, trackedRect: trackedRect) {
+                    GeometryReader { geo in
+                        let placed = framing.placement(in: geo.size)
+                        page
+                            .frame(width: placed.layout.width, height: placed.layout.height)
+                            .scaleEffect(placed.scale, anchor: .topLeading)
+                            .offset(x: placed.offset.x, y: placed.offset.y)
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                            .clipped()
+                    }
+                } else {
+                    page
+                }
             } else {
                 Color.clear
             }
         }
+        .allowsHitTesting(node.props["interactive"]?.bool ?? true)
         .shellStyled(node)
+        .task(id: ShellWebPaneWatchKey(paneID: paneID, selector: selector)) {
+            stopWatching()
+            guard let selector, !selector.isEmpty, !paneID.raw.isEmpty else { return }
+            watchID = ShellPageWatcher.shared.watch(
+                paneID: paneID,
+                expression: ShellPageWatcher.elementRectExpression(selector: selector),
+                throttleMs: 50
+            ) { value in
+                let rect = ShellWebFraming.rect(value)
+                if rect != trackedRect { trackedRect = rect }
+            }
+        }
+        .onDisappear { stopWatching() }
+    }
+
+    private func stopWatching() {
+        if let watchID { ShellPageWatcher.shared.unwatch(watchID) }
+        watchID = nil
+        trackedRect = nil
+    }
+}
+
+private struct ShellWebPaneWatchKey: Equatable {
+    var paneID: ID<WebContent>
+    var selector: String?
+}
+
+/// Where a page sits inside a `<WebPane>` that scales or crops it. Pure
+/// geometry, so it can be tested without a web view.
+struct ShellWebFraming: Equatable {
+    var viewportWidth: CGFloat?
+    var viewportHeight: CGFloat?
+    var crop: CGRect?
+    /// "fit" keeps the whole rectangle visible; "fill" covers the node.
+    var fill = false
+
+    struct Placement: Equatable {
+        var layout: CGSize
+        var scale: CGFloat
+        var offset: CGPoint
+    }
+
+    init(viewportWidth: CGFloat? = nil, viewportHeight: CGFloat? = nil, crop: CGRect? = nil, fill: Bool = false) {
+        self.viewportWidth = viewportWidth
+        self.viewportHeight = viewportHeight
+        self.crop = crop
+        self.fill = fill
+    }
+
+    /// nil when the node asks for none of this: the page is then shown as is.
+    init?(node: ShellNode, trackedRect: CGRect?) {
+        let viewport = node.props["viewport"]?.object
+        viewportWidth = viewport?["width"]?.double.map { CGFloat($0) }
+        viewportHeight = viewport?["height"]?.double.map { CGFloat($0) }
+        crop = trackedRect ?? node.props["crop"].flatMap { Self.rect($0) }
+        fill = node.string("cropFit") == "fill"
+        if viewportWidth == nil, viewportHeight == nil, crop == nil { return nil }
+    }
+
+    static func rect(_ json: ShellJSON) -> CGRect? {
+        guard let o = json.object, let w = o["width"]?.double, let h = o["height"]?.double, w >= 1, h >= 1 else { return nil }
+        return CGRect(x: o["x"]?.double ?? 0, y: o["y"]?.double ?? 0, width: w, height: h)
+    }
+
+    func placement(in size: CGSize) -> Placement {
+        let width = max(size.width, 1)
+        let height = max(size.height, 1)
+        // The size the page lays out at. With only one side given, the other
+        // follows the node's shape, so the page fills the node exactly.
+        var layout = CGSize(width: width, height: height)
+        if let viewportWidth, let viewportHeight {
+            layout = CGSize(width: viewportWidth, height: viewportHeight)
+        } else if let viewportWidth {
+            layout = CGSize(width: viewportWidth, height: height * viewportWidth / width)
+        } else if let viewportHeight {
+            layout = CGSize(width: width * viewportHeight / height, height: viewportHeight)
+        }
+        let shown = crop ?? CGRect(origin: .zero, size: layout)
+        let sx = width / max(shown.width, 1)
+        let sy = height / max(shown.height, 1)
+        let scale = max(0.01, fill ? max(sx, sy) : min(sx, sy))
+        // Centre what is shown in the node.
+        let offset = CGPoint(
+            x: (width - shown.width * scale) / 2 - shown.minX * scale,
+            y: (height - shown.height * scale) / 2 - shown.minY * scale
+        )
+        return Placement(layout: layout, scale: scale, offset: offset)
     }
 }

@@ -72,7 +72,8 @@ enum ShellActions {
     static func isSafeInDryRun(_ name: String) -> Bool {
         switch name {
         case "search.suggest", "search.topSites", "tabs.visibleOrder", "tabs.recent", "settings.get", "storage.get",
-             "commands.register", "commands.unregister", "commands.list", "events.listen", "shell.readFile", "shell.rootFailed":
+             "commands.register", "commands.unregister", "commands.list", "events.listen", "shell.readFile", "shell.files",
+             "shell.rootFailed", "mouse.location":
             return true
         default:
             return false
@@ -263,6 +264,14 @@ enum ShellActions {
             modify { $0.setPaneWeights(tabId: id, leftPaneIdx: left, leftWeight: lw, rightWeight: rw) }
             return nil
 
+        case "panes.watch":
+            let id = engine.watchPage(paneID: try a.pane(), expression: try a.require("js"), throttleMs: a.int("throttleMs") ?? 100)
+            return .string(id)
+
+        case "panes.unwatch":
+            engine.unwatchPage(try a.require("id"))
+            return nil
+
         case "panes.copyURL":
             guard let url = model.pane(forId: try a.pane())?.info.url else { return nil }
             writeClipboard(url.absoluteString)
@@ -391,6 +400,15 @@ enum ShellActions {
         case "window.close":
             #if os(macOS)
             engine.hostWindow?.performClose(nil)
+            #endif
+            return nil
+
+        case "window.activate":
+            // Bring the browser (and this window) to the front, e.g. from a
+            // global hotkey or a floating panel.
+            #if os(macOS)
+            NSApp.activate(ignoringOtherApps: true)
+            engine.hostWindow?.makeKeyAndOrderFront(nil)
             #endif
             return nil
 
@@ -527,7 +545,8 @@ enum ShellActions {
                 title: a.string("title") ?? "",
                 icon: a.string("icon"),
                 hotkey: a.string("hotkey"),
-                keywords: json["keywords"]?.array?.compactMap(\.string) ?? []
+                keywords: json["keywords"]?.array?.compactMap(\.string) ?? [],
+                global: a.bool("global") ?? false
             ))
             return nil
 
@@ -566,6 +585,22 @@ enum ShellActions {
             Haptics.shared.performSelectionHaptic()
             #endif
             return nil
+
+        case "mouse.location":
+            // Screen coordinates, top-left origin, plus the same point in the window.
+            #if os(macOS)
+            let point = ShellScreen.topLeft(NSEvent.mouseLocation)
+            return [
+                "screenX": .number(Double(point.x)), "screenY": .number(Double(point.y)),
+                "x": .number(Double(engine.mouse.x)), "y": .number(Double(engine.mouse.y)), "inside": .bool(engine.mouseInside),
+                "buttons": .number(Double(NSEvent.pressedMouseButtons)),
+            ]
+            #else
+            return ["screenX": 0, "screenY": 0, "x": 0, "y": 0, "inside": false, "buttons": 0]
+            #endif
+
+        case "shell.files":
+            return .array(engine.store.files(in: engine.branch).map { .string($0) })
 
         case "shell.reload":
             engine.scheduleReload()
@@ -673,7 +708,15 @@ enum ShellActions {
             guard let webView = BrowserStore.shared.getOrCreateWebContent(forId: pane, toBeActiveInWindow: engine.windowID)?.wkWebview else {
                 throw ShellCallError("That pane has no web view to evaluate in.")
             }
-            let value = try await webView.callAsyncJavaScript("return (async () => { return eval(__code); })()", arguments: ["__code": js], in: nil, contentWorld: .defaultClient)
+            // The completion-handler form, as BrowserJS uses it.
+            let value: Any? = try await withCheckedThrowingContinuation { (done: CheckedContinuation<Any?, Error>) in
+                webView.callAsyncJavaScript("return (async () => { return eval(__code); })()", arguments: ["__code": js], in: nil, in: .defaultClient) { result in
+                    switch result {
+                    case .success(let value): done.resume(returning: value)
+                    case .failure(let error): done.resume(throwing: error)
+                    }
+                }
+            }
             guard let value, JSONSerialization.isValidJSONObject([value]) else { return nil }
             return ShellJSON(any: value)
 

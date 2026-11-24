@@ -12,6 +12,12 @@ struct ShellSliceContext {
     var isDark: Bool
     var isFullscreen: Bool
     var isKey: Bool
+    var mouse = CGPoint.zero
+    var mouseInside = false
+    /// The window's screen and its usable part (no menu bar / Dock), in
+    /// global top-left coordinates.
+    var screenFrame = CGRect.zero
+    var screenVisible = CGRect.zero
 }
 
 /// Slices are the read side of the shell API: small JSON snapshots of browser
@@ -33,6 +39,16 @@ enum ShellSlices {
         case "pane": return pane(c, id: ID<WebContent>(raw: arg["id"]?.string ?? ""))
         case "theme": return theme(c)
         case "toasts": return toasts(c)
+        case "mouse":
+            return ["x": .number(Double(c.mouse.x.rounded())), "y": .number(Double(c.mouse.y.rounded())), "inside": .bool(c.mouseInside)]
+        case "screen":
+            let f = c.screenFrame
+            let v = c.screenVisible
+            return [
+                "x": .number(Double(f.minX)), "y": .number(Double(f.minY)),
+                "width": .number(Double(f.width)), "height": .number(Double(f.height)),
+                "visible": ["x": .number(Double(v.minX)), "y": .number(Double(v.minY)), "width": .number(Double(v.width)), "height": .number(Double(v.height))],
+            ]
         case "setting": return setting(arg["key"]?.string ?? "")
         case "storage": return c.store.storageValue(branch: c.branch, key: arg["key"]?.string ?? "") ?? .null
         default: return .null

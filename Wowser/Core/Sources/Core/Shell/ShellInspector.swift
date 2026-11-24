@@ -16,7 +16,7 @@ struct ShellInspectorOverlay: View {
             ZStack(alignment: .topLeading) {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
-                    .onContinuousHover(coordinateSpace: .local) { phase in
+                    .onContinuousHover { phase in
                         guard picked == nil else { return }
                         switch phase {
                         case .active(let point): target(engine.tree.hitTest(rootKey: ShellEngine.rootKey, point: point))

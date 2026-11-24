@@ -1,8 +1,15 @@
 # The shell: a browser UI you can rewrite
 
-The browser window can be drawn by a **branch** — a folder of TS/JSX in
+The browser window can be drawn by a **branch** — a folder of views in
 Application Support — instead of the built-in SwiftUI. Branches are edited by
 the user or by an agent, previewed in a second window, undone, and swapped.
+
+A view is an **XML template** (`TabRow.xml`: what is on screen) plus an
+optional **logic file** (`TabRow.ts`: state and handlers). The split is
+deliberate: a template renders before its logic exists, while it is still
+being written (the parser closes whatever is open), and when its logic fails
+to load; and because every element's identity is its position in the
+template, the renderer can animate between any two versions of it.
 
 Status: **the JS half is tested; the Swift half has never been compiled.**
 Read "Bring-up on a Mac" before anything else.
@@ -17,7 +24,7 @@ Off by default. `DefaultsKeys.shellBranch` empty ⇒ nothing changes.
 ## How it fits together
 
 ```
- branch files (TSX)                                   BrowserStore / BrowserState
+ branch files (XML + TS)                              BrowserStore / BrowserState
       │  ShellTranspiler (Sucrase in its own JSContext, cached)       ▲      │
       ▼                                                               │      │ uiPublisher
  ┌─ JSContext (one per window) ───────────────────────┐   ShellActions│      ▼
@@ -25,6 +32,7 @@ Off by default. `DefaultsKeys.shellBranch` empty ⇒ nothing changes.
  │  lib/reconciler hooks, keys, memo, boundaries      │ ◀── slices(key, json) ──┘
  │  lib/store      useSlice                           │
  │  lib/api        tabs / panes / search / commands   │ ── host.commit(ops) ──▶ ShellTree (@Observable nodes)
+ │  lib/xml, lib/template   views: XML → elements     │                            │
  │  lib/index      "wowser" · lib/native "wowser/native"                          │
  └────────────────────────────────────────────────────┘ ◀─ dispatch(node, event) ─┤
                                                                                    ▼
@@ -34,13 +42,20 @@ Off by default. `DefaultsKeys.shellBranch` empty ⇒ nothing changes.
 - **`ShellEngine`** owns the context. Everything is main-thread: the UI code
   shares it with the browser model, so `search.suggest()` and `tabs.close()`
   are plain synchronous calls. A reload throws the context away.
+- **Templates** (`lib/xml.js`, `lib/template.js`) compile onto the
+  reconciler inside the JS context — Swift only hands `.xml` files over as
+  text. `{…}` bindings are evaluated against a scope chain (loop variables →
+  logic → view state → props → `$state` → actions); a view records which
+  slices its bindings read and re-renders only for those. A binding that
+  throws is logged once and renders as nothing. `.tsx` components still
+  work and mix freely with templates.
 - **Ops.** The reconciler emits `create / update / children / remove`; only
   changed props cross the bridge, and functions never do (a handler is sent
   as `true`; events are routed by node id).
 - **Slices** (`ShellSlices`) are the read side: pure functions of
   `BrowserState` returning JSON, recomputed on `uiPublisher` and pushed only
   when changed. `window`, `spaces`, `tabs`, `tab|{id}`, `pane|{id}`, `theme`,
-  `toasts`, `setting|{key}`, `storage|{key}`.
+  `toasts`, `setting|{key}`, `storage|{key}`, `mouse`, `screen`.
 - **Actions** (`ShellActions`) are the write side: a string switch onto the
   same `BrowserState` / `BrowserStore` operations the built-in UI calls.
 - **Renderer.** `row`/`column` are HStack/VStack; `stack` is
@@ -54,6 +69,18 @@ Off by default. `DefaultsKeys.shellBranch` empty ⇒ nothing changes.
 - **Web islands** (`ShellWebIsland`): transparent `WKWebView`s serving branch
   files over `wowser-shell://`, with a `window.wowser` bridge. Remote URLs
   get no bridge.
+- **Windows** (`ShellWindows`): a `<Window>` node is a portal — its children
+  are hosted in an `NSPanel` (`panel` / `window` / `overlay` kinds) but stay
+  in the same tree and JS context. `ShellGlobalHotkeys` registers
+  `commands.register({ global: true })` hotkeys with Carbon.
+- **Web contents.** `<WebPane>` takes `viewport` / `crop` / `cropTo`
+  (`ShellWebFraming`: pure geometry, tested). `ShellPageWatcher` evaluates
+  expressions inside pages in an isolated content world and reports changes
+  (`panes.watch`, `useWatch`, and `cropTo`'s element tracking).
+- **Pointer.** `$mouse` comes from `trackMouseOutsideWindow`; `onMouseMove`,
+  `onMagnify` are SwiftUI gestures; `onScrollWheel` and the `globalMouse`
+  event are `NSEvent` monitors in `ShellRouter`, active only while a branch
+  listens. Screen coordinates are top-left based everywhere (`ShellScreen`).
 - **Routing** (`ShellRouter`): `activeBranch` for normal windows, per-window
   overrides for previews. `ShellWindowHost` sits in `BrowserWindow.body` and
   `MobileContentView.body` and falls back to the built-in content.
@@ -95,11 +122,12 @@ None of the Swift has been through a compiler. Expect a round of fixes; the
 likely kinds, in order: SwiftUI overloads / availability in
 `ShellRenderer.swift`, `ShellLeafViews.swift`, `ShellInteractions.swift`;
 result-builder type inference; `@Observable` + `@ObservationIgnored`
-details; ScreenCaptureKit signatures.
+details; ScreenCaptureKit signatures; Carbon hotkey registration and
+`NSPanel` behaviour in `ShellWindows.swift`.
 
 1. `cd Wowser/Core && swift build` — fix until green, then build the app in
    Xcode (CLAUDE.md: never two builds at once).
-2. `cd scripts/shell && bun install && bun test` — should already pass (33).
+2. `cd scripts/shell && bun install && bun test` — should already pass (55).
 3. Launch. Nothing should look different. Settings → Customize should list
    **Stock** and **Top Tabs**.
 4. Click **Preview** on Stock. A second window opens. It should be
@@ -111,8 +139,8 @@ details; ScreenCaptureKit signatures.
      to the page
    - light / dark, a space with a background image, fullscreen
 5. Edit the preview branch's entry to the kit layout (create a branch first —
-   Stock is read-only): in `mac/index.tsx`,
-   `export { default } from "../layouts/ClassicKit";`. The window should
+   Stock is read-only): make `mac/index.xml`
+   `<view><ClassicKit/></view>`. The window should
    reload by itself. Check against `scripts/shell/out` simulator renders
    (`node sim/shot.js <branch> --entry layouts/ClassicKit`):
    - rows: hover reveals ×, selected row is tinted glass, drag a row onto
@@ -138,8 +166,26 @@ details; ScreenCaptureKit signatures.
 10. `layouts/Playground` exercises every example at once, including the
     `navigate` hook (twitter.com → x.com), commands with hotkeys, a web
     panel and the canvas island.
-11. iOS: set `shellBranch` to a branch whose `ios/index.tsx` exports
-    `layouts/MobileKit`; check the bottom bar, tab sheet, keyboard focus.
+11. iOS: set `shellBranch` to a branch whose `ios/index.xml` is
+    `<view><MobileKit/></view>`; check the bottom bar, tab sheet, keyboard
+    focus.
+12. Templates: in a branch, delete the closing tags at the end of a template
+    and save — the window should still draw what is there, and `shell check`
+    should list the unclosed tags. Rename a view's `.ts` — the view should
+    still draw, inert, with one error in `shell logs`.
+13. Windows and web contents (put the example tags in a layout's root Stack):
+    - `<PopOutVideo/>`: play a YouTube video, switch tabs → a floating panel
+      shows just the video, tracks it if the page scrolls, survives
+      resizing; the expand button returns; closing pauses.
+    - `<GlobalSwitcher/>`: with another app in front press ⌃⌥Space → the
+      palette appears over it and takes typing; Enter switches tab and
+      brings the browser forward; Esc / clicking away closes it.
+    - `<CursorHalo/>`: ⌃⌥H → a ring follows the pointer in every app and
+      doesn't swallow clicks.
+    - `<EdgePeek>` around the content with the sidebar hidden: touch the
+      left window edge → the tab list slides out.
+    - a `<WebPane viewport="{{ width: 1200 }}" width="240" height="150">` of
+      a background tab draws a scaled live thumbnail.
 
 Things I'd look at first if they misbehave:
 
@@ -149,7 +195,17 @@ Things I'd look at first if they misbehave:
   its content anchors by `justify`/`align`. If rows look centred when they
   should be leading, that mapping is where to look.
 - **Transparent web islands on macOS** rely on a guarded
-  `setDrawsBackground:`; without it the island is opaque.
+  `_setDrawsBackground:`; without it the island is opaque.
+- **Panels**: hover looks inside a non-key panel need the panel to accept
+  mouse-moved events; if `groupHover` never fires there, set
+  `acceptsMouseMovedEvents` in `ShellPanelController.configure`. A
+  `TextInput` in an overlay needs `activates` (the panel must become key).
+- **One web view per page**: a `<WebPane>` for the pane the main window is
+  also showing will steal it. The examples only pop out background panes.
+- **`cropTo`** converts CSS px to points 1:1; with page zoom ≠ 100% the crop
+  will be off by that factor (multiply in `ShellWebFraming.rect`).
+- **Global hotkeys** fail silently when another app owns the combination;
+  the engine logs a warning (`shell logs`).
 - **Focus**: `TextInput` reports `FocusTarget.shellInput`, which `focusState`
   returns ahead of the omnibox. If the page keeps the keyboard, check
   `InputTextField`'s `focusDate`.
@@ -188,13 +244,29 @@ Each row was either built (`examples/`, `layouts/`, with a test in
 | Sidebar on the right | swap order in the `Row` | API (native `Sidebar` assumes leading edge for its resize handle; use `kit/Sidebar`) |
 | Session buttons ("close all", "reopen") | `tabs.closeAll`, `tabs.reopenClosed` | API |
 | Picture-in-picture shelf | `tab.isPip`, `tabs.setPip` | API |
+| Auto picture-in-picture when leaving a playing tab (Arc) | `useWatch` + `<Window kind="panel">` + `<WebPane cropTo="video">` | built: `examples/PopOutVideo` |
+| Summon the browser from anywhere (Spotlight-style) | `useGlobalHotkey` + `<Window kind="overlay" activates>` | built: `examples/GlobalSwitcher` |
+| Edge-reveal sidebar without hover strips | `$mouse` in a template | built: `examples/EdgePeek` |
+| Presenter cursor highlight / screen HUD | `mouse.onGlobalMove` + click-through overlay | built: `examples/CursorHalo` |
+| Pop a tab out into a mini window; live tab thumbnails | `<Window kind="window">`, `<WebPane viewport>` | API (tested props) |
+| "Now playing" indicator, audio tab badge | `useWatch(paneId, …)` | API |
+| Mouse gestures on the chrome | `onPan`, `onScrollWheel`, `onMagnify` | API |
+| Detached tool palettes, notes, a floating command bar | `<Window>` with any view inside | API |
 | Ask-the-agent button, AI sidebar | `browser.agent.*` | API |
 
 Gaps found while doing this, not yet filled:
 
 - **Tab stacks / tree hierarchy as data**: only folders exist in the model.
   A real tree needs a parent pointer on `Tab` (and a sync decision).
-- **Audio indicators / mute**: `WebContent` doesn't track playing state.
+- **Mute**: playing state can be watched in the page (`useWatch`), but
+  there is no native per-tab mute action.
+- **One page, one place**: a page can't be shown in the window and in a
+  pop-out at once (single `WKWebView`). A snapshot-backed placeholder would
+  make "detach the current tab's video" seamless.
+- **Global keyboard beyond hotkeys, clicks in other apps**: deliberately not
+  exposed (needs Accessibility permission; high abuse potential).
+- **Mouse gestures over the page itself**: node events stop at the web view;
+  page-level gestures need `panes.watch` or an injected script.
 - **Downloads shelf**: downloads are tabs here; there is no `downloads`
   slice. Easy to add from `pane.download`.
 - **Page context menu, menu-bar items**: not bridged.
@@ -202,8 +274,7 @@ Gaps found while doing this, not yet filled:
 - **Weighted `flex`, grid**: stacks split equally. A flex `Layout` would fix
   it; the algorithm should be written as a pure function so it can be tested
   off-device (see `ShellSizeLayout`).
-- **Mouse gestures, per-tab zoom memory, custom new-tab content types**: no
-  primitives.
+- **Per-tab zoom memory, custom new-tab content types**: no primitives.
 - **Commands in the native omnibox / app menu**: registered commands only
   appear in kit command bars.
 - **iOS agent loop**: MCP is macOS-only; on iOS branches arrive by sync or
@@ -215,6 +286,10 @@ Gaps found while doing this, not yet filled:
 
 - **A new primitive prop**: `wowser.d.ts` → `ShellStyle` (parse) →
   `ShellStyledView` (apply) → `scripts/shell/sim/render.js` (approximate).
+  A new style key also goes in `STYLE_KEYS` in `lib/template.js`, or
+  templates will pass it as a plain prop.
+- **A new primitive tag**: `HOST_TAGS` in `lib/template.js` + the export in
+  `lib/index.js` + a case in `ShellNodeView`.
 - **A new native component**: a case in `ShellNativeView`, a wrapper in
   `lib/native.js`, a declaration in `wowser.d.ts`.
 - **A new slice**: `ShellSlices.compute`, a hook in `lib/index.js`, types in

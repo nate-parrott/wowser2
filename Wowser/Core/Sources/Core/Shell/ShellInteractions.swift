@@ -33,6 +33,13 @@ struct ShellInteractions: ViewModifier {
             .modifier(ShellPan(enabled: node.handles("onPan"), panning: $panning) { payload in
                 engine.dispatch(node.id, "onPan", payload)
             })
+            .modifier(ShellMouseMove(enabled: node.handles("onMouseMove")) { payload in
+                engine.dispatch(node.id, "onMouseMove", payload)
+            })
+            .modifier(ShellMagnify(enabled: node.handles("onMagnify")) { payload in
+                engine.dispatch(node.id, "onMagnify", payload)
+            })
+            .modifier(ShellScrollWheel(nodeID: node.id, enabled: node.handles("onScrollWheel"), engine: engine))
             .modifier(ShellWindowDrag(enabled: node.bool("windowDrag")))
             .modifier(ShellCursor(name: node.style().cursor))
             .modifier(ShellTooltip(text: node.string("tooltip")))
@@ -46,6 +53,63 @@ private struct ShellHover: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled { content.onHover(perform: onChange) } else { content }
+    }
+}
+
+/// Continuous pointer tracking over a node: every move, with the position
+/// in the node's own coordinates, and one last event when the pointer leaves.
+private struct ShellMouseMove: ViewModifier {
+    var enabled: Bool
+    var send: (ShellJSON) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onContinuousHover { phase in
+                switch phase {
+                case .active(let point):
+                    send(["x": .number(Double(point.x)), "y": .number(Double(point.y)), "inside": true])
+                case .ended:
+                    send(["x": 0, "y": 0, "inside": false])
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Pinch (trackpad or touch).
+private struct ShellMagnify: ViewModifier {
+    var enabled: Bool
+    var send: (ShellJSON) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.gesture(
+                MagnifyGesture()
+                    .onChanged { value in send(["phase": "changed", "scale": .number(Double(value.magnification))]) }
+                    .onEnded { value in send(["phase": "ended", "scale": .number(Double(value.magnification))]) }
+            )
+        } else {
+            content
+        }
+    }
+}
+
+/// Scroll-wheel / two-finger scroll over a node. The events are observed by
+/// one monitor per app (`ShellRouter`), which needs to know which nodes care.
+private struct ShellScrollWheel: ViewModifier {
+    let nodeID: Int
+    var enabled: Bool
+    let engine: ShellEngine
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { if enabled { engine.scrollWheelNodes.insert(nodeID) } }
+            .onChange(of: enabled) { _, on in
+                if on { engine.scrollWheelNodes.insert(nodeID) } else { engine.scrollWheelNodes.remove(nodeID) }
+            }
+            .onDisappear { engine.scrollWheelNodes.remove(nodeID) }
     }
 }
 

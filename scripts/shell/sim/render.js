@@ -176,7 +176,7 @@ function createRenderer(opts) {
   function parentAxis(parent) {
     if (!parent) return "stack";
     if (parent.type === "row") return "row";
-    if (parent.type === "stack" || parent.type === "root" || parent.type === "popover") return "stack";
+    if (parent.type === "stack" || parent.type === "root" || parent.type === "popover" || parent.type === "window") return "stack";
     if (parent.type === "scroll") return parent.props.axis === "horizontal" ? "row" : "column";
     return "column";
   }
@@ -201,7 +201,7 @@ function createRenderer(opts) {
       css.alignItems = FLEX_ALIGN[s.align] || "center";
       css.justifyContent = JUSTIFY[s.justify] || "flex-start";
       if (s.gap != null) css.gap = s.gap + "px";
-    } else if (type === "stack" || type === "root" || type === "popover") {
+    } else if (type === "stack" || type === "root" || type === "popover" || type === "window") {
       css.display = "grid";
       css.gridTemplateColumns = "minmax(0, 1fr)";
       css.gridTemplateRows = "minmax(0, 1fr)";
@@ -515,7 +515,18 @@ function createRenderer(opts) {
         el.innerHTML = `<div style="width:68px;height:28px;display:flex;align-items:center;gap:8px;padding-left:8px;box-sizing:border-box">${["#ff5f57", "#febc2e", "#28c840"].map((c) => `<div style="width:12px;height:12px;border-radius:50%;background:${c};box-shadow:inset 0 0 0 0.5px rgba(0,0,0,0.15)"></div>`).join("")}</div>`;
         break;
       case "webpane":
-        el.innerHTML = fakePage(p.paneId);
+        if (p.cropTo || p.crop) {
+          // A cut-out of the page: stand in for whatever is being followed.
+          const what = p.cropTo ? escapeHTML(p.cropTo) : `${p.crop.width}×${p.crop.height}`;
+          el.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(135deg,#1d2433,#3a2a4a);color:#fff;display:grid;place-items:center;font:11px -apple-system,Arial"><div style="text-align:center"><div style="font-size:26px;line-height:1">▶</div><div style="opacity:.7;margin-top:4px">crop: ${what}</div></div></div>`;
+        } else if (p.viewport) {
+          const w = p.viewport.width || 900;
+          const scale = Math.max(0.05, Math.min(1, (el.clientWidth || w) / w));
+          el.innerHTML = `<div style="width:${w}px;height:${100 / scale}%;transform:scale(${scale});transform-origin:0 0">${fakePage(p.paneId)}</div>`;
+          el.style.overflow = "hidden";
+        } else {
+          el.innerHTML = fakePage(p.paneId);
+        }
         break;
       case "webisland": {
         let frame = el.firstChild;
@@ -626,6 +637,23 @@ function createRenderer(opts) {
       }
     });
     el.addEventListener("mouseup", () => setState("pressed", false));
+    el.addEventListener("mousemove", (e) => {
+      if (!has(node(), "onMouseMove")) return;
+      const r = el.getBoundingClientRect();
+      dispatch(node().id, "onMouseMove", { x: e.clientX - r.left, y: e.clientY - r.top, inside: true });
+    });
+    el.addEventListener("mouseleave", () => {
+      if (has(node(), "onMouseMove")) dispatch(node().id, "onMouseMove", { x: 0, y: 0, inside: false });
+    });
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        if (!has(node(), "onScrollWheel")) return;
+        const r = el.getBoundingClientRect();
+        dispatch(node().id, "onScrollWheel", { dx: -e.deltaX, dy: -e.deltaY, x: e.clientX - r.left, y: e.clientY - r.top, precise: e.deltaMode === 0 });
+      },
+      { passive: true }
+    );
     el.addEventListener("click", (e) => {
       const n = node();
       if (n.props.disabled) return;
@@ -697,6 +725,48 @@ function createRenderer(opts) {
 
   // ------------------------------------------------------------ sync
 
+  let layer = null;
+
+  /** Position a <Window>'s element the way the panel would sit on screen
+   *  (the simulator's "screen" is the browser window's own rectangle). */
+  function placeWindow(el, node) {
+    const p = node.props;
+    const kind = p.kind || "panel";
+    const css = el.style;
+    const inset = p.inset == null ? 16 : p.inset;
+    css.position = "absolute";
+    css.pointerEvents = p.clickThrough ? "none" : "auto";
+    css.width = (p.width || 320) + "px";
+    css.height = (p.height || 200) + "px";
+    css.left = css.top = css.right = css.bottom = "";
+    css.transform = "";
+    if (p.x != null && p.y != null) {
+      css.left = p.x + "px";
+      css.top = p.y + "px";
+    } else {
+      const a = p.anchor || "center";
+      if (/leading|Leading/.test(a)) css.left = inset + "px";
+      else if (/trailing|Trailing/.test(a)) css.right = inset + "px";
+      else {
+        css.left = "50%";
+        css.transform = "translateX(-50%)";
+      }
+      if (/^top/.test(a)) css.top = inset + "px";
+      else if (/^bottom/.test(a)) css.bottom = inset + "px";
+      else {
+        css.top = "50%";
+        css.transform += " translateY(-50%)";
+      }
+    }
+    if (kind !== "overlay") {
+      css.borderRadius = "10px";
+      css.overflow = "hidden";
+      if (p.shadow !== false) css.boxShadow = "0 18px 50px rgba(0,0,0,.35), 0 0 0 0.5px rgba(0,0,0,.25)";
+    }
+    el.dataset.window = kind;
+    return el;
+  }
+
   const LEAVES = new Set(["text", "icon", "favicon", "tabicon", "image", "windowcontrols", "webpane", "webisland", "native", "textinput", "spacer", "divider"]);
 
   function sync() {
@@ -705,6 +775,7 @@ function createRenderer(opts) {
     theme = t;
     const seen = new Set();
     const autoFocus = [];
+    const floating = [];
     flexCache.clear();
     const walk = (node, parent) => {
       seen.add(node.id);
@@ -737,6 +808,11 @@ function createRenderer(opts) {
       if (!LEAVES.has(node.type)) {
         let kids = node.children;
         if (node.type === "popover" && !node.props.open) kids = kids.slice(0, 1);
+        // <Window> children are drawn elsewhere: here, floating above the window.
+        kids.forEach((c) => {
+          if (c.type === "window") floating.push(placeWindow(walk(c, node), c));
+        });
+        kids = kids.filter((c) => c.type !== "window");
         const want = kids.map((c) => walk(c, node));
         let i = 0;
         for (; i < want.length; i++) {
@@ -759,6 +835,17 @@ function createRenderer(opts) {
         container.appendChild(el);
       }
     }
+    if (!layer || layer.parentNode !== container) {
+      layer = document.createElement("div");
+      // The browser window's rectangle stands in for the screen.
+      if (getComputedStyle(container).position === "static") container.style.position = "relative";
+      layer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:100";
+      container.appendChild(layer);
+    }
+    floating.forEach((el, i) => {
+      if (layer.childNodes[i] !== el) layer.insertBefore(el, layer.childNodes[i] || null);
+    });
+    while (layer.childNodes.length > floating.length) layer.removeChild(layer.lastChild);
     els.forEach((rec, id) => {
       if (!seen.has(id)) els.delete(id);
     });

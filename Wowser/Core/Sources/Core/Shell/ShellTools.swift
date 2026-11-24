@@ -361,7 +361,7 @@ enum ShellScreenshot {
 
     @MainActor
     private static func captureWithScreenCaptureKit(window: NSWindow) async -> CGImage? {
-        guard let content = try? await SCShareableContent.current,
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
               let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) })
         else { return nil }
         let filter = SCContentFilter(desktopIndependentWindow: target)

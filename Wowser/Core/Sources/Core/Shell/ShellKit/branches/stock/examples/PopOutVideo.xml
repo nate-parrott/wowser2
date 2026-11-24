@@ -1,0 +1,28 @@
+<!-- Picture in picture that follows you: leave a tab while its video is
+     playing and the video pops out into a floating panel, cropped to just
+     the <video> element. Go back to the tab (or press the panel's expand
+     button) and it returns. Place it anywhere in the layout — it draws
+     nothing in the window itself. -->
+<view>
+  <Window if="{popped}" testID="popout" kind="panel" title="{title}" resizable
+          width="384" height="216" anchor="bottomTrailing" inset="24" autosave="example.popout"
+          onClose="close()">
+    <Stack flex="1" group background="#000" cornerRadius="10" clip>
+      <!-- The page keeps running in its own tab; the panel shows the part
+           of it that the video occupies, wherever that moves to. -->
+      <WebPane testID="popout-page" paneId="{popped.paneId}" cropTo="video" flex="1"/>
+      <Row alignSelf="top" width="fill" padding="6" gap="6" align="center"
+           opacity="0" groupHover:opacity="1" animate.type="easeOut" animate.duration="0.15">
+        <Pressable testID="popout-expand" width="24" height="24" cornerRadius="12" align="center" justify="center"
+                   background="#000/0.55" hover:background="#000/0.8" color="#fff" tooltip="Back to the tab" onPress="expand()">
+          <Icon name="arrow.up.left.and.arrow.down.right" size="11" weight="semibold"/>
+        </Pressable>
+        <Text flex="1" fontSize="11" color="#fff" opacity="0.8" lineLimit="1">{title}</Text>
+        <Pressable testID="popout-close" width="24" height="24" cornerRadius="12" align="center" justify="center"
+                   background="#000/0.55" hover:background="#000/0.8" color="#fff" tooltip="Pause and close" onPress="close()">
+          <Icon name="xmark" size="10" weight="bold"/>
+        </Pressable>
+      </Row>
+    </Stack>
+  </Window>
+</view>

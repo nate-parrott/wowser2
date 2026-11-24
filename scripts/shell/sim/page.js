@@ -77,6 +77,16 @@
       renderer.sync();
     });
   }
+  // Feed the `mouse` slice ($mouse / useMouse) from the real pointer.
+  const frame = document.getElementById("window");
+  window.addEventListener("mousemove", (e) => {
+    const r = frame.getBoundingClientRect();
+    const x = Math.round(e.clientX - r.left);
+    const y = Math.round(e.clientY - r.top);
+    fake.state.mouse = { x, y, inside: x >= 0 && y >= 0 && x <= r.width && y <= r.height };
+    made.publish();
+    schedule();
+  });
   window.addEventListener("message", (e) => {
     if (e.data && e.data.__island) window.__shell.dispatch(e.data.__island, "onMessage", JSON.stringify(e.data.message));
   });

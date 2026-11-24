@@ -24,6 +24,9 @@ public final class ShellRouter {
     @ObservationIgnored private var engines: [ID<WindowState>: ShellEngine] = [:]
     #if os(macOS)
     @ObservationIgnored private var keyMonitor: Any?
+    @ObservationIgnored private var scrollMonitor: Any?
+    @ObservationIgnored private var globalMouseMonitor: Any?
+    @ObservationIgnored private var lastGlobalMouse = Date.distantPast
     #endif
 
     private init() {
@@ -132,6 +135,8 @@ public final class ShellRouter {
 
     /// A pane finished loading (`on("load")`).
     public func didFinishLoad(paneID: ID<WebContent>, info: WebContent.Info) {
+        // A new document: in-page watches have to be installed again.
+        ShellPageWatcher.shared.paneDidLoad(paneID)
         guard let engine = listener(for: paneID, event: "load"), let url = info.url else { return }
         let title: ShellJSON = info.title.map { ShellJSON.string($0) } ?? .null
         engine.emit("load", ["paneId": .string(paneID.raw), "url": .string(url.absoluteString), "title": title])
@@ -142,6 +147,36 @@ public final class ShellRouter {
     private func installKeyMonitorIfNeeded() {
         #if os(macOS)
         guard keyMonitor == nil else { return }
+        // Scroll-wheel events for nodes with `onScrollWheel`. Observed, not
+        // consumed: scroll views underneath keep working.
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self, let window = event.window, let view = window.contentView,
+                  let engine = self.engines.values.first(where: { $0.hostWindow === window }), !engine.scrollWheelNodes.isEmpty
+            else { return event }
+            let inView = view.convert(event.locationInWindow, from: nil)
+            let point = CGPoint(x: inView.x, y: view.isFlipped ? inView.y : view.bounds.height - inView.y)
+            for id in engine.scrollWheelNodes {
+                guard let node = engine.tree.node(id), let frame = node.frame, frame.contains(point) else { continue }
+                engine.dispatch(id, "onScrollWheel", [
+                    "dx": .number(Double(event.scrollingDeltaX)), "dy": .number(Double(event.scrollingDeltaY)),
+                    "x": .number(Double(point.x - frame.minX)), "y": .number(Double(point.y - frame.minY)),
+                    "precise": .bool(event.hasPreciseScrollingDeltas),
+                ])
+            }
+            return event
+        }
+        // The pointer anywhere on screen, for branches that listen for
+        // "globalMouse" (hot corners, overlays that follow the cursor).
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+            guard let self else { return }
+            let now = Date()
+            guard now.timeIntervalSince(self.lastGlobalMouse) > 1.0 / 60 else { return }
+            self.lastGlobalMouse = now
+            let point = ShellScreen.topLeft(NSEvent.mouseLocation)
+            for engine in self.engines.values where engine.listening.contains("globalMouse") {
+                engine.emit("globalMouse", ["x": .number(Double(point.x)), "y": .number(Double(point.y))])
+            }
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, let window = event.window,
                   let engine = self.engines.values.first(where: { $0.hostWindow === window }),
@@ -275,6 +310,13 @@ struct ShellWindowView<Native: View>: View {
             }
             #endif
         }
+        .background {
+            // Pointer position for `$mouse`, tracked a little beyond the
+            // window's edges too (edge reveals need that).
+            Color.clear.trackMouseOutsideWindow { point, bounds in
+                engine.mouseMoved(to: point, inside: bounds.contains(point))
+            }
+        }
         .onAppear {
             engine.isDark = colorScheme == .dark
             engine.isFullscreen = isFullscreen
@@ -294,7 +336,7 @@ struct ShellWindowView<Native: View>: View {
 
 /// The window-wide context the built-in `WindowContent` provides: the space's
 /// accent colour, its forced light / dark scheme, and full-bleed layout.
-private struct ShellWindowChrome: ViewModifier {
+struct ShellWindowChrome: ViewModifier {
     let windowID: ID<WindowState>
 
     private struct Snapshot: Equatable {

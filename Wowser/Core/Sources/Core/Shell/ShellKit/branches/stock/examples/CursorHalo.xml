@@ -1,0 +1,11 @@
+<!-- A presenter's spotlight: ⌃⌥H toggles a ring that follows the pointer
+     across the whole screen, in every app. The ring is a click-through
+     overlay window, so it never gets in the way. Draws nothing in the
+     browser window itself. Props: hotkey?, size? -->
+<view>
+  <Window if="{on}" testID="halo" kind="overlay" clickThrough
+          x="{x - size / 2}" y="{y - size / 2}" width="{size}" height="{size}">
+    <Stack flex="1" cornerRadius="{size / 2}" background="accent/0.18"
+           border.color="accent" border.width="2"/>
+  </Window>
+</view>

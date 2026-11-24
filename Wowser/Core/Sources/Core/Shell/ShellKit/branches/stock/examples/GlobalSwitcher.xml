@@ -1,0 +1,32 @@
+<!-- A tab switcher you can summon from any app: ⌃⌥Space shows a floating
+     palette above everything, type to filter, Enter jumps to the tab and
+     brings the browser forward. Esc or clicking elsewhere dismisses it.
+     Draws nothing in the window itself. Props: hotkey? -->
+<view>
+  <Window if="{open}" testID="switcher" kind="overlay" activates shadow
+          width="560" height="430" anchor="top" inset="150"
+          onClose="close()" onBlur="close()">
+    <Column flex="1" align="stretch" justify="start">
+      <Column align="stretch" cornerRadius="16" clip background.material="regular"
+              border.color="separator" border.width="0.5">
+        <Row height="52" gap="10" align="center" padding.horizontal="16">
+          <Icon name="magnifyingglass" size="16" opacity="0.5"/>
+          <TextInput testID="switcher-input" autoFocus flex="1" fontSize="18"
+                     value="{query}" placeholder="Jump to a tab"
+                     onChangeText="{setQuery}" onKey="{onKey}" onSubmit="pick(matches[selected])"/>
+        </Row>
+        <Divider/>
+        <Column align="stretch" padding="6">
+          <Pressable for="(tab, i) in matches.slice(0, 9)" key="{tab.id}" testID="switcher-row-{i}"
+                     height="36" gap="10" align="center" padding.horizontal="10" cornerRadius="8"
+                     background="{i === selected ? 'accent' : 'clear'}" color="{i === selected ? 'onAccent' : 'primary'}"
+                     onPress="pick(tab)">
+            <TabIcon tabId="{tab.id}" size="18"/>
+            <Text flex="1" fontSize="14" lineLimit="1">{tab.title}</Text>
+          </Pressable>
+          <Text if="{matches.length === 0}" padding="12" fontSize="12" color="secondary">No tabs match “{query}”</Text>
+        </Column>
+      </Column>
+    </Column>
+  </Window>
+</view>

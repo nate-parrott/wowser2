@@ -20,4 +20,8 @@ writing its tag in a layout, e.g. in `layouts/ClassicKit.xml`:
 | ReadingList | A drop target that saves links: drag & drop, `useStorage` |
 | WebPanels (template only) | A sidebar web panel (Vivaldi-style): `<WebIsland src="https://…">` |
 | Orb (template only) + widgets/orb.html | A canvas animation in the chrome: `<WebIsland>` with props and messages |
+| PopOutVideo | Picture-in-picture that follows you: `useWatch`, `<Window kind="panel">`, `<WebPane cropTo="video">` |
+| GlobalSwitcher | A tab palette summoned from any app: `useGlobalHotkey`, `<Window kind="overlay" activates>`, `window.activate()` |
+| EdgePeek (template only) | Tab list slides out when the pointer touches the window edge: `$mouse` |
+| CursorHalo | A ring that follows the pointer across the whole screen: `mouse.onGlobalMove`, click-through overlay |
 | behaviours.ts | No UI at all: redirects, per-site CSS, commands — from `setup()` |

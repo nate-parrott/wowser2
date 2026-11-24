@@ -48,6 +48,8 @@ struct ShellNodeView: View {
             ShellWebIslandView(node: node)
         case "windowcontrols":
             ShellWindowControlsView(node: node)
+        case "window":
+            ShellWindowPortalView(node: node)
         case "native":
             ShellNativeView(node: node)
         default:
@@ -57,12 +59,33 @@ struct ShellNodeView: View {
 }
 
 /// The children of a node, each in its own identity-stable view.
+/// `<Window>` children are not laid out here: they are hosted in windows of
+/// their own (see `ShellPortals`).
 struct ShellChildren: View {
     let node: ShellNode
 
     var body: some View {
-        ForEach(node.children) { child in
+        ForEach(node.children.filter { $0.type != "window" }) { child in
             ShellNodeView(node: child)
+        }
+    }
+}
+
+/// Keeps a node's `<Window>` children mounted without giving them a place in
+/// the node's layout.
+struct ShellPortals: ViewModifier {
+    let node: ShellNode
+
+    func body(content: Content) -> some View {
+        let portals = node.children.filter { $0.type == "window" }
+        if portals.isEmpty {
+            content
+        } else {
+            content.background {
+                ForEach(portals) { portal in
+                    ShellNodeView(node: portal)
+                }
+            }
         }
     }
 }
@@ -99,6 +122,7 @@ struct ShellBoxView: View {
         .environment(\.shellStretch, stretch)
         .environment(\.shellFont, inheritedFont.merging(style))
         .animation(ShellMotion.animation(style.animate), value: node.children.map(\.id))
+        .modifier(ShellPortals(node: node))
         .shellStyled(node)
     }
 
@@ -108,13 +132,13 @@ struct ShellBoxView: View {
     private func distributed(_ justify: String?) -> some View {
         switch justify {
         case "between":
-            ForEach(Array(node.children.enumerated()), id: \.element.id) { index, child in
+            ForEach(Array(node.children.filter { $0.type != "window" }.enumerated()), id: \.element.id) { index, child in
                 if index > 0 { Spacer(minLength: 0) }
                 ShellNodeView(node: child)
             }
         case "around", "evenly":
             Spacer(minLength: 0)
-            ForEach(node.children) { child in
+            ForEach(node.children.filter { $0.type != "window" }) { child in
                 ShellNodeView(node: child)
                 Spacer(minLength: 0)
             }
@@ -348,7 +372,7 @@ struct ShellStyledView<Content: View>: View {
         .modifier(ShellClip(shape: shape, clip: style.clip))
         .contentShape(shape, when: interactive)
         .opacity(style.hidden ? 0 : (style.opacity ?? 1))
-        .allowsHitTesting(!style.hidden)
+        .allowsHitTesting(!style.hidden && !style.ignoresPointer)
         .blur(radius: style.blur ?? 0)
         .scaleEffect(x: (style.scale ?? 1) * (style.scaleX ?? 1), y: (style.scale ?? 1) * (style.scaleY ?? 1), anchor: anchor)
         .rotationEffect(.degrees(style.rotate ?? 0), anchor: anchor)
@@ -474,7 +498,8 @@ private struct ShellBackgroundModifier: ViewModifier {
     private func material(_ content: Content, name: String, tint: Color?, interactive: Bool) -> some View {
         switch name {
         case "glass":
-            content.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
+            let glass = Glass.regular.tint(tint)
+            content.glassEffect(interactive ? glass.interactive() : glass, in: shape)
         case "sidebar":
             content.background { TransparentBg().clipShape(shape) }
         default:
@@ -489,12 +514,12 @@ private struct ShellBackgroundModifier: ViewModifier {
 
     private static func systemMaterial(_ name: String) -> Material {
         switch name {
-        case "ultraThin": return .ultraThinMaterial
-        case "thin": return .thinMaterial
-        case "thick": return .thickMaterial
-        case "ultraThick": return .ultraThickMaterial
+        case "ultraThin": return .ultraThin
+        case "thin": return .thin
+        case "thick": return .thick
+        case "ultraThick": return .ultraThick
         case "bar": return .bar
-        default: return .regularMaterial
+        default: return .regular
         }
     }
 }

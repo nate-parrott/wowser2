@@ -304,8 +304,8 @@ Two syncing instances for manual testing: `scripts/sync_test/run_two.sh`.
 
 # Shell: scripted browser UI (Core/Shell)
 
-The window can be drawn by a user-editable "branch" of TS/JSX instead of the
-built-in SwiftUI. Read `shell.md` before touching it. Off unless
+The window can be drawn by a user-editable "branch" of XML templates + TS
+logic instead of the built-in SwiftUI. Read `shell.md` before touching it. Off unless
 `DefaultsKeys.shellBranch` is set; a failing branch falls back to the
 built-in UI.
 
@@ -323,7 +323,11 @@ built-in UI.
   (`ShellStyledView`). Don't add JS round-trips for them.
 - Text inputs drawn by a branch take focus as `FocusTarget.shellInput`
   (see "Keyboard focus" above); don't add another focus path.
-- `ShellKit/branches/stock` is the seed branch. `layouts/Classic.tsx` must
+- A view is an XML template (`X.xml`) plus optional logic (`X.ts`); the
+  template language lives in `ShellKit/runtime/lib/template.js` and is
+  compiled in JS, not Swift. Templates must keep rendering without their
+  logic file — don't make a template depend on logic for its structure.
+- `ShellKit/branches/stock` is the seed branch. `layouts/Classic.xml` must
   keep using native composites only, so it stays identical to the built-in UI.
 - Agents drive it through `ShellTools` (MCP `shell` / `shell_docs`,
   BrowserJS `browser.shell`). `ShellKit/runtime/SKILL.md` is what they read.

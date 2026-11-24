@@ -18,10 +18,10 @@ final class ShellBranchStoreTests: XCTestCase {
     func testSeedsStockAndOverlaySeed() {
         let store = tempStore()
         XCTAssertEqual(store.list().map(\.name), ["stock", "chrome"])
-        XCTAssertTrue(store.files(in: "chrome").contains("kit/TabStrip.tsx"), "the chrome seed is stock plus an overlay")
-        XCTAssertEqual(store.read(branch: "chrome", path: "mac/index.tsx")?.contains("Chrome"), true)
+        XCTAssertTrue(store.files(in: "chrome").contains("kit/TabStrip.xml"), "the chrome seed is stock plus an overlay")
+        XCTAssertEqual(store.read(branch: "chrome", path: "mac/index.xml")?.contains("Chrome"), true)
         XCTAssertNil(store.manifest("chrome").seedBase)
-        XCTAssertEqual(store.entry(branch: "stock", platform: "mac"), "mac/index.tsx")
+        XCTAssertEqual(store.entry(branch: "stock", platform: "mac"), "mac/index.xml")
     }
 
     func testStockIsReadOnly() {
@@ -34,39 +34,39 @@ final class ShellBranchStoreTests: XCTestCase {
     func testWriteUndoRedo() throws {
         let store = tempStore()
         try store.create(name: "mine", from: "stock", title: "Mine")
-        let original = try XCTUnwrap(store.read(branch: "mine", path: "mac/index.tsx"))
-        try store.write(branch: "mine", files: ["mac/index.tsx": "// v2", "widgets/new.tsx": "export default 1"], checkpointLabel: "Change entry")
-        try store.write(branch: "mine", files: ["mac/index.tsx": "// v3", "widgets/new.tsx": nil], checkpointLabel: "Third")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), "// v3")
+        let original = try XCTUnwrap(store.read(branch: "mine", path: "mac/index.xml"))
+        try store.write(branch: "mine", files: ["mac/index.xml": "// v2", "widgets/new.tsx": "export default 1"], checkpointLabel: "Change entry")
+        try store.write(branch: "mine", files: ["mac/index.xml": "// v3", "widgets/new.tsx": nil], checkpointLabel: "Third")
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), "// v3")
         XCTAssertFalse(store.fileExists(branch: "mine", path: "widgets/new.tsx"))
 
         XCTAssertEqual(try store.undo(branch: "mine"), "Third")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), "// v2")
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), "// v2")
         XCTAssertTrue(store.fileExists(branch: "mine", path: "widgets/new.tsx"), "undo restores deleted files")
         _ = try store.undo(branch: "mine")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), original)
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), original)
         XCTAssertThrowsError(try store.undo(branch: "mine"))
 
         _ = try store.redo(branch: "mine")
         _ = try store.redo(branch: "mine")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), "// v3")
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), "// v3")
 
         // A new change drops the redo stack.
         _ = try store.undo(branch: "mine")
-        try store.write(branch: "mine", files: ["mac/index.tsx": "// v4"], checkpointLabel: "Fourth")
+        try store.write(branch: "mine", files: ["mac/index.xml": "// v4"], checkpointLabel: "Fourth")
         XCTAssertFalse(store.info(for: "mine").canRedo)
     }
 
     func testRestoreLastGoodIsUndoable() throws {
         let store = tempStore()
         try store.create(name: "mine")
-        try store.write(branch: "mine", files: ["mac/index.tsx": "// good"], checkpointLabel: "good")
+        try store.write(branch: "mine", files: ["mac/index.xml": "// good"], checkpointLabel: "good")
         store.markGood(branch: "mine")
-        try store.write(branch: "mine", files: ["mac/index.tsx": "broken("], checkpointLabel: "break")
+        try store.write(branch: "mine", files: ["mac/index.xml": "broken("], checkpointLabel: "break")
         try store.restoreGood(branch: "mine")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), "// good")
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), "// good")
         _ = try store.undo(branch: "mine")
-        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.tsx"), "broken(")
+        XCTAssertEqual(store.read(branch: "mine", path: "mac/index.xml"), "broken(")
     }
 
     func testRejectsUnsafePathsAndNames() throws {
@@ -171,9 +171,17 @@ final class ShellEngineTests: XCTestCase {
     }
 
     private func makeEngine(entry source: String) throws -> ShellEngine {
+        try makeEngine(files: ["t/index.tsx": source], entry: "t/index.tsx")
+    }
+
+    /// A fork of stock with `files` added and `entry` as its Mac entry.
+    private func makeEngine(files: [String: String], entry: String) throws -> ShellEngine {
         let name = "t" + UUID().uuidString.prefix(6).lowercased()
         try store.create(name: name)
-        try store.write(branch: name, files: ["mac/index.tsx": source], checkpointLabel: nil)
+        var all: [String: String?] = [:]
+        for (path, source) in files { all[path] = source }
+        all["manifest.json"] = #"{ "name": "Test", "entry": { "mac": "\#(entry)", "ios": "\#(entry)" } }"#
+        try store.write(branch: name, files: all, checkpointLabel: nil)
         let engine = ShellEngine(branch: name, windowID: windowID, platform: "mac", store: store)
         addTeardownBlock { engine.stop() }
         engine.start()
@@ -214,7 +222,7 @@ final class ShellEngineTests: XCTestCase {
 
         let info = try XCTUnwrap(engine.describeNode(button.id))
         XCTAssertEqual(info["type"]?.string, "row")
-        XCTAssertEqual(info["file"]?.string, "mac/index.tsx")
+        XCTAssertEqual(info["file"]?.string, "t/index.tsx")
         XCTAssertEqual(info["line"]?.int, 4)
     }
 
@@ -222,7 +230,7 @@ final class ShellEngineTests: XCTestCase {
         let engine = try makeEngine(entry: "export default function App() { return <Row>; }")
         let failure = try XCTUnwrap(engine.failure)
         XCTAssertTrue(failure.fatal)
-        XCTAssertTrue(failure.message.contains("mac/index.tsx"), failure.message)
+        XCTAssertTrue(failure.message.contains("t/index.tsx"), failure.message)
     }
 
     func testRootRenderErrorRendersTheErrorScreenNode() throws {
@@ -289,6 +297,119 @@ final class ShellEngineTests: XCTestCase {
         XCTAssertEqual(engine.emit("navigate", ["url": "https://blocked.example/"])?["cancel"]?.bool, true)
         XCTAssertEqual(engine.emit("navigate", ["url": "https://old.example/"])?["redirect"]?.string, "https://new.example/")
         XCTAssertNil(engine.emit("navigate", ["url": "https://fine.example/"]))
+    }
+    // MARK: Templates
+
+    func testTemplateWithLogicRendersAndHandlesEvents() throws {
+        let engine = try makeEngine(files: [
+            "t/index.xml": """
+            <view>
+              <Row testID="btn" height="30" hover:background="accent/0.2" onPress="bump()">
+                <Text>Count {n} of {$tabs.tabs.length >= 0 ? "tabs" : "?"}</Text>
+                <Text if="{n > 1}" testID="many">many</Text>
+              </Row>
+            </view>
+            """,
+            "t/index.ts": """
+            import { useState } from "wowser";
+            export default function () {
+              const [n, setN] = useState(0);
+              return { n, bump: () => setN(n + 1) };
+            }
+            """,
+        ], entry: "t/index.xml")
+        XCTAssertNil(engine.failure, engine.failure?.summary ?? "")
+        let root = try XCTUnwrap(engine.tree.roots[ShellEngine.rootKey])
+        let button = try XCTUnwrap(find(root) { $0.string("testID") == "btn" })
+        XCTAssertEqual(button.type, "row")
+        XCTAssertEqual(button.props["style"]?["height"]?.double, 30)
+        XCTAssertEqual(button.props["style"]?["hover"]?["background"]?.string, "accent/0.2")
+        XCTAssertEqual(text(root), "Count 0 of tabs")
+        engine.dispatch(button.id, "onPress", ["modifiers": [:], "x": 0, "y": 0])
+        engine.dispatch(button.id, "onPress", ["modifiers": [:], "x": 0, "y": 0])
+        XCTAssertNotNil(find(root) { $0.string("testID") == "many" })
+    }
+
+    /// The point of templates: they draw without logic, and half-written.
+    func testTemplateRendersWithoutLogicAndUnfinished() throws {
+        let engine = try makeEngine(files: [
+            "t/index.xml": """
+            <view state="{ open: false }">
+              <Column testID="col" onPress="open = !open">
+                <Text testID="label">{open ? "open" : "closed"}</Text>
+                <Row><Text>still being writ
+            """,
+            // A logic file that cannot load must not take the view down.
+            "t/index.ts": "export default function () { return {; }",
+        ], entry: "t/index.xml")
+        XCTAssertNil(engine.failure, engine.failure?.summary ?? "")
+        let root = try XCTUnwrap(engine.tree.roots[ShellEngine.rootKey])
+        let column = try XCTUnwrap(find(root) { $0.string("testID") == "col" })
+        func label() -> String? { find(root) { $0.string("testID") == "label" }.map(text) }
+        XCTAssertEqual(label(), "closed")
+        engine.dispatch(column.id, "onPress", ["modifiers": [:], "x": 0, "y": 0])
+        XCTAssertEqual(label(), "open")
+        XCTAssertTrue(text(root).contains("still being writ"))
+        XCTAssertFalse(engine.errors.isEmpty, "the broken logic file is reported, not fatal")
+    }
+
+    // MARK: Windows, pointer, web framing
+
+    func testWindowNodesPointerSliceAndGlobalCommands() throws {
+        let engine = try makeEngine(files: [
+            "t/index.xml": """
+            <view>
+              <Stack flex="1">
+                <Text testID="mouse">{$mouse.inside ? $mouse.x + "," + $mouse.y : "outside"}</Text>
+                <Window testID="panel" kind="panel" width="320" height="180" anchor="bottomTrailing" inset="20" resizable>
+                  <Text>in a panel</Text>
+                </Window>
+              </Stack>
+            </view>
+            """,
+            "t/index.ts": """
+            import { useGlobalHotkey } from "wowser";
+            export default function () { useGlobalHotkey("ctrl+alt+shift+f19", () => {}); return {}; }
+            """,
+        ], entry: "t/index.xml")
+        XCTAssertNil(engine.failure, engine.failure?.summary ?? "")
+        let root = try XCTUnwrap(engine.tree.roots[ShellEngine.rootKey])
+        let panel = try XCTUnwrap(find(root) { $0.type == "window" })
+        XCTAssertEqual(panel.double("width"), 320)
+        XCTAssertEqual(panel.string("anchor"), "bottomTrailing")
+        XCTAssertTrue(panel.bool("resizable"))
+        XCTAssertNil(panel.props["style"], "a window's geometry is props, not style")
+        XCTAssertEqual(text(panel), "in a panel")
+
+        func mouse() -> String? { find(root) { $0.string("testID") == "mouse" }.map(text) }
+        XCTAssertEqual(mouse(), "outside")
+        engine.mouseMoved(to: CGPoint(x: 12, y: 34), inside: true)
+        XCTAssertEqual(mouse(), "12,34")
+
+        XCTAssertEqual(engine.commands.values.filter(\.global).map(\.hotkey), ["ctrl+alt+shift+f19"])
+    }
+
+    func testWebFraming() {
+        let node = CGSize(width: 300, height: 200)
+        // A 1200-wide viewport in a 300-wide node: quarter scale, page fills the node.
+        var p = ShellWebFraming(viewportWidth: 1200).placement(in: node)
+        XCTAssertEqual(p.layout, CGSize(width: 1200, height: 800))
+        XCTAssertEqual(p.scale, 0.25)
+        XCTAssertEqual(p.offset, .zero)
+
+        // Crop to a 600×200 strip at (100, 50): fits the width, centred vertically.
+        p = ShellWebFraming(crop: CGRect(x: 100, y: 50, width: 600, height: 200)).placement(in: node)
+        XCTAssertEqual(p.layout, node, "without a viewport the page lays out at the node's size")
+        XCTAssertEqual(p.scale, 0.5)
+        XCTAssertEqual(p.offset, CGPoint(x: -50, y: 25))
+
+        // Fill instead of fit: covers the node, cropping the sides.
+        p = ShellWebFraming(crop: CGRect(x: 100, y: 50, width: 600, height: 200), fill: true).placement(in: node)
+        XCTAssertEqual(p.scale, 1)
+        XCTAssertEqual(p.offset, CGPoint(x: -250, y: -50))
+
+        XCTAssertNil(ShellWebFraming.rect(["x": 0, "y": 0, "width": 0, "height": 10]), "an empty element is no crop")
+        XCTAssertEqual(ShellWebFraming.rect(["x": 5, "y": 6, "width": 70, "height": 80]), CGRect(x: 5, y: 6, width: 70, height: 80))
     }
 }
 #endif

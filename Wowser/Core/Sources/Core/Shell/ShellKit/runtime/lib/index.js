@@ -48,6 +48,9 @@ const WebPane = "webpane";
 const WebIsland = "webisland";
 /** macOS traffic lights, for UIs that put them somewhere of their own. */
 const WindowControls = "windowcontrols";
+/** Its children are drawn in their own native window: a floating panel, a
+ *  pop-out, or a borderless overlay above every app. */
+const Window = "window";
 
 function flattenText(children, out, style) {
   if (children == null || typeof children === "boolean") return;
@@ -227,9 +230,10 @@ function useCommand(cmd) {
         icon: cmd.icon,
         hotkey: cmd.hotkey,
         keywords: cmd.keywords,
+        global: cmd.global,
         run: (e) => ref.current.run(e),
       }),
-    [cmd.id, cmd.title, cmd.icon, cmd.hotkey]
+    [cmd.id, cmd.title, cmd.icon, cmd.hotkey, cmd.global]
   );
 }
 
@@ -238,6 +242,50 @@ let hotkeySeq = 1;
 function useHotkey(combo, fn) {
   const id = R.useMemo(() => "hotkey:" + hotkeySeq++, []);
   useCommand({ id, title: "", hotkey: combo, run: fn });
+}
+
+/** Bind a key combination system-wide: it fires even while another app is
+ *  in front (macOS). */
+function useGlobalHotkey(combo, fn) {
+  const id = R.useMemo(() => "hotkey:" + hotkeySeq++, []);
+  useCommand({ id, title: "", hotkey: combo, global: true, run: fn });
+}
+
+/** The pointer in this window: `{x, y, inside}`, live. Tracked a little
+ *  past the window's edges, so edge reveals work. */
+function useMouse() {
+  return store.useSlice("mouse") || { x: 0, y: 0, inside: false };
+}
+
+/** The screen this window is on: `{width, height, visible: {x, y, width, height}}`. */
+function useScreen() {
+  return store.useSlice("screen") || { width: 0, height: 0, visible: { x: 0, y: 0, width: 0, height: 0 } };
+}
+
+/** The live value of a JS expression inside a pane's page (null until the
+ *  page answers, and again right after `paneId` or `js` change). See
+ *  `panes.watch`. */
+function useWatch(paneId, js, opts) {
+  const key = paneId && js ? paneId + "\n" + js : null;
+  const throttleMs = opts && opts.throttleMs;
+  const [state, setState] = R.useState({ key: null, value: null });
+  R.useEffect(() => {
+    if (!key) return undefined;
+    return api.panes.watch(paneId, js, (value) => setState({ key, value }), { throttleMs });
+  }, [key, throttleMs]);
+  return state.key === key ? state.value : null;
+}
+
+/** Where an element of the page is, live: `{x, y, width, height,
+ *  viewportWidth, viewportHeight}` or null while there is none. */
+function useElementRect(paneId, selector) {
+  const key = paneId && selector ? paneId + "\n" + selector : null;
+  const [state, setState] = R.useState({ key: null, value: null });
+  R.useEffect(() => {
+    if (!key) return undefined;
+    return api.panes.watchElement(paneId, selector, (value) => setState({ key, value }));
+  }, [key]);
+  return state.key === key ? state.value : null;
 }
 
 /** Menu props for any box: `<Row {...useContextMenu(items)}>`. */
@@ -342,6 +390,7 @@ module.exports = Object.assign(
     WebPane,
     WebIsland,
     WindowControls,
+    Window,
     Native,
     // state
     WindowContext,
@@ -364,6 +413,11 @@ module.exports = Object.assign(
     useEvent,
     useCommand,
     useHotkey,
+    useGlobalHotkey,
+    useMouse,
+    useScreen,
+    useWatch,
+    useElementRect,
     useContextMenu,
     useInterval,
     useNow,
@@ -387,6 +441,7 @@ module.exports = Object.assign(
     menus: api.menus,
     shell: api.shell,
     haptics: api.haptics,
+    mouse: api.mouse,
     call: api.call,
     callAsync: api.callAsync,
   }

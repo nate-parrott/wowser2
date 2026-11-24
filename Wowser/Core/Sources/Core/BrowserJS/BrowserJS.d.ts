@@ -929,7 +929,7 @@ declare global {
      *
      *   await browser.shell("create", { name: "mine", from: "stock" });
      *   await browser.shell("write", { branch: "mine", summary: "Add a clock",
-     *     files: { "widgets/Clock.tsx": "…" } });          // → { check: { ok, errors } }
+     *     files: { "widgets/Clock.xml": "…" } });          // → { check: { ok, errors } }
      *   const { windowId } = await browser.shell("preview", { branch: "mine" });
      *   browser.viewImage(await browser.shell("screenshot", { windowId }));
      *   await browser.shell("activate", { branch: "mine" }); // when the user is happy

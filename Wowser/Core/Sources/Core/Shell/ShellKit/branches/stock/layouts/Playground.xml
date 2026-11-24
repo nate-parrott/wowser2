@@ -21,7 +21,7 @@
             <TabStrip if="{!$window.sidebarVisible}"/>
             <Toolbar if="{!empty}" bar="{bar}"/>
           </Column>
-          <native:Content toolbar="hidden" flex="1"/>
+          <EdgePeek><native:Content toolbar="hidden" flex="1"/></EdgePeek>
           <Column if="{empty}" flex="1" align="center" justify="center" gap="10">
             <CommandBar bar="{bar}"/>
             <SpeedDial/>
@@ -39,5 +39,9 @@
       <WebPanels/>
     </Row>
     <TabSearch/>
+    <!-- These draw outside the window: a video panel, a palette, a cursor ring. -->
+    <PopOutVideo/>
+    <GlobalSwitcher/>
+    <CursorHalo/>
   </Stack>
 </view>

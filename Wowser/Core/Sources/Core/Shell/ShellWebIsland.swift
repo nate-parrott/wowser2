@@ -168,7 +168,7 @@ private func makeIslandWebView(engine: ShellEngine, coordinator: ShellIslandCoor
         webView.underPageBackgroundColor = .clear
         // WKWebView paints an opaque background unless told otherwise; the
         // switch isn't in the public headers, so only use it if it's there.
-        let setter = NSSelectorFromString("setDraws" + "Background:")
+        let setter = NSSelectorFromString("_setDraws" + "Background:")
         if webView.responds(to: setter) {
             webView.setValue(false, forKey: "draws" + "Background")
         }
